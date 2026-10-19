@@ -12,9 +12,10 @@ public interface IProcessIterationsQueryService
     /// historical rows are excluded. When <paramref name="finishedOnly"/> is true,
     /// the in-flight iteration (one with a genuinely Running run) is excluded from
     /// both the page and the total, so a "completed history" list paginates
-    /// correctly.
+    /// correctly. <paramref name="lane"/> (<c>fetch</c> or <c>aggregate</c>, case-insensitive)
+    /// keeps only the passes that ran that lane; anything else applies no lane filter.
     /// </summary>
-    Task<ProcessIterationsReadModel> GetAsync(int? page, int? pageSize, bool finishedOnly, CancellationToken ct);
+    Task<ProcessIterationsReadModel> GetAsync(int? page, int? pageSize, bool finishedOnly, string? lane, CancellationToken ct);
 }
 
 public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IProcessIterationsQueryService
@@ -23,7 +24,13 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IPro
     private const int MinPageSize = 1;
     private const int MaxPageSize = 50;
 
-    public async Task<ProcessIterationsReadModel> GetAsync(int? page, int? pageSize, bool finishedOnly, CancellationToken ct)
+    // The Job:Mode values a lane's passes are recorded under (#1362). A Full pass runs both lanes,
+    // so it belongs to either list; a single-process pass belongs to neither and only shows unfiltered.
+    private static readonly string[] FetchLaneModes = ["FetchLane", "Full"];
+    private static readonly string[] AggregateLaneModes = ["AggregateLane", "Full"];
+
+    public async Task<ProcessIterationsReadModel> GetAsync(
+        int? page, int? pageSize, bool finishedOnly, string? lane, CancellationToken ct)
     {
         var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, MinPageSize, MaxPageSize);
@@ -40,7 +47,7 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IPro
         // still-fresh heartbeat — the same staleness rule the read mapping uses)
         // from BOTH the page and the total.
         var headerPage = await store.QueryIterationsAsync(
-            effectivePage, effectivePageSize, finishedOnly, freshCutoff, ct);
+            effectivePage, effectivePageSize, finishedOnly, JobModesForLane(lane), freshCutoff, ct);
 
         if (headerPage.Headers.Count == 0)
         {
@@ -100,4 +107,11 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IPro
             PageSize = effectivePageSize
         };
     }
+
+    private static string[]? JobModesForLane(string? lane) => lane?.Trim().ToLowerInvariant() switch
+    {
+        "fetch" => FetchLaneModes,
+        "aggregate" => AggregateLaneModes,
+        _ => null
+    };
 }

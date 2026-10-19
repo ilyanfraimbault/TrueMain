@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("ffd52a3a-6673-434e-b95f-8346e5553b7c"), entityTypeCount: 37)
+            : base(skipDetectChanges: false, modelId: new Guid("02d4a8b1-9386-4aa2-ad2d-a67af1872e99"), entityTypeCount: 38)
         {
         }
 
@@ -28,6 +28,7 @@ namespace Data.CompiledModels
             var championDimSkillOrder = ChampionDimSkillOrderEntityType.Create(this);
             var championDimSpellPair = ChampionDimSpellPairEntityType.Create(this);
             var championDimStarterItems = ChampionDimStarterItemsEntityType.Create(this);
+            var championGameCount = ChampionGameCountEntityType.Create(this);
             var championItemContextStat = ChampionItemContextStatEntityType.Create(this);
             var championItemContextTotal = ChampionItemContextTotalEntityType.Create(this);
             var championItemContextVerdict = ChampionItemContextVerdictEntityType.Create(this);
@@ -84,6 +85,7 @@ namespace Data.CompiledModels
             ChampionDimSkillOrderEntityType.CreateAnnotations(championDimSkillOrder);
             ChampionDimSpellPairEntityType.CreateAnnotations(championDimSpellPair);
             ChampionDimStarterItemsEntityType.CreateAnnotations(championDimStarterItems);
+            ChampionGameCountEntityType.CreateAnnotations(championGameCount);
             ChampionItemContextStatEntityType.CreateAnnotations(championItemContextStat);
             ChampionItemContextTotalEntityType.CreateAnnotations(championItemContextTotal);
             ChampionItemContextVerdictEntityType.CreateAnnotations(championItemContextVerdict);
@@ -113,7 +115,7 @@ namespace Data.CompiledModels
             RiotAccountEntityType.CreateAnnotations(riotAccount);
 
             AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-            AddAnnotation("ProductVersion", "10.0.12");
+            AddAnnotation("ProductVersion", "10.0.13");
             AddAnnotation("Relational:MaxIdentifierLength", 63);
         }
     }

@@ -2,11 +2,17 @@ using Data.Entities;
 
 namespace Ingestor.Processes.Components.PatternAggregation;
 
-internal sealed class ChampionPatternAggregationInputs
-{
-    public required List<AggregateScopeKey> ExistingAggregateScopes { get; init; }
-    public required List<AggregateSourceRow> SourceRows { get; init; }
-}
+/// <summary>
+/// The unit the pattern aggregation rebuilds (#1367): one account's games on one champion,
+/// patch and platform. Every scope row lives inside exactly one slice — the scope adds the
+/// position and the elo bracket, both read off the games — so replacing a slice's scopes
+/// from that slice's games alone is complete, and nothing outside it can change.
+/// </summary>
+internal readonly record struct AggregateSliceKey(
+    Guid RiotAccountId,
+    int ChampionId,
+    string GameVersion,
+    string PlatformId);
 
 internal sealed class ChampionPatternAggregationResult
 {
@@ -55,10 +61,11 @@ internal sealed class AggregateSourceRow
     public int PerksFlex { get; init; }
     public int PerksDefense { get; init; }
 
-    // Elo bucket of the player at game time, resolved after the initial LINQ
-    // projection by HydrateEloBracketsAsync (nearest rank_snapshots capture to
-    // GameStartTimeUtc). Defaults to UNRANKED when no snapshot is found.
-    public string EloBracket { get; set; } = Core.Lol.Ranking.EloBracket.Unranked;
+    // Elo bucket of the player at game time: match_participants.elo_bracket, the stamp
+    // MatchParticipantEloBracketEnrichment writes once, so a scope and the live panels
+    // bucket a game the same way (#1365, #1367). UNRANKED while the stamp is still empty
+    // (no snapshot yet); stamping it later re-queues the match.
+    public string EloBracket { get; init; } = Core.Lol.Ranking.EloBracket.Unranked;
 
     // Populated after the initial LINQ projection by HydratePerkSelectionsAsync
     // (the six individual perk ids live in participant_perk_selections ⋈
@@ -134,8 +141,3 @@ internal sealed record ExpandedSourceRow(
     public string StarterItemsKey { get; } = string.Join("-", StarterItems.Order());
 }
 
-internal sealed record AggregateScopeKey(
-    int ChampionId,
-    string GameVersion,
-    string PlatformId,
-    int QueueId);

@@ -74,6 +74,21 @@ defineProps<{
     />
 
     <!--
+      Lane opponents on one axis by lane win rate at 15 min (#2094). It
+      replaced the sidebar's best/worst matchups list: the whole field at
+      once needs the main column's width.
+    -->
+    <LazyChampionMatchupSpread
+      hydrate-on-visible
+      :champion-id="championId"
+      :position="selectedPosition"
+      :patch="patch"
+      :elo-bracket="eloBracket"
+      v-bind="snapshots.matchupsSnapshot.value"
+      @vue:mounted="snapshots.matchupsSnapshot.reveal"
+    />
+
+    <!--
       Duo/trio synergies (#922). In the main column rather than the
       sidebar: the rows carry four columns plus a lane filter, and picking
       a partner expands a second list underneath.

@@ -2011,6 +2011,7 @@ d'abord, chacune portant ses runs ordonnés.
 | `page`         | int  | non | 1-based (clamp ≥ 1). |
 | `pageSize`     | int  | non | Clamp [1, 50], défaut 10. |
 | `finishedOnly` | bool | non | Exclut l'itération en cours. Défaut `false`. |
+| `lane`         | string | non | `fetch` ou `aggregate` : seulement les passes de cette lane (une passe `Full` compte pour les deux, une passe mono-process pour aucune). Absent ou inconnu : pas de filtre. |
 
 **Réponse `200`** — `ProcessIterationsReadModel`
 

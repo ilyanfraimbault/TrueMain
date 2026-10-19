@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatScalar, humanizeKey, isPlainObject, isScalar } from '~~/shared/utils/process-summary'
+import { formatScalar, humanizeKey, isPlainObject, isScalar, summaryRecap } from '~~/shared/utils/process-summary'
 
 describe('humanizeKey', () => {
   it('splits camelCase into words', () => {
@@ -124,5 +124,37 @@ describe('formatScalar', () => {
   it('passes strings through', () => {
     expect(formatScalar('EUW1')).toBe('EUW1')
     expect(formatScalar('')).toBe('')
+  })
+})
+
+describe('summaryRecap', () => {
+  it('surfaces the reason a run recorded for doing nothing', () => {
+    const recap = summaryRecap({ reason: 'Within MinRunInterval; discovery skipped this iteration.', skipped: true })
+
+    expect(recap.reason).toBe('Within MinRunInterval; discovery skipped this iteration.')
+    expect(recap.fields).toEqual([])
+  })
+
+  it('takes the first top-level counters, skipping flags and nested rows', () => {
+    const recap = summaryRecap({
+      platforms: [{ platform: 'EUW1', scored: 78 }],
+      candidatesInserted: 21,
+      budgetExhausted: true,
+      candidatesUpdated: 2590,
+      accountsCreated: 21,
+      eligibleKnown: 18143,
+    })
+
+    expect(recap.reason).toBeNull()
+    expect(recap.fields).toEqual([
+      { label: 'Candidates Inserted', value: '21' },
+      { label: 'Candidates Updated', value: '2,590' },
+      { label: 'Accounts Created', value: '21' },
+    ])
+  })
+
+  it('returns nothing for a summary that is not an object', () => {
+    expect(summaryRecap(null)).toEqual({ reason: null, fields: [] })
+    expect(summaryRecap([{ a: 1 }])).toEqual({ reason: null, fields: [] })
   })
 })

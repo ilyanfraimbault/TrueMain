@@ -76,7 +76,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "true"
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=30;No Reset On Close=true;Application Name=truemain-api
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=22;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Ops__ApiKey: ${OPS_API_KEY}
@@ -138,7 +138,6 @@ services:
       NUXT_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-truemain}
       NUXT_PUBLIC_UMAMI_URL: http://localhost:3100
       NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
-      NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
       api:
         condition: service_healthy
@@ -156,7 +155,7 @@ services:
     init: true
     environment:
       DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=40;No Reset On Close=true;Application Name=truemain-ingestor
+      ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=8;No Reset On Close=true;Application Name=truemain-ingestor
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       Riot__ApiKey: ${RIOT_API_KEY}
       Job__Mode: ${INGESTOR_JOB_MODE:-Full}
@@ -230,8 +229,8 @@ configs:
   pgbouncer_ini:
     content: |
       [databases]
-      ${POSTGRES_DB} = host=postgres port=5432 auth_user=${POSTGRES_USER} connect_query='SET idle_in_transaction_session_timeout = 60000'
-      ${POSTGRES_DB}_api = host=postgres port=5432 dbname=${POSTGRES_DB} auth_user=${POSTGRES_USER} connect_query='SET idle_in_transaction_session_timeout = 60000; SET statement_timeout = 60000'
+      ${POSTGRES_DB} = host=postgres port=5432 auth_user=${POSTGRES_USER} pool_size=8 max_db_connections=8 connect_query='SET idle_in_transaction_session_timeout = 60000'
+      ${POSTGRES_DB}_api = host=postgres port=5432 dbname=${POSTGRES_DB} auth_user=${POSTGRES_USER} pool_size=22 max_db_connections=22 connect_query='SET idle_in_transaction_session_timeout = 60000; SET statement_timeout = 60000'
 
       [pgbouncer]
       listen_addr = 0.0.0.0
@@ -241,10 +240,8 @@ configs:
       auth_type = scram-sha-256
       pool_mode = transaction
       max_client_conn = 1000
-      default_pool_size = 25
       min_pool_size = 5
-      reserve_pool_size = 5
-      reserve_pool_timeout = 3
+      reserve_pool_size = 0
       max_user_connections = 30
       query_wait_timeout = 30
       ignore_startup_parameters = extra_float_digits

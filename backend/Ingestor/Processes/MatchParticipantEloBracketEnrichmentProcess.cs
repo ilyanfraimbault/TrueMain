@@ -1,5 +1,6 @@
 using Core.Lol.Ranking;
 using Data;
+using Data.Aggregation;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
@@ -129,6 +130,13 @@ public sealed class MatchParticipantEloBracketEnrichmentProcess(
                     .Where(p => ids.Contains(p.Id))
                     .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.EloBracket, band), ct);
             }
+
+            // The pattern aggregation buckets a game by this stamp (#1367), and a row it
+            // already folded while the stamp was still empty sits under UNRANKED until its
+            // slice is rebuilt. Freshly ingested matches are pending anyway; this only
+            // re-queues the ones a late first snapshot just resolved.
+            await PatternAggregationInvalidation.InvalidateMatchesOfParticipantsAsync(
+                db, idsByBand.Values.SelectMany(ids => ids).ToList(), ct);
 
             totalStamped += batch.Count - deferred;
             totalDeferred += deferred;

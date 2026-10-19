@@ -145,6 +145,42 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetProcessIterationsAsync_Lane_KeepsOnlyThePassesThatRanIt()
+    {
+        var now = DateTime.UtcNow;
+        var fetch = Guid.NewGuid();
+        var aggregate = Guid.NewGuid();
+        var full = Guid.NewGuid();
+        var single = Guid.NewGuid();
+
+        await Runs().InsertManyAsync(
+        [
+            BuildRun(fetch, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-40), "FetchLane"),
+            BuildRun(fetch, "MatchIngestion", ProcessRunStatus.Success, now.AddMinutes(-38), "FetchLane"),
+            BuildRun(aggregate, "MainAnalysis", ProcessRunStatus.Success, now.AddMinutes(-30), "AggregateLane"),
+            BuildRun(full, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-20), "Full"),
+            BuildRun(full, "MainAnalysis", ProcessRunStatus.Success, now.AddMinutes(-18), "Full"),
+            BuildRun(single, "Harvest", ProcessRunStatus.Success, now.AddMinutes(-10), "HarvestOnly")
+        ]);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateClient(factory);
+
+        // Whole iterations come back, every run included, and the total counts the lane only.
+        var fetchPage = await GetPayloadAsync(client, "/ops/process-iterations?lane=fetch");
+        fetchPage.Total.Should().Be(2);
+        fetchPage.Iterations.Select(iteration => iteration.IterationId).Should().Equal(full, fetch);
+        fetchPage.Iterations[1].Runs.Should().HaveCount(2);
+
+        var aggregatePage = await GetPayloadAsync(client, "/ops/process-iterations?lane=Aggregate");
+        aggregatePage.Iterations.Select(iteration => iteration.IterationId).Should().Equal(full, aggregate);
+
+        // An unknown lane filters nothing, the way an unknown status does on /process-runs.
+        var unknown = await GetPayloadAsync(client, "/ops/process-iterations?lane=nope");
+        unknown.Total.Should().Be(4);
+    }
+
+    [Fact]
     public async Task GetProcessIterationsAsync_ShouldRequireOpsApiKey()
     {
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -184,7 +220,8 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
         Guid? iterationId,
         string processName,
         ProcessRunStatus status,
-        DateTime startedAtUtc)
+        DateTime startedAtUtc,
+        string? jobMode = null)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -194,7 +231,8 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
             FinishedAtUtc = startedAtUtc.AddMinutes(1),
             DurationMs = (int)TimeSpan.FromMinutes(1).TotalMilliseconds,
             Status = status,
-            Host = "test-host"
+            Host = "test-host",
+            JobMode = jobMode
         };
 
     // Fresh heartbeat (mirrors the start, as RecordStartAsync does in production)

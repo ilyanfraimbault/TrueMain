@@ -47,7 +47,7 @@ public static class NextItemTermBuilder
     }
 
     /// <summary>The slots the model serves. Starters are decided before the game opens and the draft already shows them.</summary>
-    private static readonly ItemContextSlot[] ServedSlots = [ItemContextSlot.Build, ItemContextSlot.Boots];
+    private static readonly ItemContextSlot[] ServedSlots = [ItemContextSlot.Build, ItemContextSlot.Boots, ItemContextSlot.BootsTiming];
 
     public static IReadOnlyList<ChampionNextItemTerm> Build(
         ItemContextScope scope,

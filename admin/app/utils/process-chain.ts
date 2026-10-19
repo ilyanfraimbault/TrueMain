@@ -41,6 +41,23 @@ export function outcomeTextClass(outcome: ChainOutcome): string {
   }
 }
 
+// The fill of a run's segment in an iteration's time bar and step rows. Same palette as
+// the icons; `Skipped` never gets here, since a skipped run takes no time to draw.
+export function outcomeBarClass(outcome: ChainOutcome): string {
+  switch (outcome) {
+    case 'Running':
+      return 'bg-primary'
+    case 'Success':
+      return 'bg-success/60'
+    case 'Failed':
+      return 'bg-error'
+    case 'Abandoned':
+      return 'bg-warning'
+    default:
+      return 'bg-accented'
+  }
+}
+
 // The lane's rail — the vertical stroke that makes the branch read as one level
 // below the chain — carries the lane's own status, so a failed lane is visible
 // before reading a single chip.

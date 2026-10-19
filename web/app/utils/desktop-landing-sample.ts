@@ -25,6 +25,19 @@ export const SAMPLE_ITEMS: Record<'ally' | 'enemy', number[][]> = {
 /** The next item the sample shows, and the gold it still needs. */
 export const SAMPLE_NEXT_ITEM = { itemId: 3031, missing: 650 } as const
 
+/**
+ * The build row under it (#2101), as the app's sample draws it: an item and the boots
+ * done, the next item ringed, the rest still to come.
+ */
+export const SAMPLE_BUILD_ORDER: readonly { itemId: number, state: 'Completed' | 'Next' | 'Upcoming' }[] = [
+  { itemId: 6672, state: 'Completed' },
+  { itemId: 3006, state: 'Completed' },
+  { itemId: SAMPLE_NEXT_ITEM.itemId, state: 'Next' },
+  { itemId: 3036, state: 'Upcoming' },
+  { itemId: 3072, state: 'Upcoming' },
+  { itemId: 3026, state: 'Upcoming' },
+]
+
 /** Our creep score and gold at each whole minute the shell keeps (`live_client::pace`). */
 export const SAMPLE_PACE = [
   { minute: 3, cs: 15, gold: 1311 },

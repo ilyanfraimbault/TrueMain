@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  formatClock,
   formatDateTime,
   formatElapsed,
   formatNumber,
@@ -7,6 +8,7 @@ import {
   formatPercentOrDash,
   formatTimeAgo,
   humanizeBytes,
+  humanizeBytesDelta,
 } from '~~/shared/utils/format'
 
 // The formatters every admin panel renders through. Two rules run across all of them and
@@ -48,6 +50,24 @@ describe('humanizeBytes', () => {
   it('honours the requested precision', () => {
     expect(humanizeBytes(1536, 2)).toBe('1.50 KB')
     expect(humanizeBytes(1536, 0)).toBe('2 KB')
+  })
+})
+
+describe('humanizeBytesDelta', () => {
+  it('keeps the sign a shrinking table needs, which humanizeBytes would clamp away', () => {
+    expect(humanizeBytesDelta(1536)).toBe('+1.5 KB')
+    expect(humanizeBytesDelta(-(1024 ** 3) * 3.5)).toBe('-3.5 GB')
+    expect(humanizeBytesDelta(-1)).toBe('-1 B')
+  })
+
+  it('renders no change, a sub-byte rate and a non-finite input as "0 B"', () => {
+    expect(humanizeBytesDelta(0)).toBe('0 B')
+    expect(humanizeBytesDelta(-0.4)).toBe('0 B')
+    expect(humanizeBytesDelta(Number.NaN)).toBe('0 B')
+  })
+
+  it('honours the requested precision', () => {
+    expect(humanizeBytesDelta(-1536, 2)).toBe('-1.50 KB')
   })
 })
 
@@ -212,5 +232,18 @@ describe('formatTimeAgo', () => {
   it('does not render a clock-skewed future timestamp as a negative age', () => {
     at('2026-06-09T12:00:00Z')
     expect(formatTimeAgo('2026-06-09T12:05:00Z')).toBe('just now')
+  })
+})
+
+describe('formatClock', () => {
+  it('prints a 24-hour clock, midnight as 00', () => {
+    // Built in local time so the assertion holds in any timezone the suite runs in.
+    expect(formatClock(new Date(2026, 9, 18, 0, 5).toISOString())).toBe('00:05')
+    expect(formatClock(new Date(2026, 9, 18, 19, 51).toISOString())).toBe('19:51')
+  })
+
+  it('renders an em dash for a missing or invalid value', () => {
+    expect(formatClock(null)).toBe('—')
+    expect(formatClock('not a date')).toBe('—')
   })
 })

@@ -16,6 +16,9 @@
  * `art-fade-x` — a hero band: art anchored right, fading to the page towards
  * the left where the text sits.
  *
+ * `art-fade-y` — a card: art on top, fading to the page towards the bottom
+ * where the text sits.
+ *
  * `art-vignette` — a full-bleed backdrop, so the art is a mood, not a subject.
  */
 @utility art-fade-x {
@@ -25,6 +28,15 @@
     color-mix(in oklch, var(--ui-bg-muted) 92%, transparent) 30%,
     color-mix(in oklch, var(--ui-bg-muted) 45%, transparent) 60%,
     color-mix(in oklch, var(--ui-bg-muted) 20%, transparent) 100%
+  );
+}
+
+@utility art-fade-y {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--ui-bg-muted) 10%, transparent) 0%,
+    color-mix(in oklch, var(--ui-bg-muted) 25%, transparent) 45%,
+    color-mix(in oklch, var(--ui-bg-muted) 92%, transparent) 100%
   );
 }
 
@@ -53,24 +65,6 @@
 
 @utility animate-tm-pulse {
   animation: tm-pulse 2.2s ease-in-out infinite;
-}
-
-/*
- * The loading skeleton of a picture, painted as the <img>'s own background:
- * the skeleton fill (`ui.skeleton.base`), pulsing like `animate-pulse`, until
- * the decoded picture covers it. It never waits for `load`, which WKWebView
- * does not reliably report (see `ChampionArt.vue`), so it belongs on opaque
- * pictures only — a transparent one would let it show through for good. The
- * pulse animates the background, never the picture, and stops after a few
- * cycles so a covered skeleton does not repaint for the rest of the session.
- */
-@keyframes tm-skeleton {
-  50% { background-color: color-mix(in oklab, var(--color-ink-700) 50%, transparent); }
-}
-
-@utility img-skeleton {
-  background-color: var(--color-ink-700);
-  animation: tm-skeleton 2s cubic-bezier(0.4, 0, 0.6, 1) 8;
 }
 
 /* The pending bar: a highlight sweeping across, left to right. */

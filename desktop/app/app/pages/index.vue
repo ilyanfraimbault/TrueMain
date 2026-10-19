@@ -144,6 +144,7 @@ watch(() => state.value.phase, (next, previous) => {
           <ProfileRankedCardSkeleton v-if="pending" />
           <ProfileRankedCard v-else :ranked="ranked" :history="rankHistory" />
           <DashboardTodayCard v-if="!pending" :summary="today" />
+          <DashboardClipsCard />
           <template v-if="pending">
             <USkeleton class="h-40 rounded-lg" />
             <USkeleton class="h-56 rounded-lg" />
@@ -172,30 +173,29 @@ watch(() => state.value.phase, (next, previous) => {
     </template>
 
     <template v-else>
-      <section class="relative flex min-h-48 items-end overflow-hidden rounded-lg border border-default p-6">
+      <section class="relative flex min-h-56 items-end overflow-hidden rounded-2xl border border-default p-7">
         <ChampionArt :alias="backdropAlias()" fade="x" position="70% 22%" />
-        <div class="relative flex items-center gap-4">
-          <div class="flex size-16 items-center justify-center rounded-lg bg-ink-900 ring-1 ring-default">
-            <UIcon :name="state.connected ? 'i-lucide-loader-circle' : 'i-lucide-user-round'" class="size-7 text-dimmed" />
-          </div>
-          <div>
-            <h2 class="text-3xl font-semibold tracking-tight text-highlighted">
-              {{ state.connected ? 'Logging in…' : 'Waiting for the client' }}
-            </h2>
-            <p class="mt-1 max-w-md text-sm text-muted">
-              Start League of Legends: your profile opens here, and the app follows you into champion select.
-            </p>
-          </div>
+        <div class="relative flex max-w-lg flex-col gap-3">
+          <span class="flex items-center gap-2">
+            <span class="relative flex size-2">
+              <span class="absolute inline-flex size-full animate-tm-pulse rounded-full bg-primary" />
+              <span class="relative inline-flex size-2 rounded-full bg-primary/80" />
+            </span>
+            <span class="eyebrow">{{ state.connected ? 'Client found' : 'Companion' }}</span>
+          </span>
+          <h1 class="text-4xl font-semibold tracking-tight text-balance text-highlighted">
+            <template v-if="state.connected">Logging <span class="text-primary">in</span>…</template>
+            <template v-else>Waiting for <span class="text-primary">your client</span>.</template>
+          </h1>
+          <p class="text-sm text-muted">
+            Start League of Legends: your profile opens here, and the app follows you into champion select.
+          </p>
         </div>
       </section>
 
-      <section class="flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">Best by lane</h2>
-          <UButton to="/tierlist" label="Tier list" trailing-icon="i-lucide-chevron-right" color="neutral" variant="link" size="xs" />
-        </div>
-        <DashboardMeta />
-      </section>
+      <DashboardMeta />
     </template>
+
+    <RiotDisclaimer class="mt-auto pt-2" />
   </div>
 </template>

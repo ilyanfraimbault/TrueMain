@@ -6,6 +6,7 @@ import type { ProcessRun } from '~~/shared/types/ops'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
 import { hasSummary } from '~~/shared/utils/process-summary'
+import { isScraperProcess, parseScraperSummary } from '~~/shared/utils/scraper-runs'
 
 const props = defineProps<{
   run: ProcessRun | null
@@ -13,8 +14,15 @@ const props = defineProps<{
 
 const open = defineModel<boolean>('open', { required: true })
 
-const summaryHasContent = computed(() => hasSummary(props.run?.summary ?? null))
+
 const rawSummary = computed(() => summaryJson(props.run?.summary ?? null))
+// An ops script's run (#2119) carries its phases in the summary: drawn as a timeline,
+// and left out of the summary block below, which then shows the rest of the report.
+const scraperSummary = computed(() =>
+  props.run && isScraperProcess(props.run.processName) ? parseScraperSummary(props.run.summary) : null)
+const shownSummary = computed(() =>
+  scraperSummary.value?.steps.length ? scraperSummary.value.report : (props.run?.summary ?? null))
+const summaryHasContent = computed(() => hasSummary(shownSummary.value))
 </script>
 
 <template>
@@ -92,13 +100,26 @@ const rawSummary = computed(() => summaryJson(props.run?.summary ?? null))
           <pre class="text-xs text-error bg-error/5 border border-error/20 rounded-md p-3 overflow-auto whitespace-pre-wrap">{{ run.error }}</pre>
         </div>
 
+        <div v-if="scraperSummary?.steps.length">
+          <p class="text-muted text-xs uppercase mb-1.5">
+            Steps
+          </p>
+          <ProcessesScraperSteps
+            :steps="scraperSummary.steps"
+            :progress="scraperSummary.progress"
+            :live="run.status === 'Running'"
+          />
+        </div>
+
+        <ProcessesScraperReport v-if="scraperSummary" :summary="scraperSummary" show-args />
+
         <div>
           <p class="text-muted text-xs uppercase mb-1.5">
             Summary
           </p>
           <ProcessSummaryView
             v-if="summaryHasContent"
-            :value="run.summary"
+            :value="shownSummary"
           />
           <p v-else class="text-sm text-dimmed">
             No summary recorded for this run.

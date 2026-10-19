@@ -29,6 +29,20 @@ export function humanizeBytes(bytes: number, digits = 1): string {
 }
 
 /**
+ * Humanize a signed byte delta (`+1.2 MB`, `-3.5 GB`, `0 B`). A table that shrank
+ * over a window — pruning, `VACUUM FULL`, `REINDEX` — has a negative growth that
+ * {@link humanizeBytes} would clamp to `"0 B"`, reading as "flat" next to a
+ * non-zero row delta.
+ */
+export function humanizeBytesDelta(bytes: number, digits = 1): string {
+  const rounded = Number.isFinite(bytes) ? Math.round(bytes) : 0
+  if (rounded === 0) {
+    return '0 B'
+  }
+  return `${rounded > 0 ? '+' : '-'}${humanizeBytes(Math.abs(rounded), digits)}`
+}
+
+/**
  * Format an integer with locale grouping (e.g. 1234567 -> "1,234,567").
  * `null`/`undefined`/non-finite render as an em dash so absent metrics read as
  * "no data" rather than "0".
@@ -77,6 +91,22 @@ export function formatDayLabel(iso: string | null | undefined): string {
     return '—'
   }
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/**
+ * Format an ISO datetime as a 24-hour clock time (e.g. "19:51"), for a span read
+ * beside the day it starts on. Same pinned `en-US` locale as {@link formatDayLabel};
+ * `h23` so midnight reads "00:05", never "24:05". `null`/invalid renders as an em dash.
+ */
+export function formatClock(iso: string | null | undefined): string {
+  if (!iso) {
+    return '—'
+  }
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return '—'
+  }
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 }
 
 /**

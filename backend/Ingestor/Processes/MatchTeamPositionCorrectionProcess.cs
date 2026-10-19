@@ -1,5 +1,6 @@
 using Core.Lol.Map;
 using Data;
+using Data.Aggregation;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
@@ -95,6 +96,11 @@ public sealed class MatchTeamPositionCorrectionProcess(
                 .Where(p => ids.Contains(p.Id))
                 .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.TeamPosition, position), ct);
         }
+
+        // A participant with no lane is left out of the pattern aggregation, so a corrected
+        // one has to be folded into its slice (#1367).
+        await PatternAggregationInvalidation.InvalidateMatchesOfParticipantsAsync(
+            db, idsByInferredPosition.Values.SelectMany(ids => ids).ToList(), ct);
 
         if (corrected > 0)
         {

@@ -22,6 +22,14 @@ public sealed class CachedPipelineHealthQueryService(
     /// <summary>Matches the admin's live-refresh period, so one open cockpit is one evaluation per tick at most.</summary>
     internal static readonly TimeSpan ResponseCacheTtl = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// How long a failed evaluation is not re-run (#2132): one live-refresh tick. Without it,
+    /// every open tab's next tick re-ran the pass that just failed — on a cold cache, another
+    /// full statement timeout against a Postgres that was already struggling. The sub-signals
+    /// degrade on their own, so what reaches this is a failure of the evaluation itself.
+    /// </summary>
+    internal static readonly TimeSpan FailureBackoffWindow = ResponseCacheTtl;
+
     // The payload takes no parameter, so one key covers every caller.
     private const string CacheKey = "ops:pipeline-health";
 
@@ -51,7 +59,11 @@ public sealed class CachedPipelineHealthQueryService(
                 // not cancel the evaluation the other tabs are waiting on. The pass still
                 // ends — every query in it is bounded by the command timeout — and its
                 // result is cached for the next tick instead of being thrown away.
-                var computed = await inner.GetAsync(CancellationToken.None);
+                var computed = await FailureBackoff.RunAsync(
+                    cache,
+                    CacheKey,
+                    FailureBackoffWindow,
+                    () => inner.GetAsync(CancellationToken.None));
                 return cache.Store(CacheKey, computed, ResponseCacheTtl);
             },
             ct,

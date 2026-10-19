@@ -446,6 +446,18 @@ build's starter basket for the ten champions on their lanes, asked once per game
 item-context counters see a starter item by item, and a basket (Doran's Ring and two potions) is what is bought
 (2026-10-08) — #1989.
 
+**The next item also says where the game stands in the build, and when the boots come.** Under the item, the build
+is one row: completed items, the next one, the rest of the tree walked forward from it (each branch's best candidate
+for this game), and the boots at the step the mains most often complete them at — before the first legendary, after
+it, after the second. The model had no notion of that step: the boots hung off the root branch, decided apart from
+the legendaries, so a player could not tell whether to buy them now. The step is measured by the same item-context
+fold as a fourth slot, `BootsTiming`, whose `ItemId` is the step number rather than an item (the boots' first purchase
+against the legendaries' first purchases on the timeline; boots seen only in the final inventory count no step). It
+carries no situation and no verdict. Below 20 games the row leaves the boots out and the boots column stays. A game
+past that step without boots has them as its next step, and they take the panel's main slot: being late on boots is
+what the row exists to say. Not backfilled — re-arming the fold would re-count every other slot — so it fills from the
+matches folded after the change and the next patch has it whole (2026-10-19) — #2101.
+
 **Every app version is built twice, once per site, and each site serves only its own build (2026-10-01).** The product
 owner's call: the app downloaded from preprod is a test build and must read preprod — API, the pages it opens in the
 browser, its update feed — and the one downloaded from truemain.lol must read production. A build is tied to its site
@@ -613,7 +625,17 @@ only: this changes nothing about the in-game panel, whose compliance question st
 loading screen, the game page's scoreboard, a dashboard match row's team strip, nor the opened match's scoreboard and
 runes. The product owner's call: the player knows which one they are, and the mark only competes with what the row
 says. Ours still orders the sides (our team first, our lane opponent's history read first) and the draft board's
-selected card stays ringed, since that ring marks the selection, not the account — #1803.
+selected card stays ringed, since that ring marks the selection, not the account — #1803. One exception, the product
+owner's call: the match detail's gold / XP / CS curves draw our line on top in the primary colour, the only way to find
+it among ten; the list beside them keys it with a primary bar only — no ring, no bolder name (2026-10-19) — #2102.
+
+**The match detail's Timeline view opens on the ten players' gold / XP / CS curves, above the win probability, built
+from the client's timeline (2026-10-19).** The same reduced timeline as the curve (`lcu::win_probability`) carries each
+player's gold and experience a minute; the site never has them (it keeps timelines at a few marks, #772), so the
+panel is the app's only, and it renders only when the timeline carries gold — never an empty panel. Under the curves,
+the team lead as a band drawn with the win probability's own band; the objectives on the time axis from the timeline's
+events; a list per side whose rows pin a line. Modelled on a competing companion's Gold tab (benchmark 2026-10-18) —
+#2102.
 
 **The app measures its own use: counters under an anonymous install id, folded per install and day; downloads are
 counted by the site's redirect (2026-10-02).** The site's Umami cannot see the app — a static bundle in a webview with a
@@ -710,6 +732,15 @@ estimate from the standing's difference across the day, which a promotion breaks
 every card but the ranked one, and renders nothing on a day without a game rather than an empty card. The activity
 grid's day view already counts the day's games; the card adds the LP and the time, and sits where the rank is read —
 #2073.
+
+**The dashboard's latest clips are a small fixed grid of four that opens the Recordings page's own player
+(2026-10-18).** The same benchmark showed highlights one click from the competitor's home, while a clip saved yesterday
+was two clicks and a filter away on `/recordings`. The product owner wanted it small — at most a quarter of the page —
+so it is a card in the dashboard's right column, under the Today card: four thumbnails two by two, the most recently
+saved first. With fewer than four clips the free cells stay as empty slots of a clip's height, so the card never
+changes shape as clips come and go. A clip opens the clip player the Recordings page opens (no second player), "See
+all" lands on the page's Clips filter; the card reads the same library command and is absent when the shell records
+nothing or no clip exists — #2077.
 
 **The app's footprint is measured, never estimated (2026-10-05).** Resource use is among the most common complaints
 about League companions, so the product owner asked for a lighter app during a game and for its real memory on

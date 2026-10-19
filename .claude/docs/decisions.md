@@ -96,6 +96,7 @@ Last verified against `develop` on 2026-09-02.
 - Every champion-page fold takes its cohort from one place, and a remake is not a game — #1365, #1087, #922
 - The live champion reads compose that same cohort; a read whose champion side differs on purpose (one player, the full build pool) still takes its matches from it, so no read counts a remake (2026-10-06) — #1365
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
+- The champion page shows its matchups as a spread on the lane win rate at 15 min (centred on 50%), replacing the sidebar list — #2094
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - The draft assistant's lane guess is an assignment solved by exact enumeration — not per-champion arg-maxes, not Hungarian — #1674, #1706
@@ -160,7 +161,7 @@ Last verified against `develop` on 2026-09-02.
 - Icon slots are rendered from the ids, never gated on a resolved static lookup
 - Champion-page icons are slow because of browser queue depth, not the image proxy — measure the split before "optimising" it — #680, #997
 - `SkeletonImage` serves WebP; `RankIcon` deliberately does not
-- Every picture shows a skeleton until it has loaded (`SkeletonImage`, `SkeletonPicture`); build-summary inline icons excepted (2026-10-06) — #1949
+- Every picture shows a skeleton until it has loaded (`SkeletonImage`, `SkeletonPicture`, or an opaque `<img>`'s own `img-skeleton` background for a match row's ten composition icons, #2129); build-summary inline icons excepted (2026-10-06) — #1949
 - Every icon URL is built by one helper, so one asset is one cache entry — #1000
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
 - `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26); a root-level web↔admin Nuxt layer was rejected (2026-09-17); the site and the desktop app share `web/layers/common` since #1732, the admin does not extend it (2026-10-01); a CI drift check is planned — #1226, #947, #966, #1623, #1732, #1684, #1625
@@ -190,7 +191,7 @@ Last verified against `develop` on 2026-09-02.
 - Keycap edge on surfaces and filled buttons; translucency returns for the floating header only; type stays Inter set tight with rose eyebrows, primary buttons stay rose gold (2026-09-27) — #1709, #1060
 - Nuxt UI feeds Tailwind only the themes of the components the site uses (`componentDetection`): entry CSS 38.9 → 29.5 KB gzip, no visual change (2026-10-04) — #1641
 - Inter and Geist Mono are committed (variable WOFF2, every subset) and resolved by a repo-local @nuxt/fonts provider; no build fetches a font, share cards use committed static Inter (2026-10-06) — #1106, #1335
-- The UI refresh: `surface` becomes the dashboard tile's translucent pane, stars under the home page only, Nuxt UI only and no accent bars, splash banners on detail pages, one profile page and one match detail for both apps (2026-10-07) — #1983, #1060, #1498, #1682
+- The UI refresh: `surface` becomes the dashboard tile's translucent pane (its blur an opt-in, `surface-blur`, since 2026-10-19 — #2129), stars under the home page only, Nuxt UI only and no accent bars, splash banners on detail pages, one profile page and one match detail for both apps (2026-10-07) — #1983, #1060, #1498, #1682
 - One champion banner (`ChampionHero`) on the champion page and the app's champion page; one tier mark (`TierBadge`) on every surface (2026-10-13) — #2026
 - The player-scoped champion page is the profile's page (`PagePlayerProfile`) on the champion's splash, no longer the champion banner (2026-10-13, revises #2026) — #2043
 - One rank emblem (`RankEmblem`) on every row, one rank label in title case (`formatRank`: `Diamond II · 42 LP`); the truemains table and the champion page's rows share their columns (2026-10-13) — #2025, #2028
@@ -204,6 +205,8 @@ Last verified against `develop` on 2026-09-02.
 - Build aggregates live for the current and previous patch; every patch keeps a light win/pick/ban record per champion × position × elo bracket, written before the full aggregates are dropped (2026-10-06) — #1467
 - Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid — #772, #694, #1599
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
+- The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back, and the bracket is the participant's stamp (2026-10-19) — #1367, #1365
+- The operator champion game counts are a per-slice recompute of the raw rows, not a fold (2026-10-19) — #2132, #811
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
 - Champion profiles (`champion_profile_stats`) are measured from the champion's own games over the full pool, never labelled by hand; the ranged flag is the one static attribute — #1449
 - Damage profiles are served through the fold's own snapshot rule; the per-build split is a sibling table filled forward (no backfill); an unprofiled champion gets a Data Dragon class, never a share (2026-10-05) — #1905
@@ -284,7 +287,7 @@ Last verified against `develop` on 2026-09-02.
 - Consequence: every heavy aggregate runs single-threaded, so batch work must be chunked — #603, #594, #632
 - Aggregation is chunked per champion to bound memory — #600
 - A heavy `CREATE INDEX CONCURRENTLY` must never be a startup migration — #595, #597, #598
-- Npgsql pools are capped per service against Postgres `max_connections=100`; the API's matches PgBouncer's, and a PgBouncer wait is bounded at 30 s — #437, #461, #462, #1570
+- Npgsql pools are capped per service against Postgres `max_connections=100`, each sized to its PgBouncer share since #1632, and a PgBouncer wait is bounded at 30 s — #437, #461, #462, #1570
 - Server-side timeouts: API `statement_timeout` 60 s and pooled `idle_in_transaction_session_timeout` 60 s through a dedicated PgBouncer database, migrations `lock_timeout` 5 s with retry (2026-10-06) — #1631
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
@@ -293,6 +296,7 @@ Last verified against `develop` on 2026-09-02.
 - The public web server runs one Node worker per useful core (2026-09-15) — #1579
 - The payload is inlined on first load and extracted for client navigation only (`payloadExtraction: 'client'`; it only reaches the `swr` text pages) (2026-10-04) — #1618
 - Paginated reads stay on offset paging; keyset waits for a preprod `EXPLAIN` showing a real cost at a page actually reached (2026-10-06) — #1635
+- No ops read counts `match_participants` on request: champion stats read a rollup, the cockpit's corpus totals are planner estimates that degrade alone, and a failed cold pass backs off (2026-10-19) — #2132, #1427
 
 ## Infrastructure and deploy — [`decisions/infrastructure-and-deploy.md`](decisions/infrastructure-and-deploy.md)
 - The rate-limit partition is the visitor (last `X-Forwarded-For` hop, trusted proxies only), not the connection — this reverses "100 req/min per IP" — #1546
@@ -312,12 +316,14 @@ Last verified against `develop` on 2026-09-02.
 - Caddy terminates TLS and is the only public entry point in prod — #433, #430, #426
 - The admin `/analytics` iframe stays on Umami's public share view, not the authenticated app — kept as-is on purpose, 2026-08-04 — #1013, #1014
 - Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow — #680, #1018
+- Analytics stay inside the CNIL consent exemption: no session replay, no persistent visitor id, an opt-out on `/privacy` — no consent banner (2026-10-18) — #2089
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
 - Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
 - The edge Caddy sets the security response headers the app frameworks did not (HSTS, CSP per vhost, X-Frame-Options, nosniff, Referrer/Permissions-Policy); preprod carries the non-CSP subset — 2026-09-24
 - The API port is published on loopback only (not `0.0.0.0`), and pgAdmin was removed from every stack — 2026-09-24
 - Prod's edge Caddyfile is inline in `compose.prod.yaml` (the deploy writes only the compose file and `.env`), and the release asserts compression and HSTS/CSP on the live site — #1598
+- Each service gets a fixed share of PgBouncer's 30 server connections — API 22, ingestors 8 (fetch 5 + aggregate 3), no reserve — and its Npgsql pool matches it (2026-10-19) — #1632
 
 ## Admin portal — observability data — [`decisions/admin-observability.md`](decisions/admin-observability.md)
 
@@ -347,6 +353,8 @@ Last verified against `develop` on 2026-09-02.
 - The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
 - A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
 - The Ingestor's own meter is folded into Mongo per minute and shown on the Riot API tab — no OpenTelemetry pipeline, no tracing (2026-10-05) — #1636
+- The ops scripts kept outside the repo report their runs into `process_runs` through allow-listed ops endpoints, and the Processes page shows them on a *Scrapers* tab (2026-10-19) — #2119
+- Iterations are paged from a header per pass (`process_iterations`), not grouped from the runs (2026-10-19) — #2124
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
@@ -408,8 +416,10 @@ Last verified against `develop` on 2026-09-02.
 - Runes are imported on a click only, from a discreet corner icon; the app reuses its one `TrueMain: ` page and never deletes a page of the player's; no spell import (2026-10-03) — #1678
 - Items are imported on a click too, as one `TrueMain: ` item set replaced in place; the whole-list write round-trips the player's sets raw and writes nothing after a failed read (2026-10-05) — #1908
 - The app hovers, locks and bans in champion select on the player's click only — lock = complete what the client shows hovered, from one strip button; a ban (or an ally's intent) asks first; no auto-lock/ban/accept, ever (2026-10-05) — #1909
-- The player's own account is never highlighted — loading screen, game page, match rows, scoreboard, runes; ours only orders the sides (2026-10-02) — #1803
+- The player's own account is never highlighted — loading screen, game page, match rows, scoreboard, runes; ours only orders the sides (2026-10-02); exception: our line on the match detail's gold / XP / CS curves, in the primary colour (2026-10-19) — #1803, #2102
+- The match detail's Timeline view opens on the ten players' gold / XP / CS curves (lead band, objectives on the axis, a pinning list per side) above the win probability, from the client's timeline, app only, shown only when the timeline carries gold (2026-10-19) — #2102
 - The dashboard's Today card: games, W–L, time played and net LP since local midnight, LP summed only over measured games (partial sum flagged), following the queue filter, absent on a day without a game (2026-10-16) — #2073
+- The dashboard's latest clips: a small card (≤ a quarter of the page) in the right column, four clips two by two with empty slots keeping its shape, opening the Recordings page's own clip player; absent with no clip (2026-10-18) — #2077
 - Measurable goals on the dashboard are local (per Riot ID, `localStorage`), measured from the client's games with each counted game frozen into the goal; suggested thresholds are the player's own average, never a benchmark; ≤ 3 active, no toast, nothing in the overlay; default 5 games on Solo, "All" allowed but never suggested, no per-champion default (2026-10-05) — #1913
 - The app's footprint is measured, never estimated: whole process tree (WebKit's services by responsible process, WebView2 by parent), physical footprint / private working set, median + p95 per scenario; `/download` shows a figure only once measured, a competitor's only with a published source; an overlay panel has a webview only while it can show (2026-10-05) — #1916
 - Desktop usage is measured by the app itself (anonymous install id, counters folded per install and UTC day in Mongo, 13-month TTL, opt-out in the native menu), downloads by the site's redirect; nothing read from the League client is sent (2026-10-02) — #1805
@@ -427,6 +437,7 @@ Last verified against `develop` on 2026-09-02.
 - The Game page's player lines show standing, role fit (main ≥ ½ of recent role games, autofill < ¼), champion record, streak and recent games instead of items and K/D/A (reverses #1748's scoreboard copy); all via the client, plus one ranked request per player (2026-10-04) — #1828
 - Each Game-page lane shows an arrow + chance towards the favoured side: TrueMain's champion head-to-head (shrunk to 50 %) moved by each player's last 10 games on the champion — win rate and gold/CS/XP leads at 15 vs their lane opponent, weighted per role; figures not shown (revises #1828's no-composite rule for lanes only) (2026-10-04) — #1863
 - The next item sits over the game board: the mains' next legendary, one reason, the gold left and the components buyable now, two runners-up and the boots; asked on item changes only; our gold in 50-gold steps (2026-10-01); until a starter is bought, the composition build's starter basket above it and in its place on the overlay (2026-10-08) — #1751, #1989
+- The next item also lays the build out as one row, the boots at the step the mains most often complete them at (a `BootsTiming` slot of the item-context fold, ≥ 20 games, no backfill: it fills from matches folded after the change); due boots become the main item (2026-10-19) — #2101
 - The overlay's pace sets CS/min and gold/min against the median of games at the player's Solo/Duo tier (every tier fetched, the tier picked locally); no Solo/Duo standing → no comparison; a reference, never advice (2026-10-05) — #1912
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)

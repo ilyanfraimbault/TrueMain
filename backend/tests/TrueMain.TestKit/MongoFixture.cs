@@ -17,6 +17,7 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string AuditCollection = "audit_events";
     public const string RiotApiCallsCollection = "riot_api_call_rollups";
     public const string ProcessRunsCollection = "process_runs";
+    public const string ProcessIterationsCollection = "process_iterations";
     public const string SeedRequestsCollection = "seed_requests";
     public const string DbTableSizeSnapshotsCollection = "db_table_size_snapshots";
     public const string CandidateStockSnapshotsCollection = "candidate_stock_snapshots";
@@ -73,6 +74,9 @@ public sealed class MongoFixture : IAsyncLifetime
         await db.DropCollectionAsync(AuditCollection);
         await db.DropCollectionAsync(RiotApiCallsCollection);
         await db.DropCollectionAsync(ProcessRunsCollection);
+        // The iteration headers (#2124) mirror the runs: a header left by one test would
+        // list an iteration whose runs the next test never wrote.
+        await db.DropCollectionAsync(ProcessIterationsCollection);
         await db.DropCollectionAsync(SeedRequestsCollection);
         // Dropped like the rest, and it matters more here: the collection carries a
         // unique index the storage-snapshot tests reconcile, so a leaked index would

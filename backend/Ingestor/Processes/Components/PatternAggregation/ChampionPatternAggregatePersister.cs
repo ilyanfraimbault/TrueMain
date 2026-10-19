@@ -8,8 +8,15 @@ public sealed class ChampionPatternAggregatePersister(
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     IChampionDimensionResolver dimensionResolver)
 {
-    internal async Task ReplaceAggregatesAsync(
-        IReadOnlyCollection<AggregateScopeKey> cleanupScopes,
+    /// <summary>
+    /// Replaces every scope of <paramref name="slices"/> — and, through the cascade, its
+    /// patterns — with <paramref name="scopes"/>, in one transaction. A slice that built
+    /// nothing (its player was demoted on a mains-only run, its games no longer qualify)
+    /// is simply emptied.
+    /// </summary>
+    internal async Task ReplaceSlicesAsync(
+        int queueId,
+        IReadOnlyCollection<AggregateSliceKey> slices,
         IReadOnlyCollection<ChampionAggregateScope> scopes,
         IReadOnlyCollection<PatternIntent> patterns,
         CancellationToken ct)
@@ -44,10 +51,9 @@ public sealed class ChampionPatternAggregatePersister(
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        // Delete existing scopes for the cleanup keys; the FK cascade from
-        // champion_aggregate_patterns drops the scope's pattern rows in the same
-        // statement. New scopes + patterns then take their place.
-        await DeleteExistingScopesAsync(db, cleanupScopes, ct);
+        // The FK cascade from champion_aggregate_patterns drops the scopes' pattern rows
+        // in the same statement. New scopes + patterns then take their place.
+        await DeleteSlicesAsync(db, queueId, slices, ct);
 
         db.ChampionAggregateScopes.AddRange(dedupedScopes);
         await db.SaveChangesAsync(ct);
@@ -83,38 +89,35 @@ public sealed class ChampionPatternAggregatePersister(
         new Dictionary<SpellPairDimensionContent, Guid>(),
         new Dictionary<string, Guid>(StringComparer.Ordinal));
 
-    private static async Task DeleteExistingScopesAsync(
+    private static async Task DeleteSlicesAsync(
         TrueMainDbContext db,
-        IReadOnlyCollection<AggregateScopeKey> cleanupScopes,
+        int queueId,
+        IReadOnlyCollection<AggregateSliceKey> slices,
         CancellationToken ct)
     {
-        var cleanupScopeSet = cleanupScopes.ToHashSet();
-        if (cleanupScopeSet.Count == 0)
+        if (slices.Count == 0)
         {
             return;
         }
 
-        var championIds = cleanupScopeSet.Select(scope => scope.ChampionId).Distinct().ToList();
-        var gameVersions = cleanupScopeSet.Select(scope => scope.GameVersion).Distinct().ToList();
-        var platformIds = cleanupScopeSet.Select(scope => scope.PlatformId).Distinct().ToList();
-        var queueIds = cleanupScopeSet.Select(scope => scope.QueueId).Distinct().ToList();
+        var accountIds = slices.Select(slice => slice.RiotAccountId).ToArray();
+        var championIds = slices.Select(slice => slice.ChampionId).ToArray();
+        var gameVersions = slices.Select(slice => slice.GameVersion).ToArray();
+        var platformIds = slices.Select(slice => slice.PlatformId).ToArray();
 
-        var scopesToDelete = await db.ChampionAggregateScopes
-            .Where(scope =>
-                championIds.Contains(scope.ChampionId)
-                && gameVersions.Contains(scope.GameVersion)
-                && platformIds.Contains(scope.PlatformId)
-                && queueIds.Contains(scope.QueueId))
-            .ToListAsync(ct);
-
-        db.ChampionAggregateScopes.RemoveRange(
-            scopesToDelete.Where(scope =>
-                cleanupScopeSet.Contains(new AggregateScopeKey(
-                    scope.ChampionId,
-                    scope.GameVersion,
-                    scope.PlatformId,
-                    scope.QueueId))));
-
-        await db.SaveChangesAsync(ct);
+        // One statement for the whole batch, on the (account, champion, patch, platform,
+        // position) index — the slice key is its prefix.
+        await db.Database.ExecuteSqlAsync(
+            $"""
+            DELETE FROM "champion_aggregate_scopes" AS s
+            USING unnest({accountIds}, {championIds}, {gameVersions}, {platformIds})
+                AS k("RiotAccountId", "ChampionId", "GameVersion", "PlatformId")
+            WHERE s."RiotAccountId" = k."RiotAccountId"
+                AND s."ChampionId" = k."ChampionId"
+                AND s."GameVersion" = k."GameVersion"
+                AND s."PlatformId" = k."PlatformId"
+                AND s."QueueId" = {queueId}
+            """,
+            ct);
     }
 }

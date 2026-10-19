@@ -68,6 +68,9 @@ internal sealed partial class IntakeOptionsValidator : IValidateOptions<IntakeOp
 internal sealed partial class MatchupLeadAggregationOptionsValidator : IValidateOptions<MatchupLeadAggregationOptions>;
 
 [OptionsValidator]
+internal sealed partial class PatternAggregationOptionsValidator : IValidateOptions<PatternAggregationOptions>;
+
+[OptionsValidator]
 internal sealed partial class SynergyAggregationOptionsValidator : IValidateOptions<SynergyAggregationOptions>;
 
 [OptionsValidator]

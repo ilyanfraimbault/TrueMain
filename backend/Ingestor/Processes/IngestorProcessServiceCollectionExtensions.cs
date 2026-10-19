@@ -43,6 +43,7 @@ public static class IngestorProcessServiceCollectionExtensions
         services.AddRecordedProcess<AccountRefreshProcess>(JobMode.AccountRefreshOnly);
         services.AddRecordedProcess<PaceSamplingProcess>(JobMode.PaceSamplingOnly);
         services.AddRecordedProcess<MatchDataRetentionProcess>(JobMode.MatchDataRetentionOnly);
+        services.AddRecordedProcess<ChampionGameCountRefreshProcess>(JobMode.ChampionGameCountRefreshOnly);
         services.AddRecordedProcess<CandidateStockSnapshotProcess>(JobMode.CandidateStockSnapshotOnly);
         services.AddRecordedProcess<StorageSnapshotProcess>(JobMode.StorageSnapshotOnly);
         return services;

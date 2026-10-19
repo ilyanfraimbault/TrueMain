@@ -58,8 +58,9 @@ export interface WinProbabilityObjective {
 }
 
 /**
- * A game's timeline reduced to what the model reads — the shape the desktop
- * shell hands over from the client's timeline and the shared fixture holds.
+ * A game's timeline reduced to what the model and the match detail's curves
+ * (#2102) read — the shape the desktop shell hands over from the client's
+ * timeline and the shared fixture holds.
  * Names follow Riot's match-v5 / LCU timeline.
  */
 export interface WinProbabilityTimeline {
@@ -79,7 +80,21 @@ export interface WinProbabilityTimelineParticipant {
 
 export interface WinProbabilityTimelineFrame {
   ms: number
-  players: { participantId: number, cs: number, level: number }[]
+  players: WinProbabilityTimelinePlayer[]
+}
+
+export interface WinProbabilityTimelinePlayer {
+  participantId: number
+  /** Lane minions and jungle camps together. */
+  cs: number
+  level: number
+  /**
+   * Gold earned so far and experience, for the match detail's gold / XP / CS
+   * curves (#2102) — the model reads neither. Absent from recordings made before
+   * them, so a reader treats a missing figure as no curve, never as zero.
+   */
+  gold?: number
+  xp?: number
 }
 
 export interface WinProbabilityTimelineEvent {

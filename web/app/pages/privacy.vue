@@ -5,7 +5,7 @@ useSeoMeta({
     'How TrueMain handles data: the public League of Legends game data it surfaces, privacy-friendly analytics, and your rights.',
 })
 
-const lastUpdated = 'July 19, 2026'
+const lastUpdated = 'October 18, 2026'
 const contactEmail = 'contact@truemain.lol'
 </script>
 
@@ -45,12 +45,21 @@ const contactEmail = 'contact@truemain.lol'
           aggregate it to build per-champion and per-player statistics.
         </ProseP>
         <ProseP>
-          <ProseStrong>Analytics.</ProseStrong>
-          We use a self-hosted, privacy-friendly analytics tool (Umami) to
-          understand aggregate site usage. It does not use tracking cookies, does
-          not collect personally identifiable information, and does not build
-          cross-site profiles. Data is aggregated and anonymous.
+          <ProseStrong>Audience measurement.</ProseStrong>
+          We use a self-hosted analytics tool (Umami), for the sole purpose of
+          measuring how the site is used: pages viewed, the site you came from,
+          your browser, operating system, device type, screen size and
+          language, and your country,
+          region and city derived from your IP address. It sets no cookie and
+          stores no identifier on your device. To count unique visitors, it
+          derives a temporary code from your IP address and browser, combined
+          with a value specific to this site that changes every month; your IP
+          address itself is not stored. We do not record sessions, do not
+          follow individual visitors, and do not track you on other sites. The
+          data stays on our own servers and only serves to produce statistics.
+          You can opt out at any time with the control below.
         </ProseP>
+        <AnalyticsOptOut />
         <ProseP>
           <ProseStrong>Accounts.</ProseStrong>
           TrueMain does not currently offer user accounts, logins or passwords. If
@@ -82,7 +91,8 @@ const contactEmail = 'contact@truemain.lol'
         <ProseP>
           We keep cookies to a minimum. We do not use advertising or third-party
           tracking cookies. Any storage we use is strictly necessary to operate
-          the site (for example, remembering interface preferences).
+          the site (for example, remembering interface preferences, or your
+          choice to opt out of audience measurement).
         </ProseP>
       </section>
 
@@ -93,8 +103,9 @@ const contactEmail = 'contact@truemain.lol'
         <ProseP>
           Aggregated statistics and the public match data they are built from are
           retained for as long as they are useful to the service, and are pruned
-          on a rolling basis as patches age. Analytics data is retained in
-          aggregate form only.
+          on a rolling basis as patches age. Audience measurement records hold
+          no IP address and no identifier stored on your device, and are used
+          only to produce aggregate statistics.
         </ProseP>
       </section>
 
@@ -152,15 +163,6 @@ const contactEmail = 'contact@truemain.lol'
         <ProseP>
           Questions or requests about this policy or your data can be sent to
           <ProseA :href="`mailto:${contactEmail}`">{{ contactEmail }}</ProseA>.
-        </ProseP>
-      </section>
-
-      <section class="border-t border-default pt-6">
-        <ProseP class="text-xs text-dimmed">
-          TrueMain isn't endorsed by Riot Games and doesn't reflect the views or
-          opinions of Riot Games or anyone officially involved in producing or
-          managing Riot Games properties. Riot Games and all associated properties
-          are trademarks or registered trademarks of Riot Games, Inc.
         </ProseP>
       </section>
     </article>

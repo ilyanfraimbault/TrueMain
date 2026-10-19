@@ -54,6 +54,11 @@ public class TrueMainDbContext : DbContext
     // situational item fold (#1450) to qualify a draft.
     public DbSet<ChampionProfileStat> ChampionProfileStats => Set<ChampionProfileStat>();
 
+    // Stored participants per (platform, patch, queue, position, champion) (#2132): the
+    // operator champion stats' "Games", recomputed slice by slice from the raw rows by
+    // ChampionGameCountRefreshProcess so that read never scans match_participants.
+    public DbSet<ChampionGameCount> ChampionGameCounts => Set<ChampionGameCount>();
+
     // Damage profile per build archetype (#1905): the same damage sums as the profile,
     // split by the archetype the final inventory leaned on, so a champion that goes both
     // ways (AD/AP Kai'Sa) can be told from a 50/50 one. Folded in the profile's pass.

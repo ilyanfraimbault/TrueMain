@@ -20,7 +20,7 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -438,6 +438,37 @@ namespace Data.Migrations
                         .IsUnique();
 
                     b.ToTable("champion_dim_starter_items", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionGameCount", b =>
+                {
+                    b.Property<int>("QueueId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("PlatformId")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("TeamPosition")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Games")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("RefreshedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("QueueId", "Patch", "PlatformId", "TeamPosition", "ChampionId");
+
+                    b.ToTable("champion_game_counts", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionItemContextStat", b =>
@@ -1437,6 +1468,11 @@ namespace Data.Migrations
                         .HasColumnType("character varying(32)")
                         .HasComputedColumnSql("((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[1])::int::text || '.' || ((regexp_match(\"GameVersion\", '^[\\s.]*([+-]?[0-9]{1,9})[\\s]*\\.[\\s.]*([+-]?[0-9]{1,9})[\\s]*(\\.|$)'))[2])::int::text", true);
 
+                    b.Property<bool>("PatternAggregated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("PlatformId")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -1491,6 +1527,9 @@ namespace Data.Migrations
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_opponent_pending")
                         .HasFilter("\"OpponentAggregated\" = false");
+
+                    b.HasIndex(new[] { "QueueId" }, "IX_matches_pattern_pending")
+                        .HasFilter("\"PatternAggregated\" = false");
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_profile_pending")
                         .HasFilter("\"ProfileAggregated\" = false");

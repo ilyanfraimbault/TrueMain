@@ -157,6 +157,9 @@ as given (a root-relative path, never an upstream URL); `RankIcon` and the `Acco
 A transparent picture (rank crest, lane glyph, rune) needs the skeleton taken down on `load`, an opaque one
 can simply be drawn over it. The one exception is the icons inside a build summary sentence, where a pulsing
 box mid-line reads as a broken word — #1949.
+A match row's ten composition icons (`MatchRowTeams`) are plain `<img>`s on the canonical URL since #2129 —
+twenty rows a page made them 200 component instances for 16 px glyphs with no tooltip — and keep their skeleton
+as their own background (`img-skeleton`, theme.css, the app's mechanism), taken off on `load`.
 
 **Every icon URL is built by one helper, so one asset is one cache entry.** `useCanonicalIcon()` is the
 only place that decides fetch size and format; `SkeletonImage` calls it, and so does each component that

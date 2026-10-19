@@ -38,6 +38,14 @@ export interface NextItemSlot {
   candidates: NextItemCandidate[]
 }
 
+/** One step of the build as a row (#2101): completed, the one to complete next, or still to come. */
+export interface NextItemOrderStep {
+  itemId: number
+  /** The boots, placed at the step the mains complete them at. */
+  isBoots: boolean
+  state: 'Completed' | 'Next' | 'Upcoming'
+}
+
 export interface NextItemResponse {
   championId: number
   position: string
@@ -45,6 +53,8 @@ export interface NextItemResponse {
   patch: string | null
   build: NextItemSlot | null
   boots: NextItemSlot | null
+  /** The whole build in order, the boots at their step; empty when the API predates it. */
+  order?: NextItemOrderStep[]
   situation: Record<string, string>
 }
 

@@ -62,6 +62,10 @@ public sealed class OpsProcessesController(
     /// When true, excludes the in-flight iteration from both the page and the total
     /// so a completed-history list paginates correctly. Default false.
     /// </param>
+    /// <param name="lane">
+    /// <c>fetch</c> or <c>aggregate</c>: only the passes that ran that lane (a <c>Full</c> pass
+    /// counts for both). Omit, or pass anything else, for every pass.
+    /// </param>
     /// <param name="ct">Request cancellation token.</param>
     [HttpGet("process-iterations")]
     [ProducesResponseType(typeof(ProcessIterationsReadModel), StatusCodes.Status200OK)]
@@ -70,9 +74,10 @@ public sealed class OpsProcessesController(
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
         [FromQuery] bool? finishedOnly,
+        [FromQuery] string? lane,
         CancellationToken ct = default)
     {
-        var readModel = await processIterationsQueryService.GetAsync(page, pageSize, finishedOnly ?? false, ct);
+        var readModel = await processIterationsQueryService.GetAsync(page, pageSize, finishedOnly ?? false, lane, ct);
         return Ok(readModel);
     }
 }

@@ -25,6 +25,13 @@ public sealed record ChampionNextItemResponse
     /// <summary>The boots, or null when the game already holds a pair the mains settle on.</summary>
     public NextItemSlotReadModel? Boots { get; init; }
 
+    /// <summary>
+    /// The build as one row (#2101): what is completed, the next step — the boots when they
+    /// are due — then the likely rest, the boots at the step the mains complete them at.
+    /// Empty when the champion has no model at this position.
+    /// </summary>
+    public IReadOnlyList<NextItemOrderStepReadModel> Order { get; init; } = [];
+
     /// <summary>Where the game sits on every situation the model could evaluate, axis name to bucket.</summary>
     public IReadOnlyDictionary<string, string> Situation { get; init; } = new Dictionary<string, string>();
 
@@ -51,6 +58,26 @@ public sealed record NextItemSlotReadModel
     public int PatchWindow { get; init; } = 1;
 
     public IReadOnlyList<NextItemCandidateReadModel> Candidates { get; init; } = [];
+}
+
+/// <summary>One step of the build order.</summary>
+public sealed record NextItemOrderStepReadModel
+{
+    public int ItemId { get; init; }
+
+    /// <summary>True for the boots, whose place in the order is measured apart from the legendaries.</summary>
+    public bool IsBoots { get; init; }
+
+    /// <summary><see cref="NextItemOrderState"/>: <c>Completed</c>, <c>Next</c> or <c>Upcoming</c>.</summary>
+    public string State { get; init; } = NextItemOrderState.Upcoming;
+}
+
+/// <summary>Where a step of the build order stands.</summary>
+public static class NextItemOrderState
+{
+    public const string Completed = nameof(Completed);
+    public const string Next = nameof(Next);
+    public const string Upcoming = nameof(Upcoming);
 }
 
 /// <summary>One item the game could complete next.</summary>

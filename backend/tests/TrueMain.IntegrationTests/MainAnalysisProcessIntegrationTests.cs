@@ -84,6 +84,54 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RunAsync_ShouldSendANewMainsMatchesBackToThePatternAggregation()
+    {
+        await SeedValidatedAccountWithMatchesAsync();
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            await seedDb.Matches.ExecuteUpdateAsync(setters => setters.SetProperty(match => match.PatternAggregated, true));
+        }
+
+        var process = new MainAnalysisProcess(
+            NullLogger<MainAnalysisProcess>.Instance,
+            _fixture.CreateSessionFactory(),
+            new MainStatsCalculator(),
+            new MainDemotionPolicy(),
+            new ChampionCoverageProvider(Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
+            {
+                BatchSize = 10,
+                ProcessingBatchSize = 10,
+                MatchesToConsider = 20,
+                QueueId = LolQueueId.RankedSoloDuo,
+                MinMatchesToEvaluate = 5,
+                PlayRateThreshold = 0.5,
+                OtpPlayRateThreshold = 0.8,
+                CriticalPlayRateThreshold = 0.2,
+                RecomputeAfterHours = 24
+            }));
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        // The account became a main of 22 and not of 51 (asserted above). A mains-only
+        // pattern run folds nothing of a non-main, so its 22 games have to be rebuilt
+        // (#1367); its 51 game did not change population and is left alone.
+        await using var verifyDb = _fixture.CreateDbContext();
+        var flags = await (
+            from participant in verifyDb.MatchParticipants
+            join match in verifyDb.Matches on participant.MatchId equals match.Id
+            where participant.Puuid == "puuid-main-1"
+            select new { participant.ChampionId, match.PatternAggregated })
+            .ToListAsync();
+
+        flags.Where(flag => flag.ChampionId == 22).Should().NotBeEmpty()
+            .And.OnlyContain(flag => !flag.PatternAggregated);
+        flags.Where(flag => flag.ChampionId == 51).Should().NotBeEmpty()
+            .And.OnlyContain(flag => flag.PatternAggregated);
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldFlagExtendedSample_ForUnderCoveredChampion()
     {
         await SeedUnderCoveredScenarioAsync();

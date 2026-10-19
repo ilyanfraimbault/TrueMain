@@ -32,7 +32,7 @@ Preprod runs the ingestion pipeline as **two containers** (#1362), as prod does 
 | container | `Job:Mode` | cadence |
 | --- | --- | --- |
 | `truemain-preprod-ingestor` | `FetchLane` | back-to-back (`RunOnce`, restarted by Docker) |
-| `truemain-preprod-ingestor-aggregate` | `AggregateLane` | every `INGESTOR_AGGREGATE_INTERVAL_MINUTES` (default 20) |
+| `truemain-preprod-ingestor-aggregate` | `AggregateLane` | every `INGESTOR_AGGREGATE_INTERVAL_MINUTES` (default 120 here, 20 on prod) |
 
 The two halves have opposite bottlenecks — the fetch lane waits on Riot, the aggregate lane on Postgres — so
 chaining them left the API key idle through every aggregation. Splitting them is a deployment choice, not a
@@ -44,10 +44,12 @@ preprod back to one lane, set `INGESTOR_JOB_MODE=Full` and stop the aggregate co
 
 The fetch lane stays on the default `RunOnce` loop: its passes are back-to-back, paced by the per-routing-value
 rate limiter rather than by a timer. The aggregate lane runs on a timer (`INGESTOR_AGGREGATE_INTERVAL_MINUTES`,
-default 20): there is nothing to gain from re-folding the same rows the moment a pass ends, and a fixed cadence
-is what makes "how stale can an aggregate be?" answerable. Each lane has its own crash volume, because two
-containers writing crash dumps to one path would race on the file the crash reporter writes before it reaches
-Mongo. `MainAnalysis__AggregateNonMainPopulation` is on here (#1346, gated per environment by #1349) because
+default 120 here, 20 on prod): there is nothing to gain from re-folding the same rows the moment a pass ends, and
+a fixed cadence is what makes "how stale can an aggregate be?" answerable. Preprod waits longer between passes
+(#2122): the pattern aggregation rebuilt the whole live patch each pass until #1367, so a 20-minute gap kept
+Postgres busy almost without a break and held the shared host at its CPU ceiling until the provider throttled it.
+Each lane has its own crash volume, because two containers writing crash dumps to one path would race on the
+file the crash reporter writes before it reaches Mongo. `MainAnalysis__AggregateNonMainPopulation` is on here (#1346, gated per environment by #1349) because
 the widened fold multiplies the aggregation's source rows and that process once OOM-killed a VPS (#601);
 measured on 2026-09-01 it ran at ~250 MB RSS with no restart and produced 16.6k non-main scopes on the live
 patch alongside 20.9k main ones. Postgres runs the prod tuning at roughly half the values, see `docs/prod.md`.
@@ -297,6 +299,7 @@ in `backend/Ingestor/Options/*`:
 | `ManualSeed__BatchSize` | 250 | 750 | manual seeds resolved per cycle |
 | `MatchDataRetention__RetainedPatchCount` | 1 | 2 (code default) | patches of match data kept |
 | `MatchDataRetention__AggregateRetainedPatchCount` | 2 | 0 (code default: kept forever) | patches of aggregates kept, so older champion pages are empty on preprod by choice |
+| `INGESTOR_AGGREGATE_INTERVAL_MINUTES` | 120 | 20 | minutes between two aggregate-lane passes |
 | `MongoLogging__LogsRetention` | 30 days | 90 days (default) | diagnostic log TTL |
 | `MatchIngestion__MatchesPerAccount` | 10 | 20 (default) | matches fetched per account |
 | `MainAnalysis__MatchesToConsider` | 30 | 50 (default) | recent matches main analysis reads |

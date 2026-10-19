@@ -281,17 +281,22 @@ html {
 
 /*
  * ─── Surface: the app-wide panel material ───────────────────────────────────
- * The desktop dashboard's KPI tile, exactly (`bg-ink-950/55 ring-1 ring-white/5
- * backdrop-blur-md`): a dark, translucent pane with a white hairline, blurring
- * whatever runs behind it. Material only — choose your own radius and padding
- * at the call site.
+ * The desktop dashboard's KPI tile, minus its blur (`bg-ink-950/55 ring-1
+ * ring-white/5`): a dark, translucent pane with a white hairline. Material
+ * only — choose your own radius and padding at the call site.
  *
  * It replaces the opaque grey of #1060, which the product owner found flat next
  * to the dashboard. The page ground is near-black, so on most routes the pane
- * reads as a dark card with a hairline; the blur shows where something moves
- * behind it — the home page's star field, the dashboard's splash. The hairline
- * is a border rather than the tile's ring so call sites keep their box sizes.
- * `--ui-bg-surface` names the fill for the Nuxt UI themes in app.config.ts.
+ * reads as a dark card with a hairline. The hairline is a border rather than
+ * the tile's ring so call sites keep their box sizes. `--ui-bg-surface` names
+ * the fill for the Nuxt UI themes in app.config.ts.
+ *
+ * `surface-blur` is the opt-in for the few panes something moves behind — the
+ * home page's star field, the app's champion-art backdrops — and only those
+ * (#2129). A blur over the flat ground paints exactly what the fill alone does,
+ * yet the compositor still snapshots and blurs the backdrop of every such pane
+ * on every scrolled frame: on `surface` itself it put one behind each match
+ * row, more than half a core of GPU to scroll a profile's history.
  *
  * `surface-hover` is the interactive counterpart: it raises the row to the
  * accented step rather than washing it with a tint.
@@ -299,7 +304,30 @@ html {
 @utility surface {
   background-color: var(--ui-bg-surface);
   border: 1px solid color-mix(in oklch, white 5%, transparent);
+}
+
+@utility surface-blur {
   backdrop-filter: blur(12px);
+}
+
+/*
+ * The loading skeleton of a picture, painted as the <img>'s own background:
+ * the skeleton fill (`ui.skeleton.base`), pulsing like `animate-pulse`, until
+ * the decoded picture covers it. No component, no `load` listener — for the
+ * icons too numerous to each carry a `SkeletonImage` (a match row's ten
+ * champions, #2129), and for the app, whose WKWebView does not reliably report
+ * `load` (see `ChampionArt.vue`). It belongs on opaque pictures only: a
+ * transparent one would let it show through for good. The pulse animates the
+ * background, never the picture, and stops after a few cycles so a covered
+ * skeleton does not repaint for the rest of the session.
+ */
+@keyframes tm-skeleton {
+  50% { background-color: color-mix(in oklab, var(--color-ink-700) 50%, transparent); }
+}
+
+@utility img-skeleton {
+  background-color: var(--color-ink-700);
+  animation: tm-skeleton 2s cubic-bezier(0.4, 0, 0.6, 1) 8;
 }
 
 /*
@@ -339,8 +367,8 @@ html {
 /*
  * The floating header bar — the one translucent material on the site. It is
  * the only surface that page content actually scrolls *behind*, so it is the
- * one place a blur has something to show. Everything else stays opaque (see
- * the note on `glass` below). Unprefixed `backdrop-filter` only.
+ * one place a blur has something to show. Everything else stays unblurred (see
+ * the note on `glass` below, and `surface-blur`). Unprefixed `backdrop-filter` only.
  */
 @utility glass-bar {
   background-color: color-mix(in oklch, var(--ui-bg) 72%, transparent);

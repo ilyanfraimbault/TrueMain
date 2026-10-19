@@ -9,12 +9,13 @@ import { ITEM_CONTEXT_TONE_CLASS } from '#shared/utils/item-context'
  * the walk out of base, so it carries the decision and nothing else: the
  * item, why when a situation moved it, the next purchase, the two runners-up,
  * and the boots while they are still open — over it, until one is bought, the
- * starter. The overlay draws only the item and the gold it still needs
+ * starter; under it, the build as a row with the boots at their step (#2101),
+ * which also makes the boots the main item when they are due. The overlay draws only the item and the gold it still needs
  * (`OverlayNextItem`), from the same `useNextItemPanel`.
  */
 const props = defineProps<{ game: GameState }>()
 
-const { answer, pending, statics, build, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold } = useNextItemPanel(toRef(props, 'game'))
+const { answer, pending, statics, build, order, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold } = useNextItemPanel(toRef(props, 'game'))
 </script>
 
 <template>
@@ -43,48 +44,52 @@ const { answer, pending, statics, build, top, runnersUp, boots, why, remaining, 
         <UIcon v-if="pending && answer" name="i-lucide-loader-circle" class="size-3.5 animate-spin text-dimmed" />
       </div>
 
-      <div v-if="state === 'ready' && top" class="flex items-start gap-3">
-        <GameTooltipItemIcon :item="statics[top.itemId] ?? null" :width="52" :height="52" class="size-13 shrink-0 rounded-lg ring-1 ring-primary/60" />
+      <template v-if="state === 'ready' && top">
+        <div class="flex items-start gap-3">
+          <GameTooltipItemIcon :item="statics[top.itemId] ?? null" :width="52" :height="52" class="size-13 shrink-0 rounded-lg ring-1 ring-primary/60" />
 
-        <div class="min-w-0 flex-1 space-y-1.5">
-          <div class="flex items-baseline gap-2">
-            <span class="truncate text-base font-semibold text-highlighted">{{ name(top.itemId) }}</span>
-            <span class="text-xs tabular-nums text-muted" :title="`${top.games} games of the mains on this step`">{{ percent(top.share) }} of mains</span>
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <div class="flex items-baseline gap-2">
+              <span class="truncate text-base font-semibold text-highlighted">{{ name(top.itemId) }}</span>
+              <span class="text-xs tabular-nums text-muted" :title="`${top.games} games of the mains on this step`">{{ percent(top.share) }} of mains</span>
+            </div>
+            <p v-if="why" class="text-sm text-muted">
+              <template v-for="(token, index) in why" :key="index">
+                <span :class="token.tone && ITEM_CONTEXT_TONE_CLASS[token.tone]">{{ token.text }}</span>
+              </template>
+            </p>
+
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-0.5">
+              <span v-if="remaining > 0" class="text-xs tabular-nums text-muted">
+                <span class="text-stat-gold">{{ remaining }}</span> gold to complete
+              </span>
+              <span v-else class="text-xs text-stat-gold">Ready to complete</span>
+              <span
+                v-for="step in steps"
+                :key="step.itemId"
+                class="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs tabular-nums ring-1"
+                :class="affordable(step.cost) ? 'bg-primary/10 text-highlighted ring-primary/40' : 'text-dimmed ring-default'"
+                :title="affordable(step.cost) ? 'You can buy this now' : `${step.cost - game.gold} gold short`"
+              >
+                <GameTooltipItemIcon :item="statics[step.itemId] ?? null" :width="18" :height="18" class="size-[18px] rounded-sm" />
+                {{ step.cost }}
+              </span>
+            </div>
           </div>
-          <p v-if="why" class="text-sm text-muted">
-            <template v-for="(token, index) in why" :key="index">
-              <span :class="token.tone && ITEM_CONTEXT_TONE_CLASS[token.tone]">{{ token.text }}</span>
-            </template>
-          </p>
 
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-0.5">
-            <span v-if="remaining > 0" class="text-xs tabular-nums text-muted">
-              <span class="text-stat-gold">{{ remaining }}</span> gold to complete
-            </span>
-            <span v-else class="text-xs text-stat-gold">Ready to complete</span>
-            <span
-              v-for="step in steps"
-              :key="step.itemId"
-              class="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs tabular-nums ring-1"
-              :class="affordable(step.cost) ? 'bg-primary/10 text-highlighted ring-primary/40' : 'text-dimmed ring-default'"
-              :title="affordable(step.cost) ? 'You can buy this now' : `${step.cost - game.gold} gold short`"
-            >
-              <GameTooltipItemIcon :item="statics[step.itemId] ?? null" :width="18" :height="18" class="size-[18px] rounded-sm" />
-              {{ step.cost }}
-            </span>
-          </div>
-        </div>
-
-        <div v-if="runnersUp.length" class="flex shrink-0 flex-col items-end gap-1.5 border-l border-default pl-3">
-          <span class="stat-label">Or</span>
-          <div class="flex gap-1.5">
-            <div v-for="candidate in runnersUp" :key="candidate.itemId" class="flex flex-col items-center gap-0.5">
-              <GameTooltipItemIcon :item="statics[candidate.itemId] ?? null" :width="30" :height="30" class="size-[30px] rounded" />
-              <span class="text-[10px] tabular-nums text-dimmed">{{ percent(candidate.share) }}</span>
+          <div v-if="runnersUp.length" class="flex shrink-0 flex-col items-end gap-1.5 border-l border-default pl-3">
+            <span class="stat-label">Or</span>
+            <div class="flex gap-1.5">
+              <div v-for="candidate in runnersUp" :key="candidate.itemId" class="flex flex-col items-center gap-0.5">
+                <GameTooltipItemIcon :item="statics[candidate.itemId] ?? null" :width="30" :height="30" class="size-[30px] rounded" />
+                <span class="text-[10px] tabular-nums text-dimmed">{{ percent(candidate.share) }}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+
+        <GameBuildOrder :steps="order" :statics="statics" class="mt-3 border-t border-default pt-3" />
+      </template>
 
       <p v-else-if="state === 'unmeasured'" class="text-sm text-muted">No measured builds for this champion on this lane yet.</p>
       <p v-else-if="state === 'complete'" class="text-sm text-muted">The mains' build is complete.</p>

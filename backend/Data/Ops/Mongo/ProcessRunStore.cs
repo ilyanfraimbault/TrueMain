@@ -7,7 +7,7 @@ namespace Data.Ops.Mongo;
 
 /// <summary>
 /// Mongo adapter for recorded process runs. Aggregation-heavy reads (rollup,
-/// iteration grouping, latest-per-process) are written as explicit pipelines over
+/// latest-per-process) are written as explicit pipelines over
 /// the document field names, mirroring the SQL the Postgres implementation used
 /// (grouped scans + DISTINCT ON), with the same tie-breaks (id desc) so paging
 /// and latest-run picks stay deterministic.
@@ -18,6 +18,8 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
     // startup index creation off, so ensure lazily; the flag is only set after a
     // success so a transient Mongo failure retries on the next call.
     private int _indexesEnsured;
+    private int _headersBackfilled;
+    private readonly ProcessIterationHeaders _headers = new(context);
 
     public async Task InsertAsync(ProcessRunDocument run, CancellationToken ct)
     {
@@ -28,6 +30,7 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
 
         await EnsureIndexesOnceAsync(ct);
         await context.ProcessRuns.InsertOneAsync(run, cancellationToken: ct);
+        await _headers.RecordRunAsync(run, ct);
     }
 
     public async Task<bool> FinalizeAsync(
@@ -306,11 +309,7 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
     }
 
     public async Task<ProcessIterationHeaderPage> QueryIterationsAsync(
-        int page,
-        int pageSize,
-        bool finishedOnly,
-        DateTime freshHeartbeatCutoff,
-        CancellationToken ct)
+        int page, int pageSize, bool finishedOnly, IReadOnlyCollection<string>? jobModes, DateTime freshHeartbeatCutoff, CancellationToken ct)
     {
         if (!context.IsActive)
         {
@@ -319,69 +318,15 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
 
         await EnsureIndexesOnceAsync(ct);
 
-        var pipeline = new List<BsonDocument>
+        // Headers written before this host's first read — the history from before #2124 —
+        // are built once per process; the check is two index reads, the build one $group.
+        if (Volatile.Read(ref _headersBackfilled) == 0)
         {
-            // Only iteration-stamped runs group into the chain view ($ne: null
-            // also excludes documents without the field).
-            new("$match", new BsonDocument("iterationId", new BsonDocument("$ne", BsonNull.Value))),
-            new("$group", new BsonDocument
-            {
-                { "_id", "$iterationId" },
-                { "startedAtUtc", new BsonDocument("$min", "$startedAtUtc") },
-                // An iteration is in flight when it has a Running run with a
-                // still-fresh heartbeat — the same staleness rule the read mapping
-                // uses. $gte against a missing/null heartbeat is false.
-                { "hasFreshRunning", new BsonDocument("$max", new BsonDocument("$cond", new BsonArray
-                    {
-                        new BsonDocument("$and", new BsonArray
-                        {
-                            new BsonDocument("$eq", new BsonArray { "$status", nameof(ProcessRunStatus.Running) }),
-                            new BsonDocument("$gte", new BsonArray
-                            {
-                                new BsonDocument("$ifNull", new BsonArray { "$lastHeartbeatAtUtc", BsonNull.Value }),
-                                new BsonDateTime(freshHeartbeatCutoff)
-                            })
-                        }),
-                        1,
-                        0
-                    })) }
-            })
-        };
-
-        if (finishedOnly)
-        {
-            pipeline.Add(new BsonDocument("$match", new BsonDocument("hasFreshRunning", 0)));
+            await _headers.BackfillIfNeededAsync(ct);
+            Volatile.Write(ref _headersBackfilled, 1);
         }
 
-        pipeline.AddRange(
-        [
-            new BsonDocument("$sort", new BsonDocument { { "startedAtUtc", -1 }, { "_id", -1 } }),
-            new BsonDocument("$facet", new BsonDocument
-            {
-                { "total", new BsonArray { new BsonDocument("$count", "n") } },
-                { "page", new BsonArray
-                    {
-                        new BsonDocument("$skip", (page - 1) * pageSize),
-                        new BsonDocument("$limit", pageSize)
-                    } }
-            })
-        ]);
-
-        var facet = await context.ProcessRuns
-            .Aggregate<BsonDocument>(pipeline, cancellationToken: ct)
-            .FirstAsync(ct);
-
-        var totalArray = facet["total"].AsBsonArray;
-        var total = totalArray.Count == 0 ? 0L : totalArray[0].AsBsonDocument["n"].ToInt64();
-
-        var headers = facet["page"].AsBsonArray
-            .Select(item => item.AsBsonDocument)
-            .Select(doc => new ProcessIterationHeader(
-                Guid.Parse(doc["_id"].AsString),
-                doc["startedAtUtc"].ToUniversalTime()))
-            .ToList();
-
-        return new ProcessIterationHeaderPage(headers, total);
+        return await _headers.QueryAsync(page, pageSize, finishedOnly, jobModes, freshHeartbeatCutoff, ct);
     }
 
     public async Task<IReadOnlyList<ProcessRunDocument>> GetRunsForIterationsAsync(
@@ -503,6 +448,7 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
         }
 
         await context.EnsureProcessRunIndexesAsync(ct);
+        await _headers.EnsureIndexesAsync(ct);
         Volatile.Write(ref _indexesEnsured, 1);
     }
 }

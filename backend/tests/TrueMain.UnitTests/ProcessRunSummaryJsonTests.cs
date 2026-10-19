@@ -269,8 +269,9 @@ public sealed class ProcessRunSummaryJsonTests
             new { accountsProcessed = 100, statsUpserted = 250, statsRemoved = 12, demotedAccounts = 3 });
 
         yield return (
-            new ChampionPatternAggregationSummary(9000, 45, 300, 2, 168),
-            new { sourceRows = 9000, scopes = 45, patterns = 300, gameVersions = 2, champions = 168 });
+            new ChampionPatternAggregationSummary(9000, 45, 300, 2, 168, 1200, 980),
+            // matches and slices appended by #1367: the run is incremental now.
+            new { sourceRows = 9000, scopes = 45, patterns = 300, gameVersions = 2, champions = 168, matches = 1200, slices = 980 });
 
         yield return (
             new EloBracketEnrichmentSummary(5000, 40, 2),
