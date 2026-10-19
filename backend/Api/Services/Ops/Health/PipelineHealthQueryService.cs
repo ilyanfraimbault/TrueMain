@@ -4,7 +4,6 @@ using Data;
 using Data.Entities;
 using Data.Ops.Mongo;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
@@ -43,19 +42,8 @@ public sealed class PipelineHealthQueryService(
     IOptions<StorageHistoryOptions> storageHistoryOptions,
     TimeProvider timeProvider,
     IHostEnvironment environment,
-    IMemoryCache cache,
     ILogger<PipelineHealthQueryService> logger) : IPipelineHealthQueryService
 {
-    /// <summary>
-    /// The raw-corpus totals are the most expensive read of the whole evaluation (#1427): the
-    /// participant count walks every participant row of the queue, which took tens of seconds
-    /// on a busy host — more than every detector together. They are informational (no signal
-    /// is judged from them) and grow on an ingestion cadence, so they are measured on their
-    /// own, longer clock than the 30-second payload; same bound as the operator champion stats,
-    /// which scan the same join.
-    /// </summary>
-    internal static readonly TimeSpan RawCorpusCountsTtl = TimeSpan.FromMinutes(10);
-
     private static readonly string[] ProcessNames =
     [
         "Discovery",
@@ -237,42 +225,63 @@ public sealed class PipelineHealthQueryService(
             })
             .ToList();
 
-        var counts = await GetRawCorpusCountsAsync(queueId, queueScopedMatches, ct);
+        var counts = await SafeRawCorpusEstimatesAsync(ct);
 
         return new RawDataFreshnessReadModel
         {
             QueueId = queueId,
             RawMatchCount = counts.Matches,
             RawParticipantCount = counts.Participants,
+            CountsUnknownReason = counts.UnknownReason,
             Platforms = platformFreshness
         };
     }
 
-    private async Task<RawCorpusCounts> GetRawCorpusCountsAsync(
-        int queueId,
-        IQueryable<Match> queueScopedMatches,
-        CancellationToken ct)
+    /// <summary>
+    /// The raw-corpus totals, as the planner's live-tuple estimates of <c>matches</c> and
+    /// <c>match_participants</c> (#2132) — the same <c>pg_stat_user_tables.n_live_tup</c> the
+    /// <c>/database</c> panel prints as each table's rows, so the two pages cannot disagree.
+    ///
+    /// <para>
+    /// An exact count is a full scan of the participant table: it was the most expensive read
+    /// of the whole evaluation (#1427), and on a cold cache it ran into the API's 60 s
+    /// <c>statement_timeout</c>, failing the whole cockpit for a figure no signal is judged
+    /// from. The estimate is a catalog lookup. It is table-wide rather than filtered on the
+    /// queue, which costs nothing in practice: storage keeps the ranked queue only (#680) and
+    /// retention drains anything else on every pass.
+    /// </para>
+    ///
+    /// <para>
+    /// Degraded like a signal: a failed read costs this block its numbers (null, with the
+    /// reason), never the cockpit — a payload that 500s over an informational counter blanks
+    /// every tile that was measured fine.
+    /// </para>
+    /// </summary>
+    private async Task<RawCorpusEstimates> SafeRawCorpusEstimatesAsync(CancellationToken ct)
     {
-        // Keyed by queue: the queue is configuration, and a count of one queue's corpus must
-        // never be read back as another's. No coalescer of its own — the only caller is the
-        // payload pass, which CachedPipelineHealthQueryService already single-flights.
-        var cacheKey = $"ops:pipeline-health:raw-corpus:{queueId}";
-        if (cache.TryGetValue(cacheKey, out RawCorpusCounts? cached) && cached is not null)
+        try
         {
-            return cached;
+            var rows = await db.Database
+                .SqlQuery<TableRowEstimate>($"""
+                    SELECT relname AS "TableName", n_live_tup::bigint AS "RowEstimate"
+                    FROM pg_catalog.pg_stat_user_tables
+                    WHERE schemaname = 'public' AND relname IN ('matches', 'match_participants')
+                    """)
+                .ToListAsync(ct);
+
+            return RawCorpusEstimates.From(rows);
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Pipeline-health raw-corpus estimates failed to measure");
 
-        var matches = await queueScopedMatches.CountAsync(ct);
-        var participants = await db.MatchParticipants
-            .AsNoTracking()
-            .Join(
-                queueScopedMatches,
-                participant => participant.MatchId,
-                match => match.Id,
-                (participant, _) => participant.Id)
-            .CountAsync(ct);
-
-        return cache.Store(cacheKey, new RawCorpusCounts(matches, participants), RawCorpusCountsTtl);
+            return new RawCorpusEstimates(
+                null, null, SanitizeError(ex.Message, environment.IsProduction()) ?? "internal error");
+        }
+        finally
+        {
+            ct.ThrowIfCancellationRequested();
+        }
     }
 
     private async Task<PipelineGapReadModel> BuildGapsAsync(
@@ -450,5 +459,27 @@ public sealed class PipelineHealthQueryService(
         return "internal error";
     }
 
-    private sealed record RawCorpusCounts(int Matches, int Participants);
+    internal sealed record TableRowEstimate(string TableName, long RowEstimate);
+
+    internal sealed record RawCorpusEstimates(long? Matches, long? Participants, string? UnknownReason)
+    {
+        /// <summary>
+        /// Picks the two tables out of the catalog rows. A table the statistics view does
+        /// not list has no estimate to give, which is reported as such rather than as zero.
+        /// </summary>
+        public static RawCorpusEstimates From(IReadOnlyCollection<TableRowEstimate> rows)
+        {
+            long? Estimate(string table) => rows
+                .Where(row => row.TableName == table)
+                .Select(row => (long?)row.RowEstimate)
+                .FirstOrDefault();
+
+            var matches = Estimate("matches");
+            var participants = Estimate("match_participants");
+
+            return matches is null || participants is null
+                ? new RawCorpusEstimates(matches, participants, "The table statistics do not list the raw match tables.")
+                : new RawCorpusEstimates(matches, participants, null);
+        }
+    }
 }

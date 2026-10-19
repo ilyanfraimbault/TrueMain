@@ -86,5 +86,12 @@ public enum JobMode
     /// Folds each match into the opposing-pair aggregates the draft's enemy-team
     /// component reads (#1713). Appended for the same reason as the values above.
     /// </summary>
-    OpponentAggregationOnly = 28
+    OpponentAggregationOnly = 28,
+
+    /// <summary>
+    /// Recomputes the stored participants per (platform, patch, queue, position, champion)
+    /// the operator champion stats read (#2132). Appended for the same reason as the values
+    /// above.
+    /// </summary>
+    ChampionGameCountRefreshOnly = 29
 }

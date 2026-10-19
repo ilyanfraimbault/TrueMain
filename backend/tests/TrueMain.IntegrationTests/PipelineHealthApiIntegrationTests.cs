@@ -56,8 +56,11 @@ public sealed class PipelineHealthApiIntegrationTests : IAsyncLifetime
         payload!.Processes.Should().Contain(process => process.ProcessName == "MatchIngestion" && process.Status == "Success");
         payload.Processes.Should().Contain(process => process.ProcessName == "ChampionPatternAggregation" && process.Status == "Success");
         payload.RawData.QueueId.Should().Be(420);
-        payload.RawData.RawMatchCount.Should().Be(3);
-        payload.RawData.RawParticipantCount.Should().Be(3);
+        // Planner estimates (#2132), not exact counts: the statistics behind them are flushed
+        // asynchronously, so only their presence is deterministic here — not their value.
+        payload.RawData.CountsUnknownReason.Should().BeNull();
+        payload.RawData.RawMatchCount.Should().NotBeNull();
+        payload.RawData.RawParticipantCount.Should().NotBeNull();
         payload.RawData.Platforms.Should().HaveCount(2);
         payload.RawData.Platforms.Should().Contain(platform => platform.PlatformId == "EUW1" && platform.LatestPatchVersion == "16.4");
         payload.RawData.Platforms.Should().Contain(platform => platform.PlatformId == "KR" && platform.LatestPatchVersion == "16.4");
@@ -432,9 +435,11 @@ public sealed class PipelineHealthApiIntegrationTests : IAsyncLifetime
     {
         public int QueueId { get; init; }
 
-        public int RawMatchCount { get; init; }
+        public long? RawMatchCount { get; init; }
 
-        public int RawParticipantCount { get; init; }
+        public long? RawParticipantCount { get; init; }
+
+        public string? CountsUnknownReason { get; init; }
 
         public IReadOnlyList<PlatformRawDataFreshnessTestContract> Platforms { get; init; } = [];
     }

@@ -39,6 +39,7 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'AccountRefresh',
   'PaceSampling',
   'MatchDataRetention',
+  'ChampionGameCountRefresh',
   'CandidateStockSnapshot',
   'StorageSnapshot',
 ]
@@ -107,6 +108,7 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'ChampionOpponentAggregation',
       'ChampionBanAggregation',
       'MatchDataRetention',
+      'ChampionGameCountRefresh',
       'CandidateStockSnapshot',
       'StorageSnapshot',
     ],
@@ -237,6 +239,11 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Retention',
     description:
       'Deletes what the site no longer serves — stale candidates, out-of-window matches, intermediate timeline snapshots — to keep the database from growing without bound.',
+  },
+  ChampionGameCountRefresh: {
+    label: 'Champion Game Counts',
+    description:
+      'Recounts the stored games per champion, region, patch and lane from the raw matches, so the Champions page and the Overview read a small table instead of scanning every participant. At most every half hour, after retention, so a deleted patch stops counting.',
   },
   CandidateStockSnapshot: {
     label: 'Candidate Stock',

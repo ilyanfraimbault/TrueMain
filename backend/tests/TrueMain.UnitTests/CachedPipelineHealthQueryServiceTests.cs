@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using TrueMain.ReadModels.Ops;
+using TrueMain.Services;
 using TrueMain.Services.Ops.Health;
 
 namespace TrueMain.UnitTests;
@@ -67,9 +68,24 @@ public sealed class CachedPipelineHealthQueryServiceTests
             .Should().BeSameAs(result);
     }
 
+    [Fact]
+    public async Task GetAsync_DoesNotReEvaluate_RightAfterAFailedPass()
+    {
+        using var cache = SizeLimitedCache();
+        var inner = new CountingInner(fails: true);
+        var service = new CachedPipelineHealthQueryService(inner, cache);
+
+        await FluentActions.Awaiting(() => service.GetAsync(CancellationToken.None))
+            .Should().ThrowAsync<InvalidOperationException>();
+        await FluentActions.Awaiting(() => service.GetAsync(CancellationToken.None))
+            .Should().ThrowAsync<ReadBackoffException>();
+
+        inner.Passes.Should().Be(1);
+    }
+
     private static MemoryCache SizeLimitedCache() => new(new MemoryCacheOptions { SizeLimit = 1024 });
 
-    private sealed class CountingInner(bool gated = false) : IPipelineHealthQueryService
+    private sealed class CountingInner(bool gated = false, bool fails = false) : IPipelineHealthQueryService
     {
         private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _passes;
@@ -87,6 +103,11 @@ public sealed class CachedPipelineHealthQueryServiceTests
             if (gated)
             {
                 await _gate.Task;
+            }
+
+            if (fails)
+            {
+                throw new InvalidOperationException("57014: canceling statement due to statement timeout");
             }
 
             return new PipelineHealthReadModel { Status = "ok", Headline = "All good.", EvaluatedAtUtc = DateTime.UtcNow };

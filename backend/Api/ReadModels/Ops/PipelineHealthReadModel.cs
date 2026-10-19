@@ -133,9 +133,21 @@ public sealed record RawDataFreshnessReadModel
 {
     public int QueueId { get; init; }
 
-    public int RawMatchCount { get; init; }
+    /// <summary>
+    /// The planner's live-tuple estimate of <c>matches</c> (#2132), not an exact count —
+    /// the figure the <c>/database</c> panel prints. Null when it could not be read, with
+    /// <see cref="CountsUnknownReason"/> saying why.
+    /// </summary>
+    public long? RawMatchCount { get; init; }
 
-    public int RawParticipantCount { get; init; }
+    /// <inheritdoc cref="RawMatchCount"/>
+    public long? RawParticipantCount { get; init; }
+
+    /// <summary>
+    /// Why the two counts are null; null when they were measured. The rest of the block —
+    /// the per-platform freshness — does not depend on them.
+    /// </summary>
+    public string? CountsUnknownReason { get; init; }
 
     public IReadOnlyList<PlatformRawDataFreshnessReadModel> Platforms { get; init; } = [];
 }

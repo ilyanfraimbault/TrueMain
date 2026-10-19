@@ -206,6 +206,7 @@ Last verified against `develop` on 2026-09-02.
 - Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid — #772, #694, #1599
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back, and the bracket is the participant's stamp (2026-10-19) — #1367, #1365
+- The operator champion game counts are a per-slice recompute of the raw rows, not a fold (2026-10-19) — #2132, #811
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
 - Champion profiles (`champion_profile_stats`) are measured from the champion's own games over the full pool, never labelled by hand; the ranged flag is the one static attribute — #1449
 - Damage profiles are served through the fold's own snapshot rule; the per-build split is a sibling table filled forward (no backfill); an unprofiled champion gets a Data Dragon class, never a share (2026-10-05) — #1905
@@ -295,6 +296,7 @@ Last verified against `develop` on 2026-09-02.
 - The public web server runs one Node worker per useful core (2026-09-15) — #1579
 - The payload is inlined on first load and extracted for client navigation only (`payloadExtraction: 'client'`; it only reaches the `swr` text pages) (2026-10-04) — #1618
 - Paginated reads stay on offset paging; keyset waits for a preprod `EXPLAIN` showing a real cost at a page actually reached (2026-10-06) — #1635
+- No ops read counts `match_participants` on request: champion stats read a rollup, the cockpit's corpus totals are planner estimates that degrade alone, and a failed cold pass backs off (2026-10-19) — #2132, #1427
 
 ## Infrastructure and deploy — [`decisions/infrastructure-and-deploy.md`](decisions/infrastructure-and-deploy.md)
 - The rate-limit partition is the visitor (last `X-Forwarded-For` hop, trusted proxies only), not the connection — this reverses "100 req/min per IP" — #1546
