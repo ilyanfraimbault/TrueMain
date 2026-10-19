@@ -64,12 +64,10 @@ function participantLabel(p: MatchSummaryParticipant): string {
         >
         <span
           v-else
-          role="img"
-          :aria-label="p.label"
           :title="p.label"
           class="size-4 rounded-sm"
           :class="unresolvedClass"
-        />
+        ><span class="sr-only">{{ p.label }}</span></span>
       </template>
     </div>
   </div>

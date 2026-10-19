@@ -98,9 +98,9 @@ describe('MatchRowTeams', () => {
   it('draws the hollow box for a champion the static list does not know', async () => {
     const wrapper = await mountSuspended(MatchRowTeams, { props: { participants, selfTeamId: 100, championById } })
 
-    const unknown = wrapper.find('[role="img"]')
+    const unknown = wrapper.find('span[title="Champion 9999 · Jungle"]')
     expect(unknown.exists()).toBe(true)
-    expect(unknown.attributes('aria-label')).toContain('Jungle')
+    expect(unknown.find('.sr-only').text()).toBe('Champion 9999 · Jungle')
     expect(unknown.classes()).toContain('ring-1')
     expect(unknown.classes()).not.toContain('animate-pulse')
   })
