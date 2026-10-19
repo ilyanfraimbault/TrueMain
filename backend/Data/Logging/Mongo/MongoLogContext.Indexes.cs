@@ -1,0 +1,364 @@
+using Data.Logging.Crash;
+using Data.Metrics.Mongo;
+using Data.Ops.Mongo;
+using MongoDB.Driver;
+
+namespace Data.Logging.Mongo;
+
+/// <summary>
+/// The idempotent index bootstrap of every collection <see cref="MongoLogContext"/> holds: one
+/// <c>Ensure*IndexesAsync</c> per store, each a no-op while the context is inactive and safe to
+/// re-run on every startup.
+/// </summary>
+public sealed partial class MongoLogContext
+{
+    /// <summary>
+    /// Creates the supporting indexes idempotently: a TTL index on the diagnostic
+    /// <c>logs</c> collection (when a retention window is configured) plus the
+    /// equality/range indexes backing the <c>/ops/logs</c> filters, and a
+    /// timestamp index on <c>audit_events</c> for newest-first audit reads. Mongo
+    /// <c>CreateMany</c>/<c>CreateOne</c> is a no-op when an *identical* index
+    /// already exists, so the non-TTL indexes are safe to recreate on every
+    /// startup.
+    /// <para>
+    /// The TTL index is special: re-issuing it with a different
+    /// <c>expireAfterSeconds</c> would throw <c>IndexOptionsConflict</c> (a
+    /// same-name/keys index with different options), which the sink swallows — so a
+    /// changed <see cref="MongoLoggingOptions.LogsRetention"/> would silently never
+    /// take effect. To make a retention change apply, this reconciles the TTL index
+    /// explicitly (see <see cref="MongoIndexes.ReconcileTtlAsync"/>): it reads the existing
+    /// index's <c>expireAfterSeconds</c> and, when it differs from the configured
+    /// window, drops and recreates the index.
+    /// </para>
+    /// </summary>
+    public async Task EnsureIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        var logModels = new List<CreateIndexModel<MongoLogDocument>>
+        {
+            // Newest-first listing is the dominant read on /ops/logs; a descending
+            // index on the timestamp serves the default page without a sort.
+            new(Builders<MongoLogDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
+                new CreateIndexOptions { Name = "ix_timestamp_desc" }),
+            // Back the level / category equality + prefix filters.
+            new(Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.Level),
+                new CreateIndexOptions { Name = "ix_level" }),
+            new(Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.Category),
+                new CreateIndexOptions { Name = "ix_category" }),
+            // Back the /ops/logs eventType filter. Sparse: only ops-event rows
+            // carry the field (the overwhelming majority of diagnostics don't),
+            // so the index stays tiny while sparing event-filtered reads a full
+            // collection scan.
+            new(Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.EventType),
+                new CreateIndexOptions { Name = "ix_event_type", Sparse = true }),
+            // Back the /ops/logs process filter (#722) — an $eq on the stamped
+            // producing host ("Api"/"Ingestor"), same shape as the crashes'
+            // ix_process.
+            new(Builders<MongoLogDocument>.IndexKeys.Ascending(doc => doc.ProcessName),
+                new CreateIndexOptions { Name = "ix_process_name" })
+        };
+
+        await Logs.Indexes.CreateManyAsync(logModels, ct);
+
+        // The TTL index is reconciled separately so a changed retention window
+        // actually re-applies instead of conflicting and being silently swallowed.
+        await MongoIndexes.ReconcileTtlAsync(Logs, doc => doc.TimestampUtc, Options.LogsRetention, ct);
+
+        // audit_events: a descending timestamp index backs the newest-first audit read.
+        await AuditEvents.Indexes.CreateOneAsync(
+            new CreateIndexModel<AuditEventDocument>(
+                Builders<AuditEventDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
+                new CreateIndexOptions { Name = "ix_timestamp_desc" }),
+            cancellationToken: ct);
+
+        // Routed through the same reconciler as every other collection even though
+        // AuditRetention defaults to zero: at zero this is a no-op that only ever drops
+        // a TTL index a previous configuration left behind, so today's behaviour
+        // (indefinite retention) is unchanged. It is here so enabling a window is a
+        // configuration change rather than a code change — #1023 requires every
+        // collection to declare its retention, and this was the one that could not.
+        await MongoIndexes.ReconcileTtlAsync(AuditEvents, doc => doc.TimestampUtc, Options.AuditRetention, ct);
+
+        // crashes: a descending timestamp index for the newest-first listing, plus
+        // equality indexes backing the process / source filters, and the reconciled
+        // TTL index enforcing CrashesRetention (rare, high-value rows kept ~1 year).
+        var crashModels = new List<CreateIndexModel<CrashReportDocument>>
+        {
+            new(Builders<CrashReportDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
+                new CreateIndexOptions { Name = "ix_timestamp_desc" }),
+            new(Builders<CrashReportDocument>.IndexKeys.Ascending(doc => doc.ProcessName),
+                new CreateIndexOptions { Name = "ix_process" }),
+            new(Builders<CrashReportDocument>.IndexKeys.Ascending(doc => doc.Source),
+                new CreateIndexOptions { Name = "ix_source" })
+        };
+
+        await Crashes.Indexes.CreateManyAsync(crashModels, ct);
+
+        await MongoIndexes.ReconcileTtlAsync(Crashes, doc => doc.TimestampUtc, Options.CrashesRetention, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting indexes for the <c>riot_api_call_rollups</c> metrics
+    /// collection idempotently (#93): a unique <c>(bucketStartUtc, endpoint,
+    /// statusCode, callerProcess)</c> compound so each <c>$inc</c>-upsert targets
+    /// exactly one rollup, a descending <c>bucketStartUtc</c> index for window
+    /// scans, an <c>(endpoint, bucketStartUtc)</c> compound for the per-endpoint
+    /// filter, and the reconciled TTL index on <c>bucketStartUtc</c> enforcing
+    /// <see cref="MongoLoggingOptions.RiotApiCallsRetention"/>. Called once on
+    /// <c>RiotApiMetricsSink</c> startup; safe to re-run.
+    /// </summary>
+    public async Task EnsureRiotApiCallIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        // The upsert key widened twice — callerProcess (#1035), then route (#1458) — so one
+        // minute/endpoint/status now upserts one document per caller and host. Each older
+        // unique index would reject the extra documents as duplicates: drop them first.
+        await MongoIndexes.DropIfExistsAsync(RiotApiCallRollups, "ux_bucket_endpoint_status", ct);
+        await MongoIndexes.DropIfExistsAsync(RiotApiCallRollups, "ux_bucket_endpoint_status_caller", ct);
+
+        var models = new List<CreateIndexModel<RiotApiCallRollupDocument>>
+        {
+            // The upsert key: one rollup per minute/endpoint/status/caller/route. Unique
+            // so a concurrency race can't split a bucket into duplicate documents.
+            new(Builders<RiotApiCallRollupDocument>.IndexKeys
+                    .Ascending(doc => doc.BucketStartUtc).Ascending(doc => doc.Endpoint)
+                    .Ascending(doc => doc.StatusCode).Ascending(doc => doc.CallerProcess)
+                    .Ascending(doc => doc.Route),
+                new CreateIndexOptions { Name = "ux_bucket_endpoint_status_caller_route", Unique = true }),
+            // The window lower bound (bucketStartUtc >= since) is on every read; a
+            // descending index serves it and the newest-first rate-limit lookup.
+            new(Builders<RiotApiCallRollupDocument>.IndexKeys.Descending(doc => doc.BucketStartUtc),
+                new CreateIndexOptions { Name = "ix_timestamp_desc" }),
+            // Back the optional endpoint filter: scan one endpoint within a window.
+            new(Builders<RiotApiCallRollupDocument>.IndexKeys
+                    .Ascending(doc => doc.Endpoint)
+                    .Descending(doc => doc.BucketStartUtc),
+                new CreateIndexOptions { Name = "ix_endpoint_timestamp" })
+        };
+
+        await RiotApiCallRollups.Indexes.CreateManyAsync(models, ct);
+
+        await MongoIndexes.ReconcileTtlAsync(
+            RiotApiCallRollups, doc => doc.BucketStartUtc, Options.RiotApiCallsRetention, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting indexes for the <c>db_table_size_snapshots</c>
+    /// collection idempotently (#925): a unique
+    /// <c>(snapshotDateUtc, engine, tableName)</c> compound so the day-keyed upsert
+    /// targets exactly one document per object per day, a descending
+    /// <c>snapshotDateUtc</c> index for the window scan every read performs, and the
+    /// reconciled TTL index enforcing
+    /// <see cref="MongoLoggingOptions.DbTableSizeSnapshotsRetention"/>. Called on the
+    /// snapshot step's first run; safe to re-run.
+    /// </summary>
+    public async Task EnsureDbTableSizeSnapshotIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        // #1023 widened the upsert key with the engine, so the pre-existing
+        // (snapshotDateUtc, tableName) unique index has to go: process_runs and
+        // seed_requests were both a Postgres table and a Mongo collection, and under
+        // the old index the second engine written each day would collide with the
+        // first. Dropped before the new one is created so the collection is never
+        // left with a constraint the writer cannot satisfy.
+        await MongoIndexes.DropIfExistsAsync(DbTableSizeSnapshots, "ux_date_table", ct);
+
+        // Stamp the engine onto the documents written before #1023. They are Postgres
+        // readings by construction, and without the field the writer's engine-filtered
+        // upsert would not match them: it would insert a *second* document for the same
+        // day and table, and the read sums per day, so every backfilled day would
+        // silently double. Matches nothing from the second run on.
+        await DbTableSizeSnapshots.UpdateManyAsync(
+            Builders<DbTableSizeSnapshotDocument>.Filter.Exists(doc => doc.Engine, exists: false),
+            Builders<DbTableSizeSnapshotDocument>.Update.Set(doc => doc.Engine, StorageEngines.Postgres),
+            cancellationToken: ct);
+
+        var models = new List<CreateIndexModel<DbTableSizeSnapshotDocument>>
+        {
+            // The upsert key: one document per object per day. Unique, so two ingestor
+            // containers running the pipeline concurrently cannot split a day into
+            // duplicate documents and double every derived per-day delta.
+            new(Builders<DbTableSizeSnapshotDocument>.IndexKeys
+                    .Ascending(doc => doc.SnapshotDateUtc)
+                    .Ascending(doc => doc.Engine)
+                    .Ascending(doc => doc.TableName),
+                new CreateIndexOptions { Name = "ux_date_engine_table", Unique = true }),
+            // Every read is "the last N days", so the window lower bound is served
+            // descending, newest first.
+            new(Builders<DbTableSizeSnapshotDocument>.IndexKeys.Descending(doc => doc.SnapshotDateUtc),
+                new CreateIndexOptions { Name = "ix_snapshot_date_desc" }),
+            // Back the per-table series: one table's history within the window.
+            new(Builders<DbTableSizeSnapshotDocument>.IndexKeys
+                    .Ascending(doc => doc.TableName)
+                    .Descending(doc => doc.SnapshotDateUtc),
+                new CreateIndexOptions { Name = "ix_table_snapshot_date" })
+        };
+
+        await DbTableSizeSnapshots.Indexes.CreateManyAsync(models, ct);
+
+        await MongoIndexes.ReconcileTtlAsync(
+            DbTableSizeSnapshots, doc => doc.SnapshotDateUtc, Options.DbTableSizeSnapshotsRetention, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting indexes for the <c>candidate_stock_snapshots</c>
+    /// collection idempotently (#1403): a unique
+    /// <c>(snapshotHourUtc, platformId, status)</c> compound so the hour-keyed upsert
+    /// targets exactly one document per series per hour, a descending
+    /// <c>snapshotHourUtc</c> index for the window scan every read performs, and the
+    /// reconciled TTL index enforcing
+    /// <see cref="MongoLoggingOptions.CandidateStockSnapshotsRetention"/>. Called on
+    /// the snapshot step's first run; safe to re-run.
+    /// </summary>
+    public async Task EnsureCandidateStockSnapshotIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        var models = new List<CreateIndexModel<CandidateStockSnapshotDocument>>
+        {
+            // The upsert key: one document per (platform, status) per hour. Unique, so
+            // two ingestor containers running concurrently — which is exactly what the
+            // two-lane split (#1362) produces — cannot split an hour into duplicate
+            // documents and double the level the panel draws.
+            new(Builders<CandidateStockSnapshotDocument>.IndexKeys
+                    .Ascending(doc => doc.SnapshotHourUtc)
+                    .Ascending(doc => doc.PlatformId)
+                    .Ascending(doc => doc.Status),
+                new CreateIndexOptions { Name = "ux_hour_platform_status", Unique = true }),
+            // Every read is "the last N days", so the window lower bound is served
+            // descending, newest first.
+            new(Builders<CandidateStockSnapshotDocument>.IndexKeys.Descending(doc => doc.SnapshotHourUtc),
+                new CreateIndexOptions { Name = "ix_snapshot_hour_desc" })
+        };
+
+        await CandidateStockSnapshots.Indexes.CreateManyAsync(models, ct);
+
+        await MongoIndexes.ReconcileTtlAsync(
+            CandidateStockSnapshots,
+            doc => doc.SnapshotHourUtc,
+            Options.CandidateStockSnapshotsRetention,
+            ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting indexes for the <c>process_runs</c> collection
+    /// idempotently: a descending <c>(startedAtUtc, _id)</c> compound for the
+    /// newest-first runs listing, an <c>(processName, startedAtUtc)</c> compound
+    /// for the per-process filters and cadence read, an <c>(processName,
+    /// finishedAtUtc)</c> compound for the latest-per-process picks, an
+    /// <c>iterationId</c> index (sparse — only iteration-stamped runs carry the
+    /// field) for the chain view, and the reconciled TTL index enforcing
+    /// <see cref="MongoLoggingOptions.ProcessRunsRetention"/>. Called by the
+    /// store's first-use bootstrap; safe to re-run.
+    /// </summary>
+    public async Task EnsureProcessRunIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        var models = new List<CreateIndexModel<ProcessRunDocument>>
+        {
+            new(Builders<ProcessRunDocument>.IndexKeys
+                    .Descending(doc => doc.StartedAtUtc)
+                    .Descending(doc => doc.Id),
+                new CreateIndexOptions { Name = "ix_started_desc" }),
+            new(Builders<ProcessRunDocument>.IndexKeys
+                    .Ascending(doc => doc.ProcessName)
+                    .Descending(doc => doc.StartedAtUtc),
+                new CreateIndexOptions { Name = "ix_process_started" }),
+            new(Builders<ProcessRunDocument>.IndexKeys
+                    .Ascending(doc => doc.ProcessName)
+                    .Descending(doc => doc.FinishedAtUtc),
+                new CreateIndexOptions { Name = "ix_process_finished" }),
+            new(Builders<ProcessRunDocument>.IndexKeys.Ascending(doc => doc.IterationId),
+                new CreateIndexOptions { Name = "ix_iteration", Sparse = true })
+        };
+
+        await ProcessRuns.Indexes.CreateManyAsync(models, ct);
+
+        await MongoIndexes.ReconcileTtlAsync(ProcessRuns, doc => doc.StartedAtUtc, Options.ProcessRunsRetention, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting indexes for the <c>seed_requests</c> collection
+    /// idempotently: a descending <c>(requestedAtUtc, _id)</c> compound for the
+    /// newest-first admin listing, a <c>(status, requestedAtUtc)</c> compound for
+    /// the Pending FIFO scan, and a <c>(resolvedPuuid, platformId)</c> compound
+    /// (sparse — only ingested requests carry the PUUID) for the candidate-detail
+    /// lookup. No TTL: seed requests are functional history. Called by the store's
+    /// first-use bootstrap; safe to re-run.
+    /// </summary>
+    public async Task EnsureSeedRequestIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        var models = new List<CreateIndexModel<SeedRequestDocument>>
+        {
+            new(Builders<SeedRequestDocument>.IndexKeys
+                    .Descending(doc => doc.RequestedAtUtc)
+                    .Descending(doc => doc.Id),
+                new CreateIndexOptions { Name = "ix_requested_desc" }),
+            new(Builders<SeedRequestDocument>.IndexKeys
+                    .Ascending(doc => doc.Status)
+                    .Ascending(doc => doc.RequestedAtUtc),
+                new CreateIndexOptions { Name = "ix_status_requested" }),
+            new(Builders<SeedRequestDocument>.IndexKeys
+                    .Ascending(doc => doc.ResolvedPuuid)
+                    .Ascending(doc => doc.PlatformId),
+                new CreateIndexOptions { Name = "ix_resolved_puuid", Sparse = true }),
+            // The admin list's region filter (#1166). Platform first, then the list's
+            // own sort key, so a region-scoped page is served from the index instead of
+            // scanning a collection the weekly OTP seeder now grows by tens of
+            // thousands of documents a run.
+            new(Builders<SeedRequestDocument>.IndexKeys
+                    .Ascending(doc => doc.PlatformId)
+                    .Descending(doc => doc.RequestedAtUtc),
+                new CreateIndexOptions { Name = "ix_platform_requested" })
+        };
+
+        await SeedRequests.Indexes.CreateManyAsync(models, ct);
+    }
+
+    /// <summary>
+    /// Creates the supporting index for the <c>effective_configuration</c> collection
+    /// idempotently (#1034): a unique ascending index on <c>processName</c>, which is the whole
+    /// key — the collection holds exactly one document per process and every boot overwrites
+    /// it. Unique so two overlapping ingestor containers during a redeploy cannot split a
+    /// process into duplicate snapshots that the page would then render twice. No TTL: this is
+    /// functional operator state, like <c>seed_requests</c>. Called by the store's first-use
+    /// bootstrap; safe to re-run.
+    /// </summary>
+    public async Task EnsureEffectiveConfigurationIndexesAsync(CancellationToken ct)
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        await EffectiveConfigurations.Indexes.CreateOneAsync(
+            new CreateIndexModel<EffectiveConfigurationDocument>(
+                Builders<EffectiveConfigurationDocument>.IndexKeys.Ascending(doc => doc.ProcessName),
+                new CreateIndexOptions { Name = "ux_process", Unique = true }),
+            cancellationToken: ct);
+    }
+}
