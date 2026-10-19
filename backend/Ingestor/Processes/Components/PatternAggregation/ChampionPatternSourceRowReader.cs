@@ -81,54 +81,41 @@ public sealed class ChampionPatternSourceRowReader(
     }
 
     /// <summary>
-    /// The pending matches and the slices they touch (#1367). A match is pending until its
-    /// timeline is in: the aggregation reads build and skill order out of it, so flagging
-    /// a match before then would leave its games out for good.
-    ///
-    /// <para>
-    /// The ids are read before the slices, on purpose. The fetch lane keeps inserting
-    /// matches while this runs; one that lands in between adds a slice nobody will flag a
-    /// match for — rebuilt once more next run, harmless — whereas the opposite order would
-    /// flag a match whose slice was never rebuilt.
-    /// </para>
-    ///
-    /// <para>
-    /// Every tracked participant marks its slice, main or not: whether the slice holds
-    /// anything is the rebuild's decision, and a demoted player's slice has to be rebuilt
-    /// to empty. A pending match outside the retained window marks nothing and is flagged
-    /// all the same — that patch is frozen.
-    /// </para>
+    /// The pending matches, oldest id first (#1367). A match is pending until its timeline
+    /// is in: the aggregation reads build and skill order out of it, so flagging a match
+    /// before then would leave its games out for good. Read once per run, before any slice
+    /// is rebuilt — see <c>ChampionPatternAggregationProcess</c> for why that order matters.
     /// </summary>
-    internal async Task<PendingPatternWork> LoadPendingWorkAsync(
-        int queueId,
+    internal async Task<List<string>> LoadPendingMatchIdsAsync(int queueId, CancellationToken ct)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+
+        // IX_matches_pattern_pending: the pending tail, not the table.
+        return await db.Matches
+            .AsNoTracking()
+            .Where(match => match.QueueId == queueId && !match.PatternAggregated && match.TimelineIngested)
+            .OrderBy(match => match.Id)
+            .Select(match => match.Id)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// The slices <paramref name="matchIds"/> touch. Every tracked participant marks its
+    /// slice, main or not: whether the slice holds anything is the rebuild's decision, and a
+    /// demoted player's slice has to be rebuilt to empty. A match outside the retained window
+    /// marks nothing — that patch is frozen — and is flagged all the same.
+    /// </summary>
+    internal async Task<HashSet<AggregateSliceKey>> LoadSlicesAsync(
+        IReadOnlyCollection<string> matchIds,
         IReadOnlySet<(string GameVersion, string PlatformId)> livePatchKeys,
         CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
-        // IX_matches_pattern_pending: the pending tail, not the table.
-        var matchIds = await db.Matches
-            .AsNoTracking()
-            .Where(match => match.QueueId == queueId && !match.PatternAggregated && match.TimelineIngested)
-            .Select(match => match.Id)
-            .ToListAsync(ct);
-
-        var windowPatches = livePatchKeys.Select(key => key.GameVersion).Distinct().ToList();
-        var windowPlatforms = livePatchKeys.Select(key => key.PlatformId).Distinct().ToList();
-        if (matchIds.Count == 0 || windowPatches.Count == 0)
-        {
-            return new PendingPatternWork(matchIds, []);
-        }
-
         var touched = await (
             from match in db.Matches.AsNoTracking()
             join participant in db.MatchParticipants.AsNoTracking() on match.Id equals participant.MatchId
-            where match.QueueId == queueId
-                && !match.PatternAggregated
-                && match.TimelineIngested
-                && participant.RiotAccountId != null
-                && windowPlatforms.Contains(match.PlatformId)
-                && windowPatches.Contains(match.Patch ?? match.GameVersion)
+            where matchIds.Contains(match.Id) && participant.RiotAccountId != null
             select new
             {
                 RiotAccountId = participant.RiotAccountId!.Value,
@@ -139,27 +126,20 @@ public sealed class ChampionPatternSourceRowReader(
             .Distinct()
             .ToListAsync(ct);
 
-        var slices = touched
+        return touched
             .Where(slice => livePatchKeys.Contains((slice.GameVersion, slice.PlatformId)))
             .Select(slice => new AggregateSliceKey(slice.RiotAccountId, slice.ChampionId, slice.GameVersion, slice.PlatformId))
             .ToHashSet();
-
-        return new PendingPatternWork(matchIds, slices);
     }
 
-    /// <summary>Flags the matches whose slices this run rebuilt.</summary>
-    internal async Task MarkAggregatedAsync(IReadOnlyList<string> matchIds, CancellationToken ct)
+    /// <summary>Flags matches whose slices this run has rebuilt.</summary>
+    internal async Task MarkAggregatedAsync(IReadOnlyCollection<string> matchIds, CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
-        foreach (var chunk in matchIds.Chunk(MarkBatchSize))
-        {
-            await db.Matches
-                .Where(match => chunk.Contains(match.Id))
-                .ExecuteUpdateAsync(setters => setters.SetProperty(match => match.PatternAggregated, true), ct);
-        }
+        await db.Matches
+            .Where(match => matchIds.Contains(match.Id))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(match => match.PatternAggregated, true), ct);
     }
-
-    private const int MarkBatchSize = 5000;
 
     // `includeNonMains` folds the non-main population too
     // (`MainAnalysis:AggregateNonMainPopulation`). Off by default: widening it is ~4.3x

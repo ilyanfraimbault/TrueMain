@@ -16,9 +16,9 @@ namespace Ingestor.Processes;
 /// <b>The unit is the slice</b> (<see cref="AggregateSliceKey"/>): one account's games on
 /// one champion, patch and platform. A scope adds the position and the elo bracket, both
 /// read off the slice's own games, so a slice rebuilt from its games alone is complete.
-/// A run takes the pending matches (<c>matches.PatternAggregated = false</c>), rebuilds
-/// every slice a tracked participant of theirs belongs to, then flags them. Steady state
-/// that is what was ingested since the previous run, at a few games per slice.
+/// A run takes the pending matches (<c>matches.PatternAggregated = false</c>) a step at a
+/// time, rebuilds every slice a tracked participant of theirs belongs to, then flags them.
+/// Steady state that is what was ingested since the previous run, at a few games per slice.
 /// </para>
 ///
 /// <para>
@@ -73,8 +73,12 @@ public sealed class ChampionPatternAggregationProcess(
                 requeued);
         }
 
-        var work = await sourceRowReader.LoadPendingWorkAsync(queueId, livePatchKeys, ct);
-        if (work.MatchIds.Count == 0)
+        // Read once, before any slice is rebuilt. A slice is rebuilt at most once per run
+        // and from every game present at that moment, which is complete for a match only if
+        // the match was already there — true of every id in this list, not of a match the
+        // fetch lane inserts later, which simply waits for the next run.
+        var matchIds = await sourceRowReader.LoadPendingMatchIdsAsync(queueId, ct);
+        if (matchIds.Count == 0)
         {
             return new ChampionPatternNoWorkSummary("No pending match for the champion pattern aggregation.", 0);
         }
@@ -85,42 +89,52 @@ public sealed class ChampionPatternAggregationProcess(
         var totalPatterns = 0;
         var champions = new HashSet<int>();
         var gameVersions = new HashSet<string>(StringComparer.Ordinal);
+        var rebuilt = new HashSet<AggregateSliceKey>();
 
-        // Batched by account: a batch's working set is those accounts' games on the
-        // champions being rebuilt, never a whole champion's patch. Each batch commits on
-        // its own, so a crash leaves every slice internally consistent; the matches are
-        // flagged only at the end, so the next run redoes the lot.
-        var batches = work.Slices
-            .GroupBy(slice => slice.RiotAccountId)
-            .OrderBy(group => group.Key)
-            .Chunk(options.Value.AccountsPerBatch);
-
-        foreach (var accounts in batches)
+        // A step at a time: rebuild what a step's matches touch, then flag them, so a run cut
+        // short by a deploy keeps what it did. A slice an earlier step already rebuilt is not
+        // rebuilt again — its games were all read then.
+        foreach (var step in matchIds.Chunk(options.Value.MatchesPerStep))
         {
             ct.ThrowIfCancellationRequested();
 
-            var slices = accounts.SelectMany(account => account).ToList();
-            var sourceRows = await sourceRowReader.LoadSourceRowsAsync(queueId, slices, includeNonMains, ct);
-            var result = await aggregateBuilder.BuildAggregatesAsync(sourceRows, aggregatedAtUtc, ct);
-            await aggregatePersister.ReplaceSlicesAsync(queueId, slices, result.Scopes, result.Patterns, ct);
+            var stepSlices = await sourceRowReader.LoadSlicesAsync(step, livePatchKeys, ct);
+            stepSlices.ExceptWith(rebuilt);
 
-            totalSourceRows += result.SourceRowCount;
-            totalScopes += result.Scopes.Count;
-            totalPatterns += result.Patterns.Count;
-            foreach (var scope in result.Scopes)
+            // Batched by account: a batch's working set is those accounts' games on the
+            // champions being rebuilt, never a whole champion's patch. Each batch commits on
+            // its own, so a crash leaves every slice internally consistent.
+            var batches = stepSlices
+                .GroupBy(slice => slice.RiotAccountId)
+                .OrderBy(group => group.Key)
+                .Chunk(options.Value.AccountsPerBatch);
+
+            foreach (var accounts in batches)
             {
-                champions.Add(scope.ChampionId);
-                gameVersions.Add(scope.GameVersion);
-            }
-        }
+                var slices = accounts.SelectMany(account => account).ToList();
+                var sourceRows = await sourceRowReader.LoadSourceRowsAsync(queueId, slices, includeNonMains, ct);
+                var result = await aggregateBuilder.BuildAggregatesAsync(sourceRows, aggregatedAtUtc, ct);
+                await aggregatePersister.ReplaceSlicesAsync(queueId, slices, result.Scopes, result.Patterns, ct);
 
-        await sourceRowReader.MarkAggregatedAsync(work.MatchIds, ct);
+                totalSourceRows += result.SourceRowCount;
+                totalScopes += result.Scopes.Count;
+                totalPatterns += result.Patterns.Count;
+                foreach (var scope in result.Scopes)
+                {
+                    champions.Add(scope.ChampionId);
+                    gameVersions.Add(scope.GameVersion);
+                }
+            }
+
+            rebuilt.UnionWith(stepSlices);
+            await sourceRowReader.MarkAggregatedAsync(step, ct);
+        }
 
         logger.LogInformation(
             "Champion pattern aggregation summary: matches={Matches}, slices={Slices}, sourceRows={SourceRows}, "
             + "scopes={ScopeCount}, patterns={PatternCount}.",
-            work.MatchIds.Count,
-            work.Slices.Count,
+            matchIds.Count,
+            rebuilt.Count,
             totalSourceRows,
             totalScopes,
             totalPatterns);
@@ -131,7 +145,7 @@ public sealed class ChampionPatternAggregationProcess(
             totalPatterns,
             gameVersions.Count,
             champions.Count,
-            work.MatchIds.Count,
-            work.Slices.Count);
+            matchIds.Count,
+            rebuilt.Count);
     }
 }
