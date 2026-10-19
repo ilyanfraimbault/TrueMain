@@ -55,13 +55,13 @@ public sealed class MongoLogContext : IDisposable
     public bool IsActive => _database is not null;
 
     /// <summary>
-    /// The raw database handle, for the few callers that need an admin command rather
-    /// than a typed collection — today only the storage-stats reader (#1023), which
-    /// runs <c>dbStats</c> and <c>$collStats</c> over every collection including ones
-    /// this context does not model. Everything with a document type should go through
-    /// the typed collection properties instead.
+    /// The raw database handle, for callers that need an admin command or a collection
+    /// this context does not model: the storage-stats reader's <c>dbStats</c> (#1023) and
+    /// the process-iteration headers (#2124), which keep their own collection and options.
     /// </summary>
     internal IMongoDatabase Database => _database ?? throw Inactive();
+
+    internal MongoLoggingOptions Options => _options;
 
     // The collection wrappers are cached in the property backing field (the `field`
     // keyword): GetCollection<T>() allocates a fresh wrapper on every call, and the
