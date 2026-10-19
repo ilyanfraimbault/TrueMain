@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { isUnsafeProxyPath } from '~~/server/utils/proxy-path'
+import { isUnsafeProxyPath } from '~~/layers/nitro/server/utils/proxy-path'
 
-// `server/utils/proxy-path.ts` is duplicated byte-for-byte in `admin/`; this suite
-// exists on both sides so the copies cannot drift. The public proxy needs the guard
-// as much as the ops one: it is reachable without any session at all.
+// The guard both proxies share (`layers/nitro`, #1625): the site's public `/api`,
+// reachable without any session at all, and the admin's `/api/ops`. Ordinary paths
+// of both are listed below.
 
 describe('isUnsafeProxyPath', () => {
   it.each([
@@ -11,6 +11,10 @@ describe('isUnsafeProxyPath', () => {
     '/champions/103/builds?patch=25.16&elo=Emerald%2B',
     '/players/Sheiden%231234',
     '/matches/EUW1_7391827364',
+    '/stats/overview',
+    '/logs?level=Error&search=timeout',
+    '/accounts/Sheiden%231234',
+    '/data-quality/match/EUW1_7391827364',
     '',
   ])('forwards the ordinary path %s', (path) => {
     expect(isUnsafeProxyPath(path)).toBe(false)

@@ -1,12 +1,8 @@
 /**
  * Ships this server's own errors to the ops logs (#1556), through the API's
- * `POST /internal/logs`, so a failure of the admin portal's server shows up in the
- * admin Logs page next to the API's instead of only in container output.
- *
- * This file is deliberately duplicated between the two apps
- * (`web/server/utils/log-forwarder.ts`, `admin/server/utils/log-forwarder.ts`),
- * like `proxy-path.ts`: **a change here is a change on both sides**, and each app
- * pins the behaviour with its own test. The copies differ in this header only.
+ * `POST /internal/logs`, so a failure of the site's or the admin portal's server
+ * shows up in the admin Logs page next to the API's instead of only in container
+ * output. Shared by both apps through `web/layers/nitro` (#1625).
  *
  * Built so that reporting can never make an incident worse:
  * - identical errors are folded into one entry with a count, so a burst of the

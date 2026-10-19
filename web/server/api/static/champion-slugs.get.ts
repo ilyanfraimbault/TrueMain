@@ -1,6 +1,6 @@
 import type { ChampionSlugMap } from '~~/shared/types/static-data'
 import { isLiveChampionId, toChampionSlug } from '~~/shared/utils/ddragon'
-import { resolveDDragonVersion } from '~~/server/utils/ddragon-patch'
+import { resolveDDragonVersion } from '~~/layers/nitro/server/utils/ddragon-patch'
 
 /**
  * `championId → url slug` for every live champion (#1124).

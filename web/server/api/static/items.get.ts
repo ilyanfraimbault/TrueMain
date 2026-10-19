@@ -1,5 +1,5 @@
 import type { StaticItemData } from '~~/shared/types/static-data'
-import { normalizeRequestedPatch, resolveDDragonVersion } from '~~/server/utils/ddragon-patch'
+import { normalizeRequestedPatch, resolveDDragonVersion } from '~~/layers/nitro/server/utils/ddragon-patch'
 
 interface ItemListResponse {
   data: Record<string, {

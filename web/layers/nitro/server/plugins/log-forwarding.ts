@@ -2,21 +2,25 @@ import { hostname } from 'node:os'
 
 /**
  * Sends this server's errors to the ops logs (#1556): every request that fails
- * here with a 5xx — a handler that threw, the ops proxy unable to reach the API —
- * plus, from the proxy itself, each 429 or 5xx the API answered
- * (`server/api/ops/[...path].ts`).
+ * here with a 5xx — a render error, a handler that threw, a proxy (the site's
+ * `/api`, the admin's `/api/ops`) unable to reach the API — plus, from the
+ * proxies themselves, each 429 or 5xx the API answered.
  *
  * Off unless `NUXT_LOG_INGEST_KEY` is set: it is the key the API expects on
- * `POST /internal/logs`. Twin of `web/server/plugins/log-forwarding.ts`.
+ * `POST /internal/logs`. Shared by both apps through `web/layers/nitro` (#1625);
+ * what differs between them — the process name the errors are filed under and
+ * the API they go to — comes from each app's `logForwardingTarget()`
+ * (`server/utils/log-forwarding-target.ts`).
  */
 export default defineNitroPlugin((nitroApp) => {
-  const { opsApiBaseUrl, logIngestKey } = useRuntimeConfig()
+  const { logIngestKey } = useRuntimeConfig()
   if (!logIngestKey) return
+  const target = logForwardingTarget()
 
   const forwarder = createLogForwarder({
-    process: 'Admin',
+    process: target.process,
     host: hostname(),
-    send: batch => $fetch(`${opsApiBaseUrl}/internal/logs`, {
+    send: batch => $fetch(`${target.apiBaseUrl}/internal/logs`, {
       method: 'POST',
       body: batch,
       headers: { 'X-Log-Ingest-Key': logIngestKey },

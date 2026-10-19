@@ -74,8 +74,8 @@ async function playerUrls(): Promise<SitemapUrl[]> {
 // Cache the fan-out at the origin (not just via downstream CDNs): @nuxtjs/sitemap
 // caches the rendered sitemap, but this route is publicly reachable, so without
 // this every direct hit would pass straight through to the upstreams. Mirrors
-// server/api/static/champions.get.ts. The cache wraps the function (not the
-// handler) so the handler keeps full control of the response Cache-Control
+// layers/nitro/server/api/static/champions.get.ts. The cache wraps the function
+// (not the handler) so the handler keeps full control of the response Cache-Control
 // header below.
 const loadSitemapUrls = defineCachedFunction(
   async (): Promise<SitemapUrl[]> => {

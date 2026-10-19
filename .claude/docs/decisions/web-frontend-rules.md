@@ -186,7 +186,7 @@ evaluating expiry per write would store and immediately drop each of their icons
 permanently uncached. The window is the three newest patches *observed* rather than `newest - 2` arithmetic, so
 a season rollover (16.1 after 15.24) keeps the right three — `server/utils/ipx-patch-retention.ts`, #997.
 
-## `web/` and `admin/` duplicate their Data Dragon helpers on purpose, and the copies are labelled (2026-08-26)
+## `web/` and `admin/` share their server code through `web/layers/nitro`, no longer as labelled copies (2026-10-19, revises 2026-08-26)
 
 The two apps are deliberately separate — different auth, different rendering mode (`ssr: false` in the admin),
 different deploy — and there is no shared package to hold common code. That is not changing: a package would
@@ -227,9 +227,30 @@ above. Web↔admin sharing therefore stays on labelled twins. That pairing has n
 revisit condition is unchanged — the shared surface growing substantially, or the image builds moving to the repo
 root for another reason.
 
-The guard against drift will be a CI check (#1625, not yet shipped): the twin pairs are declared, and a pair that differs outside
-lines marked app-specific fails the build. It covers whatever twins remain — web↔admin, and the desktop app's own
-pages that still copy a site component (`decisions/desktop.md`).
+**The admin extends a layer inside `web/` too, and the twins are gone (2026-10-19, #1625; product owner's call
+of 2026-10-05).** #1625 was first scoped as a CI check comparing the declared twin pairs; the owner chose to remove
+the pairs instead of guarding them, and the desktop layer had shown how: a layer *inside* `web/` costs the site's
+image nothing. Of the eight files that existed twice, `web/layers/nitro` holds the six server ones —
+`proxy-path`, `abandoned-request`, `log-forwarder`, the `log-forwarding` plugin, `ddragon-patch` and the champion
+list endpoint; the other two, `shared/utils/ddragon.ts` and `shared/types/static-data.ts`, stay in the site's
+`shared/`, which the admin now reads through its `#site-shared` alias (`web/layers/nitro/README.md`). It is its own layer, not `web/layers/common`, because the desktop app has no Nitro
+server and must not pick up server plugins, and the admin has no use for the shared pages.
+
+- **The build plumbing #1623 priced was smaller than feared.** The admin image still builds from `./admin`; the
+  layer and `web/shared` reach it as a second, named build context (`web=./web`, copied in by `admin/Dockerfile`),
+  so nothing moved to the repo root. The bare-import worry did not materialise either: the layer imports only
+  `h3` (types) and `node:os`, and Nuxt maps `h3` to the consuming app's own copy.
+- **The drifted pairs were reconciled on the site's side.** Every difference was a web-only addition (the exported
+  versions URL, extra helpers and item fields) or a comment; the admin copies were strict subsets.
+- **What differs between the apps is provided, not forked**, like the desktop layer's `useApiFetch()`: each app's
+  `logForwardingTarget()` names its process and API, and the admin gates `/api/static/*` behind the operator
+  session in its own middleware (`admin/server/middleware/static-session.ts`). A missing provider fails that app's
+  typecheck.
+- **No drift check.** With no pair left there is nothing to compare; the admin's duplicate tests were deleted, the
+  site's suite pins the one copy, and the CI `changes` gate runs the admin's jobs when the layer or `web/shared`
+  changes (`docs/ci.md`). The copies left elsewhere differ by design rather than drift: the admin's `riot-id.ts`
+  has its own operator-facing contract, and the desktop app's `SkeletonImage` and `RankIcon` twins are the
+  host-provided components that draw what the site's cannot (`web/layers/common/README.md`).
 
 `PATCH_PATTERN` (`^\d+\.\d+\.\d+$`) sits next to `normalizeDataDragonPatch`, which produces the value it
 validates — that function expands the short `16.5` form the backend scopes expose and passes everything else
