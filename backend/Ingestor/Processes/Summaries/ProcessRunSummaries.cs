@@ -128,13 +128,18 @@ public sealed record MatchIngestionSummary(
     int AccountsWithoutNewMatches = 0,
     int MainsReactivated = 0) : IProcessRunSummary;
 
-/// <summary>Manual seed outcome for the claimed batch.</summary>
+/// <summary>
+/// Manual seed outcome for the claimed batch. <c>NoSummonerOnPlatform</c> (#2133) counts
+/// Riot IDs that resolve on the regional cluster but have no summoner on the submitted
+/// platform; it is appended last so a run recorded before it reads as "not measured".
+/// </summary>
 public sealed record ManualSeedSummary(
     int Claimed,
     int Ingested,
     int NotFound,
     int Failed,
-    int CandidatesQueued) : IProcessRunSummary;
+    int CandidatesQueued,
+    int NoSummonerOnPlatform = 0) : IProcessRunSummary;
 
 /// <summary>
 /// Participant harvest outcome, including the anti-starvation coverage split (#495)
