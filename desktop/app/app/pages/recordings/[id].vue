@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DraftClip } from '~/composables/useRecapDrafts'
 import type { Clip, GameRecording, Moment, RecordingWinProbability } from '~/types/recordings'
+import { momentCast } from '~/utils/recording-moments'
 import { recapWinProbability } from '~/utils/recording-win-probability'
 
 /**
@@ -46,6 +47,8 @@ watch(() => [id.value, recording.value?.status] as const, async ([current, statu
   if (current === id.value) curveData.value = data
 }, { immediate: true })
 const winProbability = computed(() => (curveData.value ? recapWinProbability(curveData.value, nameOf) : null))
+/** Who played what: the player's champion, and everyone's from the scoreboard kept with the curve. */
+const cast = computed(() => momentCast(recording.value?.championId ?? null, curveData.value))
 
 const length = computed(() => recording.value?.durationMs ?? 0)
 const saved = computed(() => (library.value?.clips.filter(clip => clip.recordingId === id.value) ?? []).sort((a, b) => a.startMs - b.startMs))
@@ -115,6 +118,7 @@ const note = computed(() => {
         :saved="savedRanges"
         :pending-in="pendingIn"
         :win-probability="winProbability"
+        :cast="cast"
         @create="add"
         @resize="resize"
         @select="key => (selected = key)"

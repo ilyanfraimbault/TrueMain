@@ -32,6 +32,32 @@ pub enum ObjectiveKind {
     Inhibitor,
 }
 
+/// An elemental drake's element, from the timeline's `monsterSubType`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DragonKind {
+    Infernal,
+    Mountain,
+    Ocean,
+    Cloud,
+    Hextech,
+    Chemtech,
+}
+
+impl DragonKind {
+    fn from_sub_type(sub_type: &str) -> Option<Self> {
+        match sub_type {
+            "FIRE_DRAGON" => Some(Self::Infernal),
+            "EARTH_DRAGON" => Some(Self::Mountain),
+            "WATER_DRAGON" => Some(Self::Ocean),
+            "AIR_DRAGON" => Some(Self::Cloud),
+            "HEXTECH_DRAGON" => Some(Self::Hextech),
+            "CHEMTECH_DRAGON" => Some(Self::Chemtech),
+            _ => None,
+        }
+    }
+}
+
 /// An objective taken, in game time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +66,10 @@ pub struct Objective {
     pub game_time_ms: i64,
     /// Whether the player's team took it.
     pub ally: bool,
+    /// An elemental drake's element. `None` for every other objective, and
+    /// for drakes kept by a build that did not record it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dragon: Option<DragonKind>,
 }
 
 /// The game's objectives from its timeline. `my_team` is the player's team id
@@ -102,6 +132,9 @@ pub fn objectives(timeline: &GameTimeline, my_team: i64) -> Vec<Objective> {
             kind,
             game_time_ms: event.timestamp,
             ally,
+            dragon: (kind == ObjectiveKind::Dragon)
+                .then(|| DragonKind::from_sub_type(&event.monster_sub_type))
+                .flatten(),
         });
     }
     objectives.sort_by_key(|objective| objective.game_time_ms);
@@ -126,8 +159,11 @@ pub enum MomentKind {
     Marked,
 }
 
-/// One moment on a video's timeline.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// One moment on a video's timeline. The participant ids name the players in
+/// it (1 to 10, the game's timeline numbering); the recap draws their
+/// champions from the recording's scoreboard. Moments kept by an older build,
+/// and those read from the live feed, have none.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Moment {
     pub kind: MomentKind,
@@ -138,6 +174,16 @@ pub struct Moment {
     pub kills: u8,
     /// Objectives only: whether the player's team took it.
     pub ally: Option<bool>,
+    /// Who landed the kill, for a death or an assist; `None` for the player's
+    /// own kills, an execution, or an objective.
+    #[serde(default)]
+    pub killer_id: Option<i64>,
+    /// Who died: every victim of a multi-kill, the one of an assist.
+    #[serde(default)]
+    pub victim_ids: Vec<i64>,
+    /// An elemental drake's element.
+    #[serde(default)]
+    pub dragon: Option<DragonKind>,
 }
 
 impl Moment {
@@ -171,6 +217,9 @@ pub fn on_video(
             end_video_ms: video_ms,
             kills: 0,
             ally: None,
+            killer_id: None,
+            victim_ids: Vec::new(),
+            dragon: None,
         }
     });
     let Some(anchor) = anchor else {
@@ -189,6 +238,9 @@ pub fn on_video(
             end_video_ms: place(highlight.end_game_time_ms),
             kills: highlight.kills,
             ally: None,
+            killer_id: highlight.killer_id,
+            victim_ids: highlight.victim_ids.clone(),
+            dragon: None,
         })
         .chain(objectives.iter().map(|objective| {
             let video_ms = place(objective.game_time_ms);
@@ -207,6 +259,9 @@ pub fn on_video(
                 end_video_ms: video_ms,
                 kills: 0,
                 ally: Some(objective.ally),
+                killer_id: None,
+                victim_ids: Vec::new(),
+                dragon: objective.dragon,
             }
         }))
         .chain(marked)
@@ -259,6 +314,8 @@ mod tests {
                 (ObjectiveKind::Baron, 1700, true),
             ]
         );
+        assert_eq!(found[1].dragon, Some(DragonKind::Infernal));
+        assert_eq!(found[4].dragon, None);
         assert!(!objectives(&timeline(), 200)[0].ally);
     }
 
@@ -280,15 +337,17 @@ mod tests {
             end_game_time_ms: 99_000,
             kills: 2,
             killer_id: None,
-            victim_ids: vec![],
+            victim_ids: vec![7, 9],
         }];
         let objectives = [Objective {
             kind: ObjectiveKind::Dragon,
             game_time_ms: 60_000,
             ally: true,
+            dragon: Some(DragonKind::Ocean),
         }];
         let moments = on_video(Some(&anchor), &highlights, &objectives, &[], Some(110_000));
         assert_eq!(moments[0].kind, MomentKind::Dragon);
+        assert_eq!(moments[0].dragon, Some(DragonKind::Ocean));
         assert_eq!(moments[1].kind, MomentKind::Kill);
         assert_eq!(moments[1].kills, 2);
         let near = |ms: i64, at: i64| (ms - at).abs() <= 5;
@@ -299,9 +358,10 @@ mod tests {
             "{moments:?}"
         );
         assert_eq!(moments[1].ally, None);
+        assert_eq!(moments[1].victim_ids, vec![7, 9]);
         assert!(on_video(None, &highlights, &objectives, &[], None).is_empty());
         assert_eq!(
-            moments[0].shifted(70_000).video_ms,
+            moments[0].clone().shifted(70_000).video_ms,
             moments[0].video_ms - 70_000
         );
     }
@@ -335,6 +395,7 @@ mod tests {
             kind: ObjectiveKind::Dragon,
             game_time_ms: 10_000,
             ally: true,
+            dragon: None,
         }];
         let kinds: Vec<MomentKind> = on_video(Some(&anchor), &[], &objectives, &marks[..2], None)
             .iter()
