@@ -48,7 +48,13 @@ const matchDetails = new Map<string, MatchDetailResponse>()
 async function readTruemainDetail(nameTag: string, platformId: string | null, matchId: string): Promise<MatchDetailResponse | null> {
   if (!nameTag || !platformId) return null
   try {
-    return await apiGet<MatchDetailResponse>(`/truemains/${encodeURIComponent(nameTag)}/matches/${platformId}_${matchId}`)
+    // In the background: an opened row shows its own skeleton, and the window's
+    // loading bar is for a page's load, not for a panel opening in place.
+    return await apiGet<MatchDetailResponse>(
+      `/truemains/${encodeURIComponent(nameTag)}/matches/${platformId}_${matchId}`,
+      {},
+      { background: true },
+    )
   }
   catch {
     return null
