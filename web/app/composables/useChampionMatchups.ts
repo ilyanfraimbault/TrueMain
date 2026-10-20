@@ -1,5 +1,5 @@
 import type { ChampionMatchups } from '~~/shared/types/champions'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { PositionFilter } from '#common/utils/positions'
 import { fetchErrorStatus } from '#common/utils/errors'
 
 export interface UseChampionMatchupsOptions {
@@ -35,12 +35,13 @@ export interface UseChampionMatchupsOptions {
  * slices into best/worst, or — when `opponentChampionId` is set — just that one
  * head-to-head (the backend seeks the single aggregate row and applies no floor
  * at all, so a one-game meeting still answers). Global by default; pass `nameTag`
- * to scope to one player. Fires once a position is known. A 404 (unknown player)
+ * to scope to one player — whose route also takes `ALL`, every position at once.
+ * Fires once a position is known. A 404 (unknown player)
  * resolves to null so the table can render an empty state rather than an error.
  */
 export function useChampionMatchups(
   championId: MaybeRefOrGetter<number>,
-  position: MaybeRefOrGetter<ChampionPosition | null>,
+  position: MaybeRefOrGetter<PositionFilter | null>,
   options: UseChampionMatchupsOptions = {},
 ) {
   const championIdRef = computed(() => toValue(championId))
