@@ -6,7 +6,9 @@ import { rankChartPoints } from '#common/utils/rank-chart'
 // The player's Solo/Duo standing: rank, record, LP moved over 7 and 30 days,
 // and the LP curve over the rank-history window. The site's profile and
 // player-scoped champion page read the history from TrueMain; the app's
-// dashboard from its own local snapshots.
+// dashboard from its own local snapshots. The app adds what only the client
+// knows through two slots the site leaves empty: `standing` under the Solo/Duo
+// block (the Flex standing), `moves` under the curve (the latest games' LP).
 const props = withDefaults(defineProps<{
   ranked: ProfileRanked | null
   history?: readonly RankHistoryEntry[]
@@ -45,6 +47,8 @@ const showEmptyChart = computed(
       Unranked
     </p>
 
+    <slot name="standing" />
+
     <USkeleton v-if="historyLoading" class="h-[150px] w-full rounded-md" />
 
     <p v-else-if="showEmptyChart" class="text-sm text-muted">
@@ -56,5 +60,7 @@ const showEmptyChart = computed(
       :points="points"
       :current-tier="ranked?.tier ?? null"
     />
+
+    <slot name="moves" />
   </section>
 </template>
