@@ -820,7 +820,7 @@ mod tests {
 
     #[test]
     fn the_mark_keys_chord_is_taken_back_from_a_panel() {
-        let mark = Chord::with(true, true, false, KeyCode::Digit5);
+        let mark = Chord::with(true, true, false, KeyCode::Digit0);
         let mut settings = OverlaySettings::default();
         settings.panel_mut(Stats).trigger = PanelTrigger::Toggle {
             chord: mark,

@@ -36,10 +36,10 @@ pub const MIN_BUDGET_BYTES: u64 = 2 * GB;
 /// preset, so every resolution and frame rate gets a consistent quality.
 const BITS_PER_PIXEL: f64 = 0.1;
 
-/// The mark key's default, ⌥⇧5 / Alt+Shift+5: in the overlay's Alt+Shift
-/// and digit family, past the four digits it suggests for its panels, and on
-/// no default League bind (#2079).
-pub const DEFAULT_MARK_KEY: Chord = Chord::with(true, true, false, KeyCode::Digit5);
+/// The mark key's default, ⌥⇧0 / Alt+Shift+0: in the overlay's Alt+Shift
+/// and digit family, at the far end of the digits it suggests for its panels
+/// — counted up from 1, one per panel — and on no default League bind (#2079).
+pub const DEFAULT_MARK_KEY: Chord = Chord::with(true, true, false, KeyCode::Digit0);
 
 /// One keyframe a second: a jump to a highlight lands on a keyframe within a
 /// second, and a fragment is never longer than that if the app dies mid-game.
@@ -413,7 +413,7 @@ mod tests {
     fn the_mark_key_is_on_by_default_and_can_be_turned_off() {
         let defaults = RecordingSettings::from_json("{}");
         assert_eq!(defaults.mark_key, Some(DEFAULT_MARK_KEY));
-        assert_eq!(DEFAULT_MARK_KEY.label(false), "Alt+Shift+5");
+        assert_eq!(DEFAULT_MARK_KEY.label(false), "Alt+Shift+0");
         assert_eq!(
             RecordingSettings::from_json(r#"{ "markKey": null }"#).mark_key,
             None

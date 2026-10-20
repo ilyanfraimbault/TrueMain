@@ -19,7 +19,7 @@ const global = {
   },
 }
 
-const ALT_SHIFT_5: Chord = { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: 'Digit5' }
+const ALT_SHIFT_0: Chord = { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: 'Digit0' }
 
 beforeEach(() => {
   vi.stubGlobal('ref', ref)
@@ -35,15 +35,15 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('RecordingsMarkKey', () => {
   it('shows the key and what it keeps', () => {
-    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_5, chord: { label: '⌥⇧5', warning: null } } })
+    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_0, chord: { label: '⌥⇧0', warning: null } } })
 
     expect(wrapper.find('.switch').attributes('data-on')).toBe('true')
     expect(wrapper.find('.switch').text()).toContain('the 30 seconds before')
-    expect(wrapper.find('button[aria-label^="Mark key"]').text()).toBe('⌥⇧5')
+    expect(wrapper.find('button[aria-label^="Mark key"]').text()).toBe('⌥⇧0')
   })
 
   it('records a chord from the keys pressed and saves it once the shell accepts it', async () => {
-    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_5, chord: { label: '⌥⇧5', warning: null } } })
+    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_0, chord: { label: '⌥⇧0', warning: null } } })
     const field = wrapper.find('button[aria-label^="Mark key"]')
 
     await field.trigger('click')
@@ -59,7 +59,7 @@ describe('RecordingsMarkKey', () => {
 
   it('shows the shell\'s refusal and saves nothing', async () => {
     checkMarkKey.mockImplementation(async () => ({ refusal: 'Already the shortcut of Next item.', chord: { label: '⌥⇧1', warning: null } }))
-    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_5, chord: { label: '⌥⇧5', warning: null } } })
+    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_0, chord: { label: '⌥⇧0', warning: null } } })
     const field = wrapper.find('button[aria-label^="Mark key"]')
 
     await field.trigger('click')
@@ -72,7 +72,7 @@ describe('RecordingsMarkKey', () => {
   })
 
   it('refuses a key no chord can use without asking the shell', async () => {
-    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_5, chord: null } })
+    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_0, chord: null } })
     const field = wrapper.find('button[aria-label^="Mark key"]')
 
     await field.trigger('click')
@@ -84,13 +84,13 @@ describe('RecordingsMarkKey', () => {
 
   it('warns about a key the game also uses', () => {
     const warning = 'Self-cast your Q ability in game: the shortcut will also self-cast your Q ability.'
-    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: { ...ALT_SHIFT_5, shift: false, key: 'KeyQ' }, chord: { label: '⌥Q', warning } } })
+    const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: { ...ALT_SHIFT_0, shift: false, key: 'KeyQ' }, chord: { label: '⌥Q', warning } } })
 
     expect(wrapper.find('.text-warning').text()).toBe(warning)
   })
 
   it('turns marking off, and back on at the default key', async () => {
-    const on = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_5, chord: { label: '⌥⇧5', warning: null } } })
+    const on = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_0, chord: { label: '⌥⇧0', warning: null } } })
     await on.find('.switch').trigger('click')
     expect(on.emitted('change')).toEqual([[null]])
 
@@ -98,7 +98,7 @@ describe('RecordingsMarkKey', () => {
     expect(off.find('button[aria-label^="Mark key"]').exists()).toBe(false)
     await off.find('.switch').trigger('click')
     await flushPromises()
-    expect(checkMarkKey).toHaveBeenCalledWith(ALT_SHIFT_5)
-    expect(off.emitted('change')).toEqual([[ALT_SHIFT_5]])
+    expect(checkMarkKey).toHaveBeenCalledWith(ALT_SHIFT_0)
+    expect(off.emitted('change')).toEqual([[ALT_SHIFT_0]])
   })
 })

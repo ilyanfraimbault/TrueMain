@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Chord, TriggerCheck } from '../app/types/overlay'
+import { OVERLAY_PANELS } from '../app/types/overlay'
+import { suggestedChord } from '../app/utils/overlay-keys'
 import type { Clip, RecordingLibrary, RecordingSettingsView } from '../app/types/recordings'
 import { devChordView, devLibrary, devMarkKeyRefusal, devSettings } from '../app/fixtures/recordings'
 import { devRecordingCall } from '../app/utils/recordings-dev'
@@ -22,8 +24,12 @@ describe('the dev recordings and the mark key', () => {
 
   it('offer the default key and refuse what the shell refuses', () => {
     const settings = devSettings()
-    expect(settings.settings.markKey).toEqual(chord({ alt: true, shift: true, key: 'Digit5' }))
-    expect(settings.markKey?.label).toMatch(/5$/)
+    expect(settings.settings.markKey).toEqual(chord({ alt: true, shift: true, key: 'Digit0' }))
+    expect(settings.markKey?.label).toMatch(/0$/)
+    // A panel put on a chord is never offered the mark key's.
+    for (const panel of OVERLAY_PANELS) {
+      for (const kind of ['whileHeld', 'toggle'] as const) expect(suggestedChord(panel, kind)).not.toEqual(settings.settings.markKey)
+    }
 
     expect(devMarkKeyRefusal(chord({ alt: true }))).toContain('modifiers alone')
     expect(devMarkKeyRefusal(chord({ tab: true }))).toContain('TAB alone')

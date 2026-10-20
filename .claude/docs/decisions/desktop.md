@@ -407,8 +407,8 @@ the site's materials; its settings are the short list of #1744 — no OBS (2026-
 
 **A mark key keeps the 30 seconds before a press as a clip, cut as soon as the game ends (2026-10-20).** The product
 owner's pick from the Invade benchmark: a moment the timeline cannot flag — an outplay, a funny moment — had to be found
-again by scrubbing the full game. A chord, ⌥⇧5 / Alt+Shift+5 by default (the overlay's Alt+Shift and digit family, past
-the four digits it suggests for its panels, on no default League bind), set in the recording settings, marks the moment
+again by scrubbing the full game. A chord, ⌥⇧0 / Alt+Shift+0 by default (the overlay's Alt+Shift and digit family, at the
+far end of the digits it suggests for its panels — counted up from 1, one per panel —, on no default League bind), set in the recording settings, marks the moment
 while a game records.
 - **Read like the overlay's chords**, by the same key watch: the keyboard's state, only while League is frontmost and a
   game records — no hook, no hotkey, no Input Monitoring. The game gets the keys too, so the setting warns against the

@@ -445,7 +445,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   them; K/D/A and result) and a thumbnail is taken. Recordings live in `~/Movies/TrueMain` (`Videos\TrueMain` on
   Windows), clips cut in the recap in
   its `clips/` (each its own file, cut without re-encoding, outliving the full game, never deleted by the budget).
-  The disk budget deletes the oldest full games the player did not keep. A **mark key** (#2079, ⌥⇧5 / Alt+Shift+5 by
+  The disk budget deletes the oldest full games the player did not keep. A **mark key** (#2079, ⌥⇧0 / Alt+Shift+0 by
   default, set or turned off in the recording settings, recorded and checked like an overlay chord — warned against the
   player's League binds, refused on a panel's chord or a reserved one) marks the moment while a game records: read from
   the keyboard's state in the overlay's key watch, only while League is frontmost and a game records, each press notes

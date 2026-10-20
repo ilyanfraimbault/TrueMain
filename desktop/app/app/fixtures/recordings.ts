@@ -205,7 +205,7 @@ export function devLibrary(now = Date.now()) {
   return { games, clips }
 }
 
-const DEV_MARK_KEY: Chord = { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: 'Digit5' }
+const DEV_MARK_KEY: Chord = { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: 'Digit0' }
 
 /** The shell's answer about a mark key, reduced for the browser: its label, and the bind the dev game has on Alt+Q. */
 export function devChordView(chord: Chord): ChordView {

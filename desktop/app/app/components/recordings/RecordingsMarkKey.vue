@@ -14,8 +14,8 @@ import { MARK_WINDOW_MS } from '~/utils/recording-moments'
 const props = defineProps<{ markKey: Chord | null, chord: ChordView | null }>()
 const emit = defineEmits<{ change: [markKey: Chord | null] }>()
 
-/** ⌥⇧5 / Alt+Shift+5: the shell's `DEFAULT_MARK_KEY`, offered when marking is turned back on. */
-const DEFAULT_MARK_KEY: Chord = { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: 'Digit5' }
+/** ⌥⇧0 / Alt+Shift+0: the shell's `DEFAULT_MARK_KEY`, offered when marking is turned back on. */
+const DEFAULT_MARK_KEY: Chord = { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: 'Digit0' }
 const seconds = MARK_WINDOW_MS / 1000
 
 const { checkMarkKey } = useRecordings()
