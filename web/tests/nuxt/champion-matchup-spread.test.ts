@@ -79,10 +79,11 @@ describe('champion matchup spread', () => {
       '/matchup?champion=1&position=MIDDLE&opponent=4',
       '/matchup?champion=1&position=MIDDLE&opponent=3',
     ])
-    expect(links[0]!.attributes('aria-label')).toBe('Xerath — 43% lanes won (−7.5 pts) · 40 decided lanes · −310 gold at 15')
+    expect(links[0]!.attributes('aria-label')).toBe('Xerath — 43% lanes won')
 
     // Only the axis: no caption, no band labels, no counts or extremes under it.
     const text = wrapper.text()
+    expect(text).toContain('Matchups')
     expect(text).not.toMatch(/a lane is won when|Favourable|Hardest|Easiest|lanes won|too few decided lanes/)
   })
 

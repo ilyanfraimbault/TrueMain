@@ -5,8 +5,6 @@ import { positionLabel, type ChampionPosition } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { formatPointDelta, formatSigned } from '~~/shared/utils/deltas'
-import { formatCount } from '~~/shared/utils/counts'
 import {
   beeswarmRows,
   buildMatchupSpread,
@@ -80,13 +78,7 @@ function opponentName(point: MatchupSpreadPoint): string {
 }
 
 function describe(point: MatchupSpreadPoint): string {
-  const { entry } = point
-  const parts = [
-    `${formatPercentage(point.laneWinRate, 0)} lanes won (${formatPointDelta(point.delta)})`,
-    `${formatCount(entry.decidedLaneGames)} decided lanes`,
-  ]
-  if (entry.averageGoldDiffAt15 !== null) parts.push(`${formatSigned(entry.averageGoldDiffAt15)} gold at 15`)
-  return `${opponentName(point)} — ${parts.join(' · ')}`
+  return `${opponentName(point)} — ${formatPercentage(point.laneWinRate, 0)} lanes won`
 }
 
 // Same deep link as the matchup rows: the `/matchup` tool with both champions
@@ -105,7 +97,7 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
 </script>
 
 <template>
-  <SectionCard :level="2" title="Matchup spread">
+  <SectionCard :level="2" title="Matchups">
     <template #actions>
       <RolePicker hide-all :position="role" @update:position="value => (role = value)" />
     </template>
