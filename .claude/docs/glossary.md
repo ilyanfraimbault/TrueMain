@@ -81,7 +81,8 @@ A player's ranked standing: ranked tier, division and LP, captured at most once 
 
 **Apex cutoff**:
 The LP a region's Grandmaster or Challenger tier starts at on a given day: the lowest LP in that league, which
-moves daily (below Master a tier starts at a fixed LP). Measured from the ladder, never estimated.
+moves daily (below Master a tier starts at a fixed LP). Measured from the ladder; the days before the first
+measurement are estimated once from the tracked accounts' snapshots (`IsEstimated`).
 _Avoid_: threshold (for the apex tiers), GM line
 
 **Solo/Duo tier**:

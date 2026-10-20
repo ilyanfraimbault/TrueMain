@@ -86,10 +86,20 @@ snapshot where Riot's answer changed.
   league that day, so those floors are measured — the lowest LP of each league, per platform and UTC day,
   recorded by LadderSync from the apex lists it already reads whole (`apex_cutoff_snapshots`, no extra Riot
   call), served by `GET /ladder/{platformId}/apex-cutoffs`.
-- **No backfill.** Riot keeps no history of the cutoffs, and the snapshots we hold cover only the players we
-  track, so a minimum over them would sit above the real one. Before the first measurement (or more than two days
-  past the latest one) there is no GM / Challenger line, and the band is read back from the snapshot's own tier
-  instead, stepping halfway between two snapshots as the old colouring did.
+- **The days before the first measurement are estimated, not left vertical** (2026-10-21, reverses this
+  entry's first "no backfill" call — #2181). Riot keeps no history of the cutoffs, and without one a 90-day apex
+  curve still split at every snapshot whose tier changed — almost the whole chart on a GM ↔ Challenger profile,
+  which the product owner rejected on preprod. So the first apex refresh that finds no estimate fills every past
+  (platform, tier, UTC day) from `rank_snapshots`: the lowest LP among that day's tracked Grandmaster /
+  Challenger rows, days under 10 rows left out (`IsEstimated`, once, `ON CONFLICT DO NOTHING` so a measured day
+  stays measured, and a measurement replaces an estimate). Our sample is a subset of each league, so an estimate
+  errs high, never low — on preprod the day's sample minimum equalled the measured EUW cutoffs exactly. The API
+  smooths an estimated day to the median of itself and its neighbours (lower middle at an edge), absorbing a day
+  whose sample missed the league's last players.
+- **The front never falls back to the vertical split while any cutoff exists.** A snapshot with no cutoff on or
+  up to two days before its day takes the history's nearest one, however far, for its band — without drawing a
+  line from it. Only an apex history with no cutoff at all (a platform LadderSync does not sweep) still reads the
+  band back from the snapshot's own tier, stepping halfway between two snapshots.
 - **No figure on the lines and none in the tooltip:** the line says where the tier begins; how many LP that is
   was clutter on a 150 px chart (product owner, 2026-10-20).
 - **Still one series, never one area per tier.** Unovis turned a tier's missing points into zeros far below a
