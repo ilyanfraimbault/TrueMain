@@ -28,7 +28,6 @@ defineSlots<{
 
 /** Room under the plot for the date ticks. */
 const AXIS = 18
-const MAX_TICKS = 4
 
 const box = ref<HTMLElement | null>(null)
 const width = ref(0)
@@ -79,8 +78,9 @@ const area = computed(() => {
 const ticks = computed(() => {
   const count = points.value.length
   if (!props.xFormatter || count === 0) return []
-  const step = Math.max(1, Math.ceil(count / MAX_TICKS))
-  const indices = Array.from({ length: count }, (_, i) => i).filter(i => i % step === 0)
+  // The span's two ends only, as the site's chart reads at the card's width:
+  // in-between dates crowd an 18rem column without saying more.
+  const indices = count === 1 ? [0] : [0, count - 1]
   return indices.map(index => ({ x: points.value[index]!.x, label: props.xFormatter!(index) }))
 })
 

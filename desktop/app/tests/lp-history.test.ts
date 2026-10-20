@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { RankedQueue } from '~/types/record'
-import { latestLpMoves, lpDeltaOf, readRankHistory, recordRankSnapshot } from '~/utils/lp-history'
+import { dailyStandings, latestLpMoves, lpDeltaOf, readRankHistory, recordRankSnapshot } from '~/utils/lp-history'
 import { DAY, MINUTE, game, snapshot } from './fixtures'
 
 const T = Date.UTC(2026, 9, 1, 12)
@@ -146,5 +146,16 @@ describe('latestLpMoves', () => {
 
   it('is empty without a history', () => {
     expect(latestLpMoves(games(3), [])).toEqual([])
+  })
+})
+
+describe('dailyStandings', () => {
+  it('keeps the last standing of each day, in order', () => {
+    const history = [snapshot(T, 10), snapshot(T + MINUTE, 30), snapshot(T + DAY, 50), snapshot(T + DAY + MINUTE, 40)]
+    expect(dailyStandings(history).map(entry => entry.leaguePoints)).toEqual([30, 40])
+  })
+
+  it('is empty without a history', () => {
+    expect(dailyStandings([])).toEqual([])
   })
 })

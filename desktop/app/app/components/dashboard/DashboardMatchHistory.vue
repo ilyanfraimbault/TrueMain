@@ -70,8 +70,8 @@ const loadingPage = computed(() => props.pending || (!pageMatches.value.length &
 </script>
 
 <template>
-  <section ref="section" class="flex min-w-0 scroll-mt-4 flex-col gap-2">
-    <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">Match history</h2>
+  <!-- No visible heading: the rows say what they are; the name stays for assistive tech. -->
+  <section ref="section" class="flex min-w-0 scroll-mt-4 flex-col gap-2" aria-label="Match history">
     <MatchHistoryList
       v-model:page="page"
       :matches="pageMatches"

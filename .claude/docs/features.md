@@ -234,7 +234,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   from TrueMain's copy of the game when it has one, else from the client's scoreboard and timeline (which list no
   purchases or skill points: the build and skill order sections are then left out, #1768); a **Timeline** view (#1911) with, first, the ten players' **gold / XP / CS curves** (#2102, `match/MatchDetailTimelineCurves.vue`, shaped in `utils/timeline-curves.ts`): one line a player over game time from the client's per-minute frames, the player's own drawn on top in the primary colour, the others thinner and muted in their side's colour (ally / enemy); a Gold / XP / CS segmented switch; the team lead (our total minus theirs) as a band under the curves, filled above or below zero with the win probability's own band; the objectives (drakes, Elder, Baron, Rift Herald, Voidgrubs — a camp as one mark —, Atakhan, turrets, inhibitors) as glyphs on the time axis in the taking side's colour (`utils/timeline-objectives.ts`); a list per side — team total, then each player's end value with a bar, a click pinning (thickening) that player's line, a second releasing it; the end-of-game difference in the header ("Your team +10.5k gold"); hovering gives the minute, the lead then, and the player's and the pinned player's values. Shown only when the client's timeline carries gold (a recording kept before #2102 has none): a game without it shows no panel and no error, and a game with neither it nor a win-probability curve has no Timeline tab. Then the shared win-probability panel from the player's side, always built from the client's timeline (TrueMain stores no curve, #2009); the site's ranked card with
   its LP curve (`ProfileRankedCard`, one shared component since #2029; the app's plain-SVG chart draws it as the
-  site's monotone curve, `utils/monotone-path.ts`), plus two lines only the client can fill,
+  site's monotone curve, `utils/monotone-path.ts`, over the last standing of each day, `dailyStandings`, with the
+  span's first and last dates only), plus two lines only the client can fill,
   through the card's `standing` and `moves` slots (the site leaves them empty, #2074): under the Solo/Duo block the
   **Ranked Flex standing** on one line (`DashboardFlexStanding.vue` — crest, tier + LP, W–L and win rate; "Placements ·
   N played" while placing; nothing when unranked in Flex), and under the curve the **LP the latest Solo/Duo games moved**
@@ -258,7 +259,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   cells stay as dashed empty slots of the same height, so the card keeps its shape; it reads the library the Recordings
   page reads and is absent when the shell records nothing or no clip was saved. A recorded game's row carries a play
   button (the icon alone) opening its recap, in a slot every row keeps whether or not it has one, so the rows' teams
-  and builds line up. The right column reads ranked card, Today, activity, champions, roles. The goals card (#1913)
+  and builds line up. The right column reads ranked card, Today, activity, champions, roles. The history has no visible "Match history"
+  heading, and the dashboard carries no Riot legal line (the app's other pages keep it, `SharedPage`). The goals card (#1913)
   was removed in #2074 at the product owner's request. With no client: a waiting banner over the patch's best picks by lane.
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
   guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =

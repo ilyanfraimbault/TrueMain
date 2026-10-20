@@ -106,3 +106,15 @@ export function latestLpMoves(games: PlayerGame[], history: RankHistoryEntry[], 
   }
   return moves.reverse()
 }
+
+/**
+ * The history the ranked card draws: the last standing of each local day, as
+ * the site's own history reads. Kept per game here (each game's LP is measured
+ * from it), the curve would zigzag game by game instead of following the
+ * trend; the per-game moves are read from the full history.
+ */
+export function dailyStandings(history: RankHistoryEntry[]): RankHistoryEntry[] {
+  const lastOfDay = new Map<string, RankHistoryEntry>()
+  for (const entry of history) lastOfDay.set(new Date(entry.capturedAtUtc).toDateString(), entry)
+  return [...lastOfDay.values()]
+}
