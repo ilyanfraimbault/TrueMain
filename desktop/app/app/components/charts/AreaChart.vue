@@ -8,6 +8,8 @@
   vertical fade) lands on them unchanged.
 -->
 <script setup lang="ts" generic="TItem extends Record<string, unknown>">
+import { monotonePath } from '~/utils/monotone-path'
+
 interface Props {
   data: TItem[]
   categories: Record<string, { name: string, color?: string | string[] }>
@@ -65,7 +67,9 @@ const drawn = computed(() => {
   const only = points.value.length === 1 ? points.value[0] : null
   return only ? [{ x: 0, y: only.y }, { x: width.value, y: only.y }] : points.value
 })
-const line = computed(() => drawn.value.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(''))
+// A monotone cubic, as Unovis draws it on the site: the curve rolls between
+// snapshots rather than zigzagging, and never overshoots one.
+const line = computed(() => monotonePath(drawn.value))
 const area = computed(() => {
   const first = drawn.value[0]
   const last = drawn.value.at(-1)
