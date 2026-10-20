@@ -1,0 +1,140 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: truemain-preprod-caddy
+    restart: unless-stopped
+    cpus: 0.25
+    cpu_shares: 256
+    configs:
+      - source: edge_caddyfile
+        target: /etc/caddy/Caddyfile
+      - source: maintenance_page
+        target: /srv/maintenance/index.html
+    ports:
+      - "3001:3001"
+      - "3002:3002"
+    networks:
+      - truemain_edge
+
+configs:
+  edge_caddyfile:
+    content: |
+      {
+      	auto_https off
+      }
+
+      (security_headers) {
+      	header {
+      		X-Content-Type-Options "nosniff"
+      		X-Frame-Options "DENY"
+      		Referrer-Policy "strict-origin-when-cross-origin"
+      		Permissions-Policy "camera=(), microphone=(), geolocation=(), browsing-topics=()"
+      		-X-Powered-By
+      	}
+      }
+
+      (maintenance) {
+      	handle_errors 502 503 504 {
+      		import security_headers
+      		header Cache-Control "no-store"
+      		header Retry-After "60"
+      		@api path /api/*
+      		handle @api {
+      			header Content-Type "application/json; charset=utf-8"
+      			respond `{"error":"maintenance","message":"TrueMain is being updated. Retry in a minute."}` 503
+      		}
+      		handle {
+      			root * /srv/maintenance
+      			rewrite * /index.html
+      			file_server {
+      				status 503
+      			}
+      		}
+      	}
+      }
+
+      :3001 {
+      	log
+      	encode zstd gzip
+      	import security_headers
+      	import maintenance
+      	reverse_proxy web:3000
+      }
+
+      :3002 {
+      	log
+      	encode zstd gzip
+      	import security_headers
+      	import maintenance
+      	reverse_proxy admin:3000 {
+      		header_up X-Forwarded-For {remote_host}
+      	}
+      }
+
+  maintenance_page:
+    content: |
+      <!doctype html>
+      <html lang="en">
+      <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="robots" content="noindex">
+      <title>Maintenance · TrueMain</title>
+      <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M13 49V20l15 17L52 13' fill='none' stroke='%23e2917e' stroke-width='8.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+      <noscript><meta http-equiv="refresh" content="30"></noscript>
+      <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      html, body { min-height: 100%; margin: 0; }
+      body {
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        padding: 24px 16px;
+        background: #0b0b0d radial-gradient(56rem 36rem at 50% -12%, rgba(217, 115, 108, 0.16), transparent 62%) no-repeat;
+        color: #ececf1;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 30rem; text-align: center; }
+      .mark { width: 56px; height: 56px; }
+      .eyebrow { margin: 28px 0 10px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #e58f83; }
+      h1 { margin: 0; font-size: clamp(1.75rem, 6vw, 2.25rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+      .lead { margin: 14px 0 0; color: #a5a5b0; line-height: 1.6; }
+      .status { display: inline-flex; align-items: center; gap: 10px; margin: 28px 0 0; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); font-size: 0.8125rem; color: #c8c8d0; }
+      .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #e58f83; animation: pulse 1.6s ease-in-out infinite; }
+      @keyframes pulse { 50% { opacity: 0.3; } }
+      @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+      </style>
+      </head>
+      <body>
+      <main>
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2cfa6"/><stop offset="0.55" stop-color="#e2917e"/><stop offset="1" stop-color="#8a3b44"/></linearGradient></defs>
+      <path d="M13 49V20l15 17L52 13" fill="none" stroke="url(#g)" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p class="eyebrow">Maintenance</p>
+      <h1>Back in a moment</h1>
+      <p class="lead">TrueMain is being updated. It usually takes a minute or two.</p>
+      <p class="status" role="status"><span class="dot" aria-hidden="true"></span>This page reloads by itself once the site is back.</p>
+      </main>
+      <script>
+      (function () {
+        function check() {
+          fetch(location.href, { method: "HEAD", cache: "no-store" })
+            .then(function (response) {
+              if (response.status === 503) setTimeout(check, 5000);
+              else location.reload();
+            })
+            .catch(function () { setTimeout(check, 5000); });
+        }
+        setTimeout(check, 5000);
+      })();
+      </script>
+      </body>
+      </html>
+
+networks:
+  truemain_edge:
+    name: truemain_preprod_edge
+    external: true

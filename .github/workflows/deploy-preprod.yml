@@ -122,10 +122,22 @@ jobs:
       hostinger_api_key: ${{ secrets.HOSTINGER_PREPROD_API_KEY }}
       env_file: ${{ secrets.PREPROD_ENV_FILE }}
 
+  edge-rollout:
+    name: Roll out the preprod edge
+    needs: rollout
+    uses: ./.github/workflows/edge-rollout.yml
+    with:
+      environment: preprod
+      project_name: truemain-preprod-edge
+      compose_file: compose.preprod.edge.yaml
+      vm_id: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
+    secrets:
+      hostinger_api_key: ${{ secrets.HOSTINGER_PREPROD_API_KEY }}
+
   tag:
     name: Tag preprod release
     runs-on: ubuntu-24.04
-    needs: [version, rollout]
+    needs: [version, rollout, edge-rollout]
     timeout-minutes: 5
     permissions:
       contents: write

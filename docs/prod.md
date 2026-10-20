@@ -129,11 +129,18 @@ pull is implied there anyway.
 ## The edge (Caddy)
 
 Caddy is the only public entry point: it listens on 80/443, terminates TLS and
-proxies to web, admin and Umami over the internal compose network. Its
-configuration is **inline in `compose.prod.yaml`**, under
-`configs.edge_caddyfile`, mounted at `/etc/caddy/Caddyfile` — there is no
-`Caddyfile` in the repository and none on the host. Edit the compose file to
-change the edge; the change reaches prod with the release that contains it.
+proxies to web, admin and Umami over the `truemain_edge` network. It is **its own
+Docker Manager project, `truemain-edge`, deployed from `compose.prod.edge.yaml`**
+— not a service of the `truemain` stack (#2179). Its configuration is inline in
+that file, under `configs.edge_caddyfile`, mounted at `/etc/caddy/Caddyfile` —
+there is no `Caddyfile` in the repository and none on the host. Edit the edge
+compose file to change the edge; the change reaches prod with the release that
+contains it (the `edge-rollout` job, `docs/ci.md`, *The edge is its own project*).
+
+The `truemain` stack owns the `truemain_edge` network and attaches web, admin and
+Umami to it; the edge project joins it as `external`. So the app deploys first
+(it never needs the edge), and the edge only ever sees the three services it
+proxies, never the databases or the API.
 
 It used to be a tracked `Caddyfile` bind-mounted from the deployment directory,
 but the deploy only ever writes the compose file and the `.env` (`docs/ci.md`,
@@ -145,7 +152,7 @@ rollout (`docs/ci.md`, *Verifying the edge*).
 
 - **Certificates.** Caddy obtains and auto-renews a Let's Encrypt certificate
   for every site address. Certificates and the ACME account live in the
-  `truemain_caddy_data` volume so they survive restarts; re-issuing on every
+  `truemain_edge_caddy_data` volume so they survive restarts; re-issuing on every
   boot would hit Let's Encrypt rate limits. Ports 80 and 443 must be open to
   the internet (HTTP-01 / TLS-ALPN-01), and the A records of `truemain.lol`,
   `www`, `admin` and `analytics` must point at the VPS, DNS-only.
@@ -168,6 +175,58 @@ rollout (`docs/ci.md`, *Verifying the edge*).
   image build time (`ALLOWED_FRAME_URLS` only applies to source builds), which
   would block the admin's Analytics iframe, so the analytics site rewrites that
   directive on the way out to also allow the admin origin.
+
+## Maintenance page
+
+Docker Manager recreates **every container of a project** on each deploy,
+databases included. While Caddy was a service of the `truemain` stack, a release
+stopped it too: the site answered nothing at all — not even an error — for the
+40 to 60 seconds between Caddy's recreation and its restart, then a bare `502`
+until web and admin listened again.
+
+With the edge in its own project, an app rollout leaves Caddy running. When it
+cannot reach web or admin (a dial error, a container being recreated, a name
+that does not resolve yet), the `(maintenance)` snippet catches the `502`/`503`/
+`504` and answers instead:
+
+- **`503 Service Unavailable` with `Retry-After: 60` and `Cache-Control: no-store`**,
+  so crawlers read a temporary outage rather than a broken page, and no cache keeps
+  the page once the site is back. A `503` the app itself returns (a champion route
+  that cannot render) passes through unchanged: only a failure to *reach* the
+  upstream is maintenance.
+- **An HTML page** for any path but `/api/*`: self-contained (inline CSS, the
+  M-check mark as inline SVG, no font, nothing fetched from the stack that is down),
+  and it polls its own URL every five seconds and reloads as soon as the answer is
+  not a `503`. It lives in `configs.maintenance_page`, mounted at
+  `/srv/maintenance/index.html`.
+- **A JSON body** (`{"error":"maintenance",...}`) for `/api/*`, which the desktop
+  app and the site's own fetches read.
+
+It applies to `truemain.lol` and `admin.truemain.lol`, not to
+`analytics.truemain.lol`: the Umami tracker script is not a page, and an HTML
+body in its place helps nobody. It cannot cover a redeploy of the edge itself,
+which recreates Caddy: that happens only when `compose.prod.edge.yaml` changes, and
+Caddy alone restarts in about a second.
+
+### One-time cutover to the edge project
+
+The first release carrying #2179 removes `caddy` from `compose.prod.yaml` and adds
+`compose.prod.edge.yaml`. Done once, by an operator, around that release:
+
+1. **Before publishing it**, copy the certificates so the new edge does not
+   re-issue them: create `truemain_edge_caddy_data`, then copy the old
+   `truemain_truemain_caddy_data` volume into it with a throwaway
+   `alpine cp -a` container.
+2. **Publish the release.** The `truemain` rollout recreates the stack without
+   Caddy. If Docker Manager leaves the old `truemain-caddy` running as an orphan,
+   it keeps serving on 80/443 and the `edge-rollout` job fails because the ports
+   (and the container name) are taken.
+3. In that case remove the orphan (`docker rm -f truemain-caddy`) and re-run the
+   failed `edge-rollout` job: `edge-drift.sh` sees a project that is missing or not
+   running and deploys it. The `edge` job then checks the live site as usual.
+
+The old `truemain_truemain_caddy_*` volumes and the stale `Caddyfile` left in the
+stack directory can be removed once the new edge has served a day.
 
 ## Compression at the edge
 

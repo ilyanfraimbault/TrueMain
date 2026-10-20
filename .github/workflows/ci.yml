@@ -276,6 +276,12 @@ jobs:
       - name: Edge verification
         run: .github/scripts/verify-edge.test.sh
 
+      - name: Edge drift
+        run: .github/scripts/edge-drift.test.sh
+
+      - name: Edge running check
+        run: .github/scripts/verify-edge-running.test.sh
+
       - name: Ingestor job mode preflight
         run: .github/scripts/check-job-mode.test.sh
 
@@ -345,6 +351,13 @@ jobs:
           validate compose.dev.yaml truemain RGAPI-REPLACE_ME
           validate compose.prod.yaml truemain RGAPI-REPLACE_ME
           validate compose.preprod.yaml truemain_preprod RGAPI-REPLACE_ME_PREPROD
+          validate compose.prod.edge.yaml truemain RGAPI-REPLACE_ME
+          validate compose.preprod.edge.yaml truemain_preprod RGAPI-REPLACE_ME_PREPROD
+          page() { docker compose -f "$1" config --format json | jq -r '.configs.maintenance_page.content'; }
+          if ! diff <(page compose.prod.edge.yaml) <(page compose.preprod.edge.yaml) > /dev/null; then
+            echo "::error file=compose.preprod.edge.yaml::the maintenance page differs between compose.prod.edge.yaml and compose.preprod.edge.yaml"
+            failed="${failed} maintenance_page"
+          fi
           if [ -n "$failed" ]; then
             echo "::error::Invalid compose files:${failed}"
             exit 1
