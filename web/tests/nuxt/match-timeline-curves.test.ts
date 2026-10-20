@@ -1,11 +1,12 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
-import { MatchDetailPanel, MatchDetailTimelineCurves } from '#components'
+import { MatchDetailPanel, MatchDetailTimelineCurves, MatchDetailTimelineCurvesTooltip } from '#components'
 import type { MatchDetailParticipant, MatchDetailResponse } from '#shared/types/match-detail'
 import type { RuneTreeResponse } from '#shared/types/static-data'
 import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 import fixture from '#shared/fixtures/win-probability-timeline.json'
 import { MATCH_DETAIL_SOURCE } from '#common/utils/match-detail-source'
+import { buildTimelineCurves, teamCurves, type CurveMetric } from '#common/utils/timeline-curves'
 
 // The match detail's gold / XP / CS curves (#2102): ten curves from the
 // client's timeline, the viewer's on top, a switch, the lead band, the lists
@@ -65,6 +66,68 @@ describe('MatchDetailTimelineCurves', () => {
     const wrapper = await mountCurves()
     expect(wrapper.findAll('[title*="turret"]').length).toBeGreaterThan(0)
     expect(wrapper.find('[title*="Baron"]').exists()).toBe(true)
+  })
+})
+
+describe('MatchDetailTimelineCurves hover', () => {
+  it('opens a card with all ten players at the hovered frame', async () => {
+    const wrapper = await mountCurves()
+    const plot = wrapper.find('.h-40.flex-1')
+    plot.element.getBoundingClientRect = () => ({ left: 0, width: 400, top: 0, height: 160, right: 400, bottom: 160, x: 0, y: 0, toJSON: () => ({}) })
+    await plot.trigger('pointermove', { clientX: 200 })
+    const card = wrapper.findComponent(MatchDetailTimelineCurvesTooltip)
+    expect(card.exists()).toBe(true)
+    expect(card.findAll('li')).toHaveLength(10)
+    expect(card.text()).toMatch(/Your team|Teams even/)
+    await wrapper.find('.min-w-0.flex-1').trigger('pointerleave')
+    expect(wrapper.findComponent(MatchDetailTimelineCurvesTooltip).exists()).toBe(false)
+  })
+})
+
+describe('MatchDetailTimelineCurvesTooltip', () => {
+  const index = 15
+  const gold = teamCurves(buildTimelineCurves(timeline, 'gold', 100)!, 100)
+
+  function mountCard(metric: CurveMetric, x: number, pinnedParticipantId: number | null = null) {
+    const teams = teamCurves(buildTimelineCurves(timeline, metric, 100)!, 100)
+    const champion = (participantId: number) => ({ name: `Player ${participantId}`, iconUrl: `https://cdn.test/${participantId}.png` })
+    return mountSuspended(MatchDetailTimelineCurvesTooltip, {
+      props: { x, ms: index * 60_000, lead: 1234, index, teams, metric, selfParticipantId: 3, pinnedParticipantId, champion },
+    })
+  }
+
+  it('lists your side then the enemy\'s, highest first, each row a portrait and a gold figure', async () => {
+    const wrapper = await mountCard('gold', 30)
+    expect(wrapper.text()).toContain('15:00')
+    expect(wrapper.text()).toContain('Your team +1.2k gold')
+    const columns = wrapper.findAll('ul')
+    expect(columns.map(column => column.attributes('aria-label'))).toEqual(['Your team', 'Enemy team'])
+    columns.forEach((column, side) => {
+      const ids = column.findAll('li').map(row => Number(row.attributes('data-participant')))
+      expect(new Set(ids)).toEqual(new Set(gold[side]!.players.map(player => player.participantId)))
+      const values = ids.map(id => gold[side]!.players.find(player => player.participantId === id)!.points[index]!.value)
+      expect(values).toEqual([...values].sort((a, b) => b - a))
+    })
+    expect(wrapper.findAll('img')).toHaveLength(10)
+    expect(wrapper.findAll('li .tabular-nums').every(value => value.classes().includes('text-gold'))).toBe(true)
+  })
+
+  it('keys the viewer\'s row with the primary mark and rings the pinned portrait', async () => {
+    const wrapper = await mountCard('gold', 30, 7)
+    const marks = wrapper.findAll('[data-self-mark]')
+    expect(marks).toHaveLength(1)
+    expect(marks[0]!.element.parentElement!.getAttribute('data-participant')).toBe('3')
+    expect(wrapper.find('li[data-participant="7"] .ring-inverted').exists()).toBe(true)
+    expect(wrapper.findAll('.ring-inverted')).toHaveLength(1)
+  })
+
+  it('prints XP in the plain tone, and opens on the cursor\'s roomier side', async () => {
+    const xp = await mountCard('xp', 80)
+    expect(xp.findAll('li .tabular-nums').every(value => value.classes().includes('text-highlighted'))).toBe(true)
+    expect(xp.find('.text-gold').exists()).toBe(false)
+    expect(xp.get('div').attributes('style')).toContain('right: 20%')
+    const cs = await mountCard('cs', 30)
+    expect(cs.get('div').attributes('style')).toContain('left: 30%')
   })
 })
 

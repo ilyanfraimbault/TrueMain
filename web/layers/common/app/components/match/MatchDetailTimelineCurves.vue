@@ -16,7 +16,6 @@ import {
   type PlayerCurve,
 } from '#common/utils/timeline-curves'
 import { objectiveMarkers } from '#common/utils/timeline-objectives'
-import { formatGameClock } from '#common/utils/win-probability-swing'
 
 /**
  * The ten players' gold, XP or creep score over the game (#2102), above the
@@ -94,20 +93,14 @@ function pin(participantId: number) {
   pinned.value = pinned.value === participantId ? null : participantId
 }
 
-// ─── Hover: the nearest frame, its lead and the highlighted players' values ───
+// ─── Hover: the nearest frame and its lead (the card reads every player there) ───
 const plot = ref<HTMLElement | null>(null)
 const hoverIndex = ref<number | null>(null)
 const hovered = computed(() => {
   const index = hoverIndex.value
   const lead = index === null ? null : curves.value?.lead[index]
   if (!lead || index === null) return null
-  const players = [props.selfParticipantId, pinned.value]
-    .filter((id, i, ids): id is number => id !== null && ids.indexOf(id) === i)
-    .flatMap((id) => {
-      const player = curves.value?.players.find(p => p.participantId === id)
-      return player ? [{ participantId: id, name: champion(id).name, value: player.points[index]!.value }] : []
-    })
-  return { ms: lead.ms, x: x(lead.ms), lead: lead.value, players }
+  return { index, ms: lead.ms, x: x(lead.ms), lead: lead.value }
 })
 
 function onMove(event: PointerEvent) {
@@ -152,20 +145,15 @@ const differenceTone = computed(() => {
           </div>
           <div ref="plot" class="relative h-40 min-w-0 flex-1">
             <MatchDetailTimelineCurvesPlot :lines="lines" :hover-x="hovered?.x ?? null" :summary="summary" />
-            <div
+            <MatchDetailTimelineCurvesTooltip
               v-if="hovered"
-              class="pointer-events-none absolute top-0 z-10 flex w-max max-w-64 -translate-x-1/2 flex-col gap-0.5 rounded-md bg-default px-2.5 py-1.5 text-xs shadow-lg ring-1 ring-default"
-              :style="{ left: `${Math.min(80, Math.max(20, hovered.x))}%` }"
-            >
-              <span class="tabular-nums">
-                <span class="text-muted">{{ formatGameClock(hovered.ms) }}</span>
-                <span class="ml-1.5 font-semibold text-highlighted">{{ formatTeamDifference(hovered.lead, metric) }}</span>
-              </span>
-              <span v-for="player in hovered.players" :key="player.participantId" class="flex items-center justify-between gap-3">
-                <span class="text-default">{{ player.name }}</span>
-                <span class="tabular-nums text-highlighted">{{ formatCurveValue(player.value, metric) }}</span>
-              </span>
-            </div>
+              v-bind="hovered"
+              :teams="teams"
+              :metric="metric"
+              :self-participant-id="selfParticipantId"
+              :pinned-participant-id="pinned"
+              :champion="champion"
+            />
           </div>
         </div>
 
