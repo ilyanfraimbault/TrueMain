@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { RankedQueue } from '~/types/record'
-import { lpDeltaOf, readRankHistory, recordRankSnapshot } from '~/utils/lp-history'
+import { dailyStandings, latestLpMoves, lpDeltaOf, readRankHistory, recordRankSnapshot } from '~/utils/lp-history'
 import { DAY, MINUTE, game, snapshot } from './fixtures'
 
 const T = Date.UTC(2026, 9, 1, 12)
@@ -112,5 +112,50 @@ describe('recordRankSnapshot', () => {
     const kept = recordRankSnapshot(riotId, standing(50), new Date(T))
     expect(kept.map(entry => entry.leaguePoints)).toEqual([30, 50])
     expect(readRankHistory(riotId)).toEqual(kept)
+  })
+})
+
+describe('latestLpMoves', () => {
+  // Solo/Duo games 40 minutes apart, the standing noted between each pair.
+  const games = (count: number) => Array.from({ length: count }, (_, index) =>
+    game({ gameId: index + 1, playedAt: T + index * 40 * MINUTE })).reverse()
+  const historyOf = (lps: number[]) => lps.map((lp, index) => snapshot(T - MINUTE + index * 40 * MINUTE, lp))
+
+  it('lists the measured games newest last', () => {
+    expect(latestLpMoves(games(3), historyOf([50, 70, 55, 78]))).toEqual([
+      { gameId: 1, delta: 20 },
+      { gameId: 2, delta: -15 },
+      { gameId: 3, delta: 23 },
+    ])
+  })
+
+  it('keeps only the latest ones', () => {
+    const moves = latestLpMoves(games(5), historyOf([10, 20, 30, 40, 50, 60]), 3)
+    expect(moves.map(move => move.gameId)).toEqual([3, 4, 5])
+  })
+
+  it('skips a game it could not measure rather than guessing it', () => {
+    const remake = game({ gameId: 9, playedAt: T + 40 * MINUTE, remake: true })
+    const solo = [game({ gameId: 2, playedAt: T + 80 * MINUTE }), remake, game({ gameId: 1, playedAt: T })]
+    const history = [snapshot(T - MINUTE, 50), snapshot(T + 32 * MINUTE, 70), snapshot(T + 79 * MINUTE, 70), snapshot(T + 112 * MINUTE, 92)]
+    expect(latestLpMoves(solo, history)).toEqual([
+      { gameId: 1, delta: 20 },
+      { gameId: 2, delta: 22 },
+    ])
+  })
+
+  it('is empty without a history', () => {
+    expect(latestLpMoves(games(3), [])).toEqual([])
+  })
+})
+
+describe('dailyStandings', () => {
+  it('keeps the last standing of each day, in order', () => {
+    const history = [snapshot(T, 10), snapshot(T + MINUTE, 30), snapshot(T + DAY, 50), snapshot(T + DAY + MINUTE, 40)]
+    expect(dailyStandings(history).map(entry => entry.leaguePoints)).toEqual([30, 40])
+  })
+
+  it('is empty without a history', () => {
+    expect(dailyStandings([])).toEqual([])
   })
 })
