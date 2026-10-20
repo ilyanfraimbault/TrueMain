@@ -2,7 +2,7 @@
 import type { ProfileRanked } from '#shared/types/profile'
 import type { RankHistoryEntry } from '#shared/types/rank-history'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { PositionFilter } from '#common/utils/positions'
 
 // The player-scoped champion page's cards beside the build: the ranked card the
 // profile opens its column on (it renders even when the champion aggregate
@@ -19,7 +19,7 @@ const props = defineProps<{
   nameTag: string
   championId: number
   patch: string
-  position: ChampionPosition | null
+  position: PositionFilter | null
   playerName: string
   championName: string | null
   champions: ChampionStaticListItem[] | null | undefined

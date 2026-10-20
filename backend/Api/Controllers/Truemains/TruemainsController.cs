@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Core.Lol.Map;
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.Http;
 using TrueMain.ReadModels.Champions;
@@ -152,9 +153,10 @@ public sealed class TruemainsController(
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
-        // A blank/absent position means "all positions"; only a non-blank
-        // value that fails to canonicalise is a client error.
-        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        // A blank/absent position resolves to the player's dominant position on the
+        // champion; `ALL` sums every position; only a non-blank value that fails to
+        // canonicalise is a client error.
+        if (!this.TryNormalizePositionOrAll(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -174,13 +176,13 @@ public sealed class TruemainsController(
     /// <summary>
     /// Player-scoped lane matchups: the same <see cref="ChampionMatchupsResponse"/>
     /// contract as <c>GET /champions/{championId}/matchups</c>, but every line is
-    /// computed only from this player's games on the champion. <paramref name="position"/>
-    /// is required — a lane matchup is only meaningful within a lane — so a missing
-    /// or unrecognised one is a 400; 404 when the account is unknown. A known player
-    /// with no opponent above the per-player floor (see
-    /// <c>ChampionsListOptions.MinPlayerMatchupGames</c>) gets a 200 with an empty
-    /// list; <paramref name="opponent"/> narrows to a single head-to-head at a
-    /// floor of one game.
+    /// computed only from this player's games on the champion, and with no games floor:
+    /// every opponent the player faced is listed, from one game up. <paramref name="position"/>
+    /// is required — a role opponent is only meaningful within a position — but may be
+    /// <c>ALL</c>, which pairs each game with the opponent of the position the player
+    /// held in it and merges the lines by opponent champion. A missing or unrecognised
+    /// one is a 400; 404 when the account is unknown. <paramref name="opponent"/>
+    /// narrows to a single head-to-head.
     /// </summary>
     [HttpGet("{nameTag}/champions/{championId:int}/matchups")]
     [ProducesResponseType(typeof(ChampionMatchupsResponse), StatusCodes.Status200OK)]
@@ -194,11 +196,17 @@ public sealed class TruemainsController(
         [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
-        // Position is required here, unlike the sibling player-scoped endpoints:
-        // a lane matchup is only meaningful within a lane.
-        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
+        // Position is required here, unlike the sibling player-scoped endpoints: a
+        // role opponent is only meaningful within a position, so a blank one is a
+        // 400 rather than a silent dominant-position pick. `ALL` is explicit.
+        if (!this.TryNormalizePositionOrAll(position, out var normalizedPosition, out var problem))
         {
             return problem;
+        }
+
+        if (normalizedPosition is null)
+        {
+            return ValidationProblem(PositionParameter.InvalidMessage);
         }
 
         var normalizedPatch = PatchParameter.Normalize(patch);
@@ -225,7 +233,7 @@ public sealed class TruemainsController(
     /// <param name="nameTag">The player's Riot id in <c>Name-TAG</c> route form.</param>
     /// <param name="championId">The champion to scope the sample to.</param>
     /// <param name="patch">Major.minor patch filter; omitted means every patch.</param>
-    /// <param name="position">Lane filter; omitted means every lane.</param>
+    /// <param name="position">Position filter; omitted or <c>ALL</c> means every position.</param>
     /// <param name="ct">Request cancellation token.</param>
     [HttpGet("{nameTag}/champions/{championId:int}/performance")]
     [ProducesResponseType(typeof(PlayerChampionPerformanceResponse), StatusCodes.Status200OK)]
@@ -238,10 +246,10 @@ public sealed class TruemainsController(
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
-        // A blank/absent position means "all lanes"; only a non-blank value that
-        // fails to canonicalise is a client error — same rule as the sibling
-        // player-scoped endpoints above.
-        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        // A blank/absent position and `ALL` both mean "every position" here — the
+        // score has no dominant-position default; only a non-blank value that fails
+        // to canonicalise is a client error.
+        if (!this.TryNormalizePositionOrAll(position, out var normalizedPosition, out var problem))
         {
             return problem;
         }
@@ -252,7 +260,7 @@ public sealed class TruemainsController(
             nameTag,
             championId,
             normalizedPatch,
-            normalizedPosition,
+            normalizedPosition == LanePositions.AllPositions ? null : normalizedPosition,
             ct);
 
         return response is null ? NotFound() : Ok(response);

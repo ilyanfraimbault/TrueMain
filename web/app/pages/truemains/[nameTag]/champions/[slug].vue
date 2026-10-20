@@ -2,7 +2,7 @@
 import { isLoadingStatus } from '#common/utils/async-data'
 import { parseRouteParam } from '#common/utils/route-params'
 import { ELO_BRACKET_ALL } from '#common/utils/elo-brackets'
-import type { ChampionPosition } from '#common/utils/positions'
+import { ALL_POSITIONS, type ChampionPosition, type PositionFilter } from '#common/utils/positions'
 import { platformIdToRegion } from '~~/shared/utils/region'
 
 // Player-scoped mirror of pages/champions/[slug].vue: same static fetches,
@@ -94,6 +94,14 @@ const {
 
 const splashUrl = useChampionSplash(displayIconUrl)
 
+// "All positions" (#2158) is an explicit `?position=ALL`, distinct from no filter,
+// which the API resolves to the player's dominant position. `selectedPosition` has
+// no value for it, so the slice the page reads carries it on its own; the picker
+// lights its All button on `null`.
+const isAllPositions = computed(() => filters.value.position === ALL_POSITIONS)
+const slicePosition = computed<PositionFilter | null>(() =>
+  isAllPositions.value ? ALL_POSITIONS : selectedPosition.value)
+
 // SSR-safe champion name for `<head>` — same composable, same cache key as the
 // global champion page, so the two pages share the entry. See
 // useChampionSeoName for why `displayName` can't serve `<head>`.
@@ -173,10 +181,11 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
             v-if="!championError"
             class="ml-auto"
             :selected-patch="pickerPatch"
-            :selected-position="selectedPosition"
+            :selected-position="isAllPositions ? null : selectedPosition"
             :patch-options="patchOptions"
+            all-positions
             @update:patch="value => setFilter({ patch: value })"
-            @update:position="value => setFilter({ position: value })"
+            @update:position="value => setFilter({ position: value ?? ALL_POSITIONS })"
           />
           <UProgress
             v-if="isRefetching"
@@ -224,7 +233,7 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
             :champion-name="seoDisplayName"
             :display-name="displayName"
             :display-icon-url="displayIconUrl"
-            :position="selectedPosition"
+            :position="slicePosition"
             :player-label="playerLabel"
             :global-build-path="pathFor(championId)"
             :filter-labels="activeFilterLabels"
@@ -268,7 +277,7 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
           :name-tag="nameTag"
           :champion-id="championId"
           :patch="selectedPatch"
-          :position="selectedPosition"
+          :position="slicePosition"
           :player-name="playerName"
           :champion-name="displayName ?? null"
           :champions="staticList"
