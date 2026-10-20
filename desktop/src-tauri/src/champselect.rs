@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use lcu::{ActionKind, ChampSelectSession, Error, LcuClient};
+use lcu::{ActionKind, ChampSelectSession, Error, LcuClient, SpellSelection};
 use serde::Serialize;
 use tauri::AppHandle;
 
@@ -177,6 +177,36 @@ pub async fn champ_select_lock(
         },
     );
     Ok(())
+}
+
+/// Set a kit's two summoner spells in the player's champion select (#2185),
+/// from its import button only. The session is read first: outside champion
+/// select there is nothing to write to. The simulator does not model spells,
+/// and a replay is read-only.
+#[tauri::command]
+pub async fn champ_select_spells(
+    writer: tauri::State<'_, ChampSelectWriter>,
+    spell1_id: i64,
+    spell2_id: i64,
+) -> Result<(), String> {
+    let selection = SpellSelection::new(spell1_id, spell2_id)
+        .ok_or_else(|| "a kit needs two different spells".to_string())?;
+    let client = match writer.target()? {
+        Target::Live(client) => client,
+        #[cfg(debug_assertions)]
+        Target::Sim(_) => {
+            return Err("the draft simulator does not take summoner spells".to_string())
+        }
+    };
+    client
+        .champ_select_session()
+        .await
+        .map_err(read_failed)?
+        .ok_or_else(|| lcu::Refusal::NotYourTurn.code().to_string())?;
+    client
+        .set_summoner_spells(&selection)
+        .await
+        .map_err(write_failed)
 }
 
 /// What the client lets the player pick and ban right now, for the controls'
