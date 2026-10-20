@@ -126,7 +126,11 @@ export function proposeClipTitle(moments: Moment[], startMs: number, endMs: numb
   if (killPart && objectivePart) return `${killPart} + ${objectivePart}`
   if (killPart) return champion ? `${killPart} on ${champion}` : killPart
   if (objectivePart) return objectivePart
+  return quietTitle(inside, startMs, champion)
+}
 
+/** A range without a kill or an objective taken: its assists, a death, an objective lost, a mark, else its place. */
+function quietTitle(inside: Moment[], startMs: number, champion: string | null): string {
   const assists = inside.filter(moment => moment.kind === 'assist').length
   if (assists) return assists === 1 ? 'Assist' : `${assists} assists`
   if (inside.some(moment => moment.kind === 'death')) return 'Death'
