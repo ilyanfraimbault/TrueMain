@@ -254,7 +254,7 @@ those figures for a picture of the app; it carries no TrueMain statistic (2026-1
 
 **`/download` follows a game moment by moment, with the app's UI drawn live in HTML (2026-10-16).** Competitor
 desktop pages show the product moving; ours described one moment with a still, while the app had grown an overlay,
-recordings and goals. The page keeps the #1725 capture of champion select under the hero and the left-aligned,
+recordings and goals (since removed, #2074). The page keeps the #1725 capture of champion select under the hero and the left-aligned,
 card-free typography, then one section per moment — champion select, in game, recordings — each
 with a scene redrawn from the app's components in HTML/CSS (`web/app/components/desktop/landing/`): the ranked
 picks and the hover beat (the rune import was cut from the scene: off-topic at that step, the product owner's call), the four overlay panels arriving at their default anchors as the steps scroll
@@ -703,24 +703,11 @@ nothing; the list is read again after, and a player set missing from it is repor
 block is the slice's `Situational` verdicts (item context, #1450) by pick rate, else the build tree's other branches
 along the core path — never padded. The skill order is not written into a block title — #1908.
 
-**Measurable goals live on this machine, are measured from the client's games, and take their suggested targets from
-the player's own average (2026-10-05).** A goal is a target on one of the dashboard's eight metrics over the player's
-next N games — the metric's own ratio of sums over them (`average`), or the threshold met in K of them (`eachGame`) —
-optionally on one queue, champion and lane. It is kept in `localStorage` per Riot ID, like the LP history, and read
-against the games `usePlayerRecord` lists, so it moves after each game and counts the ones played while the app was
-closed; nothing about it is sent, the same rule as #1805. Only games started after it was set count, remakes and games
-the metric cannot read (an unread scoreboard for KP or damage share) are skipped and extend the run. Each counted game
-is frozen into the goal with the parts of its ratio, so a goal stays decided once its games leave the client's bounded
-history, and older pages are read only while a run needs them. A verdict reads the value at the precision the player
-sees (6.96 CS/min shows 7.0 and meets 7). Suggestions take the tiles where recent form is furthest below the player's
-own average and set the target at that average — a figure measured from their games, never a "players at your rank"
-benchmark we do not have (#1912 may add the tier's median later); none below the sample the tiles need for a delta,
-no CS/min for a mostly-support player, vision first for one. Guardrails: at most 3 active goals and 3 suggestions, a
-plain sentence (no badges), no toast — the outcome waits on the post-game dashboard — and nothing in the in-game
-overlay, which would be a separate decision under Riot's decision-support rule. The issue's open questions, settled:
-5 games by default (the tiles' recent window); "All" queues allowed but never the default nor suggested, since it
-mixes ARAM with the Rift; no per-champion default for a one-trick, the player picks the champion when they want one.
-No usage counter was added for goals — #1913.
+**The dashboard has no goals (2026-10-20).** Measurable goals (#1913: local targets on the dashboard's metrics over
+the next N games, suggested at the player's own average) shipped on 2026-10-05 and were removed on the product owner's
+call while reviewing the dashboard against a competitor's — they did not want them. The card, its editor, `useGoals`,
+`utils/goals.ts` and `utils/goal-store.ts` went with it; goals already kept in a player's `localStorage` are left
+there, unread — #1913, #2074.
 
 **The dashboard's Today card counts the day from local midnight and sums only the LP it measured (2026-10-16).** A
 compact summary of the session — games, W–L, time played, net LP — under the ranked card, prompted by a benchmark of a
@@ -734,13 +721,16 @@ grid's day view already counts the day's games; the card adds the LP and the tim
 #2073.
 
 **The dashboard's latest clips are a small fixed grid of four that opens the Recordings page's own player
-(2026-10-18).** The same benchmark showed highlights one click from the competitor's home, while a clip saved yesterday
-was two clicks and a filter away on `/recordings`. The product owner wanted it small — at most a quarter of the page —
-so it is a card in the dashboard's right column, under the Today card: four thumbnails two by two, the most recently
-saved first. With fewer than four clips the free cells stay as empty slots of a clip's height, so the card never
-changes shape as clips come and go. A clip opens the clip player the Recordings page opens (no second player), "See
-all" lands on the page's Clips filter; the card reads the same library command and is absent when the shell records
-nothing or no clip exists — #2077.
+(2026-10-18, moved 2026-10-20).** The same benchmark showed highlights one click from the competitor's home, while a
+clip saved yesterday was two clicks and a filter away on `/recordings`. The product owner wanted it small — at most a
+quarter of the page: four thumbnails, the most recently saved first. It first sat in the right column under the Today
+card, two by two; #2074 moved it under the match history, four in a row, because the right column ran far longer than
+the history and the page read lopsided. With fewer than four clips the free cells stay as empty slots of a clip's
+height, so the card never changes shape as clips come and go. A clip opens the clip player the Recordings page opens
+(no second player), "See all" lands on the page's Clips filter; the card reads the same library command and is absent
+when the shell records nothing or no clip exists. A recorded game's row opens its recap from a play button, the icon
+alone, in a slot of the same width on every row, so a recorded row's teams and build do not sit left of the others'
+— #2077, #2074.
 
 **The app's footprint is measured, never estimated (2026-10-05).** Resource use is among the most common complaints
 about League companions, so the product owner asked for a lighter app during a game and for its real memory on

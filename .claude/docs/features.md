@@ -233,7 +233,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   an accordion onto the site's own match detail (`MatchDetailPanel`, the same component and tabs as the profile), read
   from TrueMain's copy of the game when it has one, else from the client's scoreboard and timeline (which list no
   purchases or skill points: the build and skill order sections are then left out, #1768); a **Timeline** view (#1911) with, first, the ten players' **gold / XP / CS curves** (#2102, `match/MatchDetailTimelineCurves.vue`, shaped in `utils/timeline-curves.ts`): one line a player over game time from the client's per-minute frames, the player's own drawn on top in the primary colour, the others thinner and muted in their side's colour (ally / enemy); a Gold / XP / CS segmented switch; the team lead (our total minus theirs) as a band under the curves, filled above or below zero with the win probability's own band; the objectives (drakes, Elder, Baron, Rift Herald, Voidgrubs — a camp as one mark —, Atakhan, turrets, inhibitors) as glyphs on the time axis in the taking side's colour (`utils/timeline-objectives.ts`); a list per side — team total, then each player's end value with a bar, a click pinning (thickening) that player's line, a second releasing it; the end-of-game difference in the header ("Your team +10.5k gold"); hovering gives the minute, the lead then, and the player's and the pinned player's values. Shown only when the client's timeline carries gold (a recording kept before #2102 has none): a game without it shows no panel and no error, and a game with neither it nor a win-probability curve has no Timeline tab. Then the shared win-probability panel from the player's side, always built from the client's timeline (TrueMain stores no curve, #2009); the site's ranked card with
-  its LP curve (`ProfileRankedCard`, one shared component since #2029), plus two lines only the client can fill,
+  its LP curve (`ProfileRankedCard`, one shared component since #2029; the app's plain-SVG chart draws it as the
+  site's monotone curve, `utils/monotone-path.ts`), plus two lines only the client can fill,
   through the card's `standing` and `moves` slots (the site leaves them empty, #2074): under the Solo/Duo block the
   **Ranked Flex standing** on one line (`DashboardFlexStanding.vue` — crest, tier + LP, W–L and win rate; "Placements ·
   N played" while placing; nothing when unranked in Flex), and under the curve the **LP the latest Solo/Duo games moved**
@@ -249,19 +250,16 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   started since local midnight, their W–L and time played, and the net LP of the day's Solo/Duo games — the sum of the
   gains the local LP history measured, with the warning dot saying "Measured on N of today's M Solo/Duo games" when it
   could not measure them all, and no LP figure when it measured none; it follows the queue filter, leaves remakes out
-  and is absent on a day without a game. A **Latest clips card** under it (#2077, `DashboardClipsCard.vue`, `latestClips` in
-  `utils/recording-library.ts`): the four most recently saved clips, two by two, on the Recordings cards' own picture
-  (`RecordingsThumb`: how long ago, length) with the champion and the title under each; a clip opens the clip player the
-  Recordings page opens, "See all" goes to `/recordings?kind=clips` (the Clips filter, every other filter cleared). With
-  fewer than four clips the free cells stay as dashed empty slots of the same height, so the card keeps its shape; it
-  reads the library the Recordings page reads and is absent when the shell records nothing or no clip was saved. A **goals card** above the champions card (#1913): up to 3 active goals on one of the eight metrics
-  ("CS / min ≥ 7.0 over the next 5 Solo games", "Deaths ≤ 5 in each of the next 5 Solo games"), set in a modal (metric,
-  at least / at most, threshold prefilled with the player's own average in that scope, N 1–20, average or K of N
-  games, queue, optional champion and lane), shown as N slots filling up game by game; a goal the latest game decided
-  stays with its outcome until the next game, then moves under "Past goals" (latest 20 kept). With none running, up
-  to 3 suggestions on the metrics furthest below the player's average, set at that average (no CS for a mostly-support
-  player, vision first). Measured from the client's games (`utils/goals.ts`), kept on this machine per Riot ID
-  (`utils/goal-store.ts`), never sent. With no client: a waiting banner over the patch's best picks by lane.
+  and is absent on a day without a game. A **Latest clips card** under the match history (#2077, moved there from the right column by #2074 to even out the two
+  columns; `DashboardClipsCard.vue`, `latestClips` in `utils/recording-library.ts`): the four most recently saved clips
+  in one row (two by two on a narrow window), on the Recordings cards' own picture (`RecordingsThumb`: how long ago,
+  length) with the champion and the title under each; a clip opens the clip player the Recordings page opens, "See all"
+  goes to `/recordings?kind=clips` (the Clips filter, every other filter cleared). With fewer than four clips the free
+  cells stay as dashed empty slots of the same height, so the card keeps its shape; it reads the library the Recordings
+  page reads and is absent when the shell records nothing or no clip was saved. A recorded game's row carries a play
+  button (the icon alone) opening its recap, in a slot every row keeps whether or not it has one, so the rows' teams
+  and builds line up. The right column reads ranked card, Today, activity, champions, roles. The goals card (#1913)
+  was removed in #2074 at the product owner's request. With no client: a waiting banner over the patch's best picks by lane.
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
   guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
   ten most-mastered champions on the lane, or every champion on the lane), in the endpoint's order — blind safety before

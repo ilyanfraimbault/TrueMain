@@ -39,7 +39,7 @@ const emit = defineEmits<{ loadOlder: [] }>()
 // the player's own client — the shared detail panel asks through this.
 provide(MATCH_DETAIL_SOURCE, usePlayerGameDetail)
 
-// "Watch" when this game was recorded: its recap, or its clips once the full game is gone.
+// A play button when this game was recorded: its recap, or its clips once the full game is gone.
 const { watchTarget } = useRecordings()
 
 const PAGE_SIZE = 10
@@ -87,20 +87,25 @@ const loadingPage = computed(() => props.pending || (!pageMatches.value.length &
       own
     >
       <template #actions="{ match }">
-        <UButton
-          v-if="watchTarget(Number(match.matchId))"
-          :to="watchTarget(Number(match.matchId))!"
-          icon="i-lucide-play"
-          label="Watch"
-          color="neutral"
-          variant="soft"
-          size="xs"
-          class="relative shrink-0"
-          aria-label="Watch the recording of this game"
-          @click.stop
-          @keydown.enter.stop
-          @keydown.space.stop
-        />
+        <!-- A slot of the same width on every row, filled or not, so the teams
+             and the build line up down the list whether a game was recorded. -->
+        <span class="flex size-6 shrink-0 items-center justify-center">
+          <UButton
+            v-if="watchTarget(Number(match.matchId))"
+            :to="watchTarget(Number(match.matchId))!"
+            icon="i-lucide-play"
+            color="neutral"
+            variant="soft"
+            size="xs"
+            square
+            class="relative"
+            aria-label="Watch the recording of this game"
+            title="Watch the recording"
+            @click.stop
+            @keydown.enter.stop
+            @keydown.space.stop
+          />
+        </span>
       </template>
     </MatchHistoryList>
   </section>

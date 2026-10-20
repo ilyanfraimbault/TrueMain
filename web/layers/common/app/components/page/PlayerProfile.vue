@@ -17,7 +17,7 @@ import type { AccountIdentity } from '#common/components/Account.vue'
  * What differs between the hosts goes in slots — the header row (a breadcrumb
  * and filters on a profile, the dashboard's title and queue switch), the
  * history (TrueMain's paged list, or the client's), the column's cards (the
- * truemain score on the site, the goals in the app) — and the banner's art is
+ * truemain score on the site, the Today card in the app) — and the banner's art is
  * resolved by the host: the champion a true main mains on a profile, the skin
  * the player chose in the client on the dashboard (TrueMain cannot read it).
  * The player is drawn by `Account`, at its profile-header size (#2027).
