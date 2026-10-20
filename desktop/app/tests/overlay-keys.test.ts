@@ -35,8 +35,8 @@ describe('overlay keys', () => {
   })
 
   it('offers a different chord to each panel, and TAB to the item value held', () => {
-    const keys = (['next-item', 'win-probability', 'stats', 'item-value'] as const).map(panel => suggestedChord(panel, 'toggle').key)
-    expect(new Set(keys).size).toBe(4)
+    const keys = (['next-item', 'win-probability', 'stats', 'item-value', 'objectives'] as const).map(panel => suggestedChord(panel, 'toggle').key)
+    expect(new Set(keys).size).toBe(5)
     expect(suggestedChord('item-value', 'whileHeld')).toEqual(TAB_CHORD)
   })
 })

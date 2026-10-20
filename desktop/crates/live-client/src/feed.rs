@@ -34,7 +34,8 @@ pub struct GameUpdate {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Emission {
     /// The whole state replaces the frontend's — `None` when no game runs.
-    Snapshot(Option<GameState>),
+    /// Boxed: a whole game is much larger than an update.
+    Snapshot(Option<Box<GameState>>),
     Update(GameUpdate),
 }
 
@@ -99,7 +100,7 @@ impl GameFeed {
         self.revision += 1;
         next.revision = self.revision;
         self.current = Some(next.clone());
-        Some(Emission::Snapshot(Some(next)))
+        Some(Emission::Snapshot(Some(Box::new(next))))
     }
 
     /// The state as the frontend has it, with the latest clock: what a
@@ -208,7 +209,7 @@ mod tests {
         let mut frontend: Option<GameState> = None;
         for emission in played(&mut feed, &readings) {
             match emission {
-                Emission::Snapshot(state) => frontend = state,
+                Emission::Snapshot(state) => frontend = state.map(|state| *state),
                 Emission::Update(update) => {
                     let state = frontend.as_mut().expect("an update follows a snapshot");
                     assert_eq!(update.revision, state.revision + 1);

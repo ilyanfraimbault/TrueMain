@@ -361,7 +361,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   never recorded), its price against the gold in hand and its share of games. Its data comes from `useNextItemPanel`,
   shared with the overlay. A layers button by the clock (and a status line's "Customize" in the waiting state) opens the Overlay page.
 - **In-game overlay** (#1795 on macOS, window layer from the #1673 spike, `docs/desktop-overlay-spike.md`; #1798 on
-  Windows) — four panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
+  Windows) — five panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
   `CGShieldingWindowLevel` (League's Full Screen captures the display), on Windows a topmost `WS_EX_NOACTIVATE` layered
   window over a Borderless or Windowed game (the settings say so: Windows draws nothing over exclusive Full Screen) —
   placed on the monitor the game runs on (#1914: the frontmost game window's frame, matched to the monitor holding
@@ -388,7 +388,19 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   `utils/pace-benchmark.ts`). The benchmark is `GET /benchmarks/pace?position=` — every tier of the lane — and the
   tier is the last Solo/Duo standing this machine wrote down (`utils/lp-history`), picked locally so no rank is sent;
   unranked or Flex-only, or a tier/minute under the sample floor, shows the player's pace alone. Emerald →
-  Challenger fill from the regular ingestion, Iron → Platinum from the capped `PaceSampling` process. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
+  Challenger fill from the regular ingestion, Iron → Platinum from the capped `PaceSampling` process. **Objectives**
+  (212 pt, `OverlayObjectives.vue`, #2078), icons only — no names, no "Up": a row each for the dragon pit, the Voidgrubs,
+  the Rift Herald and Baron with the game's minimap icon (Community Dragon's `ux/minimap/icons`) on the left and, on the
+  right, a countdown until it spawns or a green dot while it stands; a camp taken for good (grubs, Herald) or gone from
+  the map leaves the panel. Once a drake has fallen, the dragon row instead sets the pit's icon in the middle, its
+  countdown under it so the icon sits on the row's centre (the icon alone while it stands) — every row as tall as that one — its next drake's element once the Rift has turned (`gameData.mapTerrain`, after the second
+  drake), the plain drake before, the Elder once a side holds the soul — between the drakes each side took as their
+  icons (each `DragonKill`'s `DragonType`): blue side's on the left ringed in blue, red side's on the right in red. The shell sends game times, not countdowns
+  (`live_client::timers`, inside the objectives change): the season's spawn rules in one table (`RIFT`: drakes 5:00 and
+  5:00 after each, the Elder 6:00 after the soul and after each Elder, one camp of three grubs 8:00–14:45, the Herald
+  15:00–19:45, Baron 20:00 and 6:00 after each) applied to the `DragonKill`, `HordeKill`, `HeraldKill` and `BaronKill`
+  events; off Summoner's Rift's standard game (`CLASSIC` on map 11) it says it has no timers. Default spot centre
+  right, always shown. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
   the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). Each panel shows **always**,
   **while a chord is held** or **toggled** by one (#1915; defaults: item value held with TAB, the others always;
