@@ -177,6 +177,7 @@ public sealed class LadderSyncProcess(
                         buffer.Add(platformString, entry.Puuid!, resolvedTier, entry.Rank!, entry.LeaguePoints, entry.Wins, entry.Losses);
                     }
 
+                    await RecordCutoffAsync(platformString, tier, league, ct);
                     await buffer.FlushIfFullAsync(this, stats, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -192,6 +193,34 @@ public sealed class LadderSyncProcess(
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Stores the day's Grandmaster or Challenger threshold (#2174): the lowest LP of the league
+    /// just read, which is where the ranked card's LP curve draws that tier's line. Master starts
+    /// at a fixed 0 LP and an empty league has no threshold, so neither writes anything.
+    /// </summary>
+    private async Task RecordCutoffAsync(string platformId, string tier, RiotLeagueListDto league, CancellationToken ct)
+    {
+        RankTier? cutoffTier = tier switch
+        {
+            "CHALLENGER" => RankTier.Challenger,
+            "GRANDMASTER" => RankTier.Grandmaster,
+            _ => null
+        };
+        if (cutoffTier is null || league.Entries.Count == 0)
+        {
+            return;
+        }
+
+        await using var session = await sessionFactory.CreateAsync(ct);
+        await session.ApexCutoffSnapshots.UpsertAsync(
+            platformId,
+            cutoffTier.Value,
+            league.Entries.Min(entry => entry.LeaguePoints),
+            league.Entries.Count,
+            timeProvider.GetUtcNow().UtcDateTime,
+            ct);
     }
 
     private Task<RiotLeagueListDto> FetchApexLadderAsync(PlatformRoute platform, string tier, CancellationToken ct)

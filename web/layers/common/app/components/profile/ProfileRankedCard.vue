@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ProfileRanked } from '#shared/types/profile'
+import type { ApexCutoff } from '#shared/types/apex-cutoffs'
 import type { RankHistoryEntry } from '#shared/types/rank-history'
 import { rankChartPoints } from '#common/utils/rank-chart'
 
@@ -12,9 +13,12 @@ import { rankChartPoints } from '#common/utils/rank-chart'
 const props = withDefaults(defineProps<{
   ranked: ProfileRanked | null
   history?: readonly RankHistoryEntry[]
+  /** The region's Grandmaster / Challenger cutoffs over the window, for the curve's apex thresholds. */
+  cutoffs?: readonly ApexCutoff[]
   historyLoading?: boolean
 }>(), {
   history: () => [],
+  cutoffs: () => [],
   historyLoading: false,
 })
 
@@ -58,7 +62,7 @@ const showEmptyChart = computed(
     <ProfileRankChart
       v-else-if="points.length > 0"
       :points="points"
-      :current-tier="ranked?.tier ?? null"
+      :cutoffs="cutoffs"
     />
 
     <slot name="moves" />

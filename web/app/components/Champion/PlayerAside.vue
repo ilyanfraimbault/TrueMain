@@ -14,6 +14,8 @@ const props = defineProps<{
   profileLoaded: boolean
   history: readonly RankHistoryEntry[]
   historyLoading: boolean
+  /** The player's platform, for the LP curve's Grandmaster / Challenger lines (#2174). */
+  platformId: string | null
   /** The champion aggregate failed: only the ranked card stays. */
   championFailed: boolean
   nameTag: string
@@ -29,6 +31,8 @@ const props = defineProps<{
 // useLazyHydrationSnapshot / the identical pattern on pages/champions/[slug].vue
 // for why: `staticList` is client-only (`server: false`), so freezing it
 // until the child actually mounts avoids a hydration mismatch (#834/#837).
+const apexCutoffs = useApexCutoffs(() => props.platformId)
+
 const matchupsSnapshot = useLazyHydrationSnapshot(
   { champions: [] as ChampionStaticListItem[] },
   () => ({ champions: props.champions ?? [] }),
@@ -50,6 +54,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
     :ranked="ranked ?? null"
     :history="history"
     :history-loading="historyLoading"
+    :cutoffs="apexCutoffs"
   />
 
   <!-- Performance score (#918), lazy + hydrate-on-visible with the

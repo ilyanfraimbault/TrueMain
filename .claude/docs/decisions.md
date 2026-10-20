@@ -123,7 +123,7 @@ Last verified against `develop` on 2026-09-02.
 - The grid is squares and nothing else: no captions, no legend, no coverage line — #1479, #1473
 - An idle day is not a lost one, and every day of the window is drawn — #1473, #907, #927
 - The player performance panel shows the score and its sample only — no per-component breakdown — #918
-- The rank chart is one area with a tier-gradient line, never one area per tier (2026-08-20)
+- The rank chart changes colour where the curve crosses a tier threshold; GM / Challenger thresholds are measured cutoffs, no backfill (2026-10-20, revises 2026-08-20) — #2174
 - A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
 - The "{player} vs mains" card is gone — one page, one definition of a core build (2026-09-03) — #529
 - An empty slice keeps its filters; the header degrades instead of disappearing (2026-09-03)
