@@ -109,6 +109,13 @@ impl LcuClient {
         self.get_raw("/lol-game-settings/v1/input-settings").await
     }
 
+    /// The player's game settings as the client keeps them: sections of
+    /// typed values (`HUD.GlobalScale`, `HUD.MirroredScoreboard`…), parsed
+    /// by `shell_state::scoreboard`.
+    pub async fn game_settings(&self) -> Result<String> {
+        self.get_raw("/lol-game-settings/v1/game-settings").await
+    }
+
     /// Who is logged in. This is how the app knows whose dashboard to open,
     /// with no input from the player.
     pub async fn current_summoner(&self) -> Result<CurrentSummoner> {

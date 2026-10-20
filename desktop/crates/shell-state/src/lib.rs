@@ -7,6 +7,7 @@
 
 pub mod keys;
 pub mod overlay;
+pub mod scoreboard;
 pub mod screens;
 pub mod window;
 

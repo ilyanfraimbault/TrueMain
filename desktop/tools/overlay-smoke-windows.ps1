@@ -360,10 +360,10 @@ $env:RUST_LOG = "truemain_desktop_lib=debug,lcu=info"
 $script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app.log") -RedirectStandardError (Join-Path $Out "app.err.log")
 $standIns = @()
 try {
-    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 6; $i++) { Start-Sleep -Milliseconds 500 }
     [Desk]::Of([uint32]$script:shell.Id) | ForEach-Object { [ordered]@{ title = $_.Title; class = [Desk]::ClassOf($_.Handle); visible = $_.Visible; exStyle = ('0x{0:X8}' -f $_.ExStyle) } } |
         ConvertTo-Json | Set-Content (Join-Path $Out "0-windows.json")
-    Expect ((Panels).Count -eq 5) "a running game gets a window for each of the five panels switched on"
+    Expect ((Panels).Count -eq 6) "a running game gets a window for each of the six panels switched on"
     # The replay has opened the game and every page has measured itself.
     Start-Sleep -Seconds 8
     Expect ((Shown) -eq "") "nothing shows while the app, not the game, is in front"
@@ -383,11 +383,21 @@ try {
     Key 0x09 $true
     Start-Sleep -Milliseconds 800
     $state = Report "2-scoreboard"
-    Expect ((Shown) -eq "item-value,$InGame") "TAB held adds the item value ($(Shown))"
+    Expect ((Shown) -eq "item-value,lane-gold,$InGame") "TAB held adds the item value and the lane-gold plates ($(Shown))"
     Key 0x09 $false
     $itemValue = $state.panels | Where-Object { $_.slug -eq "item-value" -and $_.visible }
     if ($itemValue) {
         Expect ($itemValue.gameShare -lt 0.5 -and $itemValue.colors -ge 6) "item-value is drawn (game colour $([Math]::Round($itemValue.gameShare * 100))%, $($itemValue.colors) colours)"
+    }
+    # The plates' window is see-through: the game shows around the five plates,
+    # down the middle of the screen, where the scoreboard is drawn.
+    $plates = $state.panels | Where-Object { $_.slug -eq "lane-gold" -and $_.visible }
+    if ($plates) {
+        $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+        $middle = ($plates.rect[0] + $plates.rect[2]) / 2
+        Expect ([Math]::Abs($middle - $screen.Width / 2) -le 2 -and $plates.rect[3] -lt $screen.Height * 0.7) "lane-gold sits down the scoreboard's middle ($($plates.rect -join ','))"
+        Expect ($plates.gameShare -gt 0.5) "lane-gold shows the game through (game colour $([Math]::Round($plates.gameShare * 100))%)"
+        Expect ($plates.hit -eq "RiotWindowClass") "a click on lane-gold reaches the game ($($plates.hit))"
     }
     Start-Sleep -Milliseconds 800
     Expect ((Shown) -eq $InGame) "TAB released takes it away ($(Shown))"
@@ -440,10 +450,13 @@ try {
     Expect (Press "Place on screen") "the settings start the preview"
     Start-Sleep -Seconds 2
     $state = Report "6-preview"
-    Expect ((Shown) -eq "item-value,next-item,objectives,stats,win-probability") "the preview shows every panel ($(Shown))"
-    foreach ($panel in @(Panels | Where-Object Visible)) {
+    Expect ((Shown) -eq "item-value,lane-gold,next-item,objectives,stats,win-probability") "the preview shows every panel ($(Shown))"
+    foreach ($panel in @(Panels | Where-Object { $_.Visible -and $_.Slug -ne "lane-gold" })) {
         Expect (($panel.Styles -band $WS_EX_TRANSPARENT) -eq 0) "$($panel.Slug) takes the mouse in the preview ($($panel.ExStyle))"
     }
+    # The plates go where the scoreboard is: never dragged, click-through even here.
+    $plates = Panels | Where-Object Slug -eq "lane-gold"
+    Expect (($plates.Styles -band $WS_EX_TRANSPARENT) -ne 0) "lane-gold stays click-through in the preview ($($plates.ExStyle))"
 
     $before = Panels | Where-Object Slug -eq "win-probability"
     Drag ([int](($before.Left + $before.Right) / 2)) ([int](($before.Top + $before.Bottom) / 2)) 300 200
@@ -488,7 +501,7 @@ try {
     } | Set-Content $loadingTape
     $env:TRUEMAIN_LCU_REPLAY = $loadingTape
     $script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app-loading.log") -RedirectStandardError (Join-Path $Out "app-loading.err.log")
-    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 6; $i++) { Start-Sleep -Milliseconds 500 }
     Start-Sleep -Seconds 5
     $standIns += StartStandIn $gameExe "RiotWindowClass" "League of Legends (TM) Client" $GameColorRef
     Start-Sleep -Seconds 3
