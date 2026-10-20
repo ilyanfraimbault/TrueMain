@@ -81,9 +81,22 @@ jobs:
       hostinger_api_key: ${{ secrets.HOSTINGER_PROD_API_KEY }}
       env_file: ${{ secrets.PROD_ENV_FILE }}
 
+  edge-rollout:
+    name: Roll out the prod edge
+    needs: rollout
+    uses: ./.github/workflows/edge-rollout.yml
+    with:
+      environment: prod
+      ref: ${{ github.event.release.tag_name }}
+      project_name: truemain-edge
+      compose_file: compose.prod.edge.yaml
+      vm_id: ${{ vars.HOSTINGER_PROD_VM_ID }}
+    secrets:
+      hostinger_api_key: ${{ secrets.HOSTINGER_PROD_API_KEY }}
+
   edge:
     name: Verify the prod edge
-    needs: rollout
+    needs: edge-rollout
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
