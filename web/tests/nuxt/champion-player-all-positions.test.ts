@@ -110,6 +110,34 @@ describe('player champion page — all positions', () => {
 
     expect(wrapper.find('img[alt="All positions"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('21 games')
+
+    const top = await mountInApp(ChampionPlayerHeading, {
+      championName: 'Irelia',
+      championIconUrl: null,
+      championId: 39,
+      position: 'TOP',
+      totalGames: 16,
+    })
+    expect(top.find('img[alt="Top"]').exists()).toBe(true)
+    expect(top.find('img[alt="All positions"]').exists()).toBe(false)
+  })
+
+  it('names All positions among the filters an empty slice clears', () => {
+    const filters = ref<{ patch?: string, position?: string }>({ patch: '16.20', position: ALL_POSITIONS })
+    const setFilter = vi.fn()
+    const { activeFilterLabels, clearFilters } = usePlayerChampionEmptySlice({
+      championId: computed(() => 39),
+      filters: filters as never,
+      setFilter,
+      selectedPatch: computed(() => ''),
+    })
+
+    expect(activeFilterLabels.value).toEqual(['16.20', 'All positions'])
+    filters.value = { position: 'UTILITY' }
+    expect(activeFilterLabels.value).toEqual(['Support'])
+
+    clearFilters()
+    expect(setFilter).toHaveBeenCalledWith({ patch: null, position: null })
   })
 
   it('offers the All positions button only when asked to', async () => {

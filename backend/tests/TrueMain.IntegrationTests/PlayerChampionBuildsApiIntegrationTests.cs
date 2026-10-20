@@ -208,6 +208,28 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
         all.Builds.Select(build => build.FirstItemId).Should().BeEquivalentTo([3153, 6673]);
     }
 
+    [Fact]
+    public async Task GetPlayerChampionPerformance_ReadsAllAsEveryPosition()
+    {
+        await SeedAsync();
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // The score has no dominant-position default: ALL is every position, like
+        // an absent value — accepted, and echoed back as no position filter.
+        var all = await client.GetAsync("/truemains/Phantasm-EUW1/champions/157/performance?position=ALL");
+        all.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await all.Content.ReadAsStringAsync());
+        var echoed = document.RootElement.TryGetProperty("position", out var position)
+            ? position.ValueKind
+            : JsonValueKind.Null;
+        echoed.Should().Be(JsonValueKind.Null);
+
+        var invalid = await client.GetAsync("/truemains/Phantasm-EUW1/champions/157/performance?position=NOTALANE");
+        invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     private async Task SeedAsync(Func<ChampionAggregateSeeder, ChampionAggregateSeeder>? extra = null)
     {
         var now = DateTime.UtcNow;
