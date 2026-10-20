@@ -52,10 +52,15 @@ public sealed class PersonaQueryService(TrueMainDbContext db) : IPersonaQuerySer
             return null;
         }
 
+        // Newest first within a kind (#2177): the intake only adds links, so a renamed channel keeps its old
+        // one, and the page shows the first of each kind. One batch shares a timestamp; there a channel's
+        // `@handle` form wins over the legacy `/c/`, `/user/` and `/channel/` ones a source also lists.
         var links = await db.PersonaLinks
             .AsNoTracking()
             .Where(link => link.PersonaId == persona.Id)
             .OrderBy(link => link.Kind)
+            .ThenByDescending(link => link.CreatedAtUtc)
+            .ThenByDescending(link => link.Url.Contains("/@"))
             .ThenBy(link => link.Url)
             .Select(link => new { link.Kind, link.Url })
             .ToListAsync(ct);
