@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import type { ChampionMatchupEntry } from '~~/shared/types/champions'
-import type { ChampionPosition } from '#common/utils/positions'
+import { ALL_POSITIONS, type PositionFilter } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { rankMatchups } from '~~/shared/utils/matchup-ranking'
 
 const props = defineProps<{
   championId: number
-  position: ChampionPosition | null
+  /** `ALL` (player scope only) spans every position the player held. */
+  position: PositionFilter | null
   champions: ChampionStaticListItem[]
   /** When set, scope the matchups to this player's games. */
   nameTag?: string
@@ -27,8 +28,16 @@ const selectedOpponentId = ref<number | null>(null)
 
 // Jungle has no lane opponent — the matchup is the enemy jungler across the map —
 // so the empty-state notes say "in the jungle" there and "on this lane" for the four lanes.
-const isJungle = computed(() => props.position === 'JUNGLE')
-const scopeSuffix = computed(() => (isJungle.value ? 'in the jungle' : 'on this lane'))
+const scopeSuffix = computed(() => {
+  if (props.position === ALL_POSITIONS) return 'in any position'
+  return props.position === 'JUNGLE' ? 'in the jungle' : 'on this lane'
+})
+
+// One player's own matchups carry no games floor (#2158): an empty list there
+// means no games at all, not none above a floor.
+const emptyListDescription = computed(() => props.nameTag
+  ? `No recorded games ${scopeSuffix.value} yet.`
+  : `No matchups with enough games ${scopeSuffix.value} yet.`)
 
 const { data, status, error } = useChampionMatchups(
   () => props.championId,
@@ -79,11 +88,11 @@ const searchedOpponent = computed(() =>
 // Every row leads to the `/matchup` tool with the whole matchup already pinned —
 // the three inputs that page deep-links (#939), so the reader goes from "I lose
 // to Nidalee" straight to "here is what to build into her" without re-picking
-// two champions and a role. Null while the position is unresolved: the tool
-// treats the role as a hard filter and 400s without one, so a link missing it
-// would be a link to an error.
+// two champions and a role. Null while the position is unresolved, and across
+// every position: the tool treats the role as a hard filter and 400s without one,
+// so a link missing it would be a link to an error.
 function matchupToolLink(opponentChampionId: number): string | undefined {
-  if (!props.position) return undefined
+  if (!props.position || props.position === ALL_POSITIONS) return undefined
   const query = new URLSearchParams({
     champion: String(props.championId),
     position: props.position,
@@ -146,7 +155,7 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
         v-else-if="!hasAny"
         size="sm"
         icon="i-lucide-swords"
-        :description="`No matchups with enough games ${scopeSuffix} yet.`"
+        :description="emptyListDescription"
       />
 
       <!-- Default: best / worst leaderboard. -->
