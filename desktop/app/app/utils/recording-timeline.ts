@@ -42,14 +42,14 @@ export function clusterMoments(moments: Moment[], gapMs: number): EventCluster[]
   const sorted = [...moments].sort((a, b) => a.videoMs - b.videoMs)
   const groups: Moment[][] = []
   for (const moment of sorted) {
-    const last = groups[groups.length - 1]
-    if (last && moment.videoMs - last[last.length - 1]!.videoMs <= gapMs) last.push(moment)
+    const last = groups.at(-1)
+    if (last && moment.videoMs - last.at(-1)!.videoMs <= gapMs) last.push(moment)
     else groups.push([moment])
   }
   return groups.map((group) => {
-    const sides = new Set(group.map(momentSide))
+    const sides = new Set(group.map(moment => momentSide(moment)))
     return {
-      ms: (group[0]!.videoMs + group[group.length - 1]!.videoMs) / 2,
+      ms: (group[0]!.videoMs + group.at(-1)!.videoMs) / 2,
       moments: group,
       side: sides.size > 1 ? 'mixed' : [...sides][0]!,
     }
