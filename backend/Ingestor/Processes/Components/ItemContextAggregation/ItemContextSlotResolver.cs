@@ -71,6 +71,21 @@ public static class ItemContextSlotResolver
         return resolved;
     }
 
+    /// <summary>
+    /// The items a resolved build completed — its legendaries and its boots — whose component
+    /// order the fold also counts (#2183). Starters are bought whole and have none.
+    /// </summary>
+    public static IReadOnlyList<int> CompletedItems(IReadOnlyDictionary<ItemContextSlot, IReadOnlyList<ItemContextEdge>> resolved)
+    {
+        ArgumentNullException.ThrowIfNull(resolved);
+
+        return
+        [
+            .. resolved.GetValueOrDefault(ItemContextSlot.Build, []).Select(edge => edge.ItemId),
+            .. resolved.GetValueOrDefault(ItemContextSlot.Boots, []).Select(edge => edge.ItemId),
+        ];
+    }
+
     private static void Add(
         Dictionary<ItemContextSlot, IReadOnlyList<ItemContextEdge>> resolved,
         ItemContextSlot slot,

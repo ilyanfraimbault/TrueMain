@@ -68,4 +68,12 @@ public sealed record ItemMetadata(
     /// Chempunk Chainsword, Thornmail and its component).
     /// </summary>
     public bool GrantsGrievousWounds { get; init; }
+
+    /// <summary>
+    /// The item's recipe, verbatim from CommunityDragon's <c>from</c>: the components it is
+    /// built from, a component listed twice when the recipe takes two of it. Empty for a
+    /// basic item. Read by <see cref="ComponentOrderResolver"/> (#2183) to tell which
+    /// purchases went into an item, and by the API to lay its components out.
+    /// </summary>
+    public IReadOnlyList<int> Components { get; init; } = [];
 }
