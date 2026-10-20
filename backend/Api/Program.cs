@@ -292,7 +292,7 @@ builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryS
 builder.Services.AddScoped<IChampionDirectoryQueryService, ChampionDirectoryQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
-builder.Services.AddScoped<IPaceBenchmarkQueryService, PaceBenchmarkQueryService>();
+builder.Services.AddTrueMainBenchmarks();
 builder.Services.AddScoped<IChampionItemContextQueryService, ChampionItemContextQueryService>();
 builder.Services.AddScoped<IChampionSynergyQueryService, ChampionSynergyQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();

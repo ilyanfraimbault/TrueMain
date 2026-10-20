@@ -304,6 +304,5 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
             [
                 new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
                 new KeyValuePair<string, string?>("ChampionsList:MinMatchupGames", "10"),
-                new KeyValuePair<string, string?>("ChampionsList:MinPlayerMatchupGames", "3"),
             ]);
 }

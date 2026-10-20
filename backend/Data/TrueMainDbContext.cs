@@ -83,6 +83,11 @@ public class TrueMainDbContext : DbContext
     // ingestion by TimelineIngestionService — never a per-minute participant grid.
     public DbSet<PaceBenchmarkStat> PaceBenchmarkStats => Set<PaceBenchmarkStat>();
 
+    // The desktop dashboard's form benchmark (#2076): end-of-game KDA, kill participation,
+    // CS/min, deaths and vision/min histograms per (patch, tier, position), folded with the
+    // pace benchmark from the same games.
+    public DbSet<FormBenchmarkStat> FormBenchmarkStats => Set<FormBenchmarkStat>();
+
     // The low-tier pace sampler's ledger (#1912): matches it folded without storing them.
     public DbSet<PaceSampledMatch> PaceSampledMatches => Set<PaceSampledMatch>();
 

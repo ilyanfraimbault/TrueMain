@@ -99,8 +99,20 @@ ranking signal, not a population, and stays as it was — #1365.
 It forwarded position and elo but never patch, and its aggregate outlives the matches it was folded from, so the
 panel spanned **16.12→16.15 (53 739 games) under a header reading 4 603** — two contradicting numbers a few
 centimetres apart. The player-scoped slice stays cross-patch on purpose, for the opposite reason the global one
-needed scoping: one player meets the same lane opponent a handful of times *in total*, so a patch filter would put
-nearly every opponent under the 3-game per-player floor and empty the panel — #1087.
+needed scoping: one player meets the same lane opponent a handful of times *in total*, so a patch filter would cut
+an already thin history to a game or two per opponent — #1087.
+
+**One player's matchups carry no games floor, and the player champion page can read every position at once.**
+The per-player floor (`MinPlayerMatchupGames`, 3) left a typical truemain's card with one line: a player with ~20
+games on a champion meets ~15 distinct opponents, almost all of them once or twice, and the global page's reason
+for a floor — variance outranking real matchups in a population read — does not hold for a reader looking up their
+own history against a pick, where each row already shows its game count. The setting is gone; the global
+leaderboard keeps both of its floors. The same page's position picker offers "All positions" — an explicit
+`?position=ALL`, distinct from no position, which still resolves to the dominant one — on the build, performance
+and matchups routes of `/truemains/{nameTag}/champions/{id}` only: the build folds every position's scopes at the
+resolved patch, and the matchups pair each game with the role opponent of the position the player held in it,
+one line per opponent champion. The global champion page stays one position at a time (its spread and the
+server-rendered best/worst are per-lane by construction) — 2026-10-20, #2158.
 
 **The champion page shows its matchups as a spread on the lane win rate at 15 min, and the sidebar list is gone.**
 The best/worst panel in the sidebar ranked opponents by *game* win rate in a column too narrow for more than ten

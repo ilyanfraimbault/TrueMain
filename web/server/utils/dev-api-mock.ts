@@ -2554,6 +2554,8 @@ export async function resolveDevApiMock(
     // page — it renders no toggle, because its scope is already one account.
     else payload = await mockChampionDetail(id, undefined, undefined, true)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
+    // "All positions" (#2158): the same sample, labelled as the backend labels it.
+    if (query.position === 'ALL' && sub !== 'performance') return { ...(payload as object), position: 'ALL' }
     return payload
   }
 
