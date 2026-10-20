@@ -133,7 +133,7 @@ const MORE = [
         lead="Turn recording on and every game is captured with its kills, deaths, assists and objectives on the timeline. Drag across a moment to cut a clip; it is named from what it holds and kept as its own file, ready to publish on YouTube."
       >
         <figure>
-          <DesktopLandingRecapDemo aria-hidden="true" />
+          <DesktopLandingRecapDemo :patch="patch" aria-hidden="true" />
         </figure>
       </DesktopLandingSection>
     </div>

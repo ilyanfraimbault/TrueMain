@@ -149,7 +149,7 @@ describe('LandingDraftDemo', () => {
 
 describe('LandingRecapDemo', () => {
   it('ends on the triple kill saved and its clip at the head of the list', async () => {
-    const wrapper = await mountSuspended(DesktopLandingRecapDemo)
+    const wrapper = await mountSuspended(DesktopLandingRecapDemo, { props: { patch: '15.1.1' } })
 
     expect(wrapper.text()).toContain('Saved clips · 3')
     expect(wrapper.text()).toContain('Triple kill on Yone')
@@ -157,6 +157,16 @@ describe('LandingRecapDemo', () => {
     // Once saved, the range being cut is gone from the side panel.
     expect(wrapper.text()).not.toContain('12:48 → 13:33')
     expect(wrapper.find('img').attributes('src')).toBe('/desktop/game.webp')
+  })
+
+  it('opens the triple kill\'s tooltip: who killed whom, and the drake beside it (#2171)', async () => {
+    const wrapper = await mountSuspended(DesktopLandingRecapDemo, { props: { patch: '15.1.1' } })
+    const sources = wrapper.findAll('img').map(img => img.attributes('src') ?? '')
+
+    expect(wrapper.text()).toContain('Triple kill13:15')
+    expect(wrapper.text()).toContain('Infernal Drake13:40')
+    for (const champion of ['Yone', 'Orianna', 'Ezreal', 'Nautilus']) expect(sources.some(src => src.includes(`/${champion}.png`))).toBe(true)
+    expect(sources.some(src => src.includes('/dragon_infernal.png'))).toBe(true)
   })
 })
 
@@ -204,7 +214,7 @@ describe('the scenes, playing', () => {
   })
 
   it('takes the recap\'s playhead to the triple kill, cuts a range the app names, then saves it', async () => {
-    const wrapper = await mountSuspended(DesktopLandingRecapDemo)
+    const wrapper = await mountSuspended(DesktopLandingRecapDemo, { props: { patch: null } })
     await nextTick()
 
     expect(wrapper.text()).toContain('1:16 / 31:40')

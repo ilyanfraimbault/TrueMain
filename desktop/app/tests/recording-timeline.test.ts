@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { clampView, fullView, isZoomed, MIN_VIEW_SPAN_MS, panView, revealInView, stepRate, tickStep, viewTicks, zoomView } from '~/utils/recording-timeline'
+import type { Moment } from '~/types/recordings'
+import { momentSide } from '~/utils/recording-moments'
+import { clampView, clusterMoments, clusterNear, fullView, isZoomed, MIN_VIEW_SPAN_MS, panView, revealInView, stepRate, tickStep, viewTicks, zoomView } from '~/utils/recording-timeline'
 
 const LENGTH = 1_800_000
 
@@ -69,5 +71,46 @@ describe('the playback speed', () => {
   it('steps from a speed off the list to its neighbours', () => {
     expect(stepRate(1.1, 1)).toBe(1.25)
     expect(stepRate(1.1, -1)).toBe(1)
+  })
+})
+
+const moment = (kind: Moment['kind'], videoMs: number, ally: boolean | null = null): Moment =>
+  ({ kind, videoMs, endVideoMs: videoMs, kills: kind === 'kill' ? 1 : 0, ally, killerId: null, victimIds: [], dragon: null })
+
+describe('the timeline events', () => {
+  it('colours an event by the side it went', () => {
+    expect(momentSide(moment('kill', 0))).toBe('ally')
+    expect(momentSide(moment('assist', 0))).toBe('ally')
+    expect(momentSide(moment('death', 0))).toBe('enemy')
+    expect(momentSide(moment('dragon', 0, true))).toBe('ally')
+    expect(momentSide(moment('baron', 0, false))).toBe('enemy')
+  })
+
+  it('merges events too close to tell apart into one dot, chained', () => {
+    const clusters = clusterMoments([moment('death', 10_000), moment('kill', 1_000), moment('assist', 1_500), moment('kill', 2_000)], 600)
+    expect(clusters.map(cluster => cluster.moments.length)).toEqual([3, 1])
+    expect(clusters[0]).toMatchObject({ ms: 1_500, side: 'ally' })
+    expect(clusters[1]).toMatchObject({ ms: 10_000, side: 'enemy' })
+  })
+
+  it('splits a dot whose events went both ways', () => {
+    expect(clusterMoments([moment('kill', 1_000), moment('grubs', 1_200, false)], 500)[0]!.side).toBe('mixed')
+  })
+
+  it('draws a mark in the primary alone, and leaves a mark beside an event its side', () => {
+    expect(momentSide(moment('marked', 0))).toBe('marked')
+    expect(clusterMoments([moment('marked', 1_000)], 500)[0]!.side).toBe('marked')
+    expect(clusterMoments([moment('marked', 1_000), moment('death', 1_200)], 500)[0]!.side).toBe('enemy')
+  })
+
+  it('keeps every event apart without a gap', () => {
+    expect(clusterMoments([moment('kill', 1_000), moment('kill', 1_001)], 0)).toHaveLength(2)
+  })
+
+  it('finds the nearest cluster within reach of the pointer only', () => {
+    const clusters = clusterMoments([moment('kill', 1_000), moment('death', 2_000)], 100)
+    expect(clusterNear(clusters, 1_400, 500)?.ms).toBe(1_000)
+    expect(clusterNear(clusters, 1_600, 500)?.ms).toBe(2_000)
+    expect(clusterNear(clusters, 5_000, 500)).toBeNull()
   })
 })

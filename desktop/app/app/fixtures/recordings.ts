@@ -68,7 +68,7 @@ function momentsOf(spec: GameSpec): Moment[] {
   const at = () => Math.round(90_000 + next() * (spec.durationMs - 120_000))
   const moments: Moment[] = []
   const add = (kind: MomentKind, videoMs: number, kills = 0, ally: boolean | null = null, endVideoMs = videoMs) =>
-    moments.push({ kind, videoMs, endVideoMs, kills, ally })
+    moments.push({ kind, videoMs, endVideoMs, kills, ally, killerId: null, victimIds: [], dragon: null })
 
   for (const run of spec.runs) {
     const start = at()
