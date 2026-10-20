@@ -23,12 +23,14 @@ function game(timers: NeutralTimers | null, gameTime: number, dragons: [number, 
 }
 
 const fresh: NeutralTimers = {
-  dragon: { at: 300, until: null, takenBy: null },
+  dragon: { at: 300, until: null },
   elder: false,
-  grubs: { at: 480, until: 885, takenBy: null },
-  herald: { at: 900, until: 1185, takenBy: null },
-  baron: { at: 1200, until: null, takenBy: null },
+  drake: null,
+  grubs: { at: 480, until: 885 },
+  herald: { at: 900, until: 1185 },
+  baron: { at: 1200, until: null },
 }
+const GONE = { at: null, until: null }
 
 const pill = (wrapper: ReturnType<typeof mount>, key: string) => wrapper.get(`[data-objective="${key}"]`)
 
@@ -54,37 +56,41 @@ describe('OverlayObjectives', () => {
 
     await vi.advanceTimersByTimeAsync(60_000)
     expect(pill(wrapper, 'dragon').attributes('data-status')).toBe('up')
-    expect(pill(wrapper, 'dragon').text()).toContain('Up')
+    expect(pill(wrapper, 'dragon').find('[data-up]').exists()).toBe(true)
+    expect(pill(wrapper, 'dragon').text()).not.toContain('0:00')
     expect(pill(wrapper, 'grubs').text()).toContain('3:00')
   })
 
-  it('shows the drakes each side holds, the soul point, and who took a camp', () => {
+  it('shows the drakes each side holds, the soul point, the Rift\'s drake, and hides the camps taken', () => {
     const timers: NeutralTimers = {
       ...fresh,
-      dragon: { at: 1898, until: null, takenBy: 'ORDER' },
-      grubs: { at: null, until: null, takenBy: 'CHAOS' },
-      herald: { at: null, until: null, takenBy: 'CHAOS' },
-      baron: { at: 1855, until: null, takenBy: 'ORDER' },
+      dragon: { at: 1898, until: null },
+      drake: 'mountain',
+      grubs: GONE,
+      herald: GONE,
+      baron: { at: 1855, until: null },
     }
     const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 1606, [3, 1]), syncedAt: NOW }, global })
     const drakes = wrapper.get('[data-drakes]').text()
     expect(drakes).toContain('3')
     expect(drakes).toContain('1')
     expect(drakes).toContain('Soul pt')
+    expect(pill(wrapper, 'dragon').text()).toContain('Mountain')
+    expect(pill(wrapper, 'dragon').get('img').attributes('src')).toMatch(/dragon_mountain\.png$/)
     expect(pill(wrapper, 'dragon').text()).toContain('4:52')
-    expect(pill(wrapper, 'herald').text()).toContain('Taken')
-    expect(pill(wrapper, 'herald').find('.text-enemy').exists()).toBe(true)
+    expect(wrapper.find('[data-objective="grubs"]').exists()).toBe(false)
+    expect(wrapper.find('[data-objective="herald"]').exists()).toBe(false)
     expect(pill(wrapper, 'baron').text()).toContain('4:09')
   })
 
-  it('names the Elder once a side holds the soul, and a camp gone untaken', () => {
-    const timers: NeutralTimers = { ...fresh, dragon: { at: 2110, until: null, takenBy: 'CHAOS' }, elder: true }
+  it('names the Elder once a side holds the soul, and drops the camps that left the map', () => {
+    const timers: NeutralTimers = { ...fresh, dragon: { at: 2110, until: null }, elder: true, drake: 'ocean' }
     const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 1900, [1, 4]), syncedAt: NOW }, global })
     expect(pill(wrapper, 'dragon').text()).toContain('Elder')
+    expect(pill(wrapper, 'dragon').get('img').attributes('src')).toMatch(/dragon_elder\.png$/)
     expect(wrapper.get('[data-drakes]').text()).toContain('Soul')
-    expect(pill(wrapper, 'grubs').text()).toContain('Gone')
-    expect(pill(wrapper, 'herald').text()).toContain('Gone')
-    expect(pill(wrapper, 'baron').text()).toContain('Up')
+    expect(wrapper.findAll('[data-objective]').map(row => row.attributes('data-objective'))).toEqual(['dragon', 'baron'])
+    expect(pill(wrapper, 'baron').find('[data-up]').exists()).toBe(true)
   })
 
   it('says so off the Rift, where the shell has no timers', () => {

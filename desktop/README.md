@@ -83,9 +83,11 @@ Tracking issue: **#1671**.
   that it can be bought now), a win probability estimated from the item-gold
   gap and the map (turrets, inhibitors down, drakes, Baron, Elder), your CS per
   minute with its curve and gold per minute, the neutral objectives' next
-  spawns (#2078: the dragon pit with each side's drakes and the soul point —
-  the Elder once a side holds the soul —, the Voidgrubs, the Rift Herald and
-  Baron, a countdown each, "Up" while it stands; derived by the shell from the
+  spawns (#2078: the dragon pit — its next drake's element once the Rift has
+  turned, the Elder once a side holds the soul — with each side's drakes and the
+  soul point, the Voidgrubs, the Rift Herald and Baron, each with the game's
+  minimap icon and a countdown, a green dot while it stands, gone from the panel
+  once taken for good; derived by the shell from the
   season's spawn rules, one table in `crates/live-client/src/timers.rs`, and the
   kills the event feed announces, so a patch that moves a timer changes that
   table; Summoner's Rift's standard game only), and, while TAB is held, each team's item gold and each lane's gap —

@@ -380,9 +380,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   tier is the last Solo/Duo standing this machine wrote down (`utils/lp-history`), picked locally so no rank is sent;
   unranked or Flex-only, or a tier/minute under the sample floor, shows the player's pace alone. Emerald →
   Challenger fill from the regular ingestion, Iron → Platinum from the capped `PaceSampling` process. **Objectives**
-  (212 pt, `OverlayObjectives.vue`, #2078): a pill each for the dragon pit ("Drake", "Elder" once a side holds the
-  soul), the Voidgrubs, the Rift Herald and Baron — a countdown to its next spawn, "Up" while it stands, "Taken" in the
-  colour of the side that took a one-off camp or "Gone" when it left the map untaken; beside the dragon each side's
+  (212 pt, `OverlayObjectives.vue`, #2078): a row each for the dragon pit, the Voidgrubs, the Rift Herald and Baron,
+  with the game's minimap icon (Community Dragon's `ux/minimap/icons`) — a countdown to its next spawn, a green dot
+  while it stands; a camp taken for good (grubs, Herald) or gone from the map leaves the panel. The pit is named and
+  drawn as its next drake's element once the Rift has turned (`gameData.mapTerrain`, after the second drake), "Drake"
+  before, "Elder" once a side holds the soul; beside the dragon each side's
   drakes with a "Soul pt"/"Soul" badge, beside the grubs each side's grubs. The shell sends game times, not countdowns
   (`live_client::timers`, inside the objectives change): the season's spawn rules in one table (`RIFT`: drakes 5:00 and
   5:00 after each, the Elder 6:00 after the soul and after each Elder, one camp of three grubs 8:00–14:45, the Herald

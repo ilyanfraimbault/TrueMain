@@ -76,11 +76,12 @@ export function sampleGame(): GameState {
       // At the sample's 26:00: the next drake in 1:15, the grubs and the
       // Herald done, Baron up since 20:00.
       timers: {
-        dragon: { at: 1635, until: null, takenBy: 'ORDER' },
+        dragon: { at: 1635, until: null },
         elder: false,
-        grubs: { at: null, until: null, takenBy: 'ORDER' },
-        herald: { at: null, until: null, takenBy: 'CHAOS' },
-        baron: { at: 1200, until: null, takenBy: null },
+        drake: 'ocean',
+        grubs: { at: null, until: null },
+        herald: { at: null, until: null },
+        baron: { at: 1200, until: null },
       },
     },
     pace: {

@@ -14,7 +14,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::Team;
 use crate::model::{AllGameData, Event};
 use crate::objectives::killer_team;
 
@@ -69,8 +68,34 @@ pub struct Spawn {
     /// The game time it leaves the map at if nobody takes it, for the camps
     /// that do.
     pub until: Option<f64>,
-    /// The side that took it last, if the feed names one.
-    pub taken_by: Option<Team>,
+}
+
+/// A drake's element, named as the Rift's terrain names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DrakeElement {
+    Infernal,
+    Ocean,
+    Mountain,
+    Cloud,
+    Hextech,
+    Chemtech,
+}
+
+impl DrakeElement {
+    /// The element the Rift turned to, from `gameData.mapTerrain`; `None`
+    /// while it is still `Default`.
+    pub fn from_terrain(terrain: &str) -> Option<Self> {
+        match terrain.to_ascii_lowercase().as_str() {
+            "infernal" => Some(Self::Infernal),
+            "ocean" => Some(Self::Ocean),
+            "mountain" => Some(Self::Mountain),
+            "cloud" => Some(Self::Cloud),
+            "hextech" => Some(Self::Hextech),
+            "chemtech" => Some(Self::Chemtech),
+            _ => None,
+        }
+    }
 }
 
 /// The neutral objectives' timers; only on Summoner's Rift's standard rules.
@@ -81,6 +106,10 @@ pub struct NeutralTimers {
     pub dragon: Spawn,
     /// The pit's next is the Elder: a team holds the soul.
     pub elder: bool,
+    /// The element of the pit's next drake, known once the Rift turned to it
+    /// (after the second drake: every drake after is of the Rift's element).
+    /// The API does not name the first two before they fall.
+    pub drake: Option<DrakeElement>,
     pub grubs: Spawn,
     pub herald: Spawn,
     pub baron: Spawn,
@@ -100,6 +129,7 @@ impl NeutralTimers {
         let mut timers = Self {
             dragon: Spawn::at(rules.drake_first),
             elder: false,
+            drake: DrakeElement::from_terrain(&data.game_data.map_terrain),
             grubs: Spawn {
                 until: Some(rules.grubs_despawn),
                 ..Spawn::at(rules.grubs_spawn)
@@ -114,12 +144,10 @@ impl NeutralTimers {
         let mut grubs = 0;
         for event in &data.events.events {
             let time = event.event_time;
-            let team = || killer_team(data, event);
             match event.event_name.as_str() {
                 "DragonKill" => {
-                    let taker = team();
                     if !is_elder(event) {
-                        if let Some(side) = taker {
+                        if let Some(side) = killer_team(data, event) {
                             drakes[side as usize] += 1;
                         }
                     }
@@ -129,24 +157,16 @@ impl NeutralTimers {
                     } else {
                         rules.drake_respawn
                     };
-                    timers.dragon = Spawn::taken(time + respawn, taker);
+                    timers.dragon = Spawn::at(time + respawn);
                 }
                 "HordeKill" => {
                     grubs += 1;
-                    timers.grubs.taken_by = team();
                     if grubs >= rules.grubs_camp {
-                        timers.grubs.at = None;
-                        timers.grubs.until = None;
+                        timers.grubs = Spawn::GONE;
                     }
                 }
-                "HeraldKill" => {
-                    timers.herald = Spawn {
-                        at: None,
-                        until: None,
-                        taken_by: team(),
-                    };
-                }
-                "BaronKill" => timers.baron = Spawn::taken(time + rules.baron_respawn, team()),
+                "HeraldKill" => timers.herald = Spawn::GONE,
+                "BaronKill" => timers.baron = Spawn::at(time + rules.baron_respawn),
                 _ => {}
             }
         }
@@ -155,18 +175,16 @@ impl NeutralTimers {
 }
 
 impl Spawn {
+    /// Taken for good: it will not come again this game.
+    pub const GONE: Self = Self {
+        at: None,
+        until: None,
+    };
+
     fn at(time: f64) -> Self {
         Self {
             at: Some(time),
             until: None,
-            taken_by: None,
-        }
-    }
-
-    fn taken(next: f64, by: Option<Team>) -> Self {
-        Self {
-            taken_by: by,
-            ..Self::at(next)
         }
     }
 }
@@ -218,16 +236,13 @@ mod tests {
             { "EventName": "BaronKill", "EventTime": 1300.0, "KillerName": "Solenne" }
         ]));
         assert_eq!(timers.dragon.at, Some(848.3));
-        assert_eq!(timers.dragon.taken_by, Some(Team::Order));
         assert_eq!(timers.baron.at, Some(1660.0));
-        assert_eq!(timers.baron.taken_by, Some(Team::Chaos));
     }
 
     #[test]
     fn a_drake_no_player_landed_still_restarts_the_pit() {
         let timers = timers(serde_json::json!([drake(600.0, "SRU_Dragon_Fire")]));
         assert_eq!(timers.dragon.at, Some(900.0));
-        assert_eq!(timers.dragon.taken_by, None);
     }
 
     #[test]
@@ -252,7 +267,6 @@ mod tests {
         let after_elder = timers(serde_json::json!(after_elder));
         assert!(after_elder.elder);
         assert_eq!(after_elder.dragon.at, Some(2510.0));
-        assert_eq!(after_elder.dragon.taken_by, Some(Team::Chaos));
     }
 
     #[test]
@@ -263,7 +277,6 @@ mod tests {
             grub(495.0, "Lumen")
         ]));
         assert_eq!(two.grubs.at, Some(480.0), "one grub still stands");
-        assert_eq!(two.grubs.taken_by, Some(Team::Order));
 
         let done = timers(serde_json::json!([
             grub(490.0, "Lumen"),
@@ -271,15 +284,20 @@ mod tests {
             grub(499.0, "Solenne"),
             { "EventName": "HeraldKill", "EventTime": 940.0, "KillerName": "Solenne" }
         ]));
-        assert_eq!(done.grubs.at, None);
-        assert_eq!(done.grubs.taken_by, Some(Team::Chaos));
+        assert_eq!(done.grubs, Spawn::GONE);
+        assert_eq!(done.herald, Spawn::GONE);
+    }
+
+    #[test]
+    fn the_next_drake_is_of_the_element_the_rift_turned_to() {
+        let mut data = payload(serde_json::json!([]));
+        assert_eq!(NeutralTimers::from_payload(&data).unwrap().drake, None);
+        data.game_data.map_terrain = "Default".into();
+        assert_eq!(NeutralTimers::from_payload(&data).unwrap().drake, None);
+        data.game_data.map_terrain = "Mountain".into();
         assert_eq!(
-            done.herald,
-            Spawn {
-                at: None,
-                until: None,
-                taken_by: Some(Team::Chaos)
-            }
+            NeutralTimers::from_payload(&data).unwrap().drake,
+            Some(DrakeElement::Mountain)
         );
     }
 

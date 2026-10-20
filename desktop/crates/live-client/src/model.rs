@@ -148,6 +148,10 @@ pub struct GameData {
     pub game_mode: String,
     /// `11` is Summoner's Rift, `12` the Howling Abyss.
     pub map_number: i64,
+    /// The Rift's look: `Default` until the second drake falls, then the
+    /// element it turned to (`Infernal`, `Ocean`, `Mountain`, `Cloud`,
+    /// `Hextech`, `Chemtech`) — the element of every drake after.
+    pub map_terrain: String,
 }
 
 #[cfg(test)]

@@ -39,10 +39,15 @@ export interface NeutralTimers {
   dragon: ObjectiveSpawn
   /** A team holds the soul: the pit's next is the Elder. */
   elder: boolean
+  /** The next drake's element, once the Rift turned to it (after the second drake); unknown before. */
+  drake: DrakeElement | null
   grubs: ObjectiveSpawn
   herald: ObjectiveSpawn
   baron: ObjectiveSpawn
 }
+
+/** Mirrors `DrakeElement`: as the Rift's terrain names it. */
+export type DrakeElement = 'infernal' | 'ocean' | 'mountain' | 'cloud' | 'hextech' | 'chemtech'
 
 /** Mirrors `Spawn`: game times, which the frontend counts down against its own clock. */
 export interface ObjectiveSpawn {
@@ -50,8 +55,6 @@ export interface ObjectiveSpawn {
   at: number | null
   /** Leaves the map at this game time if nobody takes it (the grubs, the Herald). */
   until: number | null
-  /** The side that took it last, if the feed names one. */
-  takenBy: GameTeam | null
 }
 
 export interface TeamObjectives {

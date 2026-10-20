@@ -516,8 +516,12 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
   ten players and a zero clock; a reading counts as a game only once its feed holds `GameStart` (2026-10-04).
 - **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
 - **Objectives** (#2078, 2026-10-20): when the dragon pit (a drake, or the Elder once a side holds the soul), the
-  Voidgrubs, the Rift Herald and Baron are next up — a countdown, "Up", or done — with each side's drakes and the soul
-  point beside the dragon. Only the game clock and the kills the event feed announces to every player, against the
+  Voidgrubs, the Rift Herald and Baron are next up — the game's minimap icons, a countdown, a green dot while it stands,
+  no words for it ("Up", "Taken" were the product owner's no); a camp taken for good or gone from the map leaves the
+  panel — with each side's drakes and the soul point beside the dragon. The pit names its next drake's element from
+  the Rift's terrain (`gameData.mapTerrain`, which turns after the second drake, the element of every drake after); the
+  API names neither of the first two before they fall, so those read "Drake" with the plain icon rather than a guess.
+  Only the game clock, the terrain and the kills the event feed announces to every player, against the
   season's spawn rules held in one table in the shell (`live_client::timers::RIFT`, V26: Atakhan removed, Baron back at
   20:00, grubs and Herald once a game); nothing read from memory or the screen, no jungle camp, no summoner spell, no
   enemy cooldown — nothing about an enemy the player could not see. The shell sends spawn *times*, which move only when
