@@ -37,12 +37,7 @@ using TrueMain.Services.Ops.Health;
 using TrueMain.Services.Ops.Processes;
 using TrueMain.Services.Ops.Stats;
 using TrueMain.Services.Personas;
-using TrueMain.Services.Truemains.Identity;
-using TrueMain.Services.Truemains.Leaderboard;
-using TrueMain.Services.Truemains.Lookup;
-using TrueMain.Services.Truemains.Matches;
-using TrueMain.Services.Truemains.PlayerChampions;
-using TrueMain.Services.Truemains.Profile;
+using TrueMain.Services.Truemains;
 using AspNetCorsOptions = Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -334,23 +329,7 @@ builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQuerySer
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
-// The single name-tag -> account lookup shared by every player-scoped route
-// (#1230), so they cannot disagree on which account a Riot ID means.
-builder.Services.AddScoped<TruemainAccountResolver>();
-// Shared by the truemain match feed and the composition provenance drawer (#940),
-// so a game renders as the same row on both.
-builder.Services.AddScoped<MatchSummaryHydrator>();
-builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
-builder.Services.AddScoped<IMatchDetailQueryService, MatchDetailQueryService>();
-builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
-builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuildsQueryService>();
-builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMatchupQueryService>();
-builder.Services.AddScoped<IPlayerChampionPerformanceQueryService, PlayerChampionPerformanceQueryService>();
-builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
-builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
-builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
-builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
-builder.Services.AddScoped<ITruemainLookupQueryService, TruemainLookupQueryService>();
+builder.Services.AddTrueMainTruemains();
 // The cockpit is re-asked every 30 s by every open admin tab (#1411): callers get the cached,
 // single-flighted payload, and only the decorator reaches the evaluation itself (#1427).
 builder.Services.AddScoped<PipelineHealthQueryService>();

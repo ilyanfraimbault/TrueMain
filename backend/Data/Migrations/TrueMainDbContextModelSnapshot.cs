@@ -25,6 +25,33 @@ namespace Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Data.Entities.ApexCutoffSnapshot", b =>
+                {
+                    b.Property<string>("PlatformId")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("Tier")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateOnly>("CapturedOnUtc")
+                        .HasColumnType("date");
+
+                    b.Property<int>("EntryCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinLeaguePoints")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("PlatformId", "Tier", "CapturedOnUtc");
+
+                    b.ToTable("apex_cutoff_snapshots", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.BanScopeTotal", b =>
                 {
                     b.Property<Guid>("Id")

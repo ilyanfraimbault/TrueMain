@@ -72,52 +72,33 @@ and the four sample figures — each with a one-line hint, since "Top of team 25
 know it counts games this player outscored their own four teammates. The API still returns `components`:
 the breakdown is the natural content of a future drill-down, and the payload is cheap.
 
-## The rank chart is one area with a tier-gradient line, never one area per tier (2026-08-20)
+## The rank chart changes colour where the curve crosses a tier threshold, not at a snapshot (2026-10-20, revises 2026-08-20) — #2174
 
-The profile's LP chart used to model each tier as its own chart series — a point carried its rank score under
-its current tier's key and left every other tier `undefined` — so that the line *and* the fill colour-shifted
-at each promotion. Unovis has no notion of a hole in an area: `getStackedData` turns a missing value into
-`0` (`getNumber(...) || 0`). The y-domain floats far above zero (a Challenger's rank score is ~5500), so every
-out-of-run zero sat roughly 1300px below the 150px plot, and each tier's area dived through the whole frame to
-reach it. Two tier areas then overlapped across the transition and painted a full-height wedge — three
-Grandmaster dips of one or two snapshots produced three "triangles" under an otherwise correct line.
+A rank is crossed at an LP threshold, so the LP curve shows a promotion or a demotion **horizontally**: the
+curve is drawn once per tier band and clipped to it (`utils/rank-chart-zones.ts`, `utils/rank-chart-geometry.ts`),
+so its line and fill change colour exactly where they cross the band's floor, and each threshold in view is a
+dashed line in the tier's colour with the tier's crest sitting on it. The 2026-08-20 version coloured the curve
+by each *snapshot's* tier along x (one hard-stop gradient per tier run), which read as a vertical cut at the
+snapshot where Riot's answer changed.
 
-What ships instead: **one continuous series** (the rank score), so there is exactly one area path and no
-phantom zeros. The tier colour moves onto an **x-axis `linearGradient`** with one stop pair per contiguous
-tier run — painted onto *both* the line's stroke and the area's fill, so the whole chart colour-shifts
-together rather than the fill staying pinned to whatever tier the player is in right now. The gradient lives
-in a zero-sized `<svg>` of our own because the chart's `<defs>` belong to `vue-chrts`; `url(#…)` resolves
-document-wide, so it still paints inside the chart's SVG.
-
-**Each run's boundary stop sits on the midpoint with its neighbour, not on its own last/first point** — the
-first cut of this shipped with the boundary on the run's own point index, which left a one-index gap between a
-run's end stop and the next run's start stop for the gradient to interpolate across, blurring the transition
-into a soft blend instead of a sharp cut. Worse, a **single-snapshot run**'s own start and end stops then
-coincided (zero width), so it got no flat colour of its own — only the neighbours' blend fading through where
-it sat, invisible on a short tier dip. Moving each boundary to `(index ± 0.5) / lastIndex` makes two
-consecutive runs share their boundary stop at the *exact same offset* — an SVG hard stop, an instant colour
-change with zero interpolated width — and gives a single-snapshot run a real band, extending from the midpoint
-with its previous snapshot to the midpoint with its next one. The first and last run instead clamp to 0%/100%
-(no neighbour to split a boundary with).
-
-The fill can't reuse `vue-chrts`' own `gradient-stops` prop for its vertical opacity fade — that prop feeds a
-gradient hard-coded to one flat colour per category, which is exactly the "pick one colour for the whole area"
-limitation this fix removes. The fade is a separate `<mask>` (a vertical white→transparent `linearGradient`,
-same 45%→5% opacity numbers the old prop used) layered on top of the tier gradient instead, so hue and
-vertical fade vary independently.
-
-Both overrides land via scoped CSS, but on different footing: the line's stroke is a *presentation attribute*
-(`.attr('stroke', …)` in `@unovis/ts` `components/line/index.js`), which a plain declaration outranks with no
-`!important` needed (same Emotion-label targeting trick as the tooltip override in `main.css`) — while the
-area's fill is set via `.style('fill', …)` (`components/area/index.js`), an *inline* style, which only
-`!important` beats. The fill selector is tag-qualified to the `<path>` (`path[class*="-area"]`) rather than the
-bare class substring — `-area-component` (the wrapping `<g>`) matches too, and letting the rule land there
-would apply the mask a second time through inheritance and double-darken the fade.
-
-One guard, line-only: an `objectBoundingBox` gradient needs a non-degenerate box, and a single-tier or
-dead-flat history gives the line path zero height — the browser would drop the element entirely. That case
-falls back to a flat tier colour. The area's own box never degenerates this way — it spans from the data down
-to the scale's zero point, which is never zero-height — so its fill always uses the gradient.
+- **Below Master the thresholds are fixed** (400 rank-score points per tier, `rankScore`). **Grandmaster and
+  Challenger have none:** a region promotes whoever sits above the lowest LP of its Grandmaster / Challenger
+  league that day, so those floors are measured — the lowest LP of each league, per platform and UTC day,
+  recorded by LadderSync from the apex lists it already reads whole (`apex_cutoff_snapshots`, no extra Riot
+  call), served by `GET /ladder/{platformId}/apex-cutoffs`.
+- **No backfill.** Riot keeps no history of the cutoffs, and the snapshots we hold cover only the players we
+  track, so a minimum over them would sit above the real one. Before the first measurement (or more than two days
+  past the latest one) there is no GM / Challenger line, and the band is read back from the snapshot's own tier
+  instead, stepping halfway between two snapshots as the old colouring did.
+- **No figure on the lines and none in the tooltip:** the line says where the tier begins; how many LP that is
+  was clutter on a 150 px chart (product owner, 2026-10-20).
+- **Still one series, never one area per tier.** Unovis turned a tier's missing points into zeros far below a
+  y-domain that floats around 2800+, and each per-tier area dived through the plot to reach them — the
+  full-height wedges the first version showed. The curve is one path; only its *clip* changes per band.
+- **Own SVG on both hosts.** Clipping per band needs the plot's exact pixels, which an overlay on vue-chrts'
+  internal plot area can't rely on; the chart draws itself in plain SVG in the shared layer (the app's own
+  stand-in, which drew the same monotone curve, went with it), with the vertical fade as a `<mask>` on each
+  clipped copy of the area.
 
 ## A Riot ID resolves case-insensitively, in exactly one place (2026-08-26)
 

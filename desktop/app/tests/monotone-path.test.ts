@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { monotonePath } from '~/utils/monotone-path'
+import { monotonePath } from '#common/utils/monotone-path'
 
 /** Every number of a path, in order. */
 const numbers = (path: string) => [...path.matchAll(/-?\d+(\.\d+)?/g)].map(match => Number(match[0]))

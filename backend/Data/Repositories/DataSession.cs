@@ -18,6 +18,7 @@ public sealed class DataSession : IDataSession
         RankSnapshots = new RankSnapshotRepository(_db);
         DiscoveryCursors = new DiscoveryCursorRepository(_db);
         LadderSyncCursors = new LadderSyncCursorRepository(_db);
+        ApexCutoffSnapshots = new ApexCutoffSnapshotRepository(_db);
         PaceBenchmarkStats = new PaceBenchmarkStatRepository(_db);
         PaceSampledMatches = new PaceSampledMatchRepository(_db);
         FormBenchmarkStats = new FormBenchmarkStatRepository(_db);
@@ -33,6 +34,7 @@ public sealed class DataSession : IDataSession
     public IRankSnapshotRepository RankSnapshots { get; }
     public IDiscoveryCursorRepository DiscoveryCursors { get; }
     public ILadderSyncCursorRepository LadderSyncCursors { get; }
+    public IApexCutoffSnapshotRepository ApexCutoffSnapshots { get; }
     public IPaceBenchmarkStatRepository PaceBenchmarkStats { get; }
     public IPaceSampledMatchRepository PaceSampledMatches { get; }
     public IFormBenchmarkStatRepository FormBenchmarkStats { get; }

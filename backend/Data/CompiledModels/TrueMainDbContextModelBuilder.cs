@@ -12,12 +12,13 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("3909d2d2-9aa4-4970-860b-82b1c03d488d"), entityTypeCount: 39)
+            : base(skipDetectChanges: false, modelId: new Guid("e7c9535f-2cf4-4435-b280-1524fe4adeda"), entityTypeCount: 40)
         {
         }
 
         partial void Initialize()
         {
+            var apexCutoffSnapshot = ApexCutoffSnapshotEntityType.Create(this);
             var banScopeTotal = BanScopeTotalEntityType.Create(this);
             var championAggregatePattern = ChampionAggregatePatternEntityType.Create(this);
             var championAggregateScope = ChampionAggregateScopeEntityType.Create(this);
@@ -76,6 +77,7 @@ namespace Data.CompiledModels
             PersonaLinkEntityType.CreateForeignKey1(personaLink, persona);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
 
+            ApexCutoffSnapshotEntityType.CreateAnnotations(apexCutoffSnapshot);
             BanScopeTotalEntityType.CreateAnnotations(banScopeTotal);
             ChampionAggregatePatternEntityType.CreateAnnotations(championAggregatePattern);
             ChampionAggregateScopeEntityType.CreateAnnotations(championAggregateScope);
