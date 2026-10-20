@@ -29,6 +29,32 @@ export interface GameObjectives {
   order: TeamObjectives
   /** Red side's. */
   chaos: TeamObjectives
+  /** When the neutral objectives are next up; null off Summoner's Rift's standard game. */
+  timers: NeutralTimers | null
+}
+
+/** Mirrors `NeutralTimers` in `crates/live-client/src/timers.rs`. */
+export interface NeutralTimers {
+  /** The dragon pit: a drake, or the Elder when `elder`. */
+  dragon: ObjectiveSpawn
+  /** A team holds the soul: the pit's next is the Elder. */
+  elder: boolean
+  /** The next drake's element, once the Rift turned to it (after the second drake); unknown before. */
+  drake: DrakeElement | null
+  grubs: ObjectiveSpawn
+  herald: ObjectiveSpawn
+  baron: ObjectiveSpawn
+}
+
+/** Mirrors `DrakeElement`: as the Rift's terrain names it. */
+export type DrakeElement = 'infernal' | 'ocean' | 'mountain' | 'cloud' | 'hextech' | 'chemtech'
+
+/** Mirrors `Spawn`: game times, which the frontend counts down against its own clock. */
+export interface ObjectiveSpawn {
+  /** On the map from this game time; null once it will not come again this game. */
+  at: number | null
+  /** Leaves the map at this game time if nobody takes it (the grubs, the Herald). */
+  until: number | null
 }
 
 export interface TeamObjectives {
@@ -38,6 +64,8 @@ export interface TeamObjectives {
   inhibitors: number[]
   /** Elemental drakes this team slew; the Elder is not one of them. */
   dragons: number
+  /** The element of each of those drakes, in the order they fell. */
+  drakes: DrakeElement[]
   /** The game time this team's latest Baron buff ends at. */
   baronUntil: number | null
   /** The game time this team's latest Elder buff ends at. */

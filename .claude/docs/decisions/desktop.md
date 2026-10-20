@@ -523,7 +523,7 @@ process is frontmost, so it never covers the client or another app (the product 
 and ignores the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its
 shortcut and TAB are read from the keyboard's state, because over a captured display no hotkey reaches the app — which
 also settles #1752's macOS question: TAB is detected without an event tap, so without the Input Monitoring permission.
-The overlay is four independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
+The overlay is five independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
 default and set up on its own Overlay page since #1819 (2026-10-03; the game page's slideover before) — each on/off and
 where, by dragging it on a copy of the screen, taking it off with its ×, and dragging it back from a column of the
 hidden panels, or by dragging it in an on-screen preview, the only time the panels take the mouse — plus size and
@@ -536,6 +536,20 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
 - **Every panel waits for the game to start**: the Live Client API answers on the loading screen already, with the
   ten players and a zero clock; a reading counts as a game only once its feed holds `GameStart` (2026-10-04).
 - **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
+- **Objectives** (#2078, 2026-10-20): when the dragon pit (a drake, or the Elder once a side holds the soul), the
+  Voidgrubs, the Rift Herald and Baron are next up — icons only, the game's minimap ones, on the left, and on the
+  right a countdown until it spawns or a green dot while it stands; no names, no "Up", no counts like "2–1", no soul
+  badge (each read as noise, the product owner's calls); a camp taken for good or gone from the map leaves the panel.
+  Once a drake has fallen, the dragon row sets the pit's icon between the drakes each side took, blue side's on the
+  left, red side's on the right, as their icons, with its countdown under it (the icon on the row's centre) and nothing while it stands. The pit's icon is its next drake's element from the Rift's terrain
+  (`gameData.mapTerrain`, which turns after the second drake, the element of every drake after); the API names neither of the first two before they fall, so those read "Drake" with the plain icon rather than a guess.
+  Only the game clock, the terrain and the kills the event feed announces to every player, against the
+  season's spawn rules held in one table in the shell (`live_client::timers::RIFT`, V26: Atakhan removed, Baron back at
+  20:00, grubs and Herald once a game); nothing read from memory or the screen, no jungle camp, no summoner spell, no
+  enemy cooldown — nothing about an enemy the player could not see. The shell sends spawn *times*, which move only when
+  an objective falls; the panel counts down on its own clock. Swiftplay, ARAM and every other mode get no timers rather
+  than the Rift's wrong ones. Whether the countdowns match the game's own timers to the second (the grubs' and the
+  Herald's despawn is ten seconds later in combat; the Elder's 6:00 after the soul) is only proven in a real game.
 - **Your pace**: CS per minute with its curve (from minute 3, so the minion-less start does not read as a climb), and
   gold per minute, from one sample per whole minute the feed keeps (`live_client::pace`) — a change a minute, not one
   per poll. Gold earned is not in the API: it is read as the inventory's cost plus the gold in hand. **Damage per

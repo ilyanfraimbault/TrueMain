@@ -341,7 +341,7 @@ function Report([string] $Name) {
 }
 
 $WS_EX_TRANSPARENT = 0x20; $WS_EX_TOPMOST = 0x8; $WS_EX_LAYERED = 0x80000; $WS_EX_NOACTIVATE = 0x8000000
-$InGame = "stats,win-probability"
+$InGame = "objectives,stats,win-probability"
 
 # What the app menu's "Share Anonymous Usage Data" writes when turned off.
 $config = Join-Path $env:APPDATA "gg.truemain.desktop"
@@ -360,10 +360,10 @@ $env:RUST_LOG = "truemain_desktop_lib=debug,lcu=info"
 $script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app.log") -RedirectStandardError (Join-Path $Out "app.err.log")
 $standIns = @()
 try {
-    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 4; $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
     [Desk]::Of([uint32]$script:shell.Id) | ForEach-Object { [ordered]@{ title = $_.Title; class = [Desk]::ClassOf($_.Handle); visible = $_.Visible; exStyle = ('0x{0:X8}' -f $_.ExStyle) } } |
         ConvertTo-Json | Set-Content (Join-Path $Out "0-windows.json")
-    Expect ((Panels).Count -eq 4) "a running game gets a window for each of the four panels switched on"
+    Expect ((Panels).Count -eq 5) "a running game gets a window for each of the five panels switched on"
     # The replay has opened the game and every page has measured itself.
     Start-Sleep -Seconds 8
     Expect ((Shown) -eq "") "nothing shows while the app, not the game, is in front"
@@ -408,7 +408,7 @@ try {
     # A toggled panel flips on each press, held or not.
     Chord 0x33 900
     Start-Sleep -Milliseconds 800
-    Expect ((Shown) -eq "win-probability") "Alt+Shift+3 toggles our pace off, once however long it is held ($(Shown))"
+    Expect ((Shown) -eq "objectives,win-probability") "Alt+Shift+3 toggles our pace off, once however long it is held ($(Shown))"
     Chord 0x33
     Start-Sleep -Milliseconds 800
     Expect ((Shown) -eq $InGame) "Alt+Shift+3 again brings it back ($(Shown))"
@@ -440,7 +440,7 @@ try {
     Expect (Press "Place on screen") "the settings start the preview"
     Start-Sleep -Seconds 2
     $state = Report "6-preview"
-    Expect ((Shown) -eq "item-value,next-item,stats,win-probability") "the preview shows every panel ($(Shown))"
+    Expect ((Shown) -eq "item-value,next-item,objectives,stats,win-probability") "the preview shows every panel ($(Shown))"
     foreach ($panel in @(Panels | Where-Object Visible)) {
         Expect (($panel.Styles -band $WS_EX_TRANSPARENT) -eq 0) "$($panel.Slug) takes the mouse in the preview ($($panel.ExStyle))"
     }
@@ -488,7 +488,7 @@ try {
     } | Set-Content $loadingTape
     $env:TRUEMAIN_LCU_REPLAY = $loadingTape
     $script:shell = Start-Process $App -PassThru -RedirectStandardOutput (Join-Path $Out "app-loading.log") -RedirectStandardError (Join-Path $Out "app-loading.err.log")
-    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 4; $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 120 -and (Panels).Count -lt 5; $i++) { Start-Sleep -Milliseconds 500 }
     Start-Sleep -Seconds 5
     $standIns += StartStandIn $gameExe "RiotWindowClass" "League of Legends (TM) Client" $GameColorRef
     Start-Sleep -Seconds 3
