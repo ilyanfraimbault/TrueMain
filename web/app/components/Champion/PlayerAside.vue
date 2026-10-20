@@ -31,7 +31,7 @@ const props = defineProps<{
 // useLazyHydrationSnapshot / the identical pattern on pages/champions/[slug].vue
 // for why: `staticList` is client-only (`server: false`), so freezing it
 // until the child actually mounts avoids a hydration mismatch (#834/#837).
-const apexCutoffs = useApexCutoffs(() => props.platformId)
+const { cutoffs: apexCutoffs, loading: apexCutoffsLoading } = useApexCutoffs(() => props.platformId)
 
 const matchupsSnapshot = useLazyHydrationSnapshot(
   { champions: [] as ChampionStaticListItem[] },
@@ -53,7 +53,7 @@ const performanceSnapshot = useLazyHydrationSnapshot(
     v-else
     :ranked="ranked ?? null"
     :history="history"
-    :history-loading="historyLoading"
+    :history-loading="historyLoading || apexCutoffsLoading"
     :cutoffs="apexCutoffs"
   />
 
