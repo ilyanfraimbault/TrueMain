@@ -15,14 +15,14 @@ import {
   type CurveMetric,
   type PlayerCurve,
 } from '#common/utils/timeline-curves'
-import { objectiveMarkers } from '#common/utils/timeline-objectives'
+import { axisEvents } from '#common/utils/timeline-events'
 
 /**
  * The ten players' gold, XP or creep score over the game (#2102), above the
  * win probability in the desktop app's Timeline view: one curve a player — the
  * viewer's own on top in the primary colour, the others thinner in their side's
- * colour —, the team lead as a band under them, the objectives on the time
- * axis, and a list per side whose rows pin a line. Read for
+ * colour —, the team lead as a band under them, the kills and objectives as
+ * dots on the time axis, and a list per side whose rows pin a line. Read for
  * `perspectiveTeamId` from the client's timeline (`timeline-curves.ts`); the
  * caller mounts it only when that timeline carries the curves.
  */
@@ -81,11 +81,7 @@ const lines = computed(() => {
 })
 const band = computed(() => (curves.value?.lead ?? []).map(point => ({ x: x(point.ms), y: 50 - (point.value / leadTop.value) * 50 })))
 
-const markers = computed(() => objectiveMarkers(props.timeline, props.perspectiveTeamId).map(marker => ({
-  ...marker,
-  x: x(marker.ms),
-  ours: marker.teamId === props.perspectiveTeamId,
-})))
+const events = computed(() => axisEvents(props.timeline, props.perspectiveTeamId))
 const minutes = computed(() => minuteTicks(width.value).map(tick => ({ minute: tick.minute, x: x(tick.ms) })))
 const maxEnd = computed(() => Math.max(0, ...(curves.value?.players.map(player => player.end) ?? [0])))
 
@@ -168,7 +164,7 @@ const differenceTone = computed(() => {
           </div>
         </div>
 
-        <MatchDetailTimelineObjectiveAxis class="ml-12" :markers="markers" :minutes="minutes" />
+        <MatchDetailTimelineEventAxis class="ml-12" :events="events" :duration-ms="width" :minutes="minutes" :champion="champion" />
       </div>
 
       <div class="grid grid-cols-1 gap-3 @md:grid-cols-2 @2xl:w-60 @2xl:shrink-0 @2xl:grid-cols-1">

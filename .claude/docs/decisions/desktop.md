@@ -682,9 +682,11 @@ it among ten; the list beside them keys it with a primary bar only — no ring, 
 from the client's timeline (2026-10-19).** The same reduced timeline as the curve (`lcu::win_probability`) carries each
 player's gold and experience a minute; the site never has them (it keeps timelines at a few marks, #772), so the
 panel is the app's only, and it renders only when the timeline carries gold — never an empty panel. Under the curves,
-the team lead as a band drawn with the win probability's own band; the objectives on the time axis from the timeline's
-events; a list per side whose rows pin a line. Modelled on a competing companion's Gold tab (benchmark 2026-10-18) —
-#2102.
+the team lead as a band drawn with the win probability's own band; the kills and objectives on the time axis from the
+timeline's events, as the recap's timeline draws them (2026-10-20): a dot an event, blue above the line for our side, red
+below for the enemy's, merged when closer than a dot's width at the rendered size, a tooltip listing a dot's kills
+(killer → victims' portraits) and objectives (minimap icons) — the glyph row overlapped at busy moments; a list per side
+whose rows pin a line. Modelled on a competing companion's Gold tab (benchmark 2026-10-18) — #2102, #2171.
 
 **The app measures its own use: counters under an anonymous install id, folded per install and day; downloads are
 counted by the site's redirect (2026-10-02).** The site's Umami cannot see the app — a static bundle in a webview with a

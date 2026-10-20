@@ -53,7 +53,7 @@ describe('MatchDetailTimelineCurves', () => {
 
   it('pins a player\'s line from the list, and releases it on a second click', async () => {
     const wrapper = await mountCurves()
-    const row = () => wrapper.findAll('button').find(button => button.attributes('aria-label')?.includes('Champion 131'))!
+    const row = () => wrapper.findAll('button[aria-pressed]').find(button => button.attributes('aria-label')?.includes('Champion 131'))!
     await row().trigger('click')
     expect(row().attributes('aria-pressed')).toBe('true')
     const pinned = wrapper.findAll('polyline').filter(line => line.attributes('stroke-width') === '2' && line.classes().includes('stroke-enemy'))
@@ -62,10 +62,13 @@ describe('MatchDetailTimelineCurves', () => {
     expect(row().attributes('aria-pressed')).toBe('false')
   })
 
-  it('marks the objectives on the time axis', async () => {
+  it('dots the kills and objectives on the time axis, ours above and theirs below', async () => {
     const wrapper = await mountCurves()
-    expect(wrapper.findAll('[title*="turret"]').length).toBeGreaterThan(0)
-    expect(wrapper.find('[title*="Baron"]').exists()).toBe(true)
+    const dots = wrapper.findAll('button[aria-label*=" at "]')
+    expect(dots.some(dot => dot.classes().includes('bg-ally'))).toBe(true)
+    expect(dots.some(dot => dot.classes().includes('bg-enemy'))).toBe(true)
+    expect(wrapper.find('button[aria-label*="Your Baron"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label*="Champion 875 kill: Champion 81"]').exists()).toBe(true)
   })
 })
 
