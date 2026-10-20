@@ -5,6 +5,16 @@ export const POSITIONS = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as con
 
 export type ChampionPosition = (typeof POSITIONS)[number]
 
+/**
+ * The explicit "every position" filter value (`?position=ALL`), distinct from no
+ * filter at all, which a champion read resolves to the dominant position. Only the
+ * player-scoped champion page offers it (#2158); the API answers it on those routes.
+ */
+export const ALL_POSITIONS = 'ALL'
+
+/** A position filter: one position, or every position at once. */
+export type PositionFilter = ChampionPosition | typeof ALL_POSITIONS
+
 export interface PositionOption {
   value: ChampionPosition
   /** The position's name: `Middle`, `Bottom`. */
