@@ -236,6 +236,12 @@ The game page's per-lane arrow and chance towards the favoured side.
 **Overlay**:
 The in-game panels drawn over League (next item, win probability, pace, item value); click-through.
 
+**Kit**:
+A player's own build on one champion and position, kept by the desktop app: a branching item tree (the first
+branch the default), a rune page, two summoner spells, a starter and boots. The **active kit** is the one champion
+select imports and the next item follows.
+_Avoid_: build (TrueMain's measured one), my build, loadout
+
 **Highlight**:
 A recorded game's kill, death or assist of the player, placed on its video from the game's timeline (or its live feed).
 Found by the app, never chosen by the player.
