@@ -96,6 +96,7 @@ Last verified against `develop` on 2026-09-02.
 - Every champion-page fold takes its cohort from one place, and a remake is not a game — #1365, #1087, #922
 - The live champion reads compose that same cohort; a read whose champion side differs on purpose (one player, the full build pool) still takes its matches from it, so no read counts a remake (2026-10-06) — #1365
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
+- One player's matchups carry no games floor, and the player champion page has an explicit "All positions" slice (2026-10-20) — #2158
 - The champion page shows its matchups as a spread on the lane win rate at 15 min (centred on 50%), replacing the sidebar list — #2094
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
@@ -175,6 +176,7 @@ Last verified against `develop` on 2026-09-02.
 - Backend calls go through `useApi` / `useApiFetch`, not a bare `$fetch('/api/…')` (2026-09-17) — #1619, #1557
 - The three text pages are cached at runtime (`swr`), never prerendered — a prerendered page freezes the build's runtime config (2026-09-18) — #1617
 - A page awaits its API data in setup; a loading bar under the header covers the wait, only statics keep a skeleton (2026-09-23) — #1689
+- Starred champions live under their own key next to the untouched player list, not in a v2 of it; matchups are not starrable; a clip's favourite stays the library's flag (2026-10-20) — #2080
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
@@ -230,6 +232,7 @@ Last verified against `develop` on 2026-09-02.
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
 - A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
 - The pace benchmark is a per-minute CS / gold-earned histogram per (patch, tier, position), folded from the timeline in memory at ingestion, once per match, the lobby at its tracked account's tier — never a per-minute grid (2026-10-05) — #1912
+- The form benchmark (KDA, KP, CS/min, deaths, vision/min) is a whole-game histogram in its own table, folded in the pace benchmark's pass under its claim, so both describe the same games; no back-fill (2026-10-20) — #2076
 
 ## Backend code conventions — [`decisions/backend-conventions.md`](decisions/backend-conventions.md)
 
@@ -420,8 +423,8 @@ Last verified against `develop` on 2026-09-02.
 - The player's own account is never highlighted — loading screen, game page, match rows, scoreboard, runes; ours only orders the sides (2026-10-02); exception: our line on the match detail's gold / XP / CS curves, in the primary colour (2026-10-19) — #1803, #2102
 - The match detail's Timeline view opens on the ten players' gold / XP / CS curves (lead band, objectives on the axis, a pinning list per side) above the win probability, from the client's timeline, app only, shown only when the timeline carries gold (2026-10-19) — #2102
 - The dashboard's Today card: games, W–L, time played and net LP since local midnight, LP summed only over measured games (partial sum flagged), following the queue filter, absent on a day without a game (2026-10-16) — #2073
-- The dashboard's latest clips: a small card (≤ a quarter of the page) in the right column, four clips two by two with empty slots keeping its shape, opening the Recordings page's own clip player; absent with no clip (2026-10-18) — #2077
-- Measurable goals on the dashboard are local (per Riot ID, `localStorage`), measured from the client's games with each counted game frozen into the goal; suggested thresholds are the player's own average, never a benchmark; ≤ 3 active, no toast, nothing in the overlay; default 5 games on Solo, "All" allowed but never suggested, no per-champion default (2026-10-05) — #1913
+- The dashboard's latest clips: a small card (≤ a quarter of the page) under the match history, four clips in a row with empty slots keeping its shape, opening the Recordings page's own clip player; absent with no clip; a recorded row's play button is the icon alone in a slot every row keeps (2026-10-18, moved 2026-10-20) — #2077, #2074
+- The dashboard has no goals: the #1913 goals card and its local store were removed at the product owner's request (2026-10-20) — #1913, #2074
 - The app's footprint is measured, never estimated: whole process tree (WebKit's services by responsible process, WebView2 by parent), physical footprint / private working set, median + p95 per scenario; `/download` shows a figure only once measured, a competitor's only with a published source; an overlay panel has a webview only while it can show (2026-10-05) — #1916
 - Desktop usage is measured by the app itself (anonymous install id, counters folded per install and UTC day in Mongo, 13-month TTL, opt-out in the native menu), downloads by the site's redirect; nothing read from the League client is sent (2026-10-02) — #1805
 - Game recording: two quality choices (resolution, 30/60 fps), everything else derived; highlights from the timeline, live feed as fallback; disk budget drops the oldest unpinned; unsigned beta and a GPL capture library both accepted (2026-10-01) — #1744, #1754
@@ -441,6 +444,7 @@ Last verified against `develop` on 2026-09-02.
 - The next item sits over the game board: the mains' next legendary, one reason, the gold left and the components buyable now, two runners-up and the boots; asked on item changes only; our gold in 50-gold steps (2026-10-01); until a starter is bought, the composition build's starter basket above it and in its place on the overlay (2026-10-08) — #1751, #1989
 - The next item also lays the build out as one row, the boots at the step the mains most often complete them at (a `BootsTiming` slot of the item-context fold, ≥ 20 games, no backfill: it fills from matches folded after the change); due boots become the main item (2026-10-19) — #2101
 - The overlay's pace sets CS/min and gold/min against the median of games at the player's Solo/Duo tier (every tier fetched, the tier picked locally); no Solo/Duo standing → no comparison; a reference, never advice (2026-10-05) — #1912
+- The dashboard's form tiles carry the median of the player's own Solo/Duo tier (not the tier above) on their main role, in muted text with the tier's emblem; under the floor or without a standing, none; dashboard only (2026-10-20) — #2076
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 

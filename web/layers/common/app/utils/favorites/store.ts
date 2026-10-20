@@ -10,25 +10,10 @@ import {
   resolveFavoriteIdentity,
   serializeFavorites,
 } from './entries'
+import { readStorage, writeStorage } from './storage'
 
 // The stateful half of the favorites store: binds the pure entry rules of
 // `./entries` to a caller-owned ref and mirrors every write to `localStorage`.
-
-/**
- * `window.localStorage`, or `null` when unavailable — server-side rendering,
- * and browsers that throw on access (Safari private mode, blocked storage).
- * Every storage touch goes through this so a blocked browser degrades to an
- * in-memory-only list instead of throwing on click.
- */
-function getStorage(): Storage | null {
-  try {
-    if (typeof window === 'undefined') return null
-    return window.localStorage ?? null
-  }
-  catch {
-    return null
-  }
-}
 
 export interface FavoritesStore {
   favorites: Ref<FavoriteTruemain[]>
@@ -82,15 +67,7 @@ export function createFavoritesStore(
    * SSO sync makes the server the arbiter and retires the question.
    */
   function persist() {
-    const storage = getStorage()
-    if (!storage) return
-    try {
-      storage.setItem(FAVORITES_STORAGE_KEY, serializeFavorites(state.value))
-    }
-    catch {
-      // Quota exceeded or storage disabled mid-session: keep the in-memory
-      // list working rather than breaking the click that triggered the write.
-    }
+    writeStorage(FAVORITES_STORAGE_KEY, serializeFavorites(state.value))
   }
 
   function commit(next: FavoriteTruemain[]) {
@@ -158,15 +135,8 @@ export function createFavoritesStore(
   }
 
   function loadFromStorage() {
-    const storage = getStorage()
-    if (!storage) return
-    let raw: string | null = null
-    try {
-      raw = storage.getItem(FAVORITES_STORAGE_KEY)
-    }
-    catch {
-      return
-    }
+    const raw = readStorage(FAVORITES_STORAGE_KEY)
+    if (raw === undefined) return
     state.value = parseStoredFavorites(raw)
   }
 

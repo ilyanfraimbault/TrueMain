@@ -8,9 +8,9 @@ import { getPositionIconUrl } from '#shared/utils/ddragon'
 // uses `color="neutral" variant="soft"`: the brand accent stays on the page's
 // primary controls, and a strip of six buttons is not one of them.
 //
-// `hideAll` drops the leading "All positions" button — used on the
-// champion detail page where the API always returns data for a specific
-// position, so "no filter" has no meaningful UI state.
+// `hideAll` drops the leading "All positions" button — used on the global
+// champion page, where the API always returns data for a specific position, so
+// "no filter" has no meaningful UI state.
 //
 // `exclude` removes one position from the strip. The synergies panel uses it
 // for the champion's own lane: a team fields one player per lane, so offering

@@ -1,4 +1,4 @@
-import type { ChampionPosition } from '#common/utils/positions'
+import type { PositionFilter } from '#common/utils/positions'
 import { DEFAULT_ELO_BRACKET, resolveEloBracket } from '#common/utils/elo-brackets'
 import {
   EVERYONE_QUERY_PARAM,
@@ -69,7 +69,7 @@ export function useChampionFilters(options: { defaultEloBracket?: string } = {})
   // router.replace so the URL updates atomically.
   async function setFilter(updates: {
     patch?: string | null
-    position?: ChampionPosition | null
+    position?: PositionFilter | null
     championId?: number | null
     eloBracket?: string | null
     truemainsOnly?: boolean

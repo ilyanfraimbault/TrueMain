@@ -161,6 +161,8 @@ const READABLE_PATHS: &[&str] = &[
     // The overlay's pace reference (#1912): every tier of one position, so the
     // tier is picked here and never sent.
     "/benchmarks/pace",
+    // The dashboard's form tiles' tier reference (#2076), by the same rule.
+    "/benchmarks/form",
 ];
 
 /// A path the app may read: one of `READABLE_PATHS`, or one true main's
@@ -441,6 +443,7 @@ mod tests {
         assert!(readable("/champions/directory"));
         assert!(readable("/champions/damage-profiles"));
         assert!(readable("/benchmarks/pace"));
+        assert!(readable("/benchmarks/form"));
         assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
         assert!(readable("/truemains/Faker-KR1/champions/7"));
         assert!(readable("/truemains/Faker-KR1/profile"));

@@ -42,7 +42,7 @@ provide(MATCH_DETAIL_SOURCE, usePlayerGameDetail)
 // A row's score is TrueMain's when it holds the game, else graded from the client's (#2075).
 const storedScores = useTruemainScores(() => props.nameTag)
 
-// "Watch" when this game was recorded: its recap, or its clips once the full game is gone.
+// A play button when this game was recorded: its recap, or its clips once the full game is gone.
 const { watchTarget } = useRecordings()
 
 const PAGE_SIZE = 10
@@ -77,8 +77,8 @@ const loadingPage = computed(() => props.pending || (!pageMatches.value.length &
 </script>
 
 <template>
-  <section ref="section" class="flex min-w-0 scroll-mt-4 flex-col gap-2">
-    <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">Match history</h2>
+  <!-- No visible heading: the rows say what they are; the name stays for assistive tech. -->
+  <section ref="section" class="flex min-w-0 scroll-mt-4 flex-col gap-2" aria-label="Match history">
     <MatchHistoryList
       v-model:page="page"
       :matches="pageMatches"
@@ -94,20 +94,25 @@ const loadingPage = computed(() => props.pending || (!pageMatches.value.length &
       own
     >
       <template #actions="{ match }">
-        <UButton
-          v-if="watchTarget(Number(match.matchId))"
-          :to="watchTarget(Number(match.matchId))!"
-          icon="i-lucide-play"
-          label="Watch"
-          color="neutral"
-          variant="soft"
-          size="xs"
-          class="relative shrink-0"
-          aria-label="Watch the recording of this game"
-          @click.stop
-          @keydown.enter.stop
-          @keydown.space.stop
-        />
+        <!-- A slot of the same width on every row, filled or not, so the teams
+             and the build line up down the list whether a game was recorded. -->
+        <span class="flex size-6 shrink-0 items-center justify-center">
+          <UButton
+            v-if="watchTarget(Number(match.matchId))"
+            :to="watchTarget(Number(match.matchId))!"
+            icon="i-lucide-play"
+            color="neutral"
+            variant="soft"
+            size="xs"
+            square
+            class="relative"
+            aria-label="Watch the recording of this game"
+            title="Watch the recording"
+            @click.stop
+            @keydown.enter.stop
+            @keydown.space.stop
+          />
+        </span>
       </template>
     </MatchHistoryList>
   </section>

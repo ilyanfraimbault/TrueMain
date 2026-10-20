@@ -1,3 +1,5 @@
+using Core.Lol.Benchmarks;
+
 namespace Core.Lol.Pace;
 
 /// <summary>
@@ -35,39 +37,10 @@ public static class PaceHistogram
     public static int ToBucket(PaceMetric metric, int value)
         => Math.Max(0, value) / BucketWidth(metric);
 
-    /// <summary>
-    /// The <paramref name="quantile"/> (0–1) of a histogram, interpolated linearly inside the
-    /// bin it falls in — the bin's samples are assumed spread evenly over its width. Returns
-    /// <see langword="null"/> for an empty histogram.
-    /// </summary>
+    /// <inheritdoc cref="BinnedHistogram.Percentile"/>
     public static double? Percentile(
         PaceMetric metric,
         IReadOnlyCollection<(int Bucket, long Count)> histogram,
         double quantile)
-    {
-        var total = histogram.Sum(bin => bin.Count);
-        if (total <= 0)
-        {
-            return null;
-        }
-
-        var width = BucketWidth(metric);
-        var target = Math.Clamp(quantile, 0, 1) * total;
-        long seen = 0;
-
-        foreach (var (bucket, count) in histogram.Where(bin => bin.Count > 0).OrderBy(bin => bin.Bucket))
-        {
-            if (seen + count >= target)
-            {
-                var within = (target - seen) / count;
-                return (bucket + within) * width;
-            }
-
-            seen += count;
-        }
-
-        // Only reachable through rounding at quantile 1: the top of the last bin.
-        var last = histogram.Where(bin => bin.Count > 0).Max(bin => bin.Bucket);
-        return (last + 1d) * width;
-    }
+        => BinnedHistogram.Percentile(histogram, quantile, BucketWidth(metric));
 }

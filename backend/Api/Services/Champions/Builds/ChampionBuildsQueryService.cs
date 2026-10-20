@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
@@ -26,7 +27,8 @@ public interface IChampionBuildsQueryService
     /// </param>
     /// <param name="position">
     /// Requested Riot team position; when null the dominant position is
-    /// resolved automatically.
+    /// resolved automatically, and <see cref="LanePositions.AllPositions"/> folds
+    /// every position at the resolved patch (player-scoped callers only).
     /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <param name="scope">
@@ -127,10 +129,11 @@ public sealed class ChampionBuildsQueryService(
         // patch + position. For the ALL bracket the slice already spans them, so
         // coverage is 1; for a narrow bracket we re-sum the scope totals without
         // the bracket filter (cheap — scope rows only, no pattern join).
+        var allPositions = string.Equals(position, LanePositions.AllPositions, StringComparison.Ordinal);
         var allBracketGames = isAllBracket
             ? totalGames
             : await CountAllBracketGamesAsync(
-                scopes[0], scope?.RiotAccountId, scope?.PlatformId, truemainsOnly, ct);
+                scopes[0], allPositions, scope?.RiotAccountId, scope?.PlatformId, truemainsOnly, ct);
         var coverage = RateMath.Rate(totalGames, allBracketGames);
 
         // A champion the profile lists as a main must never dead-end on click:
@@ -141,7 +144,8 @@ public sealed class ChampionBuildsQueryService(
         // never played it. A genuine 404 still comes from an absent scope
         // (LoadAsync → null above): no timeline-complete ranked game on record.
         var resolvedPatch = scopes.First().GameVersion;
-        var resolvedPosition = scopes.First().Position;
+        // The slice spans several positions under ALL, so no single scope names it.
+        var resolvedPosition = allPositions ? LanePositions.AllPositions : scopes.First().Position;
 
         ChampionResponse BuildResponse(IReadOnlyList<ChampionBuildReadModel> builds) => new()
         {
@@ -196,7 +200,8 @@ public sealed class ChampionBuildsQueryService(
 
     /// <summary>
     /// Total games across every persisted bracket for the same resolved scope
-    /// (champion, patch, platform, queue, position) as <paramref name="reference"/>.
+    /// (champion, patch, platform, queue, position) as <paramref name="reference"/> —
+    /// every position when <paramref name="allPositions"/>, as the numerator spans them.
     /// Mirrors the loader's account filter — global callers span every account,
     /// player-scoped callers pin the one account — so the denominator matches
     /// the numerator's population. Sums scope-level totals only (no pattern
@@ -204,6 +209,7 @@ public sealed class ChampionBuildsQueryService(
     /// </summary>
     private async Task<int> CountAllBracketGamesAsync(
         ChampionAggregateScope reference,
+        bool allPositions,
         Guid? riotAccountId,
         string? platformId,
         bool truemainsOnly,
@@ -216,7 +222,7 @@ public sealed class ChampionBuildsQueryService(
                 riotAccountId,
                 reference.GameVersion,
                 platformId,
-                reference.Position,
+                allPositions ? null : reference.Position,
                 // Same population as the numerator, or the coverage ratio compares
                 // a mains-only slice against everyone and reads far too small.
                 truemainsOnly: truemainsOnly)
