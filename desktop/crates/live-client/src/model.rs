@@ -43,7 +43,8 @@ pub struct Events {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
 pub struct Event {
-    /// `TurretKilled`, `InhibKilled`, `DragonKill`, `BaronKill`, …
+    /// `TurretKilled`, `InhibKilled`, `DragonKill`, `HordeKill` (a
+    /// Voidgrub), `HeraldKill`, `BaronKill`, …
     pub event_name: String,
     /// Game time, in seconds.
     pub event_time: f64,
@@ -147,6 +148,10 @@ pub struct GameData {
     pub game_mode: String,
     /// `11` is Summoner's Rift, `12` the Howling Abyss.
     pub map_number: i64,
+    /// The Rift's look: `Default` until the second drake falls, then the
+    /// element it turned to (`Infernal`, `Ocean`, `Mountain`, `Cloud`,
+    /// `Hextech`, `Chemtech`) — the element of every drake after.
+    pub map_terrain: String,
 }
 
 #[cfg(test)]
