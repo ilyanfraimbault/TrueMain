@@ -99,8 +99,8 @@ const identity = computed(() => profile.value?.identity ?? { gameName: truemainS
           v-else
           :ranked="profile.ranked"
           :history="rankHistory?.entries ?? []"
-          :history-loading="rankHistoryLoading"
-          :cutoffs="apexCutoffs"
+          :history-loading="rankHistoryLoading || apexCutoffs.loading"
+          :cutoffs="apexCutoffs.cutoffs"
         />
         <ProfileActivityHeatmap
           v-if="profile"

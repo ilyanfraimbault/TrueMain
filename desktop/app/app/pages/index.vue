@@ -147,7 +147,7 @@ watch(() => state.value.phase, (next, previous) => {
 
         <template #aside>
           <ProfileRankedCardSkeleton v-if="pending" />
-          <ProfileRankedCard v-else :ranked="ranked" :history="rankCurve" :cutoffs="apexCutoffs">
+          <ProfileRankedCard v-else :ranked="ranked" :history="rankCurve" :history-loading="apexCutoffs.loading" :cutoffs="apexCutoffs.cutoffs">
             <template #standing>
               <DashboardFlexStanding :queue="flex" />
             </template>
