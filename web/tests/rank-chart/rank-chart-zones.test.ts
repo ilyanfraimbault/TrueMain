@@ -31,22 +31,22 @@ const apex = rankChartPoints([
 describe('apexFloorsAt', () => {
   it('reads the cutoff of the snapshot\'s UTC day as a rank score', () => {
     const floors = apexFloorsAt(apex, [cutoff(0, 400, 900), cutoff(1, 410, 905), cutoff(2, 415, 910)])
-    expect(floors[0]).toEqual({ grandmaster: MASTER_FLOOR + 400, challenger: MASTER_FLOOR + 900 })
-    expect(floors[2]).toEqual({ grandmaster: MASTER_FLOOR + 415, challenger: MASTER_FLOOR + 910 })
+    expect(floors[0]).toMatchObject({ grandmaster: MASTER_FLOOR + 400, challenger: MASTER_FLOOR + 900 })
+    expect(floors[2]).toMatchObject({ grandmaster: MASTER_FLOOR + 415, challenger: MASTER_FLOOR + 910 })
   })
 
   it('holds the latest earlier cutoff for two days, then gives up', () => {
     const floors = apexFloorsAt(apex, [cutoff(0, 400, 900)])
     expect(floors[2]!.grandmaster).toBe(MASTER_FLOOR + 400)
-    expect(floors[3]).toEqual({ grandmaster: null, challenger: null })
+    expect(floors[3]).toMatchObject({ grandmaster: null, challenger: null })
   })
 
   it('knows nothing before the first measurement', () => {
-    expect(apexFloorsAt(apex, [cutoff(1, 400, 900)])[0]).toEqual({ grandmaster: null, challenger: null })
+    expect(apexFloorsAt(apex, [cutoff(1, 400, 900)])[0]).toMatchObject({ grandmaster: null, challenger: null })
   })
 
   it('keeps one tier when only the other was measured', () => {
-    expect(apexFloorsAt(apex, [cutoff(0, null, 900)])[0]).toEqual({ grandmaster: null, challenger: MASTER_FLOOR + 900 })
+    expect(apexFloorsAt(apex, [cutoff(0, null, 900)])[0]).toMatchObject({ grandmaster: null, challenger: MASTER_FLOOR + 900 })
   })
 })
 
@@ -58,6 +58,16 @@ describe('tierBoundaries', () => {
     ])
     expect(boundaries.find(b => b.tier === 'DIAMOND')!.scores).toEqual([2400, 2400, 2400, 2400])
     expect(boundaries.find(b => b.tier === 'MASTER')!.measured.every(Boolean)).toBe(true)
+  })
+
+  it('falls back to the nearest cutoff, however far, before the snapshot\'s tier', () => {
+    // Only the last snapshot's day was measured: every earlier one takes that cutoff for its
+    // band, so the curve splits at the line rather than at the snapshot whose tier changed.
+    const floors = apexFloorsAt(apex, [cutoff(6, 380, 900)])
+    expect(floors[0]).toMatchObject({ grandmaster: null, nearestGrandmaster: MASTER_FLOOR + 380 })
+    const gm = tierBoundaries(apex, floors).find(b => b.tier === 'GRANDMASTER')!
+    expect(gm.scores).toEqual([MASTER_FLOOR + 380, MASTER_FLOOR + 380, MASTER_FLOOR + 380, MASTER_FLOOR + 380])
+    expect(gm.measured).toEqual([false, false, false, true])
   })
 
   it('reads an unmeasured apex floor back from the snapshot\'s own tier', () => {

@@ -160,6 +160,20 @@ public sealed class LadderSyncProcessTests
     }
 
     [Fact]
+    public async Task RunCoreAsync_EstimatesThePastCutoffsOnAnApexRefreshOnly()
+    {
+        // The days before the first measurement are estimated from rank snapshots (#2181): asked
+        // on the apex refresh, which is where the measurements land, and never on a paged-only run.
+        var apexRun = new Harness(new RecordingPlatformClient());
+        await apexRun.RunAsync(new LadderSyncOptions { Platforms = ["KR"], TierScope = ["Challenger"], MaxRequestsPerRun = 0 });
+        apexRun.Estimates.Should().ContainSingle().Which.Should().Be((NowUtc.AddDays(-730), NowUtc));
+
+        var pagedRun = new Harness(new RecordingPlatformClient());
+        await pagedRun.RunAsync(new LadderSyncOptions { Platforms = ["KR"], TierScope = ["Diamond"], MaxRequestsPerRun = 1 });
+        pagedRun.Estimates.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task RunCoreAsync_RecordsNoCutoffForAnEmptyLeague()
     {
         var harness = new Harness(new RecordingPlatformClient());
@@ -201,6 +215,9 @@ public sealed class LadderSyncProcessTests
         public (string Platform, string Tier, string Division, int Page)? LastCursor { get; private set; }
 
         public List<(string Platform, RankTier Tier, int MinLeaguePoints, int EntryCount)> Cutoffs { get; } = [];
+
+        /// <summary>The (from, now) windows the past-cutoff estimate was asked for.</summary>
+        public List<(DateTime FromUtc, DateTime NowUtc)> Estimates { get; } = [];
 
         /// <summary>Start of the last run that did its work, as the cadence guard reads it.</summary>
         public DateTime? LastCompletedRunUtc { get; init; }
@@ -250,6 +267,13 @@ public sealed class LadderSyncProcessTests
                 {
                     Cutoffs.Add((call.ArgAt<string>(0), call.ArgAt<RankTier>(1), call.ArgAt<int>(2), call.ArgAt<int>(3)));
                     return Task.CompletedTask;
+                });
+
+            cutoffs.EstimateHistoryAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+                .Returns(call =>
+                {
+                    Estimates.Add((call.ArgAt<DateTime>(0), call.ArgAt<DateTime>(1)));
+                    return Task.FromResult(0);
                 });
 
             var session = Substitute.For<IDataSession>();

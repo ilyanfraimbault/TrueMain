@@ -32,5 +32,9 @@ public sealed class ApexCutoffSnapshotConfiguration : IEntityTypeConfiguration<A
 
         entity.Property(e => e.UpdatedAtUtc)
             .IsRequired();
+
+        entity.Property(e => e.IsEstimated)
+            .IsRequired()
+            .HasDefaultValue(false);
     }
 }
