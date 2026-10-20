@@ -33,7 +33,7 @@ pub use clips::{
     StoredClip,
 };
 pub use highlights::{Highlight, HighlightKind, HighlightSource};
-pub use moments::{Moment, MomentKind, Objective, ObjectiveKind};
+pub use moments::{DragonKind, Moment, MomentKind, Objective, ObjectiveKind};
 pub use session::{Capture, CaptureError, Change, GameInfo, GameOutcome, Session, SessionError};
 pub use settings::{FrameRate, OutputSpec, Quality, Queues, RecordingSettings, Resolution};
 pub use store::{RecordingDir, RecordingMeta, RecordingStatus, Store, StoredRecording};
