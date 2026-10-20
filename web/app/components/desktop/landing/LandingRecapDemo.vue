@@ -1,29 +1,57 @@
 <script setup lang="ts">
+import { championIconUrl } from '~/utils/desktop-landing-sample'
+
 /**
  * A recording's recap, redrawn for `/download` (#2072) as the app lays it out
  * (`desktop/app/app/pages/recordings/[id].vue`): the player over its control
- * row, the timeline — objectives above, the player's kills, assists and deaths
- * on lanes of their own, the win-probability lane, the clock — and the side
- * panel's Clips tab. The video is a real frame of one of our own games, paused
- * at 13:23 (`public/desktop/game.webp`); the moments around it are a sample.
- * The scene: the playhead goes to the triple kill, a range is dragged across
- * it, the app names it, it is saved and joins the saved clips.
+ * row, the timeline — every event a dot above the track, blue our side's way,
+ * red the enemy's, the win-probability curve under them, the clock — and the
+ * side panel's Clips tab. The video is a real frame of one of our own games,
+ * paused at 13:23 (`public/desktop/game.webp`); the moments around it are a
+ * sample, its champions the frame's lobby (`desktop-landing-sample.ts`).
+ * The scene: the playhead goes to the triple kill and its dot opens the
+ * tooltip the app shows on hover (#2171) — who killed whom, the drake taken
+ * beside it — then a range is dragged across it, the app names it, it is
+ * saved and joins the saved clips.
  */
+defineProps<{ patch: string | null }>()
+
 const root = ref<HTMLElement | null>(null)
 const { reached, playing } = useSceneBeats(root, [500, 1400, 900, 1400, 3600])
+const canonicalIcon = useCanonicalIcon()
 
-/** The recording's length, and where everything sits on it, in seconds of video. */
+/** The recording's length, in seconds of video. */
 const LENGTH = 1900
-const KILLS = [{ at: 382, kills: 1 }, { at: 795, kills: 3 }, { at: 1349, kills: 2 }]
-const ASSISTS = [228, 627, 760, 1102, 1216, 1577]
-const DEATHS = [361, 1045]
-const OBJECTIVES = [
-  { at: 380, icon: 'i-lucide-bug', side: 'ally', epic: true },
-  { at: 570, icon: 'i-lucide-flame', side: 'ally', epic: true },
-  { at: 950, icon: 'i-lucide-castle', side: 'enemy', epic: false },
-  { at: 1292, icon: 'i-lucide-crown', side: 'ally', epic: true },
-  { at: 1634, icon: 'i-lucide-castle', side: 'ally', epic: false },
+
+/**
+ * The events' dots, as the app merges them at this width: where each sits, in
+ * seconds of video, and which side it went — `mixed` for a dot holding both.
+ */
+const DOTS = [
+  { at: 228, side: 'ally' },
+  // A death, then voidgrubs and a kill: both ways, one dot.
+  { at: 371, side: 'mixed', many: true },
+  { at: 570, side: 'ally' },
+  { at: 627, side: 'ally' },
+  { at: 760, side: 'ally' },
+  { at: 807, side: 'ally', many: true },
+  { at: 950, side: 'enemy' },
+  { at: 1045, side: 'enemy' },
+  { at: 1102, side: 'ally' },
+  { at: 1216, side: 'ally' },
+  { at: 1292, side: 'ally' },
+  { at: 1349, side: 'ally' },
+  { at: 1577, side: 'ally' },
+  { at: 1634, side: 'ally' },
 ] as const
+const MOMENTS = 16
+
+/** The triple kill's dot: its tooltip, as the app lists a dot's events. */
+const TOOLTIP_AT = 807
+const MINIMAP = 'https://raw.communitydragon.org/latest/game/assets/ux/minimap/icons'
+const TRIPLE_KILL = { killer: 'Yone', victims: ['Orianna', 'Ezreal', 'Nautilus'], at: 795 }
+const DRAKE = { icon: `${MINIMAP}/dragon_infernal.png`, label: 'Infernal Drake', at: 820 }
+
 const RANGE = { from: 768, to: 813 }
 const SAVED = [
   { title: 'Kill + Dragon', from: 552, to: 583, length: '0:31' },
@@ -39,20 +67,24 @@ const curveLine = CURVE.map((_, minute) => curvePoint(minute)).map(({ x, y }) =>
 const curveArea = `0,50 ${curveLine} ${curvePoint(CURVE.length - 1).x.toFixed(1)},50`
 const curveClip = `landing-recap-${useId()}`
 
-/** The app's timeline geometry (`utils/recording-timeline.ts`), in pixels. */
-const PANEL_TOP = 28
-const LANE = 20
-const LANES = 3
-const CURVE_HEIGHT = 40
-const PANEL = LANE * LANES + CURVE_HEIGHT
-const laneCentre = (index: number) => `${PANEL_TOP + index * LANE + LANE / 2}px`
+/** The app's timeline geometry (`utils/recording-timeline.ts`), in pixels: the dots' row, then the curve's panel. */
+const PANEL_TOP = 20
+const PANEL = 64
 const TICKS = [0, 300, 600, 900, 1200, 1500, 1800]
+
+const SIDE_DOT = {
+  ally: 'bg-ally',
+  enemy: 'bg-enemy',
+  mixed: 'bg-[linear-gradient(90deg,var(--color-ally)_50%,var(--color-enemy)_50%)]',
+} as const
 
 const playhead = computed(() => (reached(1) ? 803 : 76))
 const cut = computed(() => reached(2))
 const drafted = computed(() => reached(3) && !reached(4))
 const saved = computed(() => reached(4))
 const clips = computed(() => (saved.value ? [NEW_CLIP, ...SAVED] : SAVED))
+/** The tooltip opens as the playhead lands on the triple kill, and stays: it is what the scene shows. */
+const hovering = computed(() => reached(1))
 
 const pct = (seconds: number) => `${((seconds / LENGTH) * 100).toFixed(2)}%`
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`
@@ -83,38 +115,46 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.ro
         </div>
       </div>
 
-      <!-- The timeline: the lanes' glyphs, then the track. -->
+      <!-- The timeline: the curve's glyph beside its lane, then the track. -->
       <div class="flex gap-2">
         <div class="relative w-4 shrink-0" :style="{ height: `${PANEL_TOP + PANEL}px` }">
-          <UIcon
-            v-for="(lane, index) in [{ icon: 'i-lucide-swords', tone: 'text-data-good' }, { icon: 'i-lucide-handshake', tone: 'text-ink-400' }, { icon: 'i-lucide-skull', tone: 'text-red-400' }]"
-            :key="lane.icon"
-            :name="lane.icon"
-            class="absolute left-0.5 size-3.5 -translate-y-1/2"
-            :class="lane.tone"
-            :style="{ top: laneCentre(index) }"
-          />
-          <UIcon name="i-lucide-chart-spline" class="absolute left-0.5 size-3.5 -translate-y-1/2 text-ally" :style="{ top: `${PANEL_TOP + LANE * LANES + CURVE_HEIGHT / 2}px` }" />
+          <UIcon name="i-lucide-chart-spline" class="absolute left-0.5 size-3.5 -translate-y-1/2 text-ally" :style="{ top: `${PANEL_TOP + PANEL / 2}px` }" />
         </div>
 
         <div class="relative min-w-0 flex-1" :style="{ height: `${PANEL_TOP + PANEL}px` }">
           <span
-            v-for="objective in OBJECTIVES"
-            :key="objective.at"
-            class="absolute top-0.5 flex size-5 -translate-x-1/2 items-center justify-center rounded-md"
-            :class="[
-              objective.side === 'ally' ? 'text-ally' : 'text-enemy',
-              objective.epic ? ['ring-1', objective.side === 'ally' ? 'bg-ally/15 ring-ally/50' : 'bg-enemy/15 ring-enemy/50'] : 'opacity-75',
-            ]"
-            :style="{ left: pct(objective.at) }"
+            v-for="dot in DOTS"
+            :key="dot.at"
+            class="absolute top-2.5 -translate-1/2 rounded-full ring-2 ring-(--ui-bg) transition-transform duration-300"
+            :class="[SIDE_DOT[dot.side], 'many' in dot ? 'size-3' : 'size-2.5', hovering && dot.at === TOOLTIP_AT && 'z-10 scale-150']"
+            :style="{ left: pct(dot.at) }"
+          />
+
+          <!-- The dot's tooltip, as the app opens it under the pointer. -->
+          <div
+            class="pointer-events-none absolute bottom-full z-30 mb-1.5 -translate-x-1/2 rounded-md bg-ink-950/95 px-2 py-1.5 text-xs shadow-lg ring-1 ring-default backdrop-blur transition-opacity duration-300"
+            :class="hovering ? 'opacity-100' : 'opacity-0'"
+            :style="{ left: pct(TOOLTIP_AT) }"
           >
-            <UIcon :name="objective.icon" :class="objective.epic ? 'size-3.5' : 'size-3'" />
-          </span>
+            <div class="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1.5 whitespace-nowrap">
+              <span class="flex items-center gap-1">
+                <img v-if="patch" :src="canonicalIcon(championIconUrl(TRIPLE_KILL.killer, patch))" alt="" width="20" height="20" class="size-5 rounded ring-1 ring-ally">
+                <UIcon name="i-lucide-swords" class="size-3.5 text-ally" />
+                <template v-if="patch">
+                  <img v-for="victim in TRIPLE_KILL.victims" :key="victim" :src="canonicalIcon(championIconUrl(victim, patch))" alt="" width="20" height="20" class="size-5 rounded ring-1 ring-enemy">
+                </template>
+              </span>
+              <span class="text-highlighted">Triple kill</span>
+              <span class="pl-3 text-right tabular-nums text-dimmed">{{ clock(TRIPLE_KILL.at) }}</span>
+              <img :src="DRAKE.icon" alt="" width="20" height="20" class="size-5 object-contain">
+              <span class="text-highlighted">{{ DRAKE.label }}</span>
+              <span class="pl-3 text-right tabular-nums text-dimmed">{{ clock(DRAKE.at) }}</span>
+            </div>
+          </div>
 
           <div class="absolute inset-x-0 overflow-hidden rounded-md bg-muted ring-1 ring-default" :style="{ top: `${PANEL_TOP}px`, height: `${PANEL}px` }">
             <div class="absolute inset-y-0 left-0 bg-white/[0.035] transition-[width] duration-[1400ms] ease-in-out" :style="{ width: pct(playhead) }" />
             <div v-for="at in TICKS" :key="`grid-${at}`" class="absolute inset-y-0 w-px bg-white/[0.04]" :style="{ left: pct(at) }" />
-            <div v-for="index in LANES" :key="`lane-${index}`" class="absolute inset-x-0 h-px bg-white/[0.05]" :style="{ top: `${index * LANE}px` }" />
             <div
               v-for="clip in SAVED"
               :key="clip.title"
@@ -126,7 +166,7 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.ro
               :class="saved ? 'opacity-100' : 'opacity-0'"
               :style="{ left: pct(RANGE.from), width: pct(RANGE.to - RANGE.from) }"
             />
-            <svg class="absolute inset-x-0 bottom-0 w-full overflow-visible" :style="{ height: `${CURVE_HEIGHT}px` }" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
+            <svg class="absolute inset-0 size-full overflow-visible" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
               <defs>
                 <clipPath :id="`${curveClip}-ally`"><rect x="0" y="0" width="1000" height="50" /></clipPath>
                 <clipPath :id="`${curveClip}-enemy`"><rect x="0" y="50" width="1000" height="50" /></clipPath>
@@ -143,10 +183,10 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.ro
             :key="swing.minute"
             class="absolute size-2.5 -translate-1/2 rounded-full ring-2 ring-(--ui-bg-muted)"
             :class="swing.up ? 'bg-ally' : 'bg-enemy'"
-            :style="{ left: pct(swing.minute * 60), top: `${PANEL_TOP + LANE * LANES + (curvePoint(swing.minute).y / 100) * CURVE_HEIGHT}px` }"
+            :style="{ left: pct(swing.minute * 60), top: `${PANEL_TOP + (curvePoint(swing.minute).y / 100) * PANEL}px` }"
           />
 
-          <!-- The range being cut: a band across every lane, a handle at each end. -->
+          <!-- The range being cut: a band across the panel, a handle at each end. -->
           <div
             class="absolute rounded-md bg-primary/20 ring-1 ring-primary transition-[width,opacity] duration-700 ease-out"
             :class="cut && !saved ? 'opacity-100' : 'opacity-0'"
@@ -155,26 +195,6 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.ro
             <span class="absolute -left-1 inset-y-0 w-2 rounded-sm bg-primary" />
             <span class="absolute -right-1 inset-y-0 w-2 rounded-sm bg-primary" />
           </div>
-
-          <span
-            v-for="kill in KILLS"
-            :key="kill.at"
-            class="absolute flex h-4 min-w-4 -translate-1/2 items-center justify-center rounded-full text-[9px] font-bold leading-none text-ink-950 ring-2 ring-(--ui-bg-muted)"
-            :class="[kill.kills >= 3 ? 'bg-gold' : 'bg-data-good', kill.kills > 1 && 'px-1']"
-            :style="{ left: pct(kill.at), top: laneCentre(0) }"
-          >
-            <template v-if="kill.kills > 1">×{{ kill.kills }}</template>
-            <UIcon v-else name="i-lucide-swords" class="size-2.5" />
-          </span>
-          <span v-for="at in ASSISTS" :key="`a-${at}`" class="absolute size-2 -translate-1/2 rounded-full bg-ink-400 ring-2 ring-(--ui-bg-muted)" :style="{ left: pct(at), top: laneCentre(1) }" />
-          <span
-            v-for="at in DEATHS"
-            :key="`d-${at}`"
-            class="absolute flex size-4 -translate-1/2 items-center justify-center rounded-full bg-red-950 text-red-300 ring-1 ring-red-400/70"
-            :style="{ left: pct(at), top: laneCentre(2) }"
-          >
-            <UIcon name="i-lucide-skull" class="size-2.5" />
-          </span>
 
           <div
             class="absolute bottom-0 z-20 w-0.5 -translate-x-1/2 bg-inverted transition-[left] duration-[1400ms] ease-in-out"
@@ -194,7 +214,7 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.ro
     <aside class="flex flex-col gap-2">
       <div class="flex gap-4 border-b border-default text-xs font-medium">
         <span class="-mb-px border-b-2 border-primary pb-2 text-primary">Clips <span class="ml-0.5 rounded bg-primary/10 px-1 text-[10px]">{{ SAVED.length + (drafted || saved ? 1 : 0) }}</span></span>
-        <span class="pb-2 text-muted">Moments <span class="ml-0.5 rounded bg-elevated px-1 text-[10px]">17</span></span>
+        <span class="pb-2 text-muted">Moments <span class="ml-0.5 rounded bg-elevated px-1 text-[10px]">{{ MOMENTS }}</span></span>
         <span class="pb-2 text-muted">Swings</span>
       </div>
 
