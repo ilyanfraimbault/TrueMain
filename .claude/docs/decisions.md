@@ -232,6 +232,7 @@ Last verified against `develop` on 2026-09-02.
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
 - A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
 - The pace benchmark is a per-minute CS / gold-earned histogram per (patch, tier, position), folded from the timeline in memory at ingestion, once per match, the lobby at its tracked account's tier — never a per-minute grid (2026-10-05) — #1912
+- The form benchmark (KDA, KP, CS/min, deaths, vision/min) is a whole-game histogram in its own table, folded in the pace benchmark's pass under its claim, so both describe the same games; no back-fill (2026-10-20) — #2076
 
 ## Backend code conventions — [`decisions/backend-conventions.md`](decisions/backend-conventions.md)
 
@@ -443,6 +444,7 @@ Last verified against `develop` on 2026-09-02.
 - The next item sits over the game board: the mains' next legendary, one reason, the gold left and the components buyable now, two runners-up and the boots; asked on item changes only; our gold in 50-gold steps (2026-10-01); until a starter is bought, the composition build's starter basket above it and in its place on the overlay (2026-10-08) — #1751, #1989
 - The next item also lays the build out as one row, the boots at the step the mains most often complete them at (a `BootsTiming` slot of the item-context fold, ≥ 20 games, no backfill: it fills from matches folded after the change); due boots become the main item (2026-10-19) — #2101
 - The overlay's pace sets CS/min and gold/min against the median of games at the player's Solo/Duo tier (every tier fetched, the tier picked locally); no Solo/Duo standing → no comparison; a reference, never advice (2026-10-05) — #1912
+- The dashboard's form tiles carry the median of the player's own Solo/Duo tier (not the tier above) on their main role, in muted text with the tier's emblem; under the floor or without a standing, none; dashboard only (2026-10-20) — #2076
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 

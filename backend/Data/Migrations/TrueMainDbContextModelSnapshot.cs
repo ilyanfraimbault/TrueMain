@@ -1194,6 +1194,50 @@ namespace Data.Migrations
                     b.ToTable("discovery_cursors", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.FormBenchmarkStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Bucket")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Metric")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Position", "Patch", "Tier", "Metric", "Bucket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_form_benchmark_stats_grain");
+
+                    b.ToTable("form_benchmark_stats", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.LadderSyncCursor", b =>
                 {
                     b.Property<string>("PlatformId")
