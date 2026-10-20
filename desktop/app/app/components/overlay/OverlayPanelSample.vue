@@ -23,5 +23,6 @@ const next = computed(() => items.value[SAMPLE_NEXT_ITEM.itemId] ?? null)
   </div>
   <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="game" :synced-at="syncedAt" />
   <OverlayStats v-else-if="panel === 'stats'" :game="game" :reference="SAMPLE_PACE_REFERENCE" />
+  <OverlayObjectives v-else-if="panel === 'objectives'" :game="game" :synced-at="syncedAt" />
   <OverlayItemValue v-else :game="game" />
 </template>

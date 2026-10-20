@@ -10,6 +10,8 @@
 //! - [`game`]: the in-game state the app renders, derived from one payload,
 //!   and the changes between two of them.
 //! - [`objectives`]: what each team has taken on the map, from the event feed.
+//! - [`timers`]: when the neutral objectives are next up, from the season's
+//!   spawn rules and the same feed.
 //! - [`pace`]: the player's creep score and gold earned, minute by minute.
 //! - [`feed`]: what reaches the frontend — a snapshot when a game is first
 //!   read, then only the changes, never the payload on every poll.
@@ -26,6 +28,7 @@ pub mod model;
 pub mod objectives;
 pub mod pace;
 pub mod poll;
+pub mod timers;
 
 pub use feed::{Emission, GameFeed, GameUpdate};
 pub use game::{GameChange, GameItem, GamePlayer, GameSpell, GameState, Team};
@@ -33,3 +36,4 @@ pub use model::AllGameData;
 pub use objectives::{Objectives, TeamObjectives};
 pub use pace::{Pace, PaceSample};
 pub use poll::{next_poll, POLL};
+pub use timers::{NeutralTimers, Spawn};

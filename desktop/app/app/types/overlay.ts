@@ -1,6 +1,6 @@
 /** Mirrors `OverlayPanel` in `crates/shell-state/src/overlay.rs`: one window each. */
-export type OverlayPanel = 'next-item' | 'win-probability' | 'item-value' | 'stats'
-export const OVERLAY_PANELS: OverlayPanel[] = ['next-item', 'win-probability', 'stats', 'item-value']
+export type OverlayPanel = 'next-item' | 'win-probability' | 'item-value' | 'stats' | 'objectives'
+export const OVERLAY_PANELS: OverlayPanel[] = ['next-item', 'win-probability', 'stats', 'objectives', 'item-value']
 
 /** What each panel is called and shows, for the player choosing them. */
 export const OVERLAY_PANEL_INFO: Record<OverlayPanel, { label: string, description: string }> = {
@@ -8,6 +8,7 @@ export const OVERLAY_PANEL_INFO: Record<OverlayPanel, { label: string, descripti
   'win-probability': { label: 'Win probability', description: 'Each side\'s chance to win, from the item-gold gap and the map. The whole game.' },
   'stats': { label: 'Your pace', description: 'CS and gold per minute, beside the median of games at your Solo/Duo tier. Gold reads a little low: used potions and sell-back losses are invisible to the game.' },
   'item-value': { label: 'Item value', description: 'What each team\'s items are worth, and each lane\'s gap. While TAB is held by default.' },
+  'objectives': { label: 'Objectives', description: 'When the dragon, the Voidgrubs, the Rift Herald and Baron are next up, and the drakes each team holds. From the game clock and the kills the game announces.' },
 }
 
 export type OverlayShow = 'always' | 'whileDead'
@@ -57,6 +58,7 @@ export interface OverlaySettings {
   winProbability: OverlayPanelSettings
   itemValue: OverlayPanelSettings
   stats: OverlayPanelSettings
+  objectives: OverlayPanelSettings
 }
 
 /** The settings key of each panel. */
@@ -65,6 +67,7 @@ export const PANEL_KEY = {
   'win-probability': 'winProbability',
   'item-value': 'itemValue',
   'stats': 'stats',
+  'objectives': 'objectives',
 } as const satisfies Record<OverlayPanel, keyof OverlaySettings>
 
 /** Mirrors `OverlayView` in `src-tauri/src/overlay/mod.rs`. */
@@ -110,6 +113,7 @@ export const DEV_OVERLAY_VIEW: OverlayView = {
     winProbability: { enabled: true, anchor: 'top-left', custom: null, trigger: { kind: 'always' } },
     itemValue: { enabled: true, anchor: 'top-center', custom: null, trigger: { kind: 'whileHeld', chord: { alt: false, shift: false, ctrl: false, meta: false, tab: true, key: null } } },
     stats: { enabled: true, anchor: 'center-left', custom: null, trigger: { kind: 'always' } },
+    objectives: { enabled: true, anchor: 'center-right', custom: null, trigger: { kind: 'always' } },
   },
   supported: true,
   preview: false,

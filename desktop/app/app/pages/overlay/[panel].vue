@@ -4,8 +4,8 @@ import { OVERLAY_PANELS } from '~/types/overlay'
 import { PANEL_WIDTHS } from '~/utils/overlay-layout'
 
 /**
- * One panel of the in-game overlay (#1795) — `next-item`, `win-probability`
- * or `item-value` — loaded by that panel's own window (`src-tauri/src/overlay`),
+ * One panel of the in-game overlay (#1795) — `next-item`, `win-probability`,
+ * `stats`, `objectives` (#2078) or `item-value` — loaded by that panel's own window (`src-tauri/src/overlay`),
  * never by the app's window, and drawn outside the app's shell (`app.vue`).
  *
  * The panels are click-through and never take the keyboard, so nothing here
@@ -30,6 +30,7 @@ const PLACEHOLDERS: Record<OverlayPanel, string> = {
   'win-probability': 'The win probability shows here during a game.',
   'item-value': 'Each team\'s item gold shows here during a game.',
   'stats': 'Your CS and gold per minute show here during a game.',
+  'objectives': 'The objectives\' timers show here during a game.',
 }
 
 const { game, syncedAt } = useLiveGame()
@@ -89,6 +90,7 @@ useHead({
         <OverlayNextItem v-if="panel === 'next-item'" :game="playing" />
         <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="playing" :synced-at="syncedAt" />
         <OverlayStats v-else-if="panel === 'stats'" :game="playing" :reference="paceReference" />
+        <OverlayObjectives v-else-if="panel === 'objectives'" :game="playing" :synced-at="syncedAt" />
         <OverlayItemValue v-else :game="playing" />
       </template>
       <OverlayPanelSample v-else-if="preview" :panel="panel" />

@@ -55,7 +55,7 @@ export const TAB_CHORD: Chord = { alt: false, shift: false, ctrl: false, meta: f
  */
 export function suggestedChord(panel: OverlayPanel, kind: 'whileHeld' | 'toggle'): Chord {
   if (panel === 'item-value' && kind === 'whileHeld') return TAB_CHORD
-  const digit = { 'next-item': 1, 'win-probability': 2, 'stats': 3, 'item-value': 4 }[panel]
+  const digit = { 'next-item': 1, 'win-probability': 2, 'stats': 3, 'item-value': 4, 'objectives': 5 }[panel]
   return { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: `Digit${digit}` }
 }
 

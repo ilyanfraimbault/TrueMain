@@ -1,7 +1,8 @@
 //! What each team has taken on the map, read off the game's event feed: the
-//! turrets and inhibitors it destroyed, the drakes it slew, and whether it
-//! holds the Baron's or the Elder's buff. The overlay's win probability
-//! weighs them (#1795).
+//! turrets and inhibitors it destroyed, the drakes and grubs it slew, and
+//! whether it holds the Baron's or the Elder's buff. The overlay's win
+//! probability weighs them (#1795); its objectives panel counts down to the
+//! neutral objectives' next spawns beside them (#2078, [`crate::timers`]).
 //!
 //! Only what the game itself announces to every player goes in. The feed
 //! carries every event since the start on every reading, so the state is
@@ -12,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::game::Team;
 use crate::model::{AllGameData, Event};
+use crate::timers::{is_elder, NeutralTimers};
 
 /// An inhibitor stands again five minutes after it falls.
 pub const INHIBITOR_RESPAWN: f64 = 300.0;
@@ -30,6 +32,10 @@ pub struct Objectives {
     pub order: TeamObjectives,
     /// Red side's.
     pub chaos: TeamObjectives,
+    /// When the neutral objectives are next up; `None` off Summoner's Rift's
+    /// standard game.
+    #[serde(default)]
+    pub timers: Option<Box<NeutralTimers>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -42,6 +48,9 @@ pub struct TeamObjectives {
     pub inhibitors: Vec<f64>,
     /// Elemental drakes this team slew; the Elder is not one of them.
     pub dragons: u32,
+    /// Voidgrubs this team slew.
+    #[serde(default)]
+    pub grubs: u32,
     /// The game time this team's latest Baron buff ends at.
     pub baron_until: Option<f64>,
     /// The game time this team's latest Elder buff ends at.
@@ -75,7 +84,10 @@ impl Objectives {
 
     /// Everything the feed says each team has taken so far.
     pub fn from_payload(data: &AllGameData) -> Self {
-        let mut objectives = Self::default();
+        let mut objectives = Self {
+            timers: NeutralTimers::from_payload(data).map(Box::new),
+            ..Self::default()
+        };
         for event in &data.events.events {
             let time = event.event_time;
             match event.event_name.as_str() {
@@ -96,7 +108,7 @@ impl Objectives {
                 "DragonKill" => {
                     if let Some(team) = killer_team(data, event) {
                         let taker = objectives.team_mut(team);
-                        if event.dragon_type.eq_ignore_ascii_case("Elder") {
+                        if is_elder(event) {
                             taker.elder_until = Some(time + ELDER_BUFF);
                         } else {
                             taker.dragons += 1;
@@ -106,6 +118,11 @@ impl Objectives {
                 "BaronKill" => {
                     if let Some(team) = killer_team(data, event) {
                         objectives.team_mut(team).baron_until = Some(time + BARON_BUFF);
+                    }
+                }
+                "HordeKill" => {
+                    if let Some(team) = killer_team(data, event) {
+                        objectives.team_mut(team).grubs += 1;
                     }
                 }
                 _ => {}
@@ -129,7 +146,7 @@ fn side_in(name: &str) -> Option<Team> {
 
 /// The team of whoever landed the last hit: a player, by any of the names the
 /// game may give them, or else a minion or a turret by the side in its name.
-fn killer_team(data: &AllGameData, event: &Event) -> Option<Team> {
+pub(crate) fn killer_team(data: &AllGameData, event: &Event) -> Option<Team> {
     let killer = event.killer_name.as_str();
     if killer.is_empty() {
         return None;
@@ -192,8 +209,12 @@ mod tests {
             { "EventName": "DragonKill", "EventTime": 900.0, "DragonType": "Water", "KillerName": "Solenne#0001" },
             { "EventName": "DragonKill", "EventTime": 1250.0, "DragonType": "Elder", "KillerName": "Lumen" },
             { "EventName": "BaronKill", "EventTime": 1300.0, "KillerName": "Solenne" },
-            { "EventName": "DragonKill", "EventTime": 1310.0, "DragonType": "Air", "KillerName": "Nobody" }
+            { "EventName": "DragonKill", "EventTime": 1310.0, "DragonType": "Air", "KillerName": "Nobody" },
+            { "EventName": "HordeKill", "EventTime": 490.0, "KillerName": "Lumen" },
+            { "EventName": "HordeKill", "EventTime": 496.0, "KillerName": "Solenne" },
+            { "EventName": "HordeKill", "EventTime": 499.0, "KillerName": "Lumen" }
         ])));
+        assert_eq!((objectives.order.grubs, objectives.chaos.grubs), (2, 1));
         assert_eq!(objectives.order.dragons, 1);
         assert_eq!(objectives.chaos.dragons, 1);
         assert_eq!(objectives.order.elder_until, Some(1400.0));

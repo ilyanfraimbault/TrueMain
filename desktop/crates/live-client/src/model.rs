@@ -43,7 +43,8 @@ pub struct Events {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
 pub struct Event {
-    /// `TurretKilled`, `InhibKilled`, `DragonKill`, `BaronKill`, …
+    /// `TurretKilled`, `InhibKilled`, `DragonKill`, `HordeKill` (a
+    /// Voidgrub), `HeraldKill`, `BaronKill`, …
     pub event_name: String,
     /// Game time, in seconds.
     pub event_time: f64,
