@@ -111,6 +111,8 @@ public class TrueMainDbContext : DbContext
 
     public DbSet<LadderSyncCursor> LadderSyncCursors => Set<LadderSyncCursor>();
 
+    public DbSet<ApexCutoffSnapshot> ApexCutoffSnapshots => Set<ApexCutoffSnapshot>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

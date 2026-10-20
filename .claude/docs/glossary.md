@@ -79,6 +79,11 @@ _Avoid_: elo, rank bracket, rank scope
 **Rank**:
 A player's ranked standing: ranked tier, division and LP, captured at most once a day.
 
+**Apex cutoff**:
+The LP a region's Grandmaster or Challenger tier starts at on a given day: the lowest LP in that league, which
+moves daily (below Master a tier starts at a fixed LP). Measured from the ladder, never estimated.
+_Avoid_: threshold (for the apex tiers), GM line
+
 **Solo/Duo tier**:
 The player's ranked tier in ranked solo/duo, the only queue TrueMain stores.
 

@@ -273,6 +273,7 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
           :profile-loaded="!!profile"
           :history="rankHistory?.entries ?? []"
           :history-loading="rankHistoryLoading"
+          :platform-id="profile?.identity.platformId ?? null"
           :champion-failed="!!championError"
           :name-tag="nameTag"
           :champion-id="championId"
