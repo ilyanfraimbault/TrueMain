@@ -85,3 +85,24 @@ export function lpDeltaOf(game: PlayerGame, games: PlayerGame[], history: RankHi
   if (!before || !after || before.tier !== after.tier || before.division !== after.division) return null
   return after.leaguePoints - before.leaguePoints
 }
+
+/** One measured Solo/Duo game on the ranked card's strip: the game and the LP it moved. */
+export interface LpMove {
+  gameId: number
+  delta: number
+}
+
+/**
+ * The LP the latest Solo/Duo games moved, newest last, under the ranked card's
+ * curve: only the games `lpDeltaOf` could measure, so an unmeasured game is
+ * skipped rather than guessed, and at most `limit` of them.
+ */
+export function latestLpMoves(games: PlayerGame[], history: RankHistoryEntry[], limit = 8): LpMove[] {
+  const moves: LpMove[] = []
+  for (const game of [...games].sort((a, b) => b.playedAt - a.playedAt)) {
+    if (moves.length === limit) break
+    const delta = lpDeltaOf(game, games, history)
+    if (delta !== null) moves.push({ gameId: game.gameId, delta })
+  }
+  return moves.reverse()
+}

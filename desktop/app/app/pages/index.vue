@@ -5,6 +5,7 @@ import type { GoalDraft } from '~/utils/goals'
 import { QUEUE_FILTERS, championLines, counted, gamesIn, laneLines } from '~/utils/player-form'
 import { toMatchSummary, toProfileRanked } from '~/utils/match-summary'
 import { activityFromGames } from '~/utils/activity-from-games'
+import { latestLpMoves } from '~/utils/lp-history'
 
 /**
  * Home: the player, read from their own client, on the profile page the site
@@ -30,6 +31,8 @@ const pending = computed(() => !record.value && (status.value === 'pending' || s
 
 const champions = computed(() => [...championsById.value.values()])
 const ranked = computed(() => toProfileRanked(record.value?.ranked.find(queue => queue.queueType === 'RANKED_SOLO_5x5') ?? null))
+const flex = computed(() => record.value?.ranked.find(queue => queue.queueType === 'RANKED_FLEX_SR') ?? null)
+const lpMoves = computed(() => latestLpMoves(loadedGames.value, rankHistory.value))
 const nameTag = computed(() => state.value.riotId?.replace('#', '-') ?? '')
 const historyGames = computed(() => gamesIn(loadedGames.value, filter.value))
 const filterLabel = computed(() => QUEUE_FILTERS.find(option => option.value === filter.value)?.label ?? 'All')
@@ -142,7 +145,14 @@ watch(() => state.value.phase, (next, previous) => {
 
         <template #aside>
           <ProfileRankedCardSkeleton v-if="pending" />
-          <ProfileRankedCard v-else :ranked="ranked" :history="rankHistory" />
+          <ProfileRankedCard v-else :ranked="ranked" :history="rankHistory">
+            <template #standing>
+              <DashboardFlexStanding :queue="flex" />
+            </template>
+            <template #moves>
+              <DashboardLpMoves :moves="lpMoves" />
+            </template>
+          </ProfileRankedCard>
           <DashboardTodayCard v-if="!pending" :summary="today" />
           <DashboardClipsCard />
           <template v-if="pending">
