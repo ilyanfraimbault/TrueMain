@@ -59,7 +59,8 @@ import type {
   PlayerChampionPerformanceResponse,
 } from '~~/shared/types/performance'
 import { PERFORMANCE_COMPONENT_KINDS } from '~~/shared/types/performance'
-import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
+import type { LiveGameResponse, LiveParticipant, LiveTeam } from '~~/shared/types/live'
+import type { ProfileIdentity, ProfileRanked, ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
 import type { SearchPlayer, SearchResponse } from '~~/shared/types/search'
 
@@ -1439,6 +1440,109 @@ function mockProfile(player: MockPlayer): ProfileResponse {
   }
 }
 
+// ─── Live tab (#2103) ────────────────────────────────────────────────────────
+// Deterministic by ladder position, so all three states of the tab open from the
+// leaderboard: ranks 1, 4, 7… are in a game, 2, 5, 8… are not, and 3, 6, 9…
+// get Riot "unavailable". The check time is the request's, as the real endpoint
+// stamps the Riot call it made.
+
+const LIVE_LANES = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const
+// Flash plus the lane's usual second spell: Teleport, Smite, Ignite, Heal, Exhaust.
+const LIVE_SPELLS: Record<string, [number, number]> = {
+  TOP: [4, 12], JUNGLE: [4, 11], MIDDLE: [4, 14], BOTTOM: [4, 7], UTILITY: [4, 3],
+}
+const LIVE_TIERS = ['PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER']
+const LIVE_DIVISIONS = ['I', 'II', 'III', 'IV']
+const LIVE_TAGS = ['EUW', 'gg', 'FR1', '777', 'LOL']
+
+function liveRank(rng: () => number): ProfileRanked | null {
+  if (rng() < 0.12) return null
+  const tier = LIVE_TIERS[Math.floor(rng() * LIVE_TIERS.length)]!
+  const apex = tier === 'MASTER' || tier === 'GRANDMASTER'
+  const wins = 40 + Math.floor(rng() * 160)
+  const losses = 40 + Math.floor(rng() * 150)
+  return {
+    tier,
+    division: apex ? 'I' : LIVE_DIVISIONS[Math.floor(rng() * 4)]!,
+    leaguePoints: apex ? 50 + Math.floor(rng() * 400) : Math.floor(rng() * 100),
+    wins,
+    losses,
+    winRate: round3(wins / (wins + losses)),
+  }
+}
+
+function mockLive(player: MockPlayer): LiveGameResponse {
+  const checkedAtUtc = new Date().toISOString()
+  const index = player.row.rank - 1
+  if (index % 3 === 1) return { status: 'notInGame', checkedAtUtc, game: null }
+  if (index % 3 === 2) return { status: 'unavailable', checkedAtUtc, game: null }
+
+  const rng = mulberry32(index * 7919 + 3)
+  const all = players()
+  const profile = mockProfile(player)
+  const subjectSeed = seedsById.get(player.row.topChampions[0]!.championId)
+  const subjectLane = subjectSeed?.position ?? 'MIDDLE'
+  const used = new Set<number>(subjectSeed ? [subjectSeed.id] : [])
+
+  const teams: LiveTeam[] = [100, 200].map((teamId, side) => {
+    const participants: LiveParticipant[] = LIVE_LANES.map((lane, laneIndex) => {
+      const isSubject = side === 0 && lane === subjectLane
+      let champion = isSubject ? subjectSeed : undefined
+      if (!champion) {
+        const pool = CHAMPION_SEEDS.filter(c => c.position === lane && !used.has(c.id))
+        champion = pool[Math.floor(rng() * pool.length)] ?? CHAMPION_SEEDS.find(c => !used.has(c.id))!
+        used.add(champion.id)
+      }
+
+      // About a third of the lobby are other mock truemains, so their names link.
+      const other = all[(index + 1 + laneIndex * 7 + side * 3) % all.length]!
+      const tracked = !isSubject && other !== player && rng() < 0.35
+      const identity = isSubject ? player.row.identity : tracked ? other.row.identity : null
+      const [spell1Id, spell2Id] = LIVE_SPELLS[lane]!
+
+      return {
+        gameName: identity?.gameName ?? `${NAME_PREFIXES[Math.floor(rng() * NAME_PREFIXES.length)]}${lane.toLowerCase()}`,
+        tagLine: identity?.tagLine ?? LIVE_TAGS[Math.floor(rng() * LIVE_TAGS.length)]!,
+        championId: champion.id,
+        profileIconId: identity?.profileIconId ?? 29,
+        spell1Id,
+        spell2Id,
+        keystoneId: champion.keystone,
+        primaryStyleId: champion.primaryStyle,
+        secondaryStyleId: champion.secondaryStyle,
+        position: lane,
+        isBot: false,
+        isSubject,
+        isTracked: isSubject || tracked,
+        ranked: isSubject ? profile.ranked : tracked ? mockProfile(other).ranked : liveRank(rng),
+      }
+    })
+    return { teamId, bans: [], participants }
+  })
+
+  // Five bans a side, never a champion on the board.
+  const bannable = CHAMPION_SEEDS.filter(c => !used.has(c.id))
+  teams.forEach((team, side) => {
+    team.bans = bannable.slice(side * 5, side * 5 + 5).map(c => c.id)
+  })
+
+  const gameLengthSeconds = 240 + Math.floor(rng() * 1500)
+  return {
+    status: 'inGame',
+    checkedAtUtc,
+    game: {
+      gameId: 7_000_000_000 + index,
+      platformId: player.row.identity.platformId,
+      queueId: 420,
+      mapId: 11,
+      gameMode: 'CLASSIC',
+      startedAtUtc: new Date(Date.now() - gameLengthSeconds * 1000).toISOString(),
+      gameLengthSeconds,
+      teams,
+    },
+  }
+}
+
 function mockRankHistory(player: MockPlayer): RankHistoryResponse {
   const endLp = player.row.ranked?.leaguePoints ?? 0
   const apex = player.row.ranked?.tier !== 'DIAMOND'
@@ -2524,7 +2628,7 @@ export async function resolveDevApiMock(
     return detail
   }
 
-  const playerMatch = path.match(/^\/truemains\/([^/]+)\/(profile|rank-history|activity|matches)$/)
+  const playerMatch = path.match(/^\/truemains\/([^/]+)\/(profile|rank-history|activity|matches|live)$/)
   if (playerMatch) {
     const name = safeDecodeURIComponent(playerMatch[1]!)
     const player = name === undefined ? undefined : findPlayer(name)
@@ -2532,6 +2636,7 @@ export async function resolveDevApiMock(
     if (playerMatch[2] === 'profile') return mockProfile(player)
     if (playerMatch[2] === 'rank-history') return mockRankHistory(player)
     if (playerMatch[2] === 'activity') return mockActivity(player)
+    if (playerMatch[2] === 'live') return mockLive(player)
     return mockMatches(player, query)
   }
 

@@ -199,10 +199,18 @@ code default: which networks may speak for a visitor is a deployment shape, not 
 
 **The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved.**
 (Owner-confirmed terminology, 2026-07-28: do not call it a dev key.) The production application is submitted
-and pending review. It declares ACCOUNT-V1, SUMMONER-V4, MATCH-V5, LEAGUE-V4 and CHAMPION-MASTERY-V4 —
-**not SPECTATOR-V5**. Consequences: no live-game features (#532, parked P3), no RSO and therefore no user
-accounts (#780), ingestion is rate-limited, and data changes are forward-only because backfill is not
-possible. Approval is the single external unlock for all of it — #780.
+and pending review. It declares ACCOUNT-V1, SUMMONER-V4, MATCH-V5, LEAGUE-V4 and CHAMPION-MASTERY-V4;
+SPECTATOR-V5 is to be added to it. Consequences: no RSO and therefore no user accounts (#780), ingestion is
+rate-limited, and data changes are forward-only because backfill is not possible. Approval is the single
+external unlock for those — #780.
+
+**Live games are not blocked on that approval (corrected 2026-10-20).** This entry used to say the opposite.
+A probe on 2026-10-18 with the current key read spectator-v5 by PUUID: the full game for a player in one, a 404
+otherwise (`featured-games` is 403 and not needed). The profile's Live tab (#2103) therefore ships on the
+current key, under its constraints: on demand only (tab open, "Check now"), never polled in the background;
+one call per player per 30 s; ranks from our own `rank_snapshots` before league-v4; a 429 pauses the API's
+client for its `Retry-After`, because the API has no share of the ingestor's limiter and the quota is shared.
+#532 (tracked mains currently in game) builds on the same endpoint — #2103.
 
 ## Preprod runs prod's parameters at a smaller volume, behind its own edge Caddy (2026-09-14)
 
