@@ -53,8 +53,8 @@ const performanceSnapshot = useLazyHydrationSnapshot(
     v-else
     :ranked="ranked ?? null"
     :history="history"
-    :history-loading="historyLoading"
-    :cutoffs="apexCutoffs"
+    :history-loading="historyLoading || apexCutoffs.loading"
+    :cutoffs="apexCutoffs.cutoffs"
   />
 
   <!-- Performance score (#918), lazy + hydrate-on-visible with the
