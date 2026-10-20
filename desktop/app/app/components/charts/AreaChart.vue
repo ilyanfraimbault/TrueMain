@@ -8,6 +8,8 @@
   vertical fade) lands on them unchanged.
 -->
 <script setup lang="ts" generic="TItem extends Record<string, unknown>">
+import { monotonePath } from '~/utils/monotone-path'
+
 interface Props {
   data: TItem[]
   categories: Record<string, { name: string, color?: string | string[] }>
@@ -26,7 +28,6 @@ defineSlots<{
 
 /** Room under the plot for the date ticks. */
 const AXIS = 18
-const MAX_TICKS = 4
 
 const box = ref<HTMLElement | null>(null)
 const width = ref(0)
@@ -65,7 +66,9 @@ const drawn = computed(() => {
   const only = points.value.length === 1 ? points.value[0] : null
   return only ? [{ x: 0, y: only.y }, { x: width.value, y: only.y }] : points.value
 })
-const line = computed(() => drawn.value.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(''))
+// A monotone cubic, as Unovis draws it on the site: the curve rolls between
+// snapshots rather than zigzagging, and never overshoots one.
+const line = computed(() => monotonePath(drawn.value))
 const area = computed(() => {
   const first = drawn.value[0]
   const last = drawn.value.at(-1)
@@ -75,8 +78,9 @@ const area = computed(() => {
 const ticks = computed(() => {
   const count = points.value.length
   if (!props.xFormatter || count === 0) return []
-  const step = Math.max(1, Math.ceil(count / MAX_TICKS))
-  const indices = Array.from({ length: count }, (_, i) => i).filter(i => i % step === 0)
+  // The span's two ends only, as the site's chart reads at the card's width:
+  // in-between dates crowd an 18rem column without saying more.
+  const indices = count === 1 ? [0] : [0, count - 1]
   return indices.map(index => ({ x: points.value[index]!.x, label: props.xFormatter!(index) }))
 })
 
