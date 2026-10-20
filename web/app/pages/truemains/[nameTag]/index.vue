@@ -46,7 +46,7 @@ const {
   ready: rankHistoryReady,
 } = useTruemainRankHistory(nameTag)
 // The region's GM / Challenger lines on the LP curve (#2174).
-const { cutoffs: apexCutoffs, loading: apexCutoffsLoading } = useApexCutoffs(() => profile.value?.identity.platformId)
+const apexCutoffs = useApexCutoffs(() => profile.value?.identity.platformId)
 
 // Activity grid under the LP curve (#927). One request covers all four
 // granularities — the mode switch inside the card is local, so no refetch and no
@@ -229,8 +229,8 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
           v-else
           :ranked="profile.ranked"
           :history="rankHistory?.entries ?? []"
-          :history-loading="rankHistoryLoading || apexCutoffsLoading"
-          :cutoffs="apexCutoffs"
+          :history-loading="rankHistoryLoading || apexCutoffs.loading"
+          :cutoffs="apexCutoffs.cutoffs"
         />
 
         <!-- Under the ranked card: the LP curve says how the climb went, the

@@ -32,13 +32,13 @@ describe('useApexCutoffs', () => {
     apiFetch.mockReturnValue(new Promise((resolve) => { answer = resolve }))
 
     const state = await mountWith(ref('EUW1'))
-    expect(state.loading.value).toBe(true)
+    expect(state.loading).toBe(true)
     expect(apiFetch).toHaveBeenCalledWith('/ladder/EUW1/apex-cutoffs', expect.objectContaining({ query: { days: 90 } }))
 
     answer({ entries: [ENTRY] })
     await flushPromises()
-    expect(state.loading.value).toBe(false)
-    expect(state.cutoffs.value).toEqual([ENTRY])
+    expect(state.loading).toBe(false)
+    expect(state.cutoffs).toEqual([ENTRY])
   })
 
   it('reads a failed request as no cutoff, and stops loading', async () => {
@@ -47,16 +47,16 @@ describe('useApexCutoffs', () => {
     const state = await mountWith(ref('KR'))
     await flushPromises()
 
-    expect(state.loading.value).toBe(false)
-    expect(state.cutoffs.value).toEqual([])
+    expect(state.loading).toBe(false)
+    expect(state.cutoffs).toEqual([])
   })
 
   it('waits for nothing without a platform', async () => {
     const state = await mountWith(ref(null))
     await flushPromises()
 
-    expect(state.loading.value).toBe(false)
-    expect(state.cutoffs.value).toEqual([])
+    expect(state.loading).toBe(false)
+    expect(state.cutoffs).toEqual([])
     expect(apiFetch).not.toHaveBeenCalled()
   })
 })

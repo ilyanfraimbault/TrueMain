@@ -35,5 +35,6 @@ export function useApexCutoffs(
 
   const loading = computed(() => platform.value !== null && status.value !== 'success' && status.value !== 'error')
 
-  return { cutoffs: data, loading }
+  // One reactive object, so a template reads `apexCutoffs.cutoffs` unwrapped.
+  return reactive({ cutoffs: data, loading })
 }

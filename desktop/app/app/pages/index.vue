@@ -34,7 +34,7 @@ const flex = computed(() => record.value?.ranked.find(queue => queue.queueType =
 const lpMoves = computed(() => latestLpMoves(loadedGames.value, rankHistory.value))
 const rankCurve = computed(() => dailyStandings(rankHistory.value))
 // The region's GM / Challenger lines on the LP curve, from TrueMain (#2174).
-const { cutoffs: apexCutoffs, loading: apexCutoffsLoading } = useApexCutoffs(() => record.value?.platformId)
+const apexCutoffs = useApexCutoffs(() => record.value?.platformId)
 const nameTag = computed(() => state.value.riotId?.replace('#', '-') ?? '')
 const historyGames = computed(() => gamesIn(loadedGames.value, filter.value))
 const filterLabel = computed(() => QUEUE_FILTERS.find(option => option.value === filter.value)?.label ?? 'All')
@@ -147,7 +147,7 @@ watch(() => state.value.phase, (next, previous) => {
 
         <template #aside>
           <ProfileRankedCardSkeleton v-if="pending" />
-          <ProfileRankedCard v-else :ranked="ranked" :history="rankCurve" :history-loading="apexCutoffsLoading" :cutoffs="apexCutoffs">
+          <ProfileRankedCard v-else :ranked="ranked" :history="rankCurve" :history-loading="apexCutoffs.loading" :cutoffs="apexCutoffs.cutoffs">
             <template #standing>
               <DashboardFlexStanding :queue="flex" />
             </template>

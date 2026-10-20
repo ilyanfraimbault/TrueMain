@@ -19,7 +19,7 @@ watch(nameTag, () => (page.value = 1))
 
 const { data: profile, isInitialLoading: profileLoading, notFound: profileNotFound } = useTruemainProfile(nameTag)
 const { data: rankHistory, isInitialLoading: rankHistoryLoading } = useTruemainRankHistory(nameTag)
-const { cutoffs: apexCutoffs, loading: apexCutoffsLoading } = useApexCutoffs(() => profile.value?.identity.platformId)
+const apexCutoffs = useApexCutoffs(() => profile.value?.identity.platformId)
 const { data: activity, isInitialLoading: activityLoading } = useTruemainActivity(nameTag)
 const { matches, total, pageSize, isInitialLoading: matchesLoading, notFound: matchesNotFound } = useTruemainMatches(nameTag, page, { pageSize: 20 })
 
@@ -99,8 +99,8 @@ const identity = computed(() => profile.value?.identity ?? { gameName: truemainS
           v-else
           :ranked="profile.ranked"
           :history="rankHistory?.entries ?? []"
-          :history-loading="rankHistoryLoading || apexCutoffsLoading"
-          :cutoffs="apexCutoffs"
+          :history-loading="rankHistoryLoading || apexCutoffs.loading"
+          :cutoffs="apexCutoffs.cutoffs"
         />
         <ProfileActivityHeatmap
           v-if="profile"
