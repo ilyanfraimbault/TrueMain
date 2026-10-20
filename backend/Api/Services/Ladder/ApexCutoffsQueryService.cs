@@ -39,20 +39,53 @@ public sealed class ApexCutoffsQueryService(TrueMainDbContext db, IMemoryCache c
         var rows = await db.ApexCutoffSnapshots
             .AsNoTracking()
             .Where(s => s.PlatformId == platform.Value && s.CapturedOnUtc >= fromDay)
-            .Select(s => new { s.CapturedOnUtc, s.Tier, s.MinLeaguePoints })
+            .Select(s => new CutoffRow(s.CapturedOnUtc, s.Tier, s.MinLeaguePoints, s.IsEstimated))
             .ToListAsync(ct);
 
-        var entries = rows
-            .GroupBy(row => row.CapturedOnUtc)
-            .OrderBy(day => day.Key)
+        var grandmaster = Smoothed(rows.Where(row => row.Tier == RankTier.Grandmaster));
+        var challenger = Smoothed(rows.Where(row => row.Tier == RankTier.Challenger));
+
+        var entries = grandmaster.Keys
+            .Union(challenger.Keys)
+            .Order()
             .Select(day => new ApexCutoffReadModel
             {
-                DateUtc = day.Key,
-                GrandmasterMinLp = day.FirstOrDefault(row => row.Tier == RankTier.Grandmaster)?.MinLeaguePoints,
-                ChallengerMinLp = day.FirstOrDefault(row => row.Tier == RankTier.Challenger)?.MinLeaguePoints,
+                DateUtc = day,
+                GrandmasterMinLp = grandmaster.TryGetValue(day, out var gm) ? gm : null,
+                ChallengerMinLp = challenger.TryGetValue(day, out var ch) ? ch : null,
             })
             .ToList();
 
         return cache.Store(key, new ApexCutoffsReadModel { Entries = entries }, Ttl);
     }
+
+    /// <summary>
+    /// One tier's cutoff per day. A measured day is served as read; an estimated one (#2181) is
+    /// the median of itself and the neighbouring days on either side, so a single day whose
+    /// tracked sample happened to miss the league's last players — or caught one intraday,
+    /// before Riot's daily demotion — does not kink the line.
+    /// </summary>
+    internal static Dictionary<DateOnly, int> Smoothed(IEnumerable<CutoffRow> rows)
+    {
+        var byDay = rows.ToDictionary(row => row.Day);
+        return byDay.Values.ToDictionary(
+            row => row.Day,
+            row =>
+            {
+                if (!row.IsEstimated)
+                {
+                    return row.MinLeaguePoints;
+                }
+
+                var window = new[] { row.Day.AddDays(-1), row.Day, row.Day.AddDays(1) }
+                    .Where(byDay.ContainsKey)
+                    .Select(day => byDay[day].MinLeaguePoints)
+                    .Order()
+                    .ToList();
+                // The lower middle at the window's edge: an estimate errs high, never low.
+                return window[(window.Count - 1) / 2];
+            });
+    }
+
+    internal sealed record CutoffRow(DateOnly Day, RankTier Tier, int MinLeaguePoints, bool IsEstimated);
 }

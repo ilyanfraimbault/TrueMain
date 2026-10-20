@@ -41,6 +41,11 @@ namespace Data.Migrations
                     b.Property<int>("EntryCount")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsEstimated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("MinLeaguePoints")
                         .HasColumnType("integer");
 

@@ -22,7 +22,7 @@ namespace Data.CompiledModels
                 "Data.Entities.ApexCutoffSnapshot",
                 typeof(ApexCutoffSnapshot),
                 baseEntityType,
-                propertyCount: 6,
+                propertyCount: 7,
                 keyCount: 1);
 
             var platformId = runtimeEntityType.AddProperty(
@@ -61,6 +61,16 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(ApexCutoffSnapshot).GetField("<EntryCount>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             entryCount.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var isEstimated = runtimeEntityType.AddProperty(
+                "IsEstimated",
+                typeof(bool),
+                propertyInfo: typeof(ApexCutoffSnapshot).GetProperty("IsEstimated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ApexCutoffSnapshot).GetField("<IsEstimated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            isEstimated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            isEstimated.AddAnnotation("Relational:DefaultValue", false);
 
             var minLeaguePoints = runtimeEntityType.AddProperty(
                 "MinLeaguePoints",

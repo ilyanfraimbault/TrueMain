@@ -115,7 +115,7 @@ const scenarios: Scenario[] = [
   scenario(
     'partial',
     'Cutoffs measured recently',
-    'Master → Grandmaster, cutoffs only known for the last 40%: before that, the colour follows the snapshot tier.',
+    'Master → Grandmaster, cutoffs only known for the last 40%: before that, each snapshot takes the nearest cutoff for its band.',
     50,
     (t, i) => 2900 + 520 * t + wobble(i, 14),
     euwCutoffs,
