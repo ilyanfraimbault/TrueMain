@@ -16,6 +16,7 @@
 -->
 <script setup lang="ts">
 import { iconPlaceholderClass, isIconUnresolved } from '#common/utils/icon-placeholder'
+import { ICON_REMOUNT_KEY, isIconRepaint, markIconPainted } from '#common/utils/icon-repaint'
 
 defineOptions({ inheritAttrs: false })
 
@@ -46,6 +47,12 @@ const reservedStyle = computed(() => {
 })
 
 watch(() => props.src, () => (failed.value = false))
+
+// Re-created under the pointer by its tooltip's first hover (utils/icon-repaint.ts):
+// decoded synchronously, or WKWebView paints the skeleton behind it for a frame.
+// No `load` here to mark a source painted (see above), so mounting does.
+const repaint = isIconRepaint(inject(ICON_REMOUNT_KEY, null)?.value === true, props.src)
+onMounted(() => markIconPainted(props.src))
 </script>
 
 <template>
@@ -64,6 +71,7 @@ watch(() => props.src, () => (failed.value = false))
       />
       <img
         v-if="src && !failed"
+        :decoding="repaint ? 'sync' : undefined"
         :src="src"
         :alt="alt"
         :title="title"
