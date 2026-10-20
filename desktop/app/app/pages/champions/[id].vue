@@ -60,8 +60,8 @@ const { data: trend, pending: trendPending } = useChampionTrend(championId, lane
         </template>
         <template #actions>
           <FavoriteToggle
-            :pick="{ kind: 'champion', championId, position: lane }"
-            :pick-label="[nameOf(championId), positionLabel(lane)].filter(Boolean).join(' ')"
+            :champion="{ championId, position: lane }"
+            :champion-label="[nameOf(championId), positionLabel(lane)].filter(Boolean).join(' ')"
           />
         </template>
       </ChampionHero>

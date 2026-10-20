@@ -1,14 +1,12 @@
 <script setup lang="ts">
 // Followed truemains + their latest games (#531), then the starred champions
-// and matchups (#2080), as the site and the desktop app both render it (#1732).
+// (#2080), as the site and the desktop app both render it (#1732).
 // The lists are local to the device (localStorage) until Riot SSO lands, so the
 // page must not claim "no favorites" before storage has been read.
 //
 // A host with favorites of its own kind (the app's clips) puts them in the
 // `extra` slot and counts them in `extraCount`, so the empty state only shows
 // when there is nothing at all. They are the host's to clear, not this page's.
-import type { FavoriteChampion, FavoriteMatchup } from '#common/utils/favorites'
-
 const props = withDefaults(defineProps<{
   extraCount?: number
 }>(), {
@@ -18,17 +16,15 @@ const props = withDefaults(defineProps<{
 const MATCHES_PER_FAVORITE = 3
 
 const { favorites, count: playerCount, hydrated: playersHydrated, clear: clearPlayers } = useFavoriteTruemains()
-const { picks, picksHydrated, clearPicks } = useFavoritePicks()
+const { champions: favoriteChampions, championsHydrated, clearChampions } = useFavoriteChampions()
 
-const hydrated = computed(() => playersHydrated.value && picksHydrated.value)
-const championPicks = computed(() => picks.value.filter((pick): pick is FavoriteChampion => pick.kind === 'champion'))
-const matchupPicks = computed(() => picks.value.filter((pick): pick is FavoriteMatchup => pick.kind === 'matchup'))
-/** What "Clear all" clears: the players and the picks, never the host's own. */
-const count = computed(() => playerCount.value + picks.value.length)
+const hydrated = computed(() => playersHydrated.value && championsHydrated.value)
+/** What "Clear all" clears: the players and the champions, never the host's own. */
+const count = computed(() => playerCount.value + favoriteChampions.value.length)
 
 function clear() {
   clearPlayers()
-  clearPicks()
+  clearChampions()
 }
 
 const breadcrumbItems = [
@@ -136,7 +132,7 @@ const runeTree = computed(() => runeTreeData.value ?? null)
       v-else-if="count === 0 && props.extraCount === 0"
       icon="i-lucide-star"
       title="No favorites yet"
-      description="Follow a player, or star a champion or a matchup from its page, and it shows up here."
+      description="Follow a player, or star a champion from its page, and it shows up here."
       :actions="[
         { to: '/truemains', color: 'primary', variant: 'soft', icon: 'i-lucide-trophy', label: 'Browse the leaderboard' },
         { to: '/champions', color: 'neutral', variant: 'ghost', icon: 'i-lucide-swords', label: 'Browse champions' },
@@ -161,29 +157,15 @@ const runeTree = computed(() => runeTreeData.value ?? null)
         />
       </section>
 
-      <section v-if="championPicks.length > 0" class="space-y-3" aria-labelledby="favorites-champions">
+      <section v-if="favoriteChampions.length > 0" class="space-y-3" aria-labelledby="favorites-champions">
         <h2 id="favorites-champions" class="eyebrow">
           Champions
         </h2>
         <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <FavoritesPickRow
-            v-for="pick in championPicks"
-            :key="`${pick.championId}:${pick.position}`"
-            :pick="pick"
-            :champions-by-id="championsById"
-          />
-        </div>
-      </section>
-
-      <section v-if="matchupPicks.length > 0" class="space-y-3" aria-labelledby="favorites-matchups">
-        <h2 id="favorites-matchups" class="eyebrow">
-          Matchups
-        </h2>
-        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <FavoritesPickRow
-            v-for="pick in matchupPicks"
-            :key="`${pick.championId}:${pick.opponentChampionId}:${pick.position}`"
-            :pick="pick"
+          <FavoritesChampionRow
+            v-for="favorite in favoriteChampions"
+            :key="`${favorite.championId}:${favorite.position}`"
+            :favorite="favorite"
             :champions-by-id="championsById"
           />
         </div>

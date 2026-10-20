@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import type { RegionSlug } from '#shared/types/leaderboard'
-import type { FavoritePickInput } from '#common/utils/favorites'
-import { FAVORITE_PICKS_LIMIT_PER_KIND, FAVORITES_LIMIT, favoriteNameTag } from '#common/utils/favorites'
+import type { FavoriteChampionInput } from '#common/utils/favorites'
+import { FAVORITE_CHAMPIONS_LIMIT, FAVORITES_LIMIT, favoriteNameTag } from '#common/utils/favorites'
 
 // Follow / unfollow a truemain (#531) — the leaderboard rows and the player
-// profile — or star / unstar a champion or a matchup (#2080) when `pick` is
-// given. The lists live in `localStorage` behind `useFavoriteTruemains` and
-// `useFavoritePicks`.
+// profile — or star / unstar a champion on a position (#2080) when `champion`
+// is given. The lists live in `localStorage` behind `useFavoriteTruemains` and
+// `useFavoriteChampions`.
 const props = withDefaults(defineProps<{
   gameName?: string
   tagLine?: string | null
@@ -14,24 +14,24 @@ const props = withDefaults(defineProps<{
   region?: RegionSlug | null
   /** Profile icon id, so the favorites view can draw an avatar before its own fetch lands. */
   profileIconId?: number | null
-  /** A champion or a matchup to star instead of a player. */
-  pick?: FavoritePickInput | null
-  /** How the pick reads in the button's label: `Ahri`, `Ahri vs Zed`. */
-  pickLabel?: string
+  /** A champion on a position to star instead of a player. */
+  champion?: FavoriteChampionInput | null
+  /** How the champion reads in the button's label: `Ahri Middle`. */
+  championLabel?: string
 }>(), {
   gameName: '',
   tagLine: null,
   region: null,
   profileIconId: null,
-  pick: null,
-  pickLabel: '',
+  champion: null,
+  championLabel: '',
 })
 
 const { isFavorite, toggle, atLimit } = useFavoriteTruemains()
-const { isFavoritePick, isPickKindFull, togglePick } = useFavoritePicks()
+const { isFavoriteChampion, championsFull, toggleChampion } = useFavoriteChampions()
 
 const nameTag = computed(() => favoriteNameTag(props.gameName, props.tagLine))
-const subject = computed(() => props.pick ? (props.pickLabel || 'this page') : nameTag.value)
+const subject = computed(() => props.champion ? (props.championLabel || 'this champion') : nameTag.value)
 
 /**
  * Hydration guard, scoped to this component instance.
@@ -60,7 +60,7 @@ onMounted(() => {
 })
 
 const active = computed(() => mounted.value
-  && (props.pick ? isFavoritePick(props.pick) : isFavorite(nameTag.value)))
+  && (props.champion ? isFavoriteChampion(props.champion) : isFavorite(nameTag.value)))
 
 // The store itself evicts the oldest entry past the cap (one cap policy, shared
 // by reads and writes — see `add`). Declining the click here layers a courtesy
@@ -68,22 +68,22 @@ const active = computed(() => mounted.value
 // followed earlier. Removing is always allowed. Mount-gated like `active`,
 // since the cap is a property of the stored list.
 const isFull = computed(() => mounted.value && !active.value
-  && (props.pick ? isPickKindFull(props.pick.kind) : atLimit.value))
+  && (props.champion ? championsFull.value : atLimit.value))
 
 const title = computed(() => {
   if (isFull.value) {
-    const limit = props.pick ? FAVORITE_PICKS_LIMIT_PER_KIND : FAVORITES_LIMIT
+    const limit = props.champion ? FAVORITE_CHAMPIONS_LIMIT : FAVORITES_LIMIT
     return `Favorites are full (${limit}) — remove one first`
   }
-  // A player is followed; a page is starred.
-  if (props.pick) return active.value ? `Remove ${subject.value} from favorites` : `Add ${subject.value} to favorites`
+  // A player is followed; a champion is starred.
+  if (props.champion) return active.value ? `Remove ${subject.value} from favorites` : `Add ${subject.value} to favorites`
   return active.value ? `Unfollow ${subject.value}` : `Follow ${subject.value}`
 })
 
 function onClick() {
   if (isFull.value) return
-  if (props.pick) {
-    togglePick(props.pick)
+  if (props.champion) {
+    toggleChampion(props.champion)
     return
   }
   toggle({

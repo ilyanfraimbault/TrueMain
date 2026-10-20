@@ -88,19 +88,6 @@ const { isLoading, error, staleError, recommendation, shownDraftRequest, retryDr
 // rune / spell maps it needs at the recommendation's patch.
 const gamesDrawerOpen = ref(false)
 
-// The header's star (#2080): the matchup itself — champion, opponent, position.
-const favoritePick = computed(() =>
-  playedChampionId.value !== null && opponentChampionId.value !== null && playedPosition.value !== null
-    ? {
-        kind: 'matchup' as const,
-        championId: playedChampionId.value,
-        opponentChampionId: opponentChampionId.value,
-        position: playedPosition.value,
-      }
-    : null)
-const favoritePickLabel = computed(() =>
-  `${playedChampion.value?.name ?? 'this champion'} vs ${opponentChampion.value?.name ?? 'this opponent'}`)
-
 const isDraftReady = computed(() => playedChampionId.value !== null && playedPosition.value !== null)
 
 function resetContext() {
@@ -126,11 +113,7 @@ function setEnemy(position: ChampionPosition, championId: number | null) {
     <PageHeader
       eyebrow="Draft tools"
       title="Matchup"
-    >
-      <template #actions>
-        <FavoriteToggle v-if="favoritePick" :pick="favoritePick" :pick-label="favoritePickLabel" />
-      </template>
-    </PageHeader>
+    />
 
     <FetchErrorAlert
       :error="staticError"
