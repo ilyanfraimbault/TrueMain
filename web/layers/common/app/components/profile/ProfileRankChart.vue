@@ -114,6 +114,8 @@ const hoveredDot = computed(() => {
         v-if="width && points.length"
         :width="width"
         :height="HEIGHT"
+        role="img"
+        aria-label="Rank over time"
         class="overflow-visible"
         @mousemove="hover"
         @mouseleave="hovered = null"

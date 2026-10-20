@@ -49,7 +49,7 @@ describe('ProfileRankChart', () => {
 
     const clips = wrapper.findAll('clipPath')
     expect(clips.length).toBeGreaterThanOrEqual(3)
-    expect(wrapper.findAll('g[clip-path] path[stroke]').length).toBe(clips.length)
+    expect(wrapper.findAll('g[clip-path] path[stroke]')).toHaveLength(clips.length)
     // Master's floor and the Grandmaster cutoff; Diamond's floor sits below the range.
     expect(wrapper.findAll('path[stroke-dasharray]').map(path => path.attributes('stroke'))).toEqual(['#f0abfc', '#fca5a5'])
     expect(wrapper.text()).not.toContain('LP')

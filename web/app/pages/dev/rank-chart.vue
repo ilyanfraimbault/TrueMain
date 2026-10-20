@@ -24,7 +24,9 @@ function entryOf(at: number, score: number, cutoffs: Cutoffs): RankHistoryEntry 
   const rounded = Math.round(score)
   if (rounded >= MASTER_FLOOR) {
     const lp = rounded - MASTER_FLOOR
-    const tier = lp >= cutoffs.ch ? 'CHALLENGER' : lp >= cutoffs.gm ? 'GRANDMASTER' : 'MASTER'
+    let tier = 'MASTER'
+    if (lp >= cutoffs.ch) tier = 'CHALLENGER'
+    else if (lp >= cutoffs.gm) tier = 'GRANDMASTER'
     return { capturedAtUtc, tier, division: 'I', leaguePoints: lp }
   }
   const clamped = Math.max(0, rounded)
