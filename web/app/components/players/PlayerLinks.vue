@@ -5,6 +5,9 @@ import type { PersonaLink, PersonaLinkKind } from '~~/shared/types/players'
 // buttons carrying the brand's coloured logo and no label — the logo says which
 // platform; the name stays in the tooltip and the accessible label. The other
 // kinds the intake stores (wikis, stat sites, smaller platforms) are not shown.
+// One button per platform (#2177): two identical logos would tell the viewer
+// nothing, and a source often lists one channel twice (old and new URL forms,
+// a renamed account). The API sorts each kind newest first, so the first wins.
 // The order is the API's (by kind), so a page never reshuffles.
 const props = defineProps<{ links: PersonaLink[] }>()
 
@@ -16,10 +19,15 @@ const SHOWN: Partial<Record<PersonaLinkKind, { label: string, icon: string, colo
   x: { label: 'X', icon: 'i-simple-icons-x', color: 'text-highlighted' },
 }
 
-const shown = computed(() => props.links.flatMap((link) => {
-  const kind = SHOWN[link.kind]
-  return kind ? [{ ...kind, url: link.url }] : []
-}))
+const shown = computed(() => {
+  const firstOfKind = new Map<PersonaLinkKind, string>()
+  for (const link of props.links) {
+    if (SHOWN[link.kind] && !firstOfKind.has(link.kind)) {
+      firstOfKind.set(link.kind, link.url)
+    }
+  }
+  return [...firstOfKind].map(([kind, url]) => ({ ...SHOWN[kind]!, url }))
+})
 </script>
 
 <template>
