@@ -80,6 +80,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
       Database__ApplyMigrationsOnStartup: "true"
+      Riot__ApiKey: ${RIOT_API_KEY}
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=22;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       MongoLogging__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin

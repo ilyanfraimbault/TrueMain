@@ -129,6 +129,20 @@ const splashOf = useCanonicalSplash()
 const { truemainChampion, identity: heroIdentity } = useTruemainBanner(profile, champions, playerLabel)
 const splashUrl = computed(() => splashOf(championSplashUrlFromIcon(truemainChampion.value?.iconUrl)))
 
+// History or Live (#2103), in the URL so a link can open on the live game. The
+// Live tab is mounted only while it is selected: Riot is asked when it opens.
+const PROFILE_TABS = [
+  { label: 'Match history', value: 'history', icon: 'i-lucide-history' },
+  { label: 'Live', value: 'live', icon: 'i-lucide-radio' },
+]
+const router = useRouter()
+const activeTab = computed({
+  get: () => (route.query.tab === 'live' ? 'live' : 'history'),
+  set: (tab: string | number) => {
+    void router.replace({ query: { ...route.query, tab: tab === 'live' ? 'live' : undefined } })
+  },
+})
+
 const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterChampionId.value))
 
 // A client-side navigation keeps the outgoing page under the loading bar until
@@ -201,10 +215,24 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
       </template>
 
       <template #history>
-        <h2 class="text-xs font-semibold uppercase tracking-wide text-muted">
-          Match history
-        </h2>
+        <UTabs
+          v-model="activeTab"
+          :items="PROFILE_TABS"
+          :content="false"
+          variant="link"
+          color="primary"
+          size="sm"
+          class="w-full"
+        />
+        <LiveGame
+          v-if="activeTab === 'live'"
+          :name-tag="nameTag"
+          :champions="champions"
+          :summoner-spells="summonerSpells"
+          :rune-tree="runeTree"
+        />
         <MatchHistoryList
+          v-else
           :page="currentMatchesPage"
           :matches="matches"
           :loading="matchesInitialLoading"

@@ -39,6 +39,7 @@ using TrueMain.Services.Ops.Stats;
 using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
+using TrueMain.Services.Truemains.Live;
 using TrueMain.Services.Truemains.Lookup;
 using TrueMain.Services.Truemains.Matches;
 using TrueMain.Services.Truemains.PlayerChampions;
@@ -274,7 +275,7 @@ builder.Services.AddOptions<DatabaseOptions>()
     .ValidateOnStart();
 
 builder.Services.AddTrueMainOpsAuthentication();
-
+builder.Services.AddTrueMainLiveGames(builder.Configuration);
 builder.Services.AddTrueMainRateLimiting(builder.Configuration);
 builder.Services.AddTrueMainLogIngest(builder.Configuration);
 builder.Services.AddTrueMainDesktopTelemetry();
@@ -334,8 +335,7 @@ builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQuerySer
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
-// The single name-tag -> account lookup shared by every player-scoped route
-// (#1230), so they cannot disagree on which account a Riot ID means.
+// One name-tag -> account lookup for every player-scoped route, so they agree on a Riot ID (#1230).
 builder.Services.AddScoped<TruemainAccountResolver>();
 // Shared by the truemain match feed and the composition provenance drawer (#940),
 // so a game renders as the same row on both.

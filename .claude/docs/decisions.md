@@ -321,6 +321,7 @@ Last verified against `develop` on 2026-09-02.
 - Analytics stay inside the CNIL consent exemption: no session replay, an opt-out on `/privacy` — no consent banner (2026-10-18); since 2026-10-19 a random anonymous visitor id, 13 months from creation and never extended, counts returning visitors across months (data retention: #2092) — #2089, #2149
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
+- Live games read spectator-v5 on the current key, on demand only (30 s cache per player, DB ranks before league-v4) — not blocked on the production approval (corrected 2026-10-20) — #2103, #532
 - Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
 - The edge Caddy sets the security response headers the app frameworks did not (HSTS, CSP per vhost, X-Frame-Options, nosniff, Referrer/Permissions-Policy); preprod carries the non-CSP subset — 2026-09-24
 - The API port is published on loopback only (not `0.0.0.0`), and pgAdmin was removed from every stack — 2026-09-24
