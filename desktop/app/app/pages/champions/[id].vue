@@ -58,6 +58,12 @@ const { data: trend, pending: trendPending } = useChampionTrend(championId, lane
         <template v-if="lanes.length" #lane>
           <RolePicker v-model:position="lane" hide-all />
         </template>
+        <template #actions>
+          <FavoriteToggle
+            :pick="{ kind: 'champion', championId, position: lane }"
+            :pick-label="[nameOf(championId), positionLabel(lane)].filter(Boolean).join(' ')"
+          />
+        </template>
       </ChampionHero>
     </div>
 

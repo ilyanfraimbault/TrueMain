@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import type { FavoritePickInput } from '#common/utils/favorites'
+import { POSITION_BY_VALUE, isChampionPosition } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 
 // Layout plus wiring: the fetching and derivation live in composables
@@ -94,6 +95,15 @@ const splashUrl = useChampionSplash(displayIconUrl)
 
 const { seoDisplayName } = await useChampionSeoName(championId, selectedPatch, displayName)
 const seoPositionLabel = computed(() => POSITION_BY_VALUE.get(trendPosition.value ?? '')?.label)
+
+// The banner's star (#2080): this champion on the position the page shows.
+const favoritePick = computed<FavoritePickInput>(() => ({
+  kind: 'champion',
+  championId: championId.value,
+  position: isChampionPosition(trendPosition.value) ? trendPosition.value : null,
+}))
+const favoritePickLabel = computed(() =>
+  [seoDisplayName.value, seoPositionLabel.value].filter(Boolean).join(' '))
 
 // The build in words (#1123), SSR-enabled and awaited with the champion fetch.
 const buildSummaryFetch = useChampionBuildSummary(championId, filters)
@@ -249,6 +259,7 @@ const snapshots = useChampionPanelSnapshots({
         <!-- Share controls (#926) ride the banner; the degraded states above
              have nothing worth putting in someone's Discord. -->
         <template #actions>
+          <FavoriteToggle :pick="favoritePick" :pick-label="favoritePickLabel" />
           <ShareButtons
             :title="shareTitle"
             :description="shareDescription"

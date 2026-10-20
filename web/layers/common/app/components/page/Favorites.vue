@@ -1,12 +1,35 @@
 <script setup lang="ts">
-// Followed truemains + their latest games (#531), as the site and the desktop
-// app both render it (#1732). The list is local to the device (localStorage)
-// until Riot SSO lands, so the page must not claim "no favorites" before
-// storage has been read.
+// Followed truemains + their latest games (#531), then the starred champions
+// and matchups (#2080), as the site and the desktop app both render it (#1732).
+// The lists are local to the device (localStorage) until Riot SSO lands, so the
+// page must not claim "no favorites" before storage has been read.
+//
+// A host with favorites of its own kind (the app's clips) puts them in the
+// `extra` slot and counts them in `extraCount`, so the empty state only shows
+// when there is nothing at all. They are the host's to clear, not this page's.
+import type { FavoriteChampion, FavoriteMatchup } from '#common/utils/favorites'
+
+const props = withDefaults(defineProps<{
+  extraCount?: number
+}>(), {
+  extraCount: 0,
+})
 
 const MATCHES_PER_FAVORITE = 3
 
-const { favorites, count, hydrated, clear } = useFavoriteTruemains()
+const { favorites, count: playerCount, hydrated: playersHydrated, clear: clearPlayers } = useFavoriteTruemains()
+const { picks, picksHydrated, clearPicks } = useFavoritePicks()
+
+const hydrated = computed(() => playersHydrated.value && picksHydrated.value)
+const championPicks = computed(() => picks.value.filter((pick): pick is FavoriteChampion => pick.kind === 'champion'))
+const matchupPicks = computed(() => picks.value.filter((pick): pick is FavoriteMatchup => pick.kind === 'matchup'))
+/** What "Clear all" clears: the players and the picks, never the host's own. */
+const count = computed(() => playerCount.value + picks.value.length)
+
+function clear() {
+  clearPlayers()
+  clearPicks()
+}
 
 const breadcrumbItems = [
   { label: 'Truemains', to: '/truemains' },
@@ -53,6 +76,7 @@ const latestPatch = computed(() => versions.value?.[0] ?? null)
 
 const { data: championsData } = useChampionStaticList()
 const champions = computed(() => championsData.value ?? [])
+const championsById = useChampionsById(champions)
 
 const { data: itemsData } = useStaticItems(latestPatch)
 const items = computed(() => itemsData.value ?? {})
@@ -74,15 +98,15 @@ const runeTree = computed(() => runeTreeData.value ?? null)
       description="Saved on this device only."
     >
       <div v-if="hydrated && count > 0" class="flex flex-wrap items-center gap-3">
-        <span class="text-sm text-muted tabular-nums">{{ count }} followed</span>
+        <span class="text-sm text-muted tabular-nums">{{ count }} saved</span>
         <UButton
           size="xs"
           :color="clearArmed ? 'error' : 'neutral'"
           :variant="clearArmed ? 'soft' : 'ghost'"
           icon="i-lucide-trash-2"
-          :label="clearArmed ? `Unfollow all ${count}?` : 'Clear all'"
+          :label="clearArmed ? `Remove all ${count}?` : 'Clear all'"
           :aria-label="clearArmed
-            ? `Confirm unfollowing all ${count} players`
+            ? `Confirm removing all ${count} favorites`
             : `Clear all ${count} favorites`"
           @click="onClearClick"
           @blur="disarmClear"
@@ -109,31 +133,63 @@ const runeTree = computed(() => runeTreeData.value ?? null)
     </div>
 
     <UEmpty
-      v-else-if="favorites.length === 0"
+      v-else-if="count === 0 && props.extraCount === 0"
       icon="i-lucide-star"
       title="No favorites yet"
-      description="Follow a player from the leaderboard or their profile and their latest games show up here."
-      :actions="[{
-        to: '/truemains',
-        color: 'primary',
-        variant: 'soft',
-        icon: 'i-lucide-trophy',
-        label: 'Browse the leaderboard',
-      }]"
+      description="Follow a player, or star a champion or a matchup from its page, and it shows up here."
+      :actions="[
+        { to: '/truemains', color: 'primary', variant: 'soft', icon: 'i-lucide-trophy', label: 'Browse the leaderboard' },
+        { to: '/champions', color: 'neutral', variant: 'ghost', icon: 'i-lucide-swords', label: 'Browse champions' },
+      ]"
     />
 
-    <div v-else class="space-y-4">
-      <FavoritesPlayerCard
-        v-for="favorite in favorites"
-        :key="favorite.nameTag"
-        :favorite="favorite"
-        :champions="champions"
-        :items="items"
-        :summoner-spells="summonerSpells"
-        :rune-tree="runeTree"
-        :patch="latestPatch"
-        :match-count="MATCHES_PER_FAVORITE"
-      />
-    </div>
+    <template v-else>
+      <section v-if="favorites.length > 0" class="space-y-3" aria-labelledby="favorites-players">
+        <h2 id="favorites-players" class="eyebrow">
+          Players
+        </h2>
+        <FavoritesPlayerCard
+          v-for="favorite in favorites"
+          :key="favorite.nameTag"
+          :favorite="favorite"
+          :champions="champions"
+          :items="items"
+          :summoner-spells="summonerSpells"
+          :rune-tree="runeTree"
+          :patch="latestPatch"
+          :match-count="MATCHES_PER_FAVORITE"
+        />
+      </section>
+
+      <section v-if="championPicks.length > 0" class="space-y-3" aria-labelledby="favorites-champions">
+        <h2 id="favorites-champions" class="eyebrow">
+          Champions
+        </h2>
+        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <FavoritesPickRow
+            v-for="pick in championPicks"
+            :key="`${pick.championId}:${pick.position}`"
+            :pick="pick"
+            :champions-by-id="championsById"
+          />
+        </div>
+      </section>
+
+      <section v-if="matchupPicks.length > 0" class="space-y-3" aria-labelledby="favorites-matchups">
+        <h2 id="favorites-matchups" class="eyebrow">
+          Matchups
+        </h2>
+        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <FavoritesPickRow
+            v-for="pick in matchupPicks"
+            :key="`${pick.championId}:${pick.opponentChampionId}:${pick.position}`"
+            :pick="pick"
+            :champions-by-id="championsById"
+          />
+        </div>
+      </section>
+
+      <slot name="extra" />
+    </template>
   </div>
 </template>

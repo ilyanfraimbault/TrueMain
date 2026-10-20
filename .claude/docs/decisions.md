@@ -175,6 +175,7 @@ Last verified against `develop` on 2026-09-02.
 - Backend calls go through `useApi` / `useApiFetch`, not a bare `$fetch('/api/…')` (2026-09-17) — #1619, #1557
 - The three text pages are cached at runtime (`swr`), never prerendered — a prerendered page freezes the build's runtime config (2026-09-18) — #1617
 - A page awaits its API data in setup; a loading bar under the header covers the wait, only statics keep a skeleton (2026-09-23) — #1689
+- Starred champions and matchups live under their own key next to the untouched player list, not in a v2 of it; a clip's favourite stays the library's flag (2026-10-20) — #2080
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 

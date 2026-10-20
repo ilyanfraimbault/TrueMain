@@ -587,3 +587,26 @@ and counts were written by hand in ~30 places, and a missing champion name was `
   `useChampionsById`, never a linear `find`.
 - **Positions** — `utils/positions.ts` holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
   names (`positionLabel`; `short` gives the app's `Mid` / `Bot`) and the icons (`getPositionIconUrl`).
+
+## Favorites beyond players: a key per shape, the clip flag stays the library's (2026-10-20)
+
+Favorites followed players only (`truemain:favorites:v1`, an array of players, #531). #2080 adds champions (with
+their position), matchups (champion, role opponent, position) and, in the app, clips.
+
+- **Champions and matchups go under a key of their own, `truemain:favorite-picks:v1`** (a tagged array, `kind:
+  'champion' | 'matchup'`), and the player list keeps its key and shape. A `v2` holding every kind would have to
+  migrate `v1`, and every shipped build — an open tab during a deploy, an app not yet updated — reads `v1` as
+  players and rewrites it whole on the next follow: the new records would read as unusable and be written away.
+  A separate key needs no migration; a build that does not know it never touches it.
+- **Same rules as the player list**: `localStorage` only (no account sync before RSO), versioned key, every
+  stored record untrusted on read (`resolveFavoritePick` is the one notion of a valid entry for reads and writes),
+  newest first, de-duplicated (a champion once per position, a matchup once per triple), **capped at 30 per kind**;
+  the toggle declines a click past the cap rather than evict. No fetch per row: a row is drawn from the static
+  champion list.
+- **A clip's favourite is the recording library's flag** (#1755), already persisted by the shell and set from the
+  clip's player and its Recordings card; the Favorites page reads it (`FavoritesClips`, through the shared page's
+  `extra` slot) instead of keeping a copy that would drift from it. "Clear all" therefore clears players and
+  picks, never clips.
+- **One star**: `FavoriteStar.vue` draws every star (filled when on), so the players, picks and clips on the page
+  read the same.
+

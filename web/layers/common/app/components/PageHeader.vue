@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Shared page-level heading: rose eyebrow + display title (+ optional
-// description), with a default slot below for filter strips. Keeps the
+// description), with a default slot below for filter strips and an `actions`
+// slot on the title's line (the matchup's favorite star, #2080). Keeps the
 // champions / truemains headers in lockstep instead of duplicating the
 // eyebrow markup per page.
 defineProps<{
@@ -16,9 +17,12 @@ defineProps<{
       <p class="eyebrow">
         {{ eyebrow }}
       </p>
-      <h1 class="text-2xl font-semibold tracking-tight text-highlighted text-balance sm:text-3xl">
-        {{ title }}
-      </h1>
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-semibold tracking-tight text-highlighted text-balance sm:text-3xl">
+          {{ title }}
+        </h1>
+        <slot name="actions" />
+      </div>
       <p
         v-if="description"
         class="text-sm text-muted"
