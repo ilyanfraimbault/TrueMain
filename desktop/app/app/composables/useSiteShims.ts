@@ -1,6 +1,7 @@
 import type { MatchDetailResponse } from '#shared/types/match-detail'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import type { WinProbabilityTimeline } from '#shared/types/win-probability'
+import { gradeDetail } from '~/utils/match-summary'
 
 /**
  * The app's side of the composables the twinned site components call, so the
@@ -57,7 +58,7 @@ async function readTruemainDetail(nameTag: string, platformId: string | null, ma
 async function readClientDetail(matchId: string): Promise<MatchDetailResponse | null> {
   if (insideTauri()) {
     const { invoke } = await import('@tauri-apps/api/core')
-    return await invoke<MatchDetailResponse>('player_game', { gameId: Number(matchId) })
+    return gradeDetail(await invoke<MatchDetailResponse>('player_game', { gameId: Number(matchId) }))
   }
   if (import.meta.dev) {
     const fixtures = await import('~/fixtures/match-details.json')
@@ -65,7 +66,7 @@ async function readClientDetail(matchId: string): Promise<MatchDetailResponse | 
     if (!detail) return null
     // The shared model's fixture game stands in for every game's timeline, so the curve shows in dev.
     const { default: winProbability } = await import('#shared/fixtures/win-probability-timeline.json')
-    return { ...detail, winProbabilityTimeline: winProbability.timeline as WinProbabilityTimeline }
+    return gradeDetail({ ...detail, winProbabilityTimeline: winProbability.timeline as WinProbabilityTimeline })
   }
   return null
 }
@@ -76,7 +77,8 @@ async function readClientDetail(matchId: string): Promise<MatchDetailResponse | 
  * game comes first: it alone has the build and skill orders, since the
  * client's timeline carries no purchases and no skill points. A game TrueMain
  * has not ingested falls back to the client's read (`player_game`): the
- * scoreboard, the roles and the lane at fifteen, without those two. In
+ * scoreboard, the roles and the lane at fifteen, without those two, its ten
+ * players graded by the site's model (`gradeDetail`, #2075). In
  * `npm run dev` the dev fixtures stand in for the client.
  *
  * The win-probability curve (#1911) is always built from the client's timeline

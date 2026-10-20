@@ -11,6 +11,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::detail::GameTimeline;
+use crate::marks::{marks_by_participant, TimelineMark};
+
 /// `GET /lol-ranked/v1/current-ranked-stats`, narrowed to its queue list.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -237,6 +240,9 @@ const DURATION_IN_MS_ABOVE: i64 = 100_000;
 #[serde(rename_all = "camelCase")]
 pub struct PlayerGame {
     pub game_id: i64,
+    /// The player's slot in the game, to find them again among `participants`.
+    #[serde(default)]
+    pub participant_id: i64,
     /// When the game started, epoch milliseconds.
     pub played_at: i64,
     pub duration_seconds: i64,
@@ -274,19 +280,34 @@ pub struct PlayerGame {
     /// for this game, never zero.
     pub team_kills: Option<i64>,
     pub team_damage_to_champions: Option<i64>,
-    /// All ten, for the match row's team compositions; empty without the scoreboard.
+    /// All ten, for the match row's team compositions and its performance
+    /// score; empty without the scoreboard.
     pub participants: Vec<GameParticipant>,
 }
 
-/// One participant of a game, as a match row's composition strip shows them.
+/// One participant of a game: who played what, for a match row's composition
+/// strip, and their line of the scoreboard with their standing at the
+/// timeline's marks, which the site's performance score grades (#2075).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct GameParticipant {
+    pub participant_id: i64,
     pub champion_id: i64,
     pub team_id: i64,
     pub position: Option<String>,
     pub game_name: Option<String>,
     pub tag_line: Option<String>,
+    pub win: bool,
+    pub kills: i64,
+    pub deaths: i64,
+    pub assists: i64,
+    /// Lane minions and jungle camps together.
+    pub cs: i64,
+    pub gold_earned: i64,
+    pub damage_to_champions: i64,
+    pub vision_score: i64,
+    /// Ascending; empty when the game's timeline could not be read.
+    pub marks: Vec<TimelineMark>,
 }
 
 impl PlayerGame {
@@ -299,6 +320,7 @@ impl PlayerGame {
 
         Some(Self {
             game_id: game.game_id,
+            participant_id: me.participant_id,
             played_at: game.game_creation,
             duration_seconds,
             queue_id: game.queue_id,
@@ -337,12 +359,6 @@ impl PlayerGame {
         })
     }
 
-    /// The participant id the player had in this game, for finding them again
-    /// in the full scoreboard.
-    pub fn participant_id(game: &HistoryGame) -> Option<i64> {
-        game.participants.first().map(|me| me.participant_id)
-    }
-
     /// Fill in what the game's full scoreboard adds to the player's line.
     pub fn with_scoreboard(mut self, scoreboard: Option<&Scoreboard>) -> Self {
         if let Some(scoreboard) = scoreboard {
@@ -355,7 +371,7 @@ impl PlayerGame {
 }
 
 /// What the player's line needs from a game's full scoreboard: their team's
-/// totals, and who played what on both sides.
+/// totals, and every player's line and marks.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Scoreboard {
     pub team_kills: i64,
@@ -364,9 +380,14 @@ pub struct Scoreboard {
 }
 
 impl Scoreboard {
-    /// Read the scoreboard from the side of `participant_id`. `None` when the
+    /// Read the scoreboard from the side of `participant_id`, with each
+    /// player's marks when the game's timeline was read. `None` when the
     /// player is not in it — a scoreboard for another game, or a truncated one.
-    pub fn of(game: &HistoryGame, participant_id: i64) -> Option<Self> {
+    pub fn of(
+        game: &HistoryGame,
+        participant_id: i64,
+        timeline: Option<&GameTimeline>,
+    ) -> Option<Self> {
         let team = game
             .participants
             .iter()
@@ -380,6 +401,7 @@ impl Scoreboard {
                 .map(|identity| &identity.player)
         };
         let non_empty = |value: &str| Some(value.to_string()).filter(|v| !v.is_empty());
+        let mut marks = timeline.map(marks_by_participant).unwrap_or_default();
 
         Some(Self {
             team_kills: mine.clone().map(|p| p.stats.kills).sum(),
@@ -388,11 +410,21 @@ impl Scoreboard {
                 .participants
                 .iter()
                 .map(|p| GameParticipant {
+                    participant_id: p.participant_id,
                     champion_id: p.champion_id,
                     team_id: p.team_id,
                     position: game.position_of(p).map(str::to_string),
                     game_name: name(p.participant_id).and_then(|n| non_empty(&n.game_name)),
                     tag_line: name(p.participant_id).and_then(|n| non_empty(&n.tag_line)),
+                    win: p.stats.win,
+                    kills: p.stats.kills,
+                    deaths: p.stats.deaths,
+                    assists: p.stats.assists,
+                    cs: p.stats.total_minions_killed + p.stats.neutral_minions_killed,
+                    gold_earned: p.stats.gold_earned,
+                    damage_to_champions: p.stats.total_damage_dealt_to_champions,
+                    vision_score: p.stats.vision_score,
+                    marks: marks.remove(&p.participant_id).unwrap_or_default(),
                 })
                 .collect(),
         })
@@ -526,7 +558,7 @@ mod tests {
               ] }"#,
         )
         .unwrap();
-        let scoreboard = Scoreboard::of(&game, 4).unwrap();
+        let scoreboard = Scoreboard::of(&game, 4, None).unwrap();
         assert_eq!(
             (scoreboard.team_kills, scoreboard.team_damage_to_champions),
             (21, 51000)
@@ -535,7 +567,9 @@ mod tests {
         assert_eq!(scoreboard.participants[1].game_name.as_deref(), Some("Me"));
         assert_eq!(scoreboard.participants[1].position, None);
         assert_eq!(scoreboard.participants[2].game_name, None);
-        assert!(Scoreboard::of(&game, 9).is_none());
+        assert_eq!(scoreboard.participants[1].kills, 9);
+        assert!(scoreboard.participants[1].marks.is_empty());
+        assert!(Scoreboard::of(&game, 9, None).is_none());
     }
 
     #[test]
