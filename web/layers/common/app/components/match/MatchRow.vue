@@ -114,7 +114,8 @@ const result = computed(() => resultTone(self.value.win))
             :champion-by-id="championById"
           />
         </div>
-        <!-- The client's own games (the app's dashboard) carry no score. -->
+        <!-- A game nobody graded (a remake, or a client game whose scoreboard
+             could not be read) carries no score. -->
         <MatchRowPerformance v-if="self.performanceScore" :self="self" />
         <slot name="actions" />
         <UIcon

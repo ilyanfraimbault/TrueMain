@@ -10,15 +10,17 @@
 //!
 //! Serialised in the shape of the site's match-detail payload
 //! (`web/shared/types/match-detail.ts`), so the app draws it with the site's
-//! own detail panel. Only what the client measured is filled in: TrueMain's
-//! performance score, placement and accolades do not exist for these games and
-//! stay at zero, and a player's rank at the time is not in the client's
-//! history.
+//! own detail panel. Only what the client measured is filled in: a player's
+//! rank at the time is not in the client's history. The performance score,
+//! placement and accolades stay at zero here: the app grades the ten players
+//! itself from their lines and their marks (`marks`), with the site's model
+//! (#2075).
 
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::marks::{marks_by_participant, TimelineMark};
 use crate::record::{HistoryGame, HistoryParticipant};
 use crate::win_probability::WinProbabilityTimeline;
 
@@ -141,12 +143,14 @@ pub struct DetailParticipant {
     pub damage_per_min: f64,
     pub gold_per_min: f64,
     pub vision_per_min: f64,
-    /// TrueMain never scored these games: zero, and the app does not show it.
+    /// Zero: the app grades the game itself (#2075).
     pub performance_score: i64,
     pub placement: i64,
     pub is_mvp: bool,
     pub is_ace: bool,
     pub laning15: Option<Laning15>,
+    /// The player at the timeline's canonical marks, ascending; empty without the timeline.
+    pub marks: Vec<TimelineMark>,
     pub first_to_level_two: Option<bool>,
     pub runes: Vec<DetailRune>,
     pub stat_perk_offense: i64,
@@ -203,6 +207,7 @@ impl GameDetail {
         };
         let events = timeline.map(events_by_participant).unwrap_or_default();
         let lane_frames = timeline.and_then(frame_at_laning_minute);
+        let mut marks = timeline.map(marks_by_participant).unwrap_or_default();
 
         let participants = game
             .participants
@@ -272,6 +277,7 @@ impl GameDetail {
                     laning15: opponent.zip(lane_frames).and_then(|(foe, frame)| {
                         laning(frame, p.participant_id, foe.participant_id)
                     }),
+                    marks: marks.remove(&p.participant_id).unwrap_or_default(),
                     first_to_level_two: opponent.and_then(|foe| {
                         let mine = level_two_at(&skill_events)?;
                         let theirs = level_two_at(&events.get(&foe.participant_id)?.1)?;
@@ -498,6 +504,10 @@ mod tests {
             })
         );
         assert_eq!(me.first_to_level_two, Some(true));
+        assert_eq!(
+            me.marks.iter().map(|m| m.minute).collect::<Vec<_>>(),
+            vec![15]
+        );
         assert_eq!(detail.participants[1].laning15, None);
         let reduced = detail.win_probability_timeline.unwrap();
         assert_eq!(reduced.participants.len(), 4);

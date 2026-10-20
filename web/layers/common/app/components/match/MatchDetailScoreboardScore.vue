@@ -3,11 +3,13 @@ import type { MatchDetailParticipant } from '#shared/types/match-detail'
 import { ordinal } from '#common/utils/ordinal'
 
 // A scoreboard player's performance score (#639) and placement. The score,
-// placement and accolades all come from the API — nothing is computed here.
+// placement and accolades come from the API, or on the desktop app from its own
+// port of the model for a game only the client has (#2075) — nothing is
+// computed here.
 // MVP = crown (best of the winning side) in the brand's genuine-gold accent;
-// ACE = rosette (best of the losing side) in the rose `primary`. A game read
-// from the desktop client was never scored (placement 0): the column stays,
-// empty, rather than ranking ten players 0th.
+// ACE = rosette (best of the losing side) in the rose `primary`. A game never
+// graded (placement 0) keeps the column, empty, rather than ranking ten
+// players 0th.
 const props = defineProps<{
   participant: MatchDetailParticipant
 }>()

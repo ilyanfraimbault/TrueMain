@@ -45,7 +45,7 @@ which downstream jobs are worth a runner:
 
 | Output | Paths | Gates |
 | ------ | ----- | ----- |
-| `backend` | `backend/**`, `global.json` | backend build + unit + integration tests, API and Ingestor image builds |
+| `backend` | `backend/**`, `global.json`, `web/shared/fixtures/performance-score-vectors.json` | backend build + unit + integration tests, API and Ingestor image builds — the vectors are linked into the unit tests, which pin the C# score to the desktop app's port (#2075) |
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` | `web/**` | the site's frontend job, its image build |
 | `admin` | `admin/**`, and from the site `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's frontend job, its image build |
