@@ -1078,6 +1078,7 @@ dependencies = [
  "lcu",
  "serde",
  "serde_json",
+ "shell-state",
  "tempfile",
  "thiserror 2.0.20",
  "tracing",

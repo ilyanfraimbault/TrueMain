@@ -1,3 +1,4 @@
+import type { Chord, ChordView } from '~/types/overlay'
 import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 
 /**
@@ -16,6 +17,8 @@ export interface RecordingSettings {
   quality: { resolution: RecordingResolution, frameRate: RecordingFrameRate }
   budgetBytes: number
   folder: string | null
+  /** The chord that marks a moment while a game records (#2079); `null` = marking off. */
+  markKey: Chord | null
 }
 
 export interface RecordingSettingsView {
@@ -25,6 +28,8 @@ export interface RecordingSettingsView {
   minBudgetBytes: number
   /** Estimated size of an hour at each preset, for a 16:9 window at least that tall. `null` for native. */
   estimates: { resolution: RecordingResolution, frameRate: RecordingFrameRate, bytesPerHour: number | null }[]
+  /** The mark key as the player presses it, and what it also does in game; `null` when marking is off. */
+  markKey: ChordView | null
 }
 
 /**
@@ -49,6 +54,8 @@ export interface RecordingStatus {
 export type MomentKind =
   | 'kill' | 'death' | 'assist'
   | 'dragon' | 'elder' | 'baron' | 'herald' | 'grubs' | 'atakhan' | 'tower' | 'inhibitor'
+  /** The player pressed the mark key: its clip is the 30 s before (`MARK_WINDOW_MS`). */
+  | 'marked'
 
 /** One moment on a video's timeline, already mapped onto the video. */
 export interface Moment {
@@ -59,7 +66,7 @@ export interface Moment {
   endVideoMs: number
   /** Kills in a row (1–5) for a kill, 0 otherwise. */
   kills: number
-  /** Objectives only: whether the player's team took it. `null` for kills, deaths, assists. */
+  /** Objectives only: whether the player's team took it. `null` for kills, deaths, assists and marks. */
   ally: boolean | null
 }
 

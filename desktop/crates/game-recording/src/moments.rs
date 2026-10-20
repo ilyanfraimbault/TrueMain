@@ -1,5 +1,6 @@
 //! Everything on a recording's timeline: the player's highlights and the
-//! game's objectives, mapped from game time onto the video (#1777).
+//! game's objectives, mapped from game time onto the video (#1777), and the
+//! moments the player marked with the mark key, already in video time (#2079).
 //!
 //! The objectives — epic monsters and buildings, whichever team took them —
 //! come from the game's timeline only: the live feed names monsters but not
@@ -12,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::anchor::Anchor;
 use crate::highlights::{Highlight, HighlightKind};
+use crate::marks::Mark;
 
 /// Void grubs come in a camp of three: kills of the same side this close
 /// together are one moment.
@@ -120,6 +122,8 @@ pub enum MomentKind {
     Atakhan,
     Tower,
     Inhibitor,
+    /// The player pressed the mark key.
+    Marked,
 }
 
 /// One moment on a video's timeline.
@@ -147,22 +151,32 @@ impl Moment {
     }
 }
 
-/// The highlights and objectives on the video, in order. Nothing without an
-/// anchor: a moment placed on the wrong second is worse than none.
+/// The highlights, objectives and marks on the video, in order. No highlight
+/// or objective without an anchor — a moment placed on the wrong second is
+/// worse than none — but the marks, read on the video's own clock, always.
 pub fn on_video(
     anchor: Option<&Anchor>,
     highlights: &[Highlight],
     objectives: &[Objective],
+    marks: &[Mark],
     duration_ms: Option<u64>,
 ) -> Vec<Moment> {
-    let Some(anchor) = anchor else {
-        return Vec::new();
-    };
     let last = duration_ms.and_then(|ms| i64::try_from(ms).ok());
-    let place = |game_ms: i64| {
-        let video = anchor.video_ms(game_ms);
-        last.map_or(video, |last| video.min(last))
+    let hold = |video: i64| last.map_or(video, |last| video.min(last));
+    let marked = marks.iter().map(|mark| {
+        let video_ms = hold(i64::try_from(mark.video_ms).unwrap_or(i64::MAX));
+        Moment {
+            kind: MomentKind::Marked,
+            video_ms,
+            end_video_ms: video_ms,
+            kills: 0,
+            ally: None,
+        }
+    });
+    let Some(anchor) = anchor else {
+        return marked.collect();
     };
+    let place = |game_ms: i64| hold(anchor.video_ms(game_ms));
     let mut moments: Vec<Moment> = highlights
         .iter()
         .map(|highlight| Moment {
@@ -195,6 +209,7 @@ pub fn on_video(
                 ally: Some(objective.ally),
             }
         }))
+        .chain(marked)
         .collect();
     moments.sort_by_key(|moment| moment.video_ms);
     moments
@@ -272,7 +287,7 @@ mod tests {
             game_time_ms: 60_000,
             ally: true,
         }];
-        let moments = on_video(Some(&anchor), &highlights, &objectives, Some(110_000));
+        let moments = on_video(Some(&anchor), &highlights, &objectives, &[], Some(110_000));
         assert_eq!(moments[0].kind, MomentKind::Dragon);
         assert_eq!(moments[1].kind, MomentKind::Kill);
         assert_eq!(moments[1].kills, 2);
@@ -284,10 +299,51 @@ mod tests {
             "{moments:?}"
         );
         assert_eq!(moments[1].ally, None);
-        assert!(on_video(None, &highlights, &objectives, None).is_empty());
+        assert!(on_video(None, &highlights, &objectives, &[], None).is_empty());
         assert_eq!(
             moments[0].shifted(70_000).video_ms,
             moments[0].video_ms - 70_000
         );
+    }
+
+    #[test]
+    fn marks_land_on_the_video_with_or_without_an_anchor() {
+        let marks = [
+            Mark { video_ms: 24_000 },
+            Mark { video_ms: 33_000 },
+            // Read a moment after the video closed.
+            Mark { video_ms: 61_000 },
+        ];
+        let moments = on_video(None, &[], &[], &marks, Some(60_000));
+        let at: Vec<(MomentKind, i64)> = moments.iter().map(|m| (m.kind, m.video_ms)).collect();
+        assert_eq!(
+            at,
+            vec![
+                (MomentKind::Marked, 24_000),
+                (MomentKind::Marked, 33_000),
+                (MomentKind::Marked, 60_000),
+            ]
+        );
+
+        let anchor = Anchor {
+            segments: vec![crate::anchor::Segment {
+                from_game_ms: 0,
+                offset_ms: 20_000,
+            }],
+        };
+        let objectives = [Objective {
+            kind: ObjectiveKind::Dragon,
+            game_time_ms: 10_000,
+            ally: true,
+        }];
+        let kinds: Vec<MomentKind> = on_video(Some(&anchor), &[], &objectives, &marks[..2], None)
+            .iter()
+            .map(|m| m.kind)
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![MomentKind::Marked, MomentKind::Dragon, MomentKind::Marked]
+        );
+        assert_eq!(serde_json::to_value(MomentKind::Marked).unwrap(), "marked");
     }
 }

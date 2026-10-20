@@ -25,10 +25,8 @@ use lcu::{GameflowPhase, LcuClient};
 use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 
-use super::{emit_library, emit_recap, emit_status, Activity, Recorder, SharedRecorder};
+use super::{cut, emit_library, emit_recap, emit_status, Activity, SharedRecorder, SharedSession};
 use crate::record::SharedClient;
-
-type SharedSession = Arc<Mutex<Session<HelperCapture>>>;
 
 /// The capture can fail to start on the loading screen: it is tried again
 /// while the game runs rather than giving up on the game.
@@ -110,7 +108,7 @@ pub async fn run(
 
 async fn record_game(
     app: &AppHandle,
-    recorder: &Recorder,
+    recorder: &SharedRecorder,
     helper: &Path,
     phases: &mut watch::Receiver<GameflowPhase>,
 ) -> Result<Done, String> {
@@ -147,6 +145,7 @@ async fn record_game(
     ))));
 
     let dir = start(&session, game, &settings, &root, phases).await?;
+    recorder.set_session(Some(session.clone()));
     crate::telemetry::feature(app, crate::telemetry::Feature::GameRecorded);
     let id = RecordingDir::new(dir.clone()).id();
     recorder.set_activity(Activity {
@@ -158,6 +157,8 @@ async fn record_game(
     emit_library(app);
 
     follow(&session, &live, phases).await;
+    // The game is over: the mark key marks nothing more.
+    recorder.set_session(None);
     // From here on a failure is logged, never returned: an error would read as
     // a game still running and skip the next one, which may already have begun.
     let done = if in_game(*phases.borrow()) {
@@ -203,6 +204,7 @@ async fn record_game(
     emit_recap(app, id.clone());
     thumbnail(helper, &dir).await;
     emit_library(app);
+    cut_marks(app, recorder, helper, &dir).await;
 
     let (history, timeline, scoreboard) = wait_for_history(&client, game.game_id, phases).await;
     let budget = recorder.games_budget();
@@ -232,6 +234,22 @@ async fn record_game(
     thumbnail(helper, &dir).await;
     emit_library(app);
     Ok(done)
+}
+
+/// The clips of the moments the player marked, cut as soon as the video is
+/// closed: the recap opened on the game lists them at once.
+async fn cut_marks(app: &AppHandle, recorder: &SharedRecorder, helper: &Path, dir: &Path) {
+    let recorder = recorder.clone();
+    let (helper, dir) = (helper.to_path_buf(), dir.to_path_buf());
+    let cut = tokio::task::spawn_blocking(move || cut::cut_marks(&recorder, &helper, &dir)).await;
+    match cut {
+        Ok(0) => {}
+        Ok(count) => {
+            tracing::info!(count, "marked moments saved as clips");
+            emit_library(app);
+        }
+        Err(error) => tracing::warn!(%error, "cutting the marked moments failed"),
+    }
 }
 
 /// Whether the recording in `dir` holds a loading screen alone (`is_loading_only`).
