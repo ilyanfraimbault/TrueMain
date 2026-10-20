@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MetricDefinition } from '~/utils/player-form'
-import { METRICS, championLines, laneLines, readMetric } from '~/utils/player-form'
+import { METRICS, championLines, laneLines, mainLane, readMetric } from '~/utils/player-form'
 import { game } from './fixtures'
 
 const metric = (key: string): MetricDefinition => METRICS.find(entry => entry.key === key)!
@@ -97,5 +97,22 @@ describe('laneLines', () => {
       { position: 'BOTTOM', games: 0, wins: 0 },
       { position: 'UTILITY', games: 1, wins: 1 },
     ])
+  })
+})
+
+describe('mainLane', () => {
+  it('is the lane with the most counted games, the earlier lane on a tie', () => {
+    expect(mainLane([
+      game({ gameId: 1, position: 'UTILITY' }),
+      game({ gameId: 2, position: 'MIDDLE' }),
+      game({ gameId: 3, position: 'UTILITY' }),
+      game({ gameId: 4, position: 'MIDDLE' }),
+      game({ gameId: 5, position: 'TOP', remake: true }),
+    ])).toBe('MIDDLE')
+  })
+
+  it('is null with no game on a lane', () => {
+    expect(mainLane([game({ gameId: 1, position: null, queueId: 450 })])).toBeNull()
+    expect(mainLane([])).toBeNull()
   })
 })

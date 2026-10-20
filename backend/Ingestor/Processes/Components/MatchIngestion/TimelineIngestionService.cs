@@ -124,8 +124,9 @@ public sealed class TimelineIngestionService(
 
     /// <summary>
     /// Folds the batch's timelines into the pace benchmark (#1912) while they are still in
-    /// memory — the per-minute values are never written anywhere else. Runs inside the
-    /// caller's transaction, so the claim flag, the counters and the timeline commit together.
+    /// memory — the per-minute values are never written anywhere else — and the same games'
+    /// end-of-game lines into the form benchmark (#2076), under the same claim. Runs inside
+    /// the caller's transaction, so the claim flag, the counters and the timeline commit together.
     /// </summary>
     private async Task FoldPaceBenchmarkAsync(
         IDataSession session,
@@ -149,6 +150,7 @@ public sealed class TimelineIngestionService(
         var tierHistory = await session.RankSnapshots.GetTierHistoryForAccountsAsync(trackedAccountIds, ct);
 
         var keys = new List<PaceBenchmarkKey>();
+        var formKeys = new List<FormBenchmarkKey>();
         var unplaced = 0;
         foreach (var claim in claims)
         {
@@ -160,9 +162,12 @@ public sealed class TimelineIngestionService(
             }
 
             keys.AddRange(matchKeys);
+            formKeys.AddRange(FormBenchmarkBuilder.Build(claim, timeline.Participants, tierHistory));
         }
 
-        await session.PaceBenchmarkStats.AddCountsAsync(PaceBenchmarkBuilder.Count(keys), DateTime.UtcNow, ct);
+        var aggregatedAtUtc = DateTime.UtcNow;
+        await session.PaceBenchmarkStats.AddCountsAsync(PaceBenchmarkBuilder.Count(keys), aggregatedAtUtc, ct);
+        await session.FormBenchmarkStats.AddCountsAsync(FormBenchmarkBuilder.Count(formKeys), aggregatedAtUtc, ct);
 
         if (unplaced > 0)
         {

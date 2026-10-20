@@ -6,14 +6,17 @@ using TrueMain.Services.Benchmarks;
 namespace TrueMain.Controllers.Benchmarks;
 
 /// <summary>
-/// Reference values the desktop overlay sets a live game against (#1912). Public and
+/// Reference values the desktop app sets the player against: the overlay's pace in a live
+/// game (#1912) and the dashboard's form tiles (#2076). Public and
 /// parameterised by position only: the tier is chosen on the player's machine from the
 /// whole answer, so nothing read from the League client is sent (#1805).
 /// </summary>
 [ApiController]
 [Route("benchmarks")]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-public sealed class PaceBenchmarkController(IPaceBenchmarkQueryService paceBenchmarks) : ControllerBase
+public sealed class PaceBenchmarkController(
+    IPaceBenchmarkQueryService paceBenchmarks,
+    IFormBenchmarkQueryService formBenchmarks) : ControllerBase
 {
     /// <summary>
     /// Per tier and whole minute, the quartiles of a laner's cumulative CS and gold earned at
@@ -33,5 +36,26 @@ public sealed class PaceBenchmarkController(IPaceBenchmarkQueryService paceBench
         }
 
         return Ok(await paceBenchmarks.GetAsync(normalizedPosition, ct));
+    }
+
+    /// <summary>
+    /// Per tier, the quartiles of a laner's end-of-game KDA, kill participation, CS/min,
+    /// deaths and vision/min at <paramref name="position"/>, pooled over the newest patches.
+    /// A tier under the sample floor carries its count without quartiles. An unrecognised
+    /// position is a 400.
+    /// </summary>
+    [HttpGet("form")]
+    [ProducesResponseType(typeof(FormBenchmarkResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<FormBenchmarkResponse>> GetFormAsync(
+        [FromQuery] string? position,
+        CancellationToken ct = default)
+    {
+        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
+        {
+            return problem;
+        }
+
+        return Ok(await formBenchmarks.GetAsync(normalizedPosition, ct));
     }
 }
