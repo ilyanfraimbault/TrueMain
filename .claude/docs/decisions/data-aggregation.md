@@ -345,3 +345,17 @@ owner excludes. A lobby with no ranked tracked account, a remake or a minute the
 The read pools the newest three patches (pace barely moves between patches, and pooling fills the thin tiers) and
 serves no quartile under 50 samples. The table joins `AggregateRetention` — #1912.
 
+## The form benchmark is a whole-game histogram folded with the pace benchmark, from the same games (2026-10-20)
+
+**`form_benchmark_stats` holds, per (patch, tier, position, metric), a fixed-width histogram of a laner's end-of-game
+KDA, kill participation, CS/min, deaths and vision/min** — the figures of the dashboard's form tiles, each computed the
+way the tiles compute it (`kdaRatio`'s deaths floored at one; kill participation over the team's kills). It is folded in
+the pace benchmark's pass and under its claim (`matches.PaceBenchmarkAggregated`), at the same lobby tier, and the
+low-tier `PaceSampling` folds the same game's lines beside its timeline — so both benchmarks describe one sample, and
+Iron → Platinum come without a call more. A separate table rather than a `Minute = 0` row in `pace_benchmark_stats`:
+the grain differs and a sentinel minute would be read by every pace query. Matches folded before it shipped are not
+back-filled — the pace claim is already spent on them — so it fills from the deploy on; the read serves nothing under
+the floor meanwhile. Same read rules as the pace benchmark: newest three patches, 50 samples per tier, bins in
+`Core/Lol/Benchmarks/FormHistogram.cs` (0.1 KDA, 1 % KP, 0.1 CS/min, one death, 0.05 vision/min, clamped to a ceiling)
+— #2076.
+

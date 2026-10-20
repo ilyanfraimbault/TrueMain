@@ -783,6 +783,17 @@ invisible to the Live Client API), so the gold arrow leans low, never high; the 
 click-through panel has no tooltip. Iron → Platinum, which TrueMain does not ingest, come from the capped `PaceSampling`
 process (see `pipeline-riot-budget.md`) — #1912.
 
+**The dashboard's form tiles carry the median of the player's Solo/Duo tier on their main role, beside the own-average
+move (2026-10-20).** From the competitor benchmark (#2076): the tiles said "better than your average" and nothing about
+"good at my rank". The reference is the player's **own** tier, not the tier above — the overlay's pace rule (#1912), and
+"players of the next tier" would read as a target, which is advice. The main role is the lane most of the games on screen
+were played on (the tiles average every lane, the reference names one, in its tooltip); the tier comes from the
+client's Solo/Duo standing and is picked on the machine from every tier the API answers, so nothing is sent (#1805).
+No standing, no main role, a tier under the sample floor or the benchmark unreachable → the tile shows the player's own
+form alone. The figure sits on the tile's label row with the tier's emblem, in the muted text colour — a reference, so
+no good/bad colour; the tooltip names the tier, the lane and the games it was read from. Site profiles show no
+reference: the tier there would be TrueMain's reading of someone else's rank, and the issue scoped the dashboard — #2076.
+
 **The app hovers, locks and bans in champion select — on the player's click only (2026-10-05).** The product owner
 asked for picking and banning without switching to the client. Riot allows decision support, not decision-making, and
 forbids an application acting on the player's behalf, so every write is a click: no code path writes on a timer, a

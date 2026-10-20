@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Core.Lol.Patches;
 using Data;
 using Data.Entities;
@@ -18,6 +19,12 @@ namespace TrueMain.Services.Champions.Scopes;
 /// global pool — every other step (patch / position resolution, SQL pinning)
 /// is identical, because the aggregate schema already stores one scope row
 /// per (account, champion, patch, platform, queue, position).
+///
+/// <para>
+/// <see cref="LanePositions.AllPositions"/> as the position skips the dominant-position
+/// pick and keeps every position's scopes at the resolved patch, so the caller folds
+/// the champion across all of them (the player champion page's "All positions").
+/// </para>
 /// </summary>
 internal static class ChampionScopeLoader
 {
@@ -38,10 +45,13 @@ internal static class ChampionScopeLoader
             ? null
             : PatchVersion.Normalize(patch);
 
+        var allPositions = string.Equals(position, LanePositions.AllPositions, StringComparison.Ordinal);
+        var requestedPosition = allPositions ? null : position;
+
         var baseQuery = db.ChampionAggregateScopes
             .AsNoTracking()
             .WhereChampionScope(
-                championId, queueId, riotAccountId, normalizedPatch, platformId, position,
+                championId, queueId, riotAccountId, normalizedPatch, platformId, requestedPosition,
                 // The resolution pass has to stand on the same population as the
                 // pinned pass below: resolving the dominant patch over mains and
                 // then reading it over everyone (or the reverse) can land on a
@@ -63,9 +73,14 @@ internal static class ChampionScopeLoader
         // the floor we still fall back to the latest patch that has any games so
         // a champion the player has genuinely played renders a (thin) build
         // rather than 404-ing. An explicit patch request still wins.
+        // Across every position the floor is on the patch's whole total, not on its
+        // busiest position: that total is the slice the page will render.
         var selectedPatch = normalizedPatch is null && minGames is { } floor
             ? ChampionAggregateScopeResolver.ResolveLatestPatchAboveFloor(
-                  resolutionRows.Select(row => (row.GameVersion, row.Position, row.Games)),
+                  resolutionRows.Select(row => (
+                      row.GameVersion,
+                      allPositions ? LanePositions.AllPositions : row.Position,
+                      row.Games)),
                   floor)
               ?? ChampionAggregateScopeResolver.ResolvePatchVersion(
                   resolutionRows.Select(row => row.GameVersion), null)
@@ -82,7 +97,7 @@ internal static class ChampionScopeLoader
                 resolutionRows
                     .Where(row => string.Equals(row.GameVersion, selectedPatch, StringComparison.Ordinal))
                     .Select(row => (row.Position, row.Games)))
-            : position;
+            : requestedPosition;
 
         // Patch / position are resolved bracket-agnostically above (the first
         // pass passes no brackets) so switching bracket never shifts the

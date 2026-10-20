@@ -6,7 +6,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { PositionFilter } from '#common/utils/positions'
 
 // The player-scoped champion page's build, resilient by design: with no
 // aggregate for the player (`notEnoughData`) a soft notice replaces it. The
@@ -21,7 +21,7 @@ const props = defineProps<{
   /** The statics' display name, for inline copy. */
   displayName: string | null
   displayIconUrl: string | null
-  position: ChampionPosition | null
+  position: PositionFilter | null
   playerLabel: string
   globalBuildPath: string
   filterLabels: string[]

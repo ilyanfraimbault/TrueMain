@@ -1,12 +1,12 @@
 import type { PlayerChampionPerformanceResponse } from '~~/shared/types/performance'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { PositionFilter } from '#common/utils/positions'
 import { fetchErrorStatus } from '#common/utils/errors'
 
 export interface UsePlayerChampionPerformanceOptions {
   /** Patch to pin; omitted means every patch. */
   patch?: MaybeRefOrGetter<string | null | undefined>
-  /** Lane to pin; omitted means every lane. */
-  position?: MaybeRefOrGetter<ChampionPosition | null | undefined>
+  /** Position to pin; omitted or `ALL` means every position. */
+  position?: MaybeRefOrGetter<PositionFilter | null | undefined>
 }
 
 /**

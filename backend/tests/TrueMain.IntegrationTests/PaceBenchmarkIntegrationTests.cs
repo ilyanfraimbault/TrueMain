@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Core.Lol.Benchmarks;
 using Core.Lol.Identifiers;
 using Core.Lol.Map;
 using Core.Lol.Pace;
@@ -20,7 +21,8 @@ namespace TrueMain.IntegrationTests;
 
 /// <summary>
 /// The pace benchmark (#1912) end to end: folded from a timeline while it is ingested,
-/// counted once per match, and read back as quartiles per tier and minute.
+/// counted once per match, and read back as quartiles per tier and minute — and the form
+/// benchmark (#2076) folded beside it from the same games, read back per tier.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
@@ -59,6 +61,19 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
 
             (await db.Matches.SingleAsync(match => match.Id == matchId)).PaceBenchmarkAggregated.Should().BeTrue();
 
+            // The form benchmark, from the same lobby at the same tier: two laners, five metrics.
+            var form = await db.FormBenchmarkStats.AsNoTracking().ToListAsync();
+            form.Sum(stat => stat.Count).Should().Be(2 * 5);
+            form.Should().OnlyContain(stat => stat.Patch == "16.19" && stat.Tier == RankTier.Diamond);
+            // TOP went 3/2/4 out of the team's 8 kills: a 3.5 KDA and 87.5 % kill participation.
+            form.Should().ContainSingle(stat => stat.Position == "TOP" && stat.Metric == FormMetric.Kda)
+                .Which.Bucket.Should().Be(35);
+            form.Should().ContainSingle(stat => stat.Position == "TOP" && stat.Metric == FormMetric.KillParticipation)
+                .Which.Bucket.Should().Be(87);
+            // MIDDLE's 210 CS over 25:20 is 8.29 a minute.
+            form.Should().ContainSingle(stat => stat.Position == "MIDDLE" && stat.Metric == FormMetric.CsPerMinute)
+                .Which.Bucket.Should().Be(82);
+
             // A timeline fetched again (it is re-armed here by hand) must not count twice.
             await db.Matches.Where(match => match.Id == matchId)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(match => match.TimelineIngested, false));
@@ -68,6 +83,7 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
 
         await using var verify = _fixture.CreateDbContext();
         (await verify.PaceBenchmarkStats.SumAsync(stat => stat.Count)).Should().Be(2 * GameMinutes * 2);
+        (await verify.FormBenchmarkStats.SumAsync(stat => stat.Count)).Should().Be(2 * 5);
     }
 
     [Fact]
@@ -80,6 +96,7 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
 
         await using var db = _fixture.CreateDbContext();
         (await db.PaceBenchmarkStats.AnyAsync()).Should().BeFalse();
+        (await db.FormBenchmarkStats.AnyAsync()).Should().BeFalse();
         (await db.Matches.SingleAsync(match => match.Id == matchId)).PaceBenchmarkAggregated.Should().BeTrue();
     }
 
@@ -125,6 +142,48 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
         minute11.Samples.Should().Be(10);
         minute11.Cs.Should().BeNull();
         minute11.GoldEarned.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FormBenchmark_ServesQuartilesAboveTheFloor_PerTier()
+    {
+        await using (var db = _fixture.CreateDbContext())
+        {
+            foreach (var metric in Enum.GetValues<FormMetric>())
+            {
+                // Diamond: 30 games in bin 20 and 30 in bin 30 of every metric, over two patches.
+                db.FormBenchmarkStats.AddRange(
+                    FormStat("16.19", "DIAMOND", metric, 20, 30),
+                    FormStat("16.18", "DIAMOND", metric, 30, 30),
+                    // Under the floor.
+                    FormStat("16.19", "GOLD", metric, 10, 20),
+                    // Another position.
+                    FormStat("16.19", "DIAMOND", metric, 5, 500, position: "UTILITY"));
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+        var response = await client.GetFromJsonAsync<FormBenchmarkResponse>("/benchmarks/form?position=mid");
+
+        response!.Position.Should().Be("MIDDLE");
+        response.Patches.Should().Equal("16.19", "16.18");
+        response.MinSamples.Should().Be(50);
+        response.Tiers.Select(tier => tier.Tier).Should().Equal("GOLD", "DIAMOND");
+
+        var diamond = response.Tiers.Single(tier => tier.Tier == "DIAMOND");
+        diamond.Samples.Should().Be(60);
+        // The median sits at the top of bin 20 (bin width 0.1 for KDA, 1 for deaths).
+        diamond.Kda.Should().BeEquivalentTo(new PaceQuartilesReadModel { P25 = 2.05, Median = 2.1, P75 = 3.05 });
+        diamond.Deaths!.Median.Should().Be(21);
+        diamond.KillParticipation!.Median.Should().Be(0.21);
+
+        var gold = response.Tiers.Single(tier => tier.Tier == "GOLD");
+        gold.Samples.Should().Be(20);
+        gold.Kda.Should().BeNull();
+        gold.Deaths.Should().BeNull();
     }
 
     [Fact]
@@ -206,6 +265,12 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
         ChampionId = 100 + participantId,
         TeamId = 100,
         TeamPosition = position,
+        // TOP 3/2/4, MIDDLE 5/0/1 with 200 minions and 10 monsters: the form benchmark's inputs.
+        Kills = participantId == 1 ? 3 : 5,
+        Deaths = participantId == 1 ? 2 : 0,
+        Assists = participantId == 1 ? 4 : 1,
+        TotalMinionsKilled = 200,
+        NeutralMinionsKilled = 10,
         IndividualPosition = position,
         ItemEvents = [],
         SkillEvents = [],
@@ -224,6 +289,23 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
         Tier = RankTiers.ParseTier(tier),
         Position = position,
         Minute = minute,
+        Metric = metric,
+        Bucket = bucket,
+        Count = count,
+        AggregatedAtUtc = DateTime.UtcNow,
+    };
+
+    private static FormBenchmarkStat FormStat(
+        string patch,
+        string tier,
+        FormMetric metric,
+        int bucket,
+        long count,
+        string position = "MIDDLE") => new()
+    {
+        Patch = patch,
+        Tier = RankTiers.ParseTier(tier),
+        Position = position,
         Metric = metric,
         Bucket = bucket,
         Count = count,
