@@ -65,9 +65,10 @@ const rows = computed(() => {
         :key="row.key"
         :data-objective="row.key"
         :data-status="row.status.kind"
-        class="items-center gap-1.5 rounded bg-elevated/60 px-1.5 py-0.5"
+        class="h-7.5 items-center gap-1.5 rounded bg-elevated/60 px-1.5"
         :class="flanked(row.key) ? 'grid grid-cols-[1fr_auto_1fr]' : 'flex justify-between'"
       >
+        <!-- Every row is as tall as the dragon pit's with its countdown under the icon, so the list keeps one rhythm. -->
         <!-- The dragon pit sits between the drakes each side took; otherwise a row is its icon, and its countdown or a green dot, apart. -->
         <template v-if="flanked(row.key)">
           <span class="flex items-center gap-0.5" data-side="blue">
