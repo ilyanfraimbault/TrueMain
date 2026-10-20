@@ -15,7 +15,7 @@ import { ITEM_CONTEXT_TONE_CLASS } from '#shared/utils/item-context'
  */
 const props = defineProps<{ game: GameState }>()
 
-const { answer, pending, statics, build, order, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold } = useNextItemPanel(toRef(props, 'game'))
+const { answer, pending, statics, build, order, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold, kit, fromKit, kitDone } = useNextItemPanel(toRef(props, 'game'))
 </script>
 
 <template>
@@ -35,11 +35,14 @@ const { answer, pending, statics, build, order, top, runnersUp, boots, why, rema
         </div>
         <span v-if="affordable(starterGold)" class="text-xs text-stat-gold">Can buy now</span>
         <span v-else class="text-xs tabular-nums text-muted"><span class="text-stat-gold">{{ starterGold - game.gold }}</span> gold short</span>
-        <span class="text-xs tabular-nums text-dimmed" :title="`${starter.games} games`">{{ percent(starter.pickRate) }} of games</span>
+        <span v-if="!kit" class="text-xs tabular-nums text-dimmed" :title="`${starter.games} games`">{{ percent(starter.pickRate) }} of games</span>
       </div>
 
       <div class="mb-2 flex items-center gap-2">
         <span class="stat-label">Next item</span>
+        <!-- The player's active kit (#2185): its own next step, or the mains' once it has none left. -->
+        <span v-if="fromKit" class="flex min-w-0 items-center gap-1 text-xs text-muted"><UIcon name="i-lucide-swords" class="size-3.5 shrink-0 text-primary" /><span class="truncate">Your kit: {{ kit?.name }}</span></span>
+        <span v-else-if="kitDone" class="text-xs text-dimmed">Your kit is complete — the mains' next item</span>
         <span v-if="build && !build.onTree" class="text-xs text-dimmed" title="Your build left the path the mains take; this continues from your latest item they build.">off the mains' path</span>
         <UIcon v-if="pending && answer" name="i-lucide-loader-circle" class="size-3.5 animate-spin text-dimmed" />
       </div>
@@ -51,7 +54,7 @@ const { answer, pending, statics, build, order, top, runnersUp, boots, why, rema
           <div class="min-w-0 flex-1 space-y-1.5">
             <div class="flex items-baseline gap-2">
               <span class="truncate text-base font-semibold text-highlighted">{{ name(top.itemId) }}</span>
-              <span class="text-xs tabular-nums text-muted" :title="`${top.games} games of the mains on this step`">{{ percent(top.share) }} of mains</span>
+              <span v-if="!fromKit" class="text-xs tabular-nums text-muted" :title="`${top.games} games of the mains on this step`">{{ percent(top.share) }} of mains</span>
             </div>
             <p v-if="why" class="text-sm text-muted">
               <template v-for="(token, index) in why" :key="index">
