@@ -393,8 +393,9 @@ config. The `migrate` job writes nothing either, it pipes SQL into a fixed
 command on the host.
 
 So **every piece of configuration a deployed stack needs lives inside its
-compose file**: the edge Caddyfile of both stacks
-(`configs.edge_caddyfile`), preprod's Umami proxy and Umami's replay cleanup
+compose file**: the edge Caddyfile and maintenance page of both edges
+(`configs.edge_caddyfile` and `configs.maintenance_page` in
+`compose.*.edge.yaml`), preprod's Umami proxy and Umami's replay cleanup
 script are top-level `configs:` with inline `content`. A relative bind mount
 in `compose.prod.yaml` or `compose.preprod.yaml` is a file someone has to copy
 by hand, and it drifts silently: prod's edge ran a hand-copied `Caddyfile`
@@ -414,13 +415,45 @@ JSON route (`/api/static/versions`, large enough for Caddy to compress). It
 fails the run unless both answer 200 with a `Content-Encoding` of `zstd` or
 `gzip`, and the page carries `Strict-Transport-Security` and
 `Content-Security-Policy` — the directives that were shipped and silently
-absent (#1598). It polls for five minutes, because Caddy is recreated with the
-stack and may still be starting when the rollout check passes.
+absent (#1598). It runs after the `edge-rollout` job and polls for five
+minutes, because a release that changes the edge recreates Caddy, which may
+still be starting when that job's check passes.
 
 It only runs on prod: preprod's origins are operator values kept out of the
 repository, and its edge is plain HTTP without HSTS or CSP by design
 (`docs/preprod.md`). `.github/scripts/verify-edge.test.sh` pins the checks
 against fixed headers and runs in the `deploy-scripts` CI job.
+
+### The edge is its own project
+
+Docker Manager recreates every container of a project on each deploy — the
+databases and the edge Caddy included, whatever changed. With Caddy in the app
+stack, every release left the public site answering nothing for 40 to 60 seconds,
+and nothing in the stack could serve a maintenance page while the stack itself
+was down (#2179).
+
+So each environment runs **two Docker Manager projects**: the app stack
+(`truemain` from `compose.prod.yaml`, `truemain-preprod` from
+`compose.preprod.yaml`) and its edge (`truemain-edge` from
+`compose.prod.edge.yaml`, `truemain-preprod-edge` from
+`compose.preprod.edge.yaml`), Caddy alone. The app stack owns a dedicated
+network (`truemain_edge` / `truemain_preprod_edge`) that web, admin and (prod)
+Umami join; the edge joins it as `external`, so it reaches the services it
+proxies and nothing else. That ownership sets the order: the app rolls first and
+never depends on the edge; the edge needs the network the app created.
+
+The reusable `edge-rollout.yml` runs after `rollout.yml` in both deploy
+workflows. Redeploying the edge recreates Caddy, so it only happens when it
+changes something: `edge-drift.sh` asks the Docker Manager API for the project
+list and the compose file the edge project holds, and deploys when the project
+is missing, when a container of it is not running, or when the file differs
+from the repository's at the deployed commit — never because the API failed to
+answer. `verify-edge-running.sh` then polls until every edge container runs:
+the edge builds no image of ours, so `verify-rollout.sh` has nothing to assert
+on it. Both scripts are pinned by `*.test.sh` in the `deploy-scripts` job.
+
+The maintenance page is duplicated in the two edge files, because each deploy
+reads one file; the `compose-config` job fails when the two copies differ.
 
 ### Preprod versioning
 
@@ -880,11 +913,12 @@ leaves a misleading version on the page (#1637).
   connection string is sized to that share: the per-service budget, which
   adds up to `max_user_connections`, is in `docs/prod.md` (*Connection pools*,
   #1632), with the other values.
-- Both deployed stacks put Caddy in front of web and admin with its
-  Caddyfile inline under `configs.edge_caddyfile`, because the deploy ships
-  the compose file alone (*What the deploy writes on the VPS*; prod in
-  `docs/prod.md`, #1598; preprod's plain-HTTP edge in `docs/preprod.md`,
-  #1558). The preprod one requires `PREPROD_SITE_URL` and
+- Both deployed environments put Caddy in front of web and admin, in an edge
+  project of its own (`compose.*.edge.yaml`, *The edge is its own project*,
+  #2179) with its Caddyfile inline under `configs.edge_caddyfile`, because the
+  deploy ships the compose file alone (*What the deploy writes on the VPS*; prod
+  in `docs/prod.md`, #1598; preprod's plain-HTTP edge in `docs/preprod.md`,
+  #1558). The preprod stack requires `PREPROD_SITE_URL` and
   `PREPROD_ADMIN_URL`, which is why the compose-config job sets both.
 - Both deployed stacks publish the API's port on the loopback interface only
   (`127.0.0.1:8080:8080` on prod, `127.0.0.1:8081:8080` on preprod). Nothing

@@ -271,3 +271,26 @@ at 8 and the API query answers at once.
 
 Source: #1632; `docs/prod.md` (*Connection pools*). Supersedes the "ingestors keep their own caps (40 each)" and
 "capacity is unchanged" notes in `performance-and-incidents.md` (#1570, #1631).
+
+## The edge is its own Docker Manager project and serves a maintenance page while the stack rolls (2026-10-20)
+
+**Caddy runs in a project of its own (`truemain-edge` from `compose.prod.edge.yaml`, `truemain-preprod-edge` from
+`compose.preprod.edge.yaml`), and when it cannot reach web or admin it answers a `503` maintenance page (JSON on
+`/api/*`) instead of a `502`.** Docker Manager recreates every container of a project on each deploy — measured on
+the 1.25.1 release log, Caddy included: the public site answered nothing for ~40 s on prod (~57 s on preprod), then a
+bare `502` until web listened. A maintenance page served by the in-stack Caddy would only have covered the part of
+the window where Caddy happened to be up, so the product owner chose to move the edge out of the stack.
+
+- *The app stack owns the edge network* (`truemain_edge` / `truemain_preprod_edge`); the edge joins it as
+  `external`. The app never depends on the edge being deployed, and the edge sees web, admin and Umami only.
+- *The edge redeploys only when it changes* — missing project, a container not running, or a compose file that
+  differs from the repository's (`edge-drift.sh`) — because a redeploy recreates Caddy.
+- *`503` + `Retry-After`, `no-store`*: crawlers read a temporary outage, and no cache keeps the page afterwards.
+  An app-level `503` passes through; only a failure to reach the upstream is maintenance.
+- *No manual maintenance switch*: the page appears exactly when the upstream is unreachable. A toggle for planned
+  work with the apps still up was not asked for.
+- *Not on `analytics`*: an HTML body in place of the Umami tracker helps nobody.
+
+Source: #2179; `docs/prod.md` (*Maintenance page*, *One-time cutover to the edge project*), `docs/ci.md` (*The edge
+is its own project*). Moves the edge configuration from `compose.prod.yaml` / `compose.preprod.yaml` (2026-10-05
+entry above, #1598; 2026-09-14 entry, #1558) to the edge files; the inline-config rule itself is unchanged.
