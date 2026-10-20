@@ -61,7 +61,19 @@ export interface Moment {
   kills: number
   /** Objectives only: whether the player's team took it. `null` for kills, deaths, assists. */
   ally: boolean | null
+  /**
+   * Who landed the kill, for a death or an assist — a participant id (1–10),
+   * `null` for the player's own kills, an execution and objectives. Moments
+   * kept by an older build, or read from the live feed, have no ids.
+   */
+  killerId: number | null
+  /** Who died: every victim of a multi-kill, the one of an assist; empty for a death. */
+  victimIds: number[]
+  /** An elemental drake's element; `null` for anything else, and for drakes an older build kept. */
+  dragon: DragonKind | null
 }
+
+export type DragonKind = 'infernal' | 'mountain' | 'ocean' | 'cloud' | 'hextech' | 'chemtech'
 
 /** One full game on disk. */
 export interface GameRecording {

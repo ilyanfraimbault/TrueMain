@@ -1,4 +1,4 @@
-import type { Moment, MomentKind } from '~/types/recordings'
+import type { DragonKind, Moment, MomentKind, RecordingWinProbability } from '~/types/recordings'
 import { formatDuration } from '#common/utils/relativeTime'
 
 /**
@@ -11,9 +11,13 @@ import { formatDuration } from '#common/utils/relativeTime'
  * draft's ally/enemy convention (`--color-ally`, `--color-enemy`).
  */
 
-export const PLAYER_KINDS: MomentKind[] = ['kill', 'death', 'assist']
-
-export const isPlayerMoment = (moment: Moment) => PLAYER_KINDS.includes(moment.kind)
+/**
+ * Which way a moment went, the colour of its dot on the timeline: the player's
+ * kills and assists and their side's objectives are the ally's, their deaths
+ * and the enemy's objectives the enemy's.
+ */
+export const momentSide = (moment: Moment): 'ally' | 'enemy' =>
+  moment.kind === 'death' || moment.ally === false ? 'enemy' : 'ally'
 
 const OBJECTIVE_NAMES: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist'>, string> = {
   elder: 'Elder Dragon',
@@ -31,14 +35,90 @@ const OBJECTIVE_RANK: MomentKind[] = ['elder', 'baron', 'atakhan', 'dragon', 'he
 
 const MULTI_KILLS = ['Kill', 'Double kill', 'Triple kill', 'Quadra kill', 'Pentakill']
 
-/** "Triple kill", "Death", "Baron", "Enemy Dragon". */
+const DRAKE_NAMES: Record<DragonKind, string> = {
+  infernal: 'Infernal Drake',
+  mountain: 'Mountain Drake',
+  ocean: 'Ocean Drake',
+  cloud: 'Cloud Drake',
+  hextech: 'Hextech Drake',
+  chemtech: 'Chemtech Drake',
+}
+
+/** "Triple kill", "Death", "Baron", "Enemy Infernal Drake" ("Enemy Dragon" when the element was not kept). */
 export function momentLabel(moment: Moment): string {
   switch (moment.kind) {
     case 'kill': return MULTI_KILLS[Math.min(Math.max(moment.kills, 1), 5) - 1]!
     case 'death': return 'Death'
     case 'assist': return 'Assist'
-    default: return moment.ally === false ? `Enemy ${OBJECTIVE_NAMES[moment.kind]}` : OBJECTIVE_NAMES[moment.kind]
+    default: {
+      const name = (moment.kind === 'dragon' && moment.dragon && DRAKE_NAMES[moment.dragon]) || OBJECTIVE_NAMES[moment.kind]
+      return moment.ally === false ? `Enemy ${name}` : name
+    }
   }
+}
+
+/** The game's own minimap icons, one per drake element and per objective. */
+const MINIMAP_ICONS = 'https://raw.communitydragon.org/latest/game/assets/ux/minimap/icons'
+
+const OBJECTIVE_ICONS: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist'>, string> = {
+  dragon: 'dragon',
+  elder: 'dragon_elder',
+  baron: 'baron',
+  herald: 'riftherald',
+  grubs: 'grub',
+  atakhan: 'atakhan_r',
+  tower: 'tower',
+  inhibitor: 'inhibitor',
+}
+
+/** An objective's icon as the game's minimap draws it; `null` for the player's kills, deaths and assists. */
+export function objectiveIconUrl(moment: Moment): string | null {
+  if (moment.kind === 'kill' || moment.kind === 'death' || moment.kind === 'assist') return null
+  const file = moment.kind === 'dragon' && moment.dragon ? `dragon_${moment.dragon}` : OBJECTIVE_ICONS[moment.kind]
+  return `${MINIMAP_ICONS}/${file}.png`
+}
+
+/**
+ * Who played which champion in the recorded game: the player's own, from the
+ * recording, and every participant's by id, from the scoreboard kept beside
+ * it — empty when it has none (a clip, a recording without its curve).
+ */
+export interface MomentCast {
+  playerChampionId: number | null
+  champions: ReadonlyMap<number, number>
+}
+
+/** The cast from the recording's champion and, when it was kept, the game's scoreboard. */
+export function momentCast(playerChampionId: number | null, scoreboard: Pick<RecordingWinProbability, 'champions'> | null): MomentCast {
+  return {
+    playerChampionId,
+    champions: new Map((scoreboard?.champions ?? []).map(entry => [entry.participantId, entry.championId])),
+  }
+}
+
+/** The champions on either side of a kill, death or assist: who landed it, who fell. */
+export interface MomentDuel {
+  /** `null` for an execution (a tower, minions, a monster) or an unknown player. */
+  killer: number | null
+  victims: number[]
+}
+
+/**
+ * The kill's two sides in champions: the player is the killer of their own
+ * kills and the victim of their deaths. `null` for an objective, and when
+ * nothing on either side can be named.
+ */
+export function momentDuel(moment: Moment, cast: MomentCast): MomentDuel | null {
+  const champion = (participant: number | null) => (participant === null ? null : cast.champions.get(participant) ?? null)
+  const victimsOf = () => moment.victimIds.map(champion).filter((id): id is number => id !== null)
+  let duel: MomentDuel
+  switch (moment.kind) {
+    case 'kill': duel = { killer: cast.playerChampionId, victims: victimsOf() }; break
+    case 'death': duel = { killer: champion(moment.killerId), victims: cast.playerChampionId ? [cast.playerChampionId] : [] }; break
+    case 'assist': duel = { killer: champion(moment.killerId), victims: victimsOf() }; break
+    default: return null
+  }
+  return duel.killer === null && !duel.victims.length ? null : duel
 }
 
 /** Text colour of a moment's mark. */
@@ -50,30 +130,6 @@ export function momentTone(moment: Moment): string {
     default: return moment.ally === false ? 'text-enemy' : 'text-ally'
   }
 }
-
-/** The lanes of the timeline, top to bottom: what the player did, then what was done to them. */
-export const PLAYER_LANES = ['kill', 'assist', 'death'] as const
-
-export type PlayerLane = typeof PLAYER_LANES[number]
-
-export const LANE_NAMES: Record<PlayerLane, string> = { kill: 'Kills', assist: 'Assists', death: 'Deaths' }
-
-/**
- * A player moment's mark in its lane. Each kind has its own lane, so the mark
- * only has to read as itself: a kill a filled rose-gold chip (gold from a
- * triple kill on, the data axis' standout step), an assist a small neutral
- * dot, a death a dark chip ringed in red.
- */
-export function momentMark(moment: Moment): string {
-  switch (moment.kind) {
-    case 'kill': return moment.kills >= 3 ? 'h-4 min-w-4 bg-gold text-ink-950' : 'h-4 min-w-4 bg-data-good text-ink-950'
-    case 'death': return 'size-4 bg-red-950 text-red-300 ring-1 ring-red-400/70'
-    default: return 'size-2 bg-ink-400'
-  }
-}
-
-/** Epic monsters are badges above the track; towers and inhibitors, far more frequent, stay bare glyphs. */
-export const isStructure = (moment: Moment) => moment.kind === 'tower' || moment.kind === 'inhibitor'
 
 /** Footage time in milliseconds: `m:ss`, or `h:mm:ss` past the hour. */
 export function formatClock(ms: number): string {

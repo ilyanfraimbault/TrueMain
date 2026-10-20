@@ -444,11 +444,15 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   − / = / \ around the playhead and fit, a zoom bar to pan and resize the window down to 4 s; zoomed in, the wheel pans,
   the view pages to follow the playhead and a drag past an edge scrolls) — full screen
   (#1865) puts the window itself in full screen with the controls and the timeline floating over the video, faded out
-  while the mouse rests during playback: the player's
-  kills, assists and deaths each on a lane of its own, named by a glyph beside it (#1804) — kills rose-gold chips,
-  multi-kills labelled ×N and gold from a triple kill, assists neutral dots, deaths dark red chips with a skull —;
-  objectives above the lanes in the side's colour (epic monsters as tinted badges, towers and inhibitors as bare
-  glyphs), minute gridlines, the playhead, saved clips as gold bars. Under the lanes, a **win-probability lane** (#1911): the whole game's curve from the player's side (ahead tinted ally, behind enemy), mapped onto the video through the recording's anchor, its five largest turning points as dots that seek 5 s before them; a "Swings" side-panel tab lists them (clock, what happened, signed points). Built in the webview from the client's timeline, kept beside the video as `win-probability.json` at finalisation; recordings made before #1911 and live-feed-only ones have none. Clips are cut by hand: drag across the
+  while the mouse rests during playback: every event — the player's kills, assists and deaths, the game's
+  objectives — as a dot on one row above the track, blue when it went the player's side's way (kills, assists, the
+  side's objectives), red otherwise (deaths, the enemy's objectives); events closer than a dot's width at the current
+  zoom share one dot, split blue/red when they went both ways. Hovering anywhere on the track opens a tooltip listing
+  the events of the dot under the pointer with their clock: a kill, death or assist as the killer's champion, the
+  kill's glyph and the victims' champions (from the scoreboard kept with the curve — a clip borrows its full game's
+  while it exists), an objective as the game's own minimap icon of it, the drake's element named ("Enemy Ocean
+  Drake"; drakes recorded before the element was kept read "Dragon"). A click on a dot seeks 5 s before its first event.
+  Minute gridlines, the playhead, saved clips as gold bars. Under the dots, a **win-probability lane** (#1911): the whole game's curve from the player's side (ahead tinted ally, behind enemy), mapped onto the video through the recording's anchor, its five largest turning points as dots that seek 5 s before them; a "Swings" side-panel tab lists them (clock, what happened, signed points). Built in the webview from the client's timeline, kept beside the video as `win-probability.json` at finalisation; recordings made before #1911 and live-feed-only ones have none. Clips are cut by hand: drag across the
   track, or I / O at the playhead (I/O move the selected range's ends), handles to adjust, as many ranges as wanted,
   each named from what it holds ("Triple kill on Ahri", "Kill + Dragon", editable), previewed, saved alone or all at
   once (`clip_save`), then listed under "Saved clips"; unsaved ranges survive leaving the page for the session. A

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/recordings'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
+import type { MomentCast } from '~/utils/recording-moments'
 import { stepRate } from '~/utils/recording-timeline'
 
 /**
@@ -33,7 +34,9 @@ const props = withDefaults(defineProps<{
   pendingIn?: number | null
   /** The game's win-probability curve on the video, drawn under the moments' lanes. */
   winProbability?: RecapWinProbability | null
-}>(), { editable: false, drafts: () => [], selected: null, saved: () => [], pendingIn: null, winProbability: null })
+  /** The game's champions, for the timeline's events. */
+  cast?: MomentCast
+}>(), { editable: false, drafts: () => [], selected: null, saved: () => [], pendingIn: null, winProbability: null, cast: undefined })
 
 const emit = defineEmits<{
   create: [startMs: number, endMs: number]
@@ -223,6 +226,7 @@ defineExpose({ seek, playRange, jumpTo, currentMs })
             :saved="saved"
             :pending-in="pendingIn"
             :win-probability="winProbability"
+            :cast="cast"
             @seek="seek"
             @moment="jumpTo"
             @create="(start, end) => emit('create', start, end)"

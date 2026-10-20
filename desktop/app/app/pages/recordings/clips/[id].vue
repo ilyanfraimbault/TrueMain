@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { dayLabel, formatBytes, recordingKda, revealLabel } from '~/utils/recording-library'
-import { formatClock } from '~/utils/recording-moments'
+import type { RecordingWinProbability } from '~/types/recordings'
+import { formatClock, momentCast } from '~/utils/recording-moments'
 import { getQueueLabel } from '#common/utils/queues'
 
 /**
@@ -11,13 +12,23 @@ import { getQueueLabel } from '#common/utils/queues'
  */
 const route = useRoute()
 const router = useRouter()
-const { library, loadState, fileSrc, updateClip, deleteClip, reveal } = useRecordings()
+const { library, loadState, fileSrc, getWinProbability, updateClip, deleteClip, reveal } = useRecordings()
 const { nameOf } = useChampionStatics()
 
 const id = computed(() => String(route.params.id))
 const clip = computed(() => library.value?.clips.find(entry => entry.id === id.value) ?? null)
 const kda = computed(() => (clip.value ? recordingKda(clip.value) : null))
 const source = computed(() => library.value?.games.find(game => game.id === clip.value?.recordingId) ?? null)
+
+// The full game's scoreboard, while it is still on disk, names the champions in the clip's kills.
+const sourceScoreboard = ref<RecordingWinProbability | null>(null)
+watch(() => (source.value?.status === 'ready' ? source.value.id : null), async (recordingId) => {
+  sourceScoreboard.value = null
+  if (!recordingId) return
+  const data = await getWinProbability(recordingId)
+  if (source.value?.id === recordingId) sourceScoreboard.value = data
+}, { immediate: true })
+const cast = computed(() => momentCast(clip.value?.championId ?? null, sourceScoreboard.value))
 
 const editing = ref(false)
 const draftTitle = ref('')
@@ -137,6 +148,7 @@ async function remove() {
       :src="fileSrc(clip.videoPath)"
       :length-ms="clip.durationMs"
       :moments="clip.moments"
+      :cast="cast"
     />
     <RecordingsYoutubePlayer v-else class="mx-auto w-full max-w-[46rem]" :clip="clip" />
 
