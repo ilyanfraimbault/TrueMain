@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import type { OverlayPanel } from '~/types/overlay'
-import { OVERLAY_PANELS } from '~/types/overlay'
+import { OVERLAY_PANELS, onScoreboard } from '~/types/overlay'
 import { PANEL_WIDTHS } from '~/utils/overlay-layout'
+import { sampleGame } from '~/utils/overlay-sample'
 
 /**
  * One panel of the in-game overlay (#1795) — `next-item`, `win-probability`,
- * `stats`, `objectives` (#2078) or `item-value` — loaded by that panel's own window (`src-tauri/src/overlay`),
+ * `stats`, `objectives` (#2078), `item-value` or `lane-gold` (#2186) — loaded by that panel's own window (`src-tauri/src/overlay`),
  * never by the app's window, and drawn outside the app's shell (`app.vue`).
+ *
+ * The lane gold is the exception to the rest: its window is see-through and
+ * the shell sizes it to the scoreboard's rows, so the page fills it with its
+ * plates and reports only its width; it is never dragged, its place being the
+ * scoreboard's.
  *
  * The panels are click-through and never take the keyboard, so nothing here
  * is interactive: they are read at a glance over the game. Each measures
@@ -31,6 +37,7 @@ const PLACEHOLDERS: Record<OverlayPanel, string> = {
   'item-value': 'Each team\'s item gold shows here during a game.',
   'stats': 'Your CS and gold per minute show here during a game.',
   'objectives': 'The objectives\' timers show here during a game.',
+  'lane-gold': '',
 }
 
 const { game, syncedAt } = useLiveGame()
@@ -41,11 +48,13 @@ const chord = computed(() => view.value?.chords[panel.value]?.label ?? null)
 const settings = computed(() => view.value?.settings ?? null)
 const preview = computed(() => (view.value?.preview ?? false) || devPreview.value)
 const scale = computed(() => settings.value?.scale ?? 1)
+const plates = computed(() => onScoreboard(panel.value))
 // The next item and the pace are ours; the other panels read a spectated game too.
 const OURS: OverlayPanel[] = ['next-item', 'stats']
 const playing = computed(() => (!OURS.includes(panel.value) || game.value?.myTeam ? game.value : null))
 // A real game always wins over the sample.
 const isSample = computed(() => !playing.value)
+const sample = sampleGame()
 const { reference: paceReference } = usePaceBenchmark(computed(() => (panel.value === 'stats' ? playing.value : null)))
 
 const devPreview = ref(false)
@@ -76,22 +85,35 @@ onMounted(() => {
 onBeforeUnmount(() => observer?.disconnect())
 watch(scale, measure)
 
+// The plates' window shows the game through everything but the plates: the
+// page fill the theme pins on `html` goes, inline so it wins.
+const fill = computed(() => (plates.value ? 'overflow-hidden bg-transparent' : 'overflow-hidden bg-default'))
 useHead({
   title: 'TrueMain overlay',
-  htmlAttrs: { class: 'overflow-hidden bg-default' },
-  bodyAttrs: { class: 'overflow-hidden bg-default' },
+  htmlAttrs: { class: fill, style: computed(() => (plates.value ? 'background-color: transparent' : undefined)) },
+  bodyAttrs: { class: fill },
 })
 </script>
 
 <template>
-  <div class="origin-top-left" :style="{ transform: `scale(${scale})` }">
+  <div v-if="plates" class="origin-top-left" :style="{ transform: `scale(${scale})`, height: `${100 / scale}vh` }">
+    <div ref="content" class="relative h-full" :style="{ width: `${PANEL_WIDTHS[panel]}px` }">
+      <OverlayLaneGold v-if="playing || preview" :game="playing ?? sample" />
+      <!-- In the preview, marked but not draggable: it goes where the scoreboard is. -->
+      <span v-if="preview" class="pointer-events-none absolute inset-0 rounded-md ring-2 ring-inset ring-primary/70" />
+      <span v-if="preview" class="pointer-events-none absolute inset-x-0 top-1 mx-auto flex w-fit items-center gap-0.5 rounded bg-primary px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap text-inverted" title="On the scoreboard">
+        <UIcon name="i-lucide-rows-3" class="size-2.5" />{{ chord ?? 'Sample' }}
+      </span>
+    </div>
+  </div>
+  <div v-else class="origin-top-left" :style="{ transform: `scale(${scale})` }">
     <div ref="content" class="relative px-3 py-2.5 text-default" :style="{ width: `${PANEL_WIDTHS[panel]}px` }">
       <template v-if="playing">
         <OverlayNextItem v-if="panel === 'next-item'" :game="playing" />
         <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="playing" :synced-at="syncedAt" />
         <OverlayStats v-else-if="panel === 'stats'" :game="playing" :reference="paceReference" />
         <OverlayObjectives v-else-if="panel === 'objectives'" :game="playing" :synced-at="syncedAt" />
-        <OverlayItemValue v-else :game="playing" />
+        <OverlayItemValue v-else :game="playing" :lanes="!settings?.laneGold.enabled" />
       </template>
       <OverlayPanelSample v-else-if="preview" :panel="panel" />
       <div v-else class="flex items-center gap-2.5">

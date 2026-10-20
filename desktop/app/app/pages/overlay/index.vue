@@ -2,7 +2,7 @@
 import { formatPercentage } from '#shared/utils/ddragon'
 import type { OverlayPanel, OverlayPanelSettings, OverlaySettings, OverlayShow, PanelTrigger } from '~/types/overlay'
 import type { Point } from '~/utils/overlay-layout'
-import { OVERLAY_OPACITY, OVERLAY_PANELS, OVERLAY_SCALE, PANEL_KEY } from '~/types/overlay'
+import { OVERLAY_OPACITY, OVERLAY_PANELS, OVERLAY_SCALE, PANEL_KEY, SCOREBOARD_NUDGE } from '~/types/overlay'
 
 /**
  * The in-game overlay (#1795), set up out of game (#1819): which panels show
@@ -48,12 +48,22 @@ function resetPositions() {
 // Sliders save once they settle, not on every step of a drag.
 const scale = ref(1)
 const opacity = ref(0.95)
+const nudge = ref(0)
 watch(() => current.value?.scale, value => (scale.value = value ?? 1), { immediate: true })
 watch(() => current.value?.opacity, value => (opacity.value = value ?? 0.95), { immediate: true })
+watch(() => current.value?.scoreboardNudge, value => (nudge.value = value ?? 0), { immediate: true })
+const nudgeLabel = computed(() => (nudge.value === 0 ? 'None' : `${Math.abs(nudge.value)} px ${nudge.value < 0 ? 'up' : 'down'}`))
 let timer: ReturnType<typeof setTimeout> | undefined
+// One save for every slider moved within the delay, none lost to the next.
+let pending: Partial<OverlaySettings> = {}
 function settle(change: Partial<OverlaySettings>) {
+  pending = { ...pending, ...change }
   clearTimeout(timer)
-  timer = setTimeout(() => apply(change), 250)
+  timer = setTimeout(() => {
+    const settled = pending
+    pending = {}
+    apply(settled)
+  }, 250)
 }
 onBeforeUnmount(() => clearTimeout(timer))
 
@@ -94,6 +104,7 @@ onBeforeUnmount(() => void preview(false))
       v-else
       :settings="current"
       :chords="view?.chords"
+      :hud="view?.hud"
       :class="!current.enabled && 'opacity-60'"
       @place="place"
       @show="show"
@@ -136,6 +147,26 @@ onBeforeUnmount(() => void preview(false))
         <p class="text-xs text-dimmed">
           The game gets the keys too: a shortcut never stops what they do in game.
           {{ view?.ownBinds ? 'Checked against your League keybindings.' : 'Checked against League\'s default keybindings.' }}
+        </p>
+      </section>
+
+      <section v-if="current.laneGold.enabled" class="flex flex-col gap-2">
+        <div class="flex items-baseline justify-between">
+          <h3 class="stat-label">Lane gold nudge</h3>
+          <span class="stat-value text-sm">{{ nudgeLabel }}</span>
+        </div>
+        <USlider
+          :model-value="nudge"
+          :min="-SCOREBOARD_NUDGE"
+          :max="SCOREBOARD_NUDGE"
+          :step="2"
+          size="sm"
+          @update:model-value="(value) => { nudge = value ?? nudge; settle({ scoreboardNudge: nudge }) }"
+        />
+        <p class="text-xs text-dimmed">
+          The plates sit on the scoreboard's rows, following
+          {{ view?.hud.own ? `your HUD scale (${formatPercentage(view.hud.globalScale, 0)})` : 'League\'s default HUD scale until the client is read' }}.
+          Move them if they miss the rows on your screen.
         </p>
       </section>
 
