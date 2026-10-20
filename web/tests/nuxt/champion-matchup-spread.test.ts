@@ -64,13 +64,13 @@ async function mountSpread(championId: number, position: ChampionPosition) {
   }))
   await vi.waitFor(async () => {
     await flushPromises()
-    expect(wrapper.text()).toMatch(/a lane is won when|Not enough decided lanes/)
+    expect(wrapper.find('a[href^="/matchup"]').exists() || wrapper.text().includes('Not enough decided lanes')).toBe(true)
   })
   return wrapper
 }
 
 describe('champion matchup spread', () => {
-  it('places measured opponents, names both ends and counts the rest', async () => {
+  it('places measured opponents and nothing else', async () => {
     const wrapper = await mountSpread(1, 'MIDDLE')
 
     const links = wrapper.findAll('a[href^="/matchup"]')
@@ -81,13 +81,9 @@ describe('champion matchup spread', () => {
     ])
     expect(links[0]!.attributes('aria-label')).toBe('Xerath — 43% lanes won (−7.5 pts) · 40 decided lanes · −310 gold at 15')
 
+    // Only the axis: no caption, no band labels, no counts or extremes under it.
     const text = wrapper.text()
-    expect(text).toContain('3 opponents · a lane is won when ahead in gold at 15 min')
-    expect(text).toMatch(/Favourable\s*1\s*Even\s*1\s*Hard\s*1/)
-    expect(text).toMatch(/Hardest\s*Xerath\s*−7\.5 pts/)
-    expect(text).toMatch(/Easiest\s*Ryze\s*\+7\.0 pts/)
-    expect(text).toContain('Veigar lanes won')
-    expect(text).toContain('1 more opponent has too few decided lanes to place.')
+    expect(text).not.toMatch(/a lane is won when|Favourable|Hardest|Easiest|lanes won|too few decided lanes/)
   })
 
   it('asks the API again for the lane its role picker selects', async () => {
