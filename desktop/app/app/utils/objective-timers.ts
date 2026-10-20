@@ -1,4 +1,4 @@
-import type { DrakeElement, GameObjectives, GameTeam, NeutralTimers, ObjectiveSpawn, TeamObjectives } from '~/types/game'
+import type { DrakeElement, NeutralTimers, ObjectiveSpawn } from '~/types/game'
 
 /**
  * The objectives panel's pills (#2078), from the timers the shell derives
@@ -63,31 +63,4 @@ export function objectiveStatus(spawn: ObjectiveSpawn, clock: number): Objective
 export function formatCountdown(seconds: number): string {
   const whole = Math.max(0, Math.ceil(seconds))
   return `${Math.floor(whole / 60)}:${`${whole % 60}`.padStart(2, '0')}`
-}
-
-/** Drakes that give a team the soul — `RIFT.soul_drakes` in the shell. */
-export const SOUL_DRAKES = 4
-
-/** A side's drakes, and how close they are to the soul. */
-export interface DrakeStanding {
-  count: number
-  /** Each drake's element, in the order they fell. */
-  elements: DrakeElement[]
-  /** One drake from the soul, while no team holds it. */
-  soulPoint: boolean
-  soul: boolean
-}
-
-/** Each side's drakes, ours (or blue side when spectating) first. */
-export function drakeStandings(objectives: GameObjectives, left: GameTeam): { ours: DrakeStanding, theirs: DrakeStanding } {
-  const soulTaken = objectives.order.dragons >= SOUL_DRAKES || objectives.chaos.dragons >= SOUL_DRAKES
-  const standing = ({ dragons: count, drakes: elements }: TeamObjectives): DrakeStanding => ({
-    count,
-    elements,
-    soulPoint: !soulTaken && count === SOUL_DRAKES - 1,
-    soul: count >= SOUL_DRAKES,
-  })
-  const order = standing(objectives.order)
-  const chaos = standing(objectives.chaos)
-  return left === 'ORDER' ? { ours: order, theirs: chaos } : { ours: chaos, theirs: order }
 }

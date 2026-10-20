@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GameObjectives, TeamObjectives } from '../app/types/game'
-import { dragonLabel, drakeStandings, formatCountdown, objectiveIcon, objectiveStatus } from '../app/utils/objective-timers'
-
-const team = (dragons: number): TeamObjectives => ({ turrets: 0, inhibitors: [], dragons, drakes: Array(dragons).fill('cloud'), baronUntil: null, elderUntil: null })
-const objectives = (order: number, chaos: number): GameObjectives => ({ order: team(order), chaos: team(chaos), timers: null })
+import { dragonLabel, formatCountdown, objectiveIcon, objectiveStatus } from '../app/utils/objective-timers'
 
 describe('objectiveStatus', () => {
   it('counts down to the spawn, then stands up', () => {
@@ -44,19 +40,5 @@ describe('the dragon pit', () => {
   it('takes the game\'s minimap icons for the other camps', () => {
     const timers = { elder: false, drake: null }
     expect(['grubs', 'herald', 'baron'].map(key => objectiveIcon(key as 'grubs', timers).split('/').pop())).toEqual(['grub.png', 'riftherald.png', 'baron.png'])
-  })
-})
-
-describe('drakeStandings', () => {
-  it('puts our side first and marks the soul point', () => {
-    const { ours, theirs } = drakeStandings(objectives(1, 3), 'CHAOS')
-    expect(ours).toEqual({ count: 3, elements: ['cloud', 'cloud', 'cloud'], soulPoint: true, soul: false })
-    expect(theirs).toEqual({ count: 1, elements: ['cloud'], soulPoint: false, soul: false })
-  })
-
-  it('has no soul point left once a side holds the soul', () => {
-    const { ours, theirs } = drakeStandings(objectives(4, 3), 'ORDER')
-    expect(ours.soul).toBe(true)
-    expect(theirs.soulPoint).toBe(false)
   })
 })

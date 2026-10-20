@@ -46,23 +46,22 @@ afterEach(() => {
 })
 
 describe('OverlayObjectives', () => {
-  it('counts every objective down from the clock, and runs it between readings', async () => {
+  it('counts every objective down from the clock under its icon alone, and runs it between readings', async () => {
     const wrapper = mount(OverlayObjectives, { props: { game: game(fresh, 240), syncedAt: NOW }, global })
-    expect(pill(wrapper, 'dragon').text()).toContain('Drake')
-    expect(pill(wrapper, 'dragon').text()).toContain('1:00')
-    expect(pill(wrapper, 'grubs').text()).toContain('4:00')
-    expect(pill(wrapper, 'herald').text()).toContain('11:00')
-    expect(pill(wrapper, 'baron').text()).toContain('16:00')
+    expect(pill(wrapper, 'dragon').get('[data-icon]').attributes('src')).toMatch(/\/dragon\.png$/)
+    expect(pill(wrapper, 'dragon').text()).toBe('1:00')
+    expect(pill(wrapper, 'grubs').text()).toBe('4:00')
+    expect(pill(wrapper, 'herald').text()).toBe('11:00')
+    expect(pill(wrapper, 'baron').text()).toBe('16:00')
 
     await vi.advanceTimersByTimeAsync(60_000)
     expect(pill(wrapper, 'dragon').attributes('data-status')).toBe('up')
-    expect(pill(wrapper, 'dragon').find('[data-up]').exists()).toBe(true)
-    expect(pill(wrapper, 'dragon').text()).not.toContain('0:00')
-    expect(wrapper.find('[data-drakes]').exists()).toBe(false)
-    expect(pill(wrapper, 'grubs').text()).toContain('3:00')
+    expect(pill(wrapper, 'dragon').find('[data-countdown]').exists()).toBe(false)
+    expect(pill(wrapper, 'dragon').text()).toBe('')
+    expect(pill(wrapper, 'grubs').text()).toBe('3:00')
   })
 
-  it('shows the drakes each side holds, the soul point, the Rift\'s drake, and hides the camps taken', () => {
+  it('flanks the Rift\'s drake with blue side\'s drakes on the left and red side\'s on the right, and hides the camps taken', () => {
     const timers: NeutralTimers = {
       ...fresh,
       dragon: { at: 1898, until: null },
@@ -72,27 +71,25 @@ describe('OverlayObjectives', () => {
       baron: { at: 1855, until: null },
     }
     const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 1606, [['infernal', 'mountain', 'mountain'], ['ocean']]), syncedAt: NOW }, global })
-    const icons = (side: string) => wrapper.findAll(`[data-side="${side}"] img`).map(img => img.attributes('src')!.split('/').pop())
-    expect(icons('ours')).toEqual(['dragon_infernal.png', 'dragon_mountain.png', 'dragon_mountain.png'])
-    expect(icons('theirs')).toEqual(['dragon_ocean.png'])
-    expect(wrapper.get('[data-soul]').text()).toBe('Soul point')
-    expect(pill(wrapper, 'dragon').text()).toContain('Mountain')
-    expect(pill(wrapper, 'dragon').get('img').attributes('src')).toMatch(/dragon_mountain\.png$/)
-    expect(pill(wrapper, 'dragon').text()).toContain('4:52')
+    const icons = (side: string) => pill(wrapper, 'dragon').findAll(`[data-side="${side}"] img`).map(img => img.attributes('src')!.split('/').pop())
+    expect(icons('blue')).toEqual(['dragon_infernal.png', 'dragon_mountain.png', 'dragon_mountain.png'])
+    expect(icons('red')).toEqual(['dragon_ocean.png'])
+    expect(pill(wrapper, 'dragon').get('[data-icon]').attributes('src')).toMatch(/dragon_mountain\.png$/)
+    expect(pill(wrapper, 'dragon').get('[data-countdown]').text()).toBe('4:52')
     expect(wrapper.find('[data-objective="grubs"]').exists()).toBe(false)
     expect(wrapper.find('[data-objective="herald"]').exists()).toBe(false)
-    expect(pill(wrapper, 'baron').text()).toContain('4:09')
+    expect(pill(wrapper, 'baron').find('[data-side]').exists()).toBe(false)
+    expect(pill(wrapper, 'baron').text()).toBe('4:09')
   })
 
-  it('names the Elder once a side holds the soul, and drops the camps that left the map', () => {
+  it('shows the Elder\'s icon once a side holds the soul, and drops the camps that left the map', () => {
     const timers: NeutralTimers = { ...fresh, dragon: { at: 2110, until: null }, elder: true, drake: 'ocean' }
     const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 1900, [['cloud'], ['ocean', 'hextech', 'ocean', 'ocean']]), syncedAt: NOW }, global })
-    expect(pill(wrapper, 'dragon').text()).toContain('Elder')
-    expect(pill(wrapper, 'dragon').get('img').attributes('src')).toMatch(/dragon_elder\.png$/)
-    expect(wrapper.get('[data-soul]').text()).toBe('Soul')
-    expect(wrapper.get('[data-soul]').classes()).toContain('text-enemy')
+    expect(pill(wrapper, 'dragon').get('[data-icon]').attributes('src')).toMatch(/dragon_elder\.png$/)
+    expect(pill(wrapper, 'dragon').get('[data-icon]').attributes('alt')).toBe('Elder')
+    expect(pill(wrapper, 'dragon').findAll('[data-side="red"] img')).toHaveLength(4)
     expect(wrapper.findAll('[data-objective]').map(row => row.attributes('data-objective'))).toEqual(['dragon', 'baron'])
-    expect(pill(wrapper, 'baron').find('[data-up]').exists()).toBe(true)
+    expect(pill(wrapper, 'baron').attributes('data-status')).toBe('up')
   })
 
   it('says so off the Rift, where the shell has no timers', () => {

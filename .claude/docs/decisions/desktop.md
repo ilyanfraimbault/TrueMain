@@ -516,12 +516,12 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
   ten players and a zero clock; a reading counts as a game only once its feed holds `GameStart` (2026-10-04).
 - **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
 - **Objectives** (#2078, 2026-10-20): when the dragon pit (a drake, or the Elder once a side holds the soul), the
-  Voidgrubs, the Rift Herald and Baron are next up — the game's minimap icons, a countdown, a green dot while it stands,
-  no words for it ("Up", "Taken" were the product owner's no); a camp taken for good or gone from the map leaves the
-  panel — and under the dragon the drakes each side took as their icons, ours ringed in blue on the left, theirs in red
-  on the right, the soul point or the soul between (counts like "2–1" read as nothing, the product owner's call). The pit names its next drake's element from
-  the Rift's terrain (`gameData.mapTerrain`, which turns after the second drake, the element of every drake after); the
-  API names neither of the first two before they fall, so those read "Drake" with the plain icon rather than a guess.
+  Voidgrubs, the Rift Herald and Baron are next up — icons only, the game's minimap ones, and a countdown until it
+  spawns, the icon alone once it stands; no names, no "Up", no green dot, no counts like "2–1", no soul badge (each read
+  as noise, the product owner's calls); a camp taken for good or gone from the map leaves the panel. The dragon row
+  sets the pit's icon between the drakes each side took, blue side's on the left, red side's on the right, as their
+  icons; the others hold icon and countdown apart. The pit's icon is its next drake's element from the Rift's terrain
+  (`gameData.mapTerrain`, which turns after the second drake, the element of every drake after); the API names neither of the first two before they fall, so those read "Drake" with the plain icon rather than a guess.
   Only the game clock, the terrain and the kills the event feed announces to every player, against the
   season's spawn rules held in one table in the shell (`live_client::timers::RIFT`, V26: Atakhan removed, Baron back at
   20:00, grubs and Herald once a game); nothing read from memory or the screen, no jungle camp, no summoner spell, no
