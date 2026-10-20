@@ -29,7 +29,7 @@ const props = defineProps<{
 
 const ICON = 28
 const ROW = 32
-const MIN_ROWS = 7
+const MIN_ROWS = 5
 
 const role = ref<ChampionPosition | null>(props.position)
 watch(() => props.position, (value) => { role.value = value })
@@ -110,7 +110,7 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
       <RolePicker hide-all :position="role" @update:position="value => (role = value)" />
     </template>
 
-    <USkeleton v-if="isLoading" class="h-56 w-full rounded-md" />
+    <USkeleton v-if="isLoading" class="h-40 w-full rounded-md" />
 
     <FetchErrorAlert v-else-if="error" :error="error" title="Failed to load the matchups" />
 
