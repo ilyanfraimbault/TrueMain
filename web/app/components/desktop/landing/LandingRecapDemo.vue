@@ -146,7 +146,7 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.ro
               </span>
               <span class="text-highlighted">Triple kill</span>
               <span class="pl-3 text-right tabular-nums text-dimmed">{{ clock(TRIPLE_KILL.at) }}</span>
-              <img :src="DRAKE.icon" alt="" width="20" height="20" class="size-5 object-contain">
+              <img :src="canonicalIcon(DRAKE.icon)" alt="" width="20" height="20" class="size-5 object-contain">
               <span class="text-highlighted">{{ DRAKE.label }}</span>
               <span class="pl-3 text-right tabular-nums text-dimmed">{{ clock(DRAKE.at) }}</span>
             </div>

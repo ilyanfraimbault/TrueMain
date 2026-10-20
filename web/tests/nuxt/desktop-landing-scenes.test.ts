@@ -166,7 +166,7 @@ describe('LandingRecapDemo', () => {
     expect(wrapper.text()).toContain('Triple kill13:15')
     expect(wrapper.text()).toContain('Infernal Drake13:40')
     for (const champion of ['Yone', 'Orianna', 'Ezreal', 'Nautilus']) expect(sources.some(src => src.includes(`/${champion}.png`))).toBe(true)
-    expect(sources.some(src => src.endsWith('/dragon_infernal.png'))).toBe(true)
+    expect(sources.some(src => src.includes('/dragon_infernal.png'))).toBe(true)
   })
 })
 
