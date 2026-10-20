@@ -16,6 +16,7 @@ use lcu::GameflowPhase;
 
 use crate::anchor::{Anchor, ClockSample};
 use crate::highlights::{self, HighlightSource};
+use crate::marks::{self, Mark};
 use crate::moments;
 use crate::settings::{Quality, RecordingSettings};
 use crate::store::{RecordingDir, RecordingMeta, RecordingStatus, Store, StoredRecording};
@@ -219,6 +220,25 @@ impl<C: Capture> Session<C> {
         if let State::Recording(active) = &mut self.state {
             active.player = Some(player);
         }
+    }
+
+    /// The player pressed the mark key: note this second of the video, and
+    /// write it at once, so a crash before the game ends still keeps it. The
+    /// second marked, or `None` when no game records or the press repeats the
+    /// last mark (`marks::is_new`).
+    pub fn mark(&mut self) -> Result<Option<u64>, SessionError> {
+        let State::Recording(active) = &mut self.state else {
+            return Ok(None);
+        };
+        let Some(video_ms) = self.capture.elapsed_ms() else {
+            return Ok(None);
+        };
+        if !marks::is_new(&active.meta.marks, video_ms) {
+            return Ok(None);
+        }
+        active.meta.marks.push(Mark { video_ms });
+        active.dir.write_meta(&active.meta)?;
+        Ok(Some(video_ms))
     }
 
     /// The live feed as read; only champion kills not seen yet are kept.
@@ -686,6 +706,55 @@ mod tests {
         assert_eq!(finalised.pruned.len(), 1);
         assert_eq!(finalised.pruned[0].meta.game_id, 1);
         assert_eq!(store.list().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_mark_notes_the_second_of_the_video_and_survives_the_game() {
+        let root = tempfile::tempdir().unwrap();
+        let mut session = Session::new(FakeCapture::default());
+        // No game records: nothing to mark.
+        assert_eq!(session.mark().unwrap(), None);
+        let change = session
+            .on_phase(
+                GameflowPhase::InProgress,
+                Some(GAME),
+                &settings(),
+                root.path(),
+                0,
+            )
+            .unwrap();
+        let Change::Started(path) = change else {
+            panic!("expected a start, got {change:?}");
+        };
+
+        session.capture().set_clock(24_000);
+        assert_eq!(session.mark().unwrap(), Some(24_000));
+        // Written at once: a crash now keeps it.
+        let written = RecordingDir::new(path.clone()).read_meta().unwrap();
+        assert_eq!(written.marks, vec![Mark { video_ms: 24_000 }]);
+        // The key held a moment too long is the same press.
+        session.capture().set_clock(24_400);
+        assert_eq!(session.mark().unwrap(), None);
+        session.capture().set_clock(33_000);
+        assert_eq!(session.mark().unwrap(), Some(33_000));
+
+        session.capture().set_clock(1_500_000);
+        session
+            .on_phase(GameflowPhase::EndOfGame, None, &settings(), root.path(), 0)
+            .unwrap();
+        assert_eq!(session.mark().unwrap(), None);
+        let meta = session
+            .finalise(GameOutcome::default(), u64::MAX, root.path())
+            .unwrap()
+            .unwrap()
+            .meta;
+        let marked: Vec<i64> = meta
+            .moments()
+            .iter()
+            .filter(|moment| moment.kind == crate::MomentKind::Marked)
+            .map(|moment| moment.video_ms)
+            .collect();
+        assert_eq!(marked, vec![24_000, 33_000]);
     }
 
     #[test]

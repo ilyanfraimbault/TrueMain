@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::anchor::Anchor;
 use crate::highlights::{Highlight, HighlightSource};
+use crate::marks::Mark;
 use crate::moments::{self, Moment, Objective};
 use crate::settings::Quality;
 use crate::win_probability::{WIN_PROBABILITY_FILE, WIN_PROBABILITY_TEMPORARY};
@@ -70,6 +71,9 @@ pub struct RecordingMeta {
     /// time.
     #[serde(default)]
     pub objectives: Vec<Objective>,
+    /// The moments the player marked with the mark key, in video time (#2079).
+    #[serde(default)]
+    pub marks: Vec<Mark>,
     /// Exempt from the disk budget — the player kept the full game.
     pub pinned: bool,
 }
@@ -93,16 +97,18 @@ impl RecordingMeta {
             highlights: Vec::new(),
             highlights_source: None,
             objectives: Vec::new(),
+            marks: Vec::new(),
             pinned: false,
         }
     }
 
-    /// The highlights and objectives on the video.
+    /// The highlights, objectives and marks on the video.
     pub fn moments(&self) -> Vec<Moment> {
         moments::on_video(
             self.anchor.as_ref(),
             &self.highlights,
             &self.objectives,
+            &self.marks,
             self.duration_ms,
         )
     }

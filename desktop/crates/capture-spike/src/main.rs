@@ -176,6 +176,8 @@ async fn run(options: Options) -> Result<(), String> {
         quality: options.quality,
         budget_bytes: u64::MAX,
         folder: Some(out.clone()),
+        // The spike measures the capture: nothing reads the keyboard.
+        mark_key: None,
     };
 
     let mut session = Session::new(

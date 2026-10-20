@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/recordings'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
-import { isPlayerMoment, isStructure, PLAYER_LANES } from '~/utils/recording-moments'
+import { isMarked, isPlayerMoment, isStructure, PLAYER_LANES } from '~/utils/recording-moments'
 import {
   TIMELINE_CURVE_HEIGHT as CURVE_HEIGHT,
   TIMELINE_LANE_HEIGHT as LANE_HEIGHT,
@@ -14,7 +14,8 @@ import {
  * The recap's timeline (#1777): the video's length with the player's kills,
  * assists and deaths each on a lane of their own — named by the glyph beside
  * it — and the game's objectives above them, the playhead, and the ranges
- * being cut. A click seeks, a click on a moment seeks
+ * being cut; a moment the player marked with the mark key (#2079) draws its
+ * badge with the objectives and a line across the lanes. A click seeks, a click on a moment seeks
  * a few seconds before it. Under the lanes, when the game has one, the
  * win-probability curve (#1911) on a lane of its own, its turning points
  * seeking like moments. When `editable`, a drag across the track draws a new
@@ -69,6 +70,8 @@ const lanes = computed(() => PLAYER_LANES.map(lane => ({
 // Structures first, so an epic monster's badge is drawn over a tower that fell at the same time.
 const objectives = computed(() => visible.value.filter(moment => !isPlayerMoment(moment))
   .sort((a, b) => Number(!isStructure(a)) - Number(!isStructure(b))))
+
+const marks = computed(() => visible.value.filter(isMarked))
 
 /** The lanes' panel, and the curve's lane under it when the game has one. */
 const panelHeight = computed(() => LANES_HEIGHT + (props.winProbability ? CURVE_HEIGHT : 0))
@@ -166,6 +169,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
           <div v-for="at in ticks" :key="`grid-${at}`" class="absolute inset-y-0 w-px bg-white/[0.04]" :style="{ left: pct(at) }" />
           <div v-for="index in PLAYER_LANES.length - (winProbability ? 0 : 1)" :key="`lane-${index}`" class="absolute inset-x-0 h-px bg-white/[0.05]" :style="{ top: `${index * LANE_HEIGHT}px` }" />
           <div v-if="hoverMs !== null && !drag" class="absolute inset-y-0 w-px bg-white/15" :style="{ left: pct(hoverMs) }" />
+          <div v-for="mark in marks" :key="`mark-${mark.videoMs}`" class="absolute inset-y-0 w-px bg-primary/60" :style="{ left: pct(mark.videoMs) }" />
           <div
             v-for="clip in saved"
             :key="clip.id"

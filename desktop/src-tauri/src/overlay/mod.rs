@@ -40,6 +40,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::game::SharedGame;
 use crate::record::SharedClient;
+use crate::recording::SharedRecorder;
 
 /// A panel's window, and the route its webview loads.
 pub fn label(panel: OverlayPanel) -> String {
@@ -180,6 +181,11 @@ impl Overlay {
         }
     }
 
+    /// How `chord` reads and what it also does in game, from the binds read.
+    pub fn chord_view(&self, chord: &shell_state::keys::Chord) -> ChordView {
+        chord_view(&self.binds.lock().expect("overlay binds poisoned"), chord)
+    }
+
     pub fn size(&self, panel: OverlayPanel) -> (f64, f64) {
         self.sizes
             .lock()
@@ -311,8 +317,14 @@ pub fn overlay_view(overlay: State<'_, SharedOverlay>) -> OverlayView {
     overlay.view()
 }
 
+/// The mark key's chord (#2079), which no panel may have.
+fn mark_key(app: &AppHandle) -> Option<shell_state::keys::Chord> {
+    app.try_state::<SharedRecorder>()?.settings().mark_key
+}
+
 /// Replace the settings. Read leniently, like the file: a value out of range
-/// falls back alone, and the answer is what was kept.
+/// falls back alone — a panel on the mark key's chord too — and the answer is
+/// what was kept.
 #[tauri::command]
 pub fn set_overlay_settings(
     app: AppHandle,
@@ -320,6 +332,10 @@ pub fn set_overlay_settings(
     settings: serde_json::Value,
 ) -> Result<OverlayView, String> {
     let settings = OverlaySettings::from_app(&settings.to_string());
+    let settings = match mark_key(&app) {
+        Some(chord) => settings.freeing(&chord),
+        None => settings,
+    };
     overlay
         .replace_settings(settings)
         .map_err(|error| error.to_string())?;
@@ -330,6 +346,7 @@ pub fn set_overlay_settings(
 /// page saves it: the page shows the refusal by the field that recorded it.
 #[tauri::command]
 pub fn overlay_check_trigger(
+    app: AppHandle,
     overlay: State<'_, SharedOverlay>,
     panel: String,
     trigger: serde_json::Value,
@@ -337,10 +354,13 @@ pub fn overlay_check_trigger(
     let panel = OverlayPanel::from_slug(&panel).ok_or("no such panel")?;
     let trigger: PanelTrigger =
         serde_json::from_value(trigger).map_err(|_| "a key this app does not know".to_string())?;
-    let binds = overlay.binds.lock().expect("overlay binds poisoned");
+    let refusal = overlay.settings().refusal(panel, &trigger).or_else(|| {
+        let marks = trigger.chord().is_some() && trigger.chord() == mark_key(&app);
+        marks.then(|| "Already the key that marks a moment while a game records.".to_string())
+    });
     Ok(TriggerCheck {
-        refusal: overlay.settings().refusal(panel, &trigger),
-        chord: trigger.chord().map(|chord| chord_view(&binds, &chord)),
+        refusal,
+        chord: trigger.chord().map(|chord| overlay.chord_view(&chord)),
     })
 }
 

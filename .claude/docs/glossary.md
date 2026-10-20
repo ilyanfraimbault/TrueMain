@@ -230,6 +230,15 @@ The game page's per-lane arrow and chance towards the favoured side.
 **Overlay**:
 The in-game panels drawn over League (next item, win probability, pace, item value); click-through.
 
+**Highlight**:
+A recorded game's kill, death or assist of the player, placed on its video from the game's timeline (or its live feed).
+Found by the app, never chosen by the player.
+
+**Marked moment**:
+A moment the player kept by pressing the **mark key** while the game recorded; it becomes a clip of the 30 seconds
+before the press.
+_Avoid_: highlight (the app's own kills, deaths and assists), instant replay (#1767's saved last minutes)
+
 **Win probability**:
 An in-game estimate from lane leads and map objectives; overlay and post-game only.
 

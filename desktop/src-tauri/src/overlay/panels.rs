@@ -2,7 +2,8 @@
 //! switched on, built when a game starts and closed when it ends (#1916),
 //! sized to its page and placed by the settings, shown or hidden by
 //! `shell_state::overlay`'s rule, dragged into place in the preview — and the
-//! watch that feeds the rule the game's frontmost state and the keys held.
+//! watch that feeds the rule the game's frontmost state and the keys held,
+//! and reports a press of the mark key while a game records (#2079).
 //!
 //! The platform module (`macos.rs`, `windows.rs`) builds the windows and
 //! owns what differs: how a window stays above the game without taking its
@@ -24,6 +25,7 @@ use tauri::{
 
 use super::platform;
 use super::{label, SharedOverlay, VIEW_EVENT};
+use crate::recording::SharedRecorder;
 
 const KEYS_EVERY: Duration = Duration::from_millis(30);
 /// Ticks of `KEYS_EVERY` between two looks at the frontmost app (~240 ms):
@@ -351,6 +353,7 @@ fn dragged(app: &AppHandle, which: OverlayPanel, position: tauri::PhysicalPositi
 /// Follows the frontmost app and the keys for the app's life.
 fn watch(app: &AppHandle) {
     let mut held = false;
+    let mut marking = false;
     let mut tick: u32 = 0;
     loop {
         tick = tick.wrapping_add(1);
@@ -380,15 +383,26 @@ fn watch(app: &AppHandle) {
             apply(app);
         }
         held = down;
-        // Only the keys the panels' chords name: a few reads per tick.
+        // Only the keys the panels' chords and the mark key name: a few
+        // reads per tick. The mark key only while a game records.
+        let recorder = app.try_state::<SharedRecorder>().map(|r| r.inner().clone());
+        let mark_key = recorder.as_ref().and_then(|recorder| recorder.mark_key());
         let keys = if front {
-            platform::keys::read(&overlay.settings().chord_keys())
+            let mut named = overlay.settings().chord_keys();
+            named.extend(mark_key.and_then(|chord| chord.key));
+            platform::keys::read(&named)
         } else {
             KeysDown::default()
         };
         if overlay.read_keys(&keys) {
             apply(app);
         }
+        let down = mark_key.is_some_and(|chord| chord.is_down(&keys));
+        if let (true, false, Some(recorder)) = (down, marking, recorder) {
+            // Off this loop: the mark is written to disk.
+            std::thread::spawn(move || recorder.mark());
+        }
+        marking = down;
         std::thread::sleep(KEYS_EVERY);
     }
 }

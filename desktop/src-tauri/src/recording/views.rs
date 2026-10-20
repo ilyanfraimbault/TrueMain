@@ -12,6 +12,7 @@ use lcu::WinProbabilityTimeline;
 use serde::Serialize;
 
 use super::Activity;
+use crate::overlay::ChordView;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,10 +38,13 @@ pub struct SettingsView {
     folder: PathBuf,
     min_budget_bytes: u64,
     estimates: Vec<Estimate>,
+    /// The mark key as the player presses it and what it also does in game;
+    /// `None` when marking is off.
+    mark_key: Option<ChordView>,
 }
 
 impl SettingsView {
-    pub fn new(settings: RecordingSettings, folder: PathBuf) -> Self {
+    pub fn new(settings: RecordingSettings, folder: PathBuf, mark_key: Option<ChordView>) -> Self {
         let mut estimates = Vec::new();
         for resolution in [
             Resolution::Native,
@@ -65,6 +69,7 @@ impl SettingsView {
             folder,
             min_budget_bytes: game_recording::settings::MIN_BUDGET_BYTES,
             estimates,
+            mark_key,
         }
     }
 }
