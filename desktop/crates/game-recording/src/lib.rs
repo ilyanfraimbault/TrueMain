@@ -14,6 +14,8 @@
 //! - [`moments`]: the game's objectives, and every moment placed on the video.
 //! - [`store`]: the recordings on disk and the disk budget.
 //! - [`clips`]: the clips the player cut from a recording, each its own file.
+//! - [`marks`]: the moments the player marked with the mark key, and the
+//!   clip each one becomes.
 //! - [`session`]: one game's recording, driven by the gameflow phase.
 //! - [`win_probability`]: what the recap's win-probability curve is drawn
 //!   from, kept beside the video.
@@ -21,6 +23,7 @@
 pub mod anchor;
 pub mod clips;
 pub mod highlights;
+pub mod marks;
 pub mod moments;
 pub mod session;
 pub mod settings;
@@ -33,6 +36,7 @@ pub use clips::{
     StoredClip,
 };
 pub use highlights::{Highlight, HighlightKind, HighlightSource};
+pub use marks::{Mark, MARK_WINDOW_MS};
 pub use moments::{DragonKind, Moment, MomentKind, Objective, ObjectiveKind};
 pub use session::{Capture, CaptureError, Change, GameInfo, GameOutcome, Session, SessionError};
 pub use settings::{FrameRate, OutputSpec, Quality, Queues, RecordingSettings, Resolution};

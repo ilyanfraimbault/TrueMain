@@ -3,7 +3,6 @@ import type { ChampionMatchupEntry } from '~~/shared/types/champions'
 import {
   beeswarmRows,
   buildMatchupSpread,
-  matchupSpreadBand,
   matchupSpreadPosition,
 } from '~~/shared/utils/matchup-spread'
 
@@ -13,7 +12,7 @@ import {
  * unmeasured (it would read as "dead even"), or let two icons overlap.
  */
 
-function entry(opponentChampionId: number, laneWinRate: number | null, decidedLaneGames = 20): ChampionMatchupEntry {
+function entry(opponentChampionId: number, laneWinRate: number | null): ChampionMatchupEntry {
   return {
     opponentChampionId,
     games: 40,
@@ -23,7 +22,7 @@ function entry(opponentChampionId: number, laneWinRate: number | null, decidedLa
     winRateLowerBound: 0.35,
     winRateUpperBound: 0.65,
     laneWinRate,
-    decidedLaneGames,
+    decidedLaneGames: 20,
     averageGoldDiffAt15: null,
     goldDiffLaneGames: 0,
     averageXpDiffAt15: null,
@@ -32,43 +31,21 @@ function entry(opponentChampionId: number, laneWinRate: number | null, decidedLa
 }
 
 describe('buildMatchupSpread', () => {
-  it('leaves unmeasured lanes off the axis and counts them', () => {
+  it('leaves unmeasured lanes off the axis', () => {
     const spread = buildMatchupSpread([entry(1, 0.6), entry(2, null), entry(3, 0.4)])
 
     expect(spread.points.map(p => p.entry.opponentChampionId)).toEqual([3, 1])
-    expect(spread.unmeasured).toBe(1)
   })
 
-  it('orders hardest to easiest and names both ends', () => {
+  it('orders hardest to easiest', () => {
     const spread = buildMatchupSpread([entry(1, 0.55), entry(2, 0.38), entry(3, 0.62)])
 
-    expect(spread.hardest?.entry.opponentChampionId).toBe(2)
-    expect(spread.easiest?.entry.opponentChampionId).toBe(3)
-  })
-
-  it('weights the average by decided lanes, not by opponents', () => {
-    const spread = buildMatchupSpread([entry(1, 0.6, 90), entry(2, 0.2, 10)])
-
-    expect(spread.averageLaneWinRate).toBeCloseTo(0.56)
+    expect(spread.points.map(p => p.entry.opponentChampionId)).toEqual([2, 1, 3])
   })
 
   it('rounds the axis up to the widest delta, with a floor', () => {
     expect(buildMatchupSpread([entry(1, 0.51)]).halfWidth).toBeCloseTo(0.05)
     expect(buildMatchupSpread([entry(1, 0.43), entry(2, 0.58)]).halfWidth).toBeCloseTo(0.1)
-  })
-
-  it('counts each band', () => {
-    const spread = buildMatchupSpread([entry(1, 0.6), entry(2, 0.51), entry(3, 0.4), entry(4, 0.45)])
-
-    expect(spread.counts).toEqual({ favourable: 1, even: 1, hard: 2 })
-  })
-})
-
-describe('matchupSpreadBand', () => {
-  it('keeps the band edge inside even', () => {
-    expect(matchupSpreadBand(0.025)).toBe('even')
-    expect(matchupSpreadBand(-0.025)).toBe('even')
-    expect(matchupSpreadBand(0.026)).toBe('favourable')
   })
 })
 

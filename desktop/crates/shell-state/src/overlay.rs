@@ -334,6 +334,26 @@ impl OverlaySettings {
             .map(|other| format!("Already the shortcut of {}.", other.name()))
     }
 
+    /// The panel `chord` brings on screen, if one does: the mark key (#2079)
+    /// may not be a panel's chord too.
+    pub fn panel_on(&self, chord: &Chord) -> Option<OverlayPanel> {
+        OverlayPanel::ALL
+            .into_iter()
+            .find(|panel| self.panel(*panel).trigger.chord().as_ref() == Some(chord))
+    }
+
+    /// The settings with every panel on `chord` back to its default trigger:
+    /// the chord is the mark key's.
+    pub fn freeing(mut self, chord: &Chord) -> Self {
+        while let Some(panel) = self.panel_on(chord) {
+            self.panel_mut(panel).trigger = PanelTrigger::default_for(panel);
+            if self.panel(panel).trigger.chord().as_ref() == Some(chord) {
+                self.panel_mut(panel).trigger = PanelTrigger::Always;
+            }
+        }
+        self
+    }
+
     /// The keys the panels' chords name, for the shell to read and no other.
     pub fn chord_keys(&self) -> Vec<crate::keys::KeyCode> {
         let mut keys: Vec<_> = OverlayPanel::ALL
@@ -796,6 +816,25 @@ mod tests {
             )
             .is_some());
         assert_eq!(settings.refusal(Stats, &PanelTrigger::Always), None);
+    }
+
+    #[test]
+    fn the_mark_keys_chord_is_taken_back_from_a_panel() {
+        let mark = Chord::with(true, true, false, KeyCode::Digit0);
+        let mut settings = OverlaySettings::default();
+        settings.panel_mut(Stats).trigger = PanelTrigger::Toggle {
+            chord: mark,
+            start_shown: true,
+        };
+        assert_eq!(settings.panel_on(&mark), Some(Stats));
+        assert_eq!(settings.panel_on(&Chord::TAB), Some(ItemValue));
+
+        let freed = settings.freeing(&mark);
+        assert_eq!(freed.panel_on(&mark), None);
+        assert_eq!(freed.panel(Stats).trigger, PanelTrigger::Always);
+        // A panel whose default is the chord itself is shown always.
+        let freed = OverlaySettings::default().freeing(&Chord::TAB);
+        assert_eq!(freed.panel(ItemValue).trigger, PanelTrigger::Always);
     }
 
     #[test]

@@ -28,13 +28,15 @@ export const EVENT_CLUSTER_PX = 10
 /**
  * Events close enough on screen to be one dot, and the instant it is drawn at
  * (the middle of the first and the last). A cluster reads as the side that
- * owns it: `ally` when every event in it went the player's side's way,
- * `enemy` when none did, `mixed` otherwise.
+ * owns it: `ally` when every game event in it went the player's side's way,
+ * `enemy` when none did, `mixed` otherwise; `marked` when it holds only
+ * moments the player marked — a mark beside a game event leaves the colour
+ * to the event, the mark's own line telling it apart.
  */
 export interface EventCluster {
   ms: number
   moments: Moment[]
-  side: 'ally' | 'enemy' | 'mixed'
+  side: 'ally' | 'enemy' | 'mixed' | 'marked'
 }
 
 /** `moments` grouped into dots no closer than `gapMs`, in order: a chain of near events is one cluster. */
@@ -47,11 +49,14 @@ export function clusterMoments(moments: Moment[], gapMs: number): EventCluster[]
     else groups.push([moment])
   }
   return groups.map((group) => {
-    const sides = new Set(group.map(moment => momentSide(moment)))
+    const sides = new Set(group.map(moment => momentSide(moment)).filter(side => side !== 'marked'))
+    let side: EventCluster['side'] = 'marked'
+    if (sides.size > 1) side = 'mixed'
+    else if (sides.size === 1) side = [...sides][0]!
     return {
       ms: (group[0]!.videoMs + group.at(-1)!.videoMs) / 2,
       moments: group,
-      side: sides.size > 1 ? 'mixed' : [...sides][0]!,
+      side,
     }
   })
 }

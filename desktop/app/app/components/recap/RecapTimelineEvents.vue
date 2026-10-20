@@ -31,10 +31,11 @@ const SIDE_DOT: Record<EventCluster['side'], string> = {
   ally: 'bg-ally',
   enemy: 'bg-enemy',
   mixed: 'bg-[linear-gradient(90deg,var(--color-ally)_50%,var(--color-enemy)_50%)]',
+  marked: 'bg-primary',
 }
-const SIDE_TEXT = { ally: 'text-ally', enemy: 'text-enemy' } as const
-const SIDE_RING = { ally: 'ring-ally', enemy: 'ring-enemy' } as const
-const OTHER_SIDE = { ally: 'enemy', enemy: 'ally' } as const
+const SIDE_TEXT = { ally: 'text-ally', enemy: 'text-enemy', marked: 'text-primary' } as const
+const SIDE_RING = { ally: 'ring-ally', enemy: 'ring-enemy', marked: 'ring-primary' } as const
+const OTHER_SIDE = { ally: 'enemy', enemy: 'ally', marked: 'marked' } as const
 
 const rows = computed(() => (props.hovered?.moments ?? []).map((moment) => {
   const side = momentSide(moment)

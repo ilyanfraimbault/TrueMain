@@ -48,5 +48,7 @@ describe('an objective', () => {
     expect(objectiveIconUrl(moment('dragon'))).toMatch(/\/dragon\.png$/)
     expect(objectiveIconUrl(moment('herald'))).toMatch(/\/riftherald\.png$/)
     expect(objectiveIconUrl(moment('kill'))).toBeNull()
+    expect(objectiveIconUrl(moment('marked'))).toBeNull()
+    expect(momentDuel(moment('marked'), cast)).toBeNull()
   })
 })

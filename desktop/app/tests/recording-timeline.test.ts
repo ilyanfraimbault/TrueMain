@@ -97,6 +97,12 @@ describe('the timeline events', () => {
     expect(clusterMoments([moment('kill', 1_000), moment('grubs', 1_200, false)], 500)[0]!.side).toBe('mixed')
   })
 
+  it('draws a mark in the primary alone, and leaves a mark beside an event its side', () => {
+    expect(momentSide(moment('marked', 0))).toBe('marked')
+    expect(clusterMoments([moment('marked', 1_000)], 500)[0]!.side).toBe('marked')
+    expect(clusterMoments([moment('marked', 1_000), moment('death', 1_200)], 500)[0]!.side).toBe('enemy')
+  })
+
   it('keeps every event apart without a gap', () => {
     expect(clusterMoments([moment('kill', 1_000), moment('kill', 1_001)], 0)).toHaveLength(2)
   })

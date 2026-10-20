@@ -14,12 +14,30 @@ import { formatDuration } from '#common/utils/relativeTime'
 /**
  * Which way a moment went, the colour of its dot on the timeline: the player's
  * kills and assists and their side's objectives are the ally's, their deaths
- * and the enemy's objectives the enemy's.
+ * and the enemy's objectives the enemy's; a moment the player marked is
+ * neither, drawn in the app's primary.
  */
-export const momentSide = (moment: Moment): 'ally' | 'enemy' =>
-  moment.kind === 'death' || moment.ally === false ? 'enemy' : 'ally'
+export type MomentSide = 'ally' | 'enemy' | 'marked'
 
-const OBJECTIVE_NAMES: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist'>, string> = {
+export function momentSide(moment: Moment): MomentSide {
+  if (moment.kind === 'marked') return 'marked'
+  return moment.kind === 'death' || moment.ally === false ? 'enemy' : 'ally'
+}
+
+/**
+ * How much of the game before a press of the mark key its clip holds — the
+ * shell's `MARK_WINDOW_MS` (`crates/game-recording/src/marks.rs`), #2079.
+ */
+export const MARK_WINDOW_MS = 30_000
+
+export const isMarked = (moment: Pick<Moment, 'kind'>) => moment.kind === 'marked'
+
+/** Where the player lands on a moment: a few seconds before it, or at the start of a marked moment's 30 s. */
+export function momentStart(moment: Pick<Moment, 'videoMs'> & Partial<Pick<Moment, 'kind'>>, leadMs: number): number {
+  return moment.kind === 'marked' ? moment.videoMs - MARK_WINDOW_MS : moment.videoMs - leadMs
+}
+
+const OBJECTIVE_NAMES: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist' | 'marked'>, string> = {
   elder: 'Elder Dragon',
   baron: 'Baron',
   atakhan: 'Atakhan',
@@ -50,6 +68,7 @@ export function momentLabel(moment: Moment): string {
     case 'kill': return MULTI_KILLS[Math.min(Math.max(moment.kills, 1), 5) - 1]!
     case 'death': return 'Death'
     case 'assist': return 'Assist'
+    case 'marked': return 'Marked moment'
     default: {
       const name = (moment.kind === 'dragon' && moment.dragon && DRAKE_NAMES[moment.dragon]) || OBJECTIVE_NAMES[moment.kind]
       return moment.ally === false ? `Enemy ${name}` : name
@@ -60,7 +79,7 @@ export function momentLabel(moment: Moment): string {
 /** The game's own minimap icons, one per drake element and per objective. */
 const MINIMAP_ICONS = 'https://raw.communitydragon.org/latest/game/assets/ux/minimap/icons'
 
-const OBJECTIVE_ICONS: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist'>, string> = {
+const OBJECTIVE_ICONS: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist' | 'marked'>, string> = {
   dragon: 'dragon',
   elder: 'dragon_elder',
   baron: 'baron',
@@ -71,9 +90,9 @@ const OBJECTIVE_ICONS: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist'>, 
   inhibitor: 'inhibitor',
 }
 
-/** An objective's icon as the game's minimap draws it; `null` for the player's kills, deaths and assists. */
+/** An objective's icon as the game's minimap draws it; `null` for the player's kills, deaths, assists and marks. */
 export function objectiveIconUrl(moment: Moment): string | null {
-  if (moment.kind === 'kill' || moment.kind === 'death' || moment.kind === 'assist') return null
+  if (moment.kind === 'kill' || moment.kind === 'death' || moment.kind === 'assist' || moment.kind === 'marked') return null
   const file = moment.kind === 'dragon' && moment.dragon ? `dragon_${moment.dragon}` : OBJECTIVE_ICONS[moment.kind]
   return `${MINIMAP_ICONS}/${file}.png`
 }
@@ -127,6 +146,7 @@ export function momentTone(moment: Moment): string {
     case 'kill': return 'text-data-good'
     case 'death': return 'text-red-400'
     case 'assist': return 'text-ink-300'
+    case 'marked': return 'text-primary'
     default: return moment.ally === false ? 'text-enemy' : 'text-ally'
   }
 }
@@ -167,11 +187,16 @@ export function proposeClipTitle(moments: Moment[], startMs: number, endMs: numb
   if (killPart && objectivePart) return `${killPart} + ${objectivePart}`
   if (killPart) return champion ? `${killPart} on ${champion}` : killPart
   if (objectivePart) return objectivePart
+  return quietTitle(inside, startMs, champion)
+}
 
+/** A range without a kill or an objective taken: its assists, a death, an objective lost, a mark, else its place. */
+function quietTitle(inside: Moment[], startMs: number, champion: string | null): string {
   const assists = inside.filter(moment => moment.kind === 'assist').length
   if (assists) return assists === 1 ? 'Assist' : `${assists} assists`
   if (inside.some(moment => moment.kind === 'death')) return 'Death'
   const lost = inside.find(moment => moment.ally === false)
   if (lost) return momentLabel(lost)
+  if (inside.some(isMarked)) return 'Marked moment'
   return champion ? `${champion} at ${formatClock(startMs)}` : `Clip at ${formatClock(startMs)}`
 }

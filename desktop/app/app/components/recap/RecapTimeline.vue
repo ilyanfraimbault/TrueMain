@@ -2,6 +2,7 @@
 import type { Moment } from '~/types/recordings'
 import type { MomentCast } from '~/utils/recording-moments'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
+import { isMarked } from '~/utils/recording-moments'
 import {
   TIMELINE_BARE_HEIGHT as BARE_HEIGHT,
   TIMELINE_CURVE_HEIGHT as CURVE_HEIGHT,
@@ -14,11 +15,14 @@ import {
 
 /**
  * The recap's timeline (#1777): the video's length, the game's events as dots
- * above it — blue the player's side's way, red the enemy's, listed in a
- * tooltip when the pointer passes over them anywhere on the track — the
- * playhead, and the ranges being cut. A click seeks, a click on an event's dot
- * seeks a few seconds before it. Under the dots, when the game has one, the
- * win-probability curve (#1911), its turning points seeking like events. When `editable`, a drag across the track draws a new
+ * above it — blue the player's side's way, red the enemy's, rose gold a
+ * moment the player marked with the mark key (#2079), which also draws a line
+ * across the panel; listed in a tooltip when the pointer passes over them
+ * anywhere on the track (#2171) — the playhead, and the ranges being cut. A
+ * click seeks, a click on an event's dot seeks a few seconds before it (to
+ * the start of a marked moment's 30 s). Under the dots, when the game has
+ * one, the win-probability curve (#1911), its turning points seeking like
+ * events. When `editable`, a drag across the track draws a new
  * range and a range's handles move its ends. Read-only (a clip's player), a
  * drag scrubs.
  *
@@ -77,6 +81,7 @@ const msPerPx = computed(() => (trackWidth.value ? view.value.spanMs / trackWidt
 
 const visible = computed(() => props.moments.filter(moment => moment.videoMs <= props.lengthMs && inView(moment.videoMs)))
 const clusters = computed(() => clusterMoments(visible.value, EVENT_CLUSTER_PX * msPerPx.value))
+const marks = computed(() => visible.value.filter(isMarked))
 
 /** The curve's lane when the game has one, a bare strip otherwise. */
 const panelHeight = computed(() => (props.winProbability ? CURVE_HEIGHT : BARE_HEIGHT))
@@ -177,6 +182,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
           <div class="absolute inset-y-0 left-0 bg-white/[0.035]" :style="{ width: pct(currentMs) }" />
           <div v-for="at in ticks" :key="`grid-${at}`" class="absolute inset-y-0 w-px bg-white/[0.04]" :style="{ left: pct(at) }" />
           <div v-if="hoverMs !== null && !drag" class="absolute inset-y-0 w-px" :class="hovered ? 'bg-white/30' : 'bg-white/15'" :style="{ left: pct(hoverMs) }" />
+          <div v-for="mark in marks" :key="`mark-${mark.videoMs}`" class="absolute inset-y-0 w-px bg-primary/60" :style="{ left: pct(mark.videoMs) }" />
           <div
             v-for="clip in saved"
             :key="clip.id"
