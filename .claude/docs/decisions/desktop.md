@@ -493,6 +493,21 @@ past that step without boots has them as its next step, and they take the panel'
 what the row exists to say. Not backfilled — re-arming the fold would re-count every other slot — so it fills from the
 matches folded after the change and the next patch has it whole (2026-10-19) — #2101.
 
+**The next item's components come in the order the mains buy them, and the gold walks that order (2026-10-21).**
+The recipe sorted cheapest first was not how players buy: a main going for Archangel's Staff buys the Tear, then Lost
+Chapter, and a back with 800 gold has a right purchase the panel did not say. The item-context fold now also counts,
+per (champion, position, patch, item), the rank at which each recipe slot was first bought before the item completed
+(`champion_item_component_orders`), the timeline replayed as an inventory: a purchase goes to the item that consumed
+it, a sub-component bought towards an intermediate of the recipe starts that intermediate, a component never bought on
+its own ranks after the ones that were, an undo is honoured, and a game that bought the item outright counts nothing.
+Intermediates get their own order the same way. The read orders the slots by mean rank (ties to the one bought first
+more often, then the recipe), reaching back up to two patches until an item holds 20 games; under that, the recipe's
+order, marked unmeasured. On the panel the gold in hand covers the components **in that order** and stops at the first
+it cannot pay for — never the cheapest first — "≈" when the 50-gold step straddles the sum; an intermediate is one tile,
+opened into its parts when some are held or when the gold stops inside it and its first parts are buyable now. The
+overlay panel shows it too and is labelled "Build path" (its settings key stays `nextItem`). Not backfilled, like the
+boots step: it fills from the matches folded after the change — #2183.
+
 **Every app version is built twice, once per site, and each site serves only its own build (2026-10-01).** The product
 owner's call: the app downloaded from preprod is a test build and must read preprod — API, the pages it opens in the
 browser, its update feed — and the one downloaded from truemain.lol must read production. A build is tied to its site
@@ -543,10 +558,11 @@ where, by dragging it on a copy of the screen, taking it off with its ×, and dr
 hidden panels, or by dragging it in an on-screen preview, the only time the panels take the mouse — plus size and
 opacity for all. Five fixed spots stay each panel's default place, no longer a picker:
 
-- **Next item**: **one item** — the next one, and the gold still to earn for it or that it can be bought now — and
-  nothing else: no components (which one to buy first is not measured yet, so the overlay does not pretend to know),
-  no runners-up, no boots; the game page keeps the full panel, from the same `useNextItemPanel`. Whole game or only
-  while dead.
+- **Build path** (the next-item panel, renamed 2026-10-21, #2183): **one item** — the next one, and the gold still
+  to earn for it or that it can be bought now — its components in the order the mains buy them, owned / buy now /
+  later, and the build row; no runners-up, no boots column; the game page keeps the full panel, from the same
+  `useNextItemPanel`. Whole game or only while dead. (Until #2183 it showed no components: which one to buy first was
+  not measured.)
 - **Every panel waits for the game to start**: the Live Client API answers on the loading screen already, with the
   ten players and a zero clock; a reading counts as a game only once its feed holds `GameStart` (2026-10-04).
 - **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.

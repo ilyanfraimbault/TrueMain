@@ -1,6 +1,7 @@
 import type { StaticItemData } from '#shared/types/static-data'
 import type { BuildItemSet, CompositionBuildRequest, CompositionBuildResponse } from '~/types/build'
 import type { GamePlayer, GameState } from '~/types/game'
+import type { ItemRouteStep } from '~/utils/build-path'
 
 /** `POST /champions/{id}/next-item` (#1749), as the app sends it. */
 export interface NextItemRequest {
@@ -27,6 +28,10 @@ export interface NextItemCandidate {
   games: number
   wins: number
   reasons: NextItemReason[]
+  /** Its components in the order the mains buy them (#2183); absent from an API that predates it. */
+  route?: ItemRouteStep[]
+  /** Games behind that order. */
+  routeGames?: number
 }
 
 export interface NextItemSlot {
@@ -197,36 +202,4 @@ export function goldToComplete(
     return Math.max(0, combine) + parts.reduce((sum, part) => sum + remaining(part), 0)
   }
   return remaining(itemId)
-}
-
-/** One step towards an item: a component not yet held, and what it costs from here. */
-export interface BuyStep {
-  itemId: number
-  cost: number
-}
-
-/**
- * The components of `itemId` still to buy, each at what it costs given the
- * inventory, cheapest first. The whole item when nothing of it is held yet
- * and it has no recipe.
- */
-export function stepsToward(
-  itemId: number,
-  held: number[],
-  items: Record<number, StaticItemData>,
-): BuyStep[] {
-  const parts = items[itemId]?.from ?? []
-  if (parts.length === 0) return [{ itemId, cost: goldToComplete(itemId, held, items) }]
-
-  const pool = [...held]
-  const steps: BuyStep[] = []
-  for (const part of parts) {
-    const index = pool.indexOf(part)
-    if (index !== -1) {
-      pool.splice(index, 1)
-      continue
-    }
-    steps.push({ itemId: part, cost: goldToComplete(part, pool, items) })
-  }
-  return steps.sort((a, b) => a.cost - b.cost)
 }
