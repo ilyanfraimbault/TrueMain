@@ -3,6 +3,7 @@ import type { MatchSummaryResponse } from '#shared/types/matches'
 import type { ProfileRanked } from '#shared/types/profile'
 import type { PersonaTag } from '#shared/types/players'
 import { playerPath } from '#shared/utils/player-path'
+import type { FormReference } from '#common/utils/match-form'
 import { formTiles, RECENT_GAMES } from '#common/utils/match-form'
 import { formatRank } from '#common/utils/tiers'
 import type { AccountIdentity } from '#common/components/Account.vue'
@@ -36,6 +37,8 @@ const props = withDefaults(defineProps<{
   splashPosition?: string
   /** The games the form tiles read, newest first. */
   matches: MatchSummaryResponse[]
+  /** The tier the tiles are set against (#2076), where the host knows it: the app's dashboard. */
+  formReference?: FormReference | null
   loading?: boolean
   /** The cards column's width: wider where a card has a table to fit (a champion's matchups). */
   asideWidth?: string
@@ -48,9 +51,10 @@ const props = withDefaults(defineProps<{
   splashPosition: '68% 22%',
   loading: false,
   asideWidth: '18rem',
+  formReference: null,
 })
 
-const tiles = computed(() => formTiles(props.matches))
+const tiles = computed(() => formTiles(props.matches, props.formReference))
 const hint = computed(() => `Last ${RECENT_GAMES} games against the average over ${props.matches.length}`)
 
 const rankLabel = computed(() => {
@@ -155,6 +159,7 @@ const rankLabel = computed(() => {
         :delta="tile.delta"
         :hint="hint"
         :series="tile.series"
+        :reference="tile.reference"
       />
     </PageHero>
 

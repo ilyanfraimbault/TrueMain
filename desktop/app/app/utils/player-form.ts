@@ -207,6 +207,12 @@ export function laneLines(newestFirst: PlayerGame[]): LaneLine[] {
   })
 }
 
+/** The lane most of the counted games were played on; null with none placed. Ties go to lane order. */
+export function mainLane(newestFirst: PlayerGame[]): string | null {
+  const best = laneLines(newestFirst).reduce<LaneLine | null>((top, line) => (line.games > (top?.games ?? 0) ? line : top), null)
+  return best?.position ?? null
+}
+
 /** A game's kill participation, 0..1, or null without its scoreboard. */
 export const killParticipation = (game: PlayerGame) =>
   game.teamKills ? Math.min((game.kills + game.assists) / game.teamKills, 1) : null

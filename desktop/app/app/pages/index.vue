@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { GameflowPhase } from '~/types/lcu'
 import type { QueueFilter } from '~/utils/player-form'
-import { QUEUE_FILTERS, championLines, counted, gamesIn, laneLines } from '~/utils/player-form'
+import { QUEUE_FILTERS, championLines, counted, gamesIn, laneLines, mainLane } from '~/utils/player-form'
 import { toMatchSummary, toProfileRanked } from '~/utils/match-summary'
 import { activityFromGames } from '~/utils/activity-from-games'
 import { dailyStandings, latestLpMoves } from '~/utils/lp-history'
@@ -39,6 +39,11 @@ const filterLabel = computed(() => QUEUE_FILTERS.find(option => option.value ===
 const activity = computed(() => activityFromGames(loadedGames.value))
 
 const today = useToday(historyGames, loadedGames, rankHistory)
+
+// The form tiles' second yardstick (#2076): the median game of the player's
+// Solo/Duo tier on the lane they played most of the games on screen.
+const mainRole = computed(() => mainLane(games.value))
+const { reference: formReference } = useFormBenchmark(mainRole, computed(() => ranked.value?.tier ?? null))
 
 const identity = computed(() => ({
   gameName: state.value.riotId?.split('#')[0] ?? 'Logging in…',
@@ -79,6 +84,7 @@ watch(() => state.value.phase, (next, previous) => {
         :ranked="ranked"
         :splash-url="splashUrl"
         :matches="formMatches"
+        :form-reference="formReference"
         :loading="pending"
       >
         <template #header>
