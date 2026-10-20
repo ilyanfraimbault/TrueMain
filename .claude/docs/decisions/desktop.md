@@ -520,7 +520,7 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
   right a countdown until it spawns or a green dot while it stands; no names, no "Up", no counts like "2–1", no soul
   badge (each read as noise, the product owner's calls); a camp taken for good or gone from the map leaves the panel.
   Once a drake has fallen, the dragon row sets the pit's icon between the drakes each side took, blue side's on the
-  left, red side's on the right, as their icons, with its countdown beside it and nothing while it stands. The pit's icon is its next drake's element from the Rift's terrain
+  left, red side's on the right, as their icons, with its countdown under it (the icon on the row's centre) and nothing while it stands. The pit's icon is its next drake's element from the Rift's terrain
   (`gameData.mapTerrain`, which turns after the second drake, the element of every drake after); the API names neither of the first two before they fall, so those read "Drake" with the plain icon rather than a guess.
   Only the game clock, the terrain and the kills the event feed announces to every player, against the
   season's spawn rules held in one table in the shell (`live_client::timers::RIFT`, V26: Atakhan removed, Baron back at

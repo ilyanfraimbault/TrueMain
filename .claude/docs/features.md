@@ -380,11 +380,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   tier is the last Solo/Duo standing this machine wrote down (`utils/lp-history`), picked locally so no rank is sent;
   unranked or Flex-only, or a tier/minute under the sample floor, shows the player's pace alone. Emerald →
   Challenger fill from the regular ingestion, Iron → Platinum from the capped `PaceSampling` process. **Objectives**
-  (232 pt, `OverlayObjectives.vue`, #2078), icons only — no names, no "Up": a row each for the dragon pit, the Voidgrubs,
+  (212 pt, `OverlayObjectives.vue`, #2078), icons only — no names, no "Up": a row each for the dragon pit, the Voidgrubs,
   the Rift Herald and Baron with the game's minimap icon (Community Dragon's `ux/minimap/icons`) on the left and, on the
   right, a countdown until it spawns or a green dot while it stands; a camp taken for good (grubs, Herald) or gone from
   the map leaves the panel. Once a drake has fallen, the dragon row instead sets the pit's icon in the middle, its
-  countdown beside it (the icon alone while it stands) — its next drake's element once the Rift has turned (`gameData.mapTerrain`, after the second
+  countdown under it so the icon sits on the row's centre (the icon alone while it stands) — its next drake's element once the Rift has turned (`gameData.mapTerrain`, after the second
   drake), the plain drake before, the Elder once a side holds the soul — between the drakes each side took as their
   icons (each `DragonKill`'s `DragonType`): blue side's on the left ringed in blue, red side's on the right in red. The shell sends game times, not countdowns
   (`live_client::timers`, inside the objectives change): the season's spawn rules in one table (`RIFT`: drakes 5:00 and

@@ -11,7 +11,7 @@ import { SOON_SECONDS, dragonLabel, drakeIcon, formatCountdown, objectiveIcon, o
  * the panel. A row is its icon on the left and its countdown, or a green dot
  * while it stands, on the right — except the dragon pit once a drake fell: its
  * icon then sits between the drakes each side took, blue side's on the left,
- * red side's on the right, its countdown beside it and nothing while it
+ * red side's on the right, its countdown under it and nothing while it
  * stands. The pit's icon is its next drake's element once the Rift turned to
  * it (after the second drake — the API does not name the first two), the
  * Elder's once a side holds the soul.
@@ -73,10 +73,10 @@ const rows = computed(() => {
           <span class="flex items-center gap-0.5" data-side="blue">
             <img v-for="(element, index) in blue" :key="index" :src="drakeIcon(element)" :alt="element" class="size-3.5 rounded-full ring-1 ring-ally/70">
           </span>
-          <!-- The countdown's slot is kept while the drake stands, so the pit's icon does not move when it spawns. -->
-          <span class="grid grid-cols-[1rem_2.25rem] items-center gap-1">
+          <!-- The countdown goes under the icon, so the icon sits on the row's centre and the drakes keep their room. -->
+          <span class="flex flex-col items-center">
             <img :src="row.icon" :alt="row.name" :title="row.name" class="size-4" data-icon>
-            <span v-if="row.status.kind === 'countdown'" class="text-[11px] tabular-nums" :class="row.status.seconds <= SOON_SECONDS ? 'text-highlighted' : 'text-muted'" data-countdown>
+            <span v-if="row.status.kind === 'countdown'" class="text-[10px] leading-none tabular-nums" :class="row.status.seconds <= SOON_SECONDS ? 'text-highlighted' : 'text-muted'" data-countdown>
               {{ formatCountdown(row.status.seconds) }}
             </span>
           </span>
