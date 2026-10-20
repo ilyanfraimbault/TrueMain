@@ -87,7 +87,9 @@ describe('LiveGame', () => {
     expect(wrapper.find('[aria-label="Blue side"]').exists()).toBe(true)
     expect(wrapper.find('[aria-label="Red side"]').exists()).toBe(true)
     expect(wrapper.find('[data-subject]').text()).toContain('Subject')
-    expect(wrapper.text()).toContain('Gold II')
+    // The rank is a crest with its division; tier, LP and record live in its tooltip.
+    expect(wrapper.text()).not.toContain('42 LP')
+    expect(wrapper.findAll('img[alt="Gold rank"]').length).toBeGreaterThan(0)
     expect(wrapper.text()).toContain('Unranked')
   })
 

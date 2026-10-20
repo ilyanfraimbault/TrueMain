@@ -4,11 +4,10 @@ import type { ChampionStaticListItem, RuneTreeResponse, StaticSummonerSpellData 
 import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 import { getPositionIconUrl } from '#shared/utils/ddragon'
 import { positionLabel } from '#common/utils/positions'
-import { formatRank } from '#common/utils/tiers'
 
 // One player of a live game (#2103): the champion with the inferred lane on its
 // badge, the spells and runes they locked in, the Riot ID — linked when TrueMain
-// holds the account — and their Solo/Duo rank. The profile's own player is
+// holds the account — and their Solo/Duo rank as a crest, the detail on hover. The profile's own player is
 // lifted in the primary tint so the eye finds them in the lobby.
 const props = defineProps<{
   participant: LiveParticipant
@@ -35,11 +34,6 @@ const loadout = computed(() => ({
   keystoneId: props.participant.keystoneId ?? 0,
   subStyleId: props.participant.secondaryStyleId ?? 0,
 }))
-
-const rankLabel = computed(() => {
-  const ranked = props.participant.ranked
-  return ranked ? formatRank(ranked.tier, ranked.division, { lp: ranked.leaguePoints }) : null
-})
 
 const record = computed(() => {
   const ranked = props.participant.ranked
@@ -97,20 +91,17 @@ const record = computed(() => {
       >{{ record }}</span>
     </div>
 
-    <div class="flex shrink-0 items-center gap-1.5 text-right">
-      <template v-if="participant.ranked && rankLabel">
-        <span class="hidden text-xs font-semibold tabular-nums text-highlighted sm:inline">{{ rankLabel }}</span>
-        <RankEmblem
-          :rank="participant.ranked"
-          :record="participant.ranked"
-          :size="24"
-          crest-only
-        />
-      </template>
-      <span
-        v-else
-        class="text-xs text-dimmed"
-      >Unranked</span>
-    </div>
+    <!-- The crest and division only, the full rank, LP and record in its tooltip:
+         the site's one rank cell (`RankEmblem`, #2025). -->
+    <RankEmblem
+      v-if="participant.ranked"
+      :rank="participant.ranked"
+      :record="participant.ranked"
+      :size="24"
+    />
+    <span
+      v-else
+      class="shrink-0 text-xs text-dimmed"
+    >Unranked</span>
   </li>
 </template>
