@@ -7,6 +7,7 @@ description = "Recording the player's games: settings, highlights, the game-cloc
 
 [dependencies]
 lcu = { path = "../lcu" }
+shell-state = { path = "../shell-state" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

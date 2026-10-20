@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/recordings'
 import type { TimelineView } from '~/utils/recording-timeline'
-import { formatClock, isStructure, momentLabel, momentTone } from '~/utils/recording-moments'
+import { formatClock, isMarked, isStructure, momentLabel, momentTone } from '~/utils/recording-moments'
 import { viewPercent } from '~/utils/recording-timeline'
 
-/** The game's objectives, above the timeline's lanes: the side that took one is its colour. */
+/**
+ * The game's objectives above the timeline's lanes — the side that took one is
+ * its colour — and the moments the player marked with the mark key (#2079).
+ */
 defineProps<{
   /** In view, structures first so an epic monster's badge is drawn over a tower that fell at the same time. */
   objectives: Moment[]
@@ -24,7 +27,9 @@ const emit = defineEmits<{ moment: [moment: Moment] }>()
       momentTone(moment),
       isStructure(moment)
         ? 'size-5 opacity-75 hover:opacity-100'
-        : ['size-5 ring-1', moment.ally === false ? 'bg-enemy/15 ring-enemy/50' : 'bg-ally/15 ring-ally/50'],
+        : isMarked(moment)
+          ? 'size-5 bg-primary/15 ring-1 ring-primary/60'
+          : ['size-5 ring-1', moment.ally === false ? 'bg-enemy/15 ring-enemy/50' : 'bg-ally/15 ring-ally/50'],
     ]"
     :style="{ left: viewPercent(view, moment.videoMs) }"
     :title="`${momentLabel(moment)} · ${formatClock(moment.videoMs)}`"

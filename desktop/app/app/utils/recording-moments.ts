@@ -15,7 +15,20 @@ export const PLAYER_KINDS: MomentKind[] = ['kill', 'death', 'assist']
 
 export const isPlayerMoment = (moment: Moment) => PLAYER_KINDS.includes(moment.kind)
 
-const OBJECTIVE_NAMES: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist'>, string> = {
+/**
+ * How much of the game before a press of the mark key its clip holds — the
+ * shell's `MARK_WINDOW_MS` (`crates/game-recording/src/marks.rs`), #2079.
+ */
+export const MARK_WINDOW_MS = 30_000
+
+export const isMarked = (moment: Pick<Moment, 'kind'>) => moment.kind === 'marked'
+
+/** Where the player lands on a moment: a few seconds before it, or at the start of a marked moment's 30 s. */
+export function momentStart(moment: Pick<Moment, 'videoMs'> & Partial<Pick<Moment, 'kind'>>, leadMs: number): number {
+  return moment.kind === 'marked' ? moment.videoMs - MARK_WINDOW_MS : moment.videoMs - leadMs
+}
+
+const OBJECTIVE_NAMES: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist' | 'marked'>, string> = {
   elder: 'Elder Dragon',
   baron: 'Baron',
   atakhan: 'Atakhan',
@@ -37,6 +50,7 @@ export function momentLabel(moment: Moment): string {
     case 'kill': return MULTI_KILLS[Math.min(Math.max(moment.kills, 1), 5) - 1]!
     case 'death': return 'Death'
     case 'assist': return 'Assist'
+    case 'marked': return 'Marked moment'
     default: return moment.ally === false ? `Enemy ${OBJECTIVE_NAMES[moment.kind]}` : OBJECTIVE_NAMES[moment.kind]
   }
 }
@@ -47,6 +61,7 @@ export function momentTone(moment: Moment): string {
     case 'kill': return 'text-data-good'
     case 'death': return 'text-red-400'
     case 'assist': return 'text-ink-300'
+    case 'marked': return 'text-primary'
     default: return moment.ally === false ? 'text-enemy' : 'text-ally'
   }
 }
@@ -117,5 +132,6 @@ export function proposeClipTitle(moments: Moment[], startMs: number, endMs: numb
   if (inside.some(moment => moment.kind === 'death')) return 'Death'
   const lost = inside.find(moment => moment.ally === false)
   if (lost) return momentLabel(lost)
+  if (inside.some(isMarked)) return 'Marked moment'
   return champion ? `${champion} at ${formatClock(startMs)}` : `Clip at ${formatClock(startMs)}`
 }

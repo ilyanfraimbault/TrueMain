@@ -366,6 +366,7 @@ pub fn run() {
             record::player_game,
             recording::recording_settings,
             recording::set_recording_settings,
+            recording::recording_check_mark_key,
             recording::recording_status,
             recording::request_capture_permission,
             recording::recording_library,

@@ -7,13 +7,16 @@
 //! (`follow`, called on each publish); the runner (`runner.rs`) owns the
 //! session and does the slow work — starting the helper, following the game
 //! clock, waiting for the match history — on its own task. The commands
-//! (`commands.rs`) read and change what is on disk; `publish.rs` hands a clip
-//! to YouTube's upload page.
+//! (`commands.rs`) read and change what is on disk; `cut.rs` cuts clips, the
+//! recap's and those of the moments the player marked with the mark key
+//! (#2079), which the overlay's key watch reports through `mark`;
+//! `publish.rs` hands a clip to YouTube's upload page.
 //!
 //! Recording only happens against a real client: a tape or the simulator
 //! stands in for the client's events, not for a game window to capture.
 
 mod commands;
+mod cut;
 mod embed;
 pub mod files;
 mod publish;
@@ -24,7 +27,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use capture_helper::media::{self, AccessRequest};
-use game_recording::{ClipStore, RecordingSettings, Store};
+use capture_helper::HelperCapture;
+use game_recording::{ClipStore, RecordingSettings, Session, Store};
 use lcu::GameflowPhase;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -49,6 +53,9 @@ const SETTINGS_FILE: &str = "recording-settings.json";
 /// Windows has no such prompt (the helper answers granted).
 const ASKED_FILE: &str = "screen-recording-asked";
 
+/// The game being recorded, shared between the runner and the mark key.
+pub(crate) type SharedSession = Arc<Mutex<Session<HelperCapture>>>;
+
 /// The game the runner is busy with, for the status the page shows.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Activity {
@@ -66,6 +73,8 @@ pub struct Recorder {
     helper: Option<PathBuf>,
     settings: Mutex<RecordingSettings>,
     activity: Mutex<Activity>,
+    /// The game recording now, for the mark key; `None` between games.
+    session: Mutex<Option<SharedSession>>,
     phase: watch::Sender<GameflowPhase>,
 }
 
@@ -98,6 +107,7 @@ impl Recorder {
             helper: helper_path(),
             settings: Mutex::new(settings),
             activity: Mutex::new(Activity::default()),
+            session: Mutex::new(None),
             phase,
         });
         (recorder, receiver)
@@ -138,6 +148,36 @@ impl Recorder {
 
     fn set_activity(&self, activity: Activity) {
         *self.activity.lock().expect("activity poisoned") = activity;
+    }
+
+    fn set_session(&self, session: Option<SharedSession>) {
+        *self.session.lock().expect("session slot poisoned") = session;
+    }
+
+    /// The chord that marks a moment, while a game records: the key watch
+    /// reads it then and only then.
+    pub fn mark_key(&self) -> Option<shell_state::keys::Chord> {
+        let recording = self
+            .session
+            .lock()
+            .expect("session slot poisoned")
+            .is_some();
+        recording.then(|| self.settings().mark_key).flatten()
+    }
+
+    /// The player pressed the mark key: mark this second of the game being
+    /// recorded. Its clip is cut once the video is closed (`cut::cut_marks`).
+    pub fn mark(&self) {
+        let session = self.session.lock().expect("session slot poisoned").clone();
+        let Some(session) = session else {
+            return;
+        };
+        let marked = session.lock().expect("session poisoned").mark();
+        match marked {
+            Ok(Some(video_ms)) => tracing::info!(video_ms, "moment marked"),
+            Ok(None) => {}
+            Err(error) => tracing::warn!(%error, "the marked moment could not be written"),
+        }
     }
 
     /// The budget left for full games once the clips — never deleted by the

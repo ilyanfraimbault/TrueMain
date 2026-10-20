@@ -424,7 +424,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   them; K/D/A and result) and a thumbnail is taken. Recordings live in `~/Movies/TrueMain` (`Videos\TrueMain` on
   Windows), clips cut in the recap in
   its `clips/` (each its own file, cut without re-encoding, outliving the full game, never deleted by the budget).
-  The disk budget deletes the oldest full games the player did not keep. A game that closes on its loading screen
+  The disk budget deletes the oldest full games the player did not keep. A **mark key** (#2079, ⌥⇧5 / Alt+Shift+5 by
+  default, set or turned off in the recording settings, recorded and checked like an overlay chord — warned against the
+  player's League binds, refused on a panel's chord or a reserved one) marks the moment while a game records: read from
+  the keyboard's state in the overlay's key watch, only while League is frontmost and a game records, each press notes
+  the second of the video (`recording.json`'s `marks`, written at once; a press within a second of the last is the same
+  mark). Once the video is closed each mark is cut into a clip of the 30 s before it, titled with the game clock at the
+  press ("Marked at 12:34"), a saved clip like any other — never deleted by the budget. A game that closes on its loading screen
   (under a minute, the game clock never ran) is not kept; a game starting while the last one still waits for the match
   history is recorded (the history wait gives up, the next game does not).
 - **Recordings** (`/recordings`, #1755) — the full games and clips on disk, laid out as DPM's recordings page in the
@@ -432,7 +438,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   a toolbar (search over titles and champions; All / Clips / Full games; a champion; favourites only — favourite clips
   and kept games; a "More" menu for queue and result; the count shown; grouping by day — default —, game, champion or
   none); the cards four across (16:9 thumbnail, else the champion's splash, with how long ago and the length; portrait,
-  kind icon — scissors for a clip, film for a full game — and title, a full game reading as champion · result; K/D/A,
+  kind icon — scissors for a clip, a bookmark for a marked moment's clip, film for a full game — and title, a full game reading as champion · result; K/D/A,
   KDA ratio, queue; "Recording" / "Finalising" on a game not ready), each with a menu (favourite or keep, show in
   Finder / Explorer, delete with a confirmation). Empty states: recording off (what an hour costs, from the shell's
   estimate), nothing yet, nothing matching; capture not allowed (a button asking macOS), unsupported (Linux, Windows
@@ -448,10 +454,13 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   kills, assists and deaths each on a lane of its own, named by a glyph beside it (#1804) — kills rose-gold chips,
   multi-kills labelled ×N and gold from a triple kill, assists neutral dots, deaths dark red chips with a skull —;
   objectives above the lanes in the side's colour (epic monsters as tinted badges, towers and inhibitors as bare
-  glyphs), minute gridlines, the playhead, saved clips as gold bars. Under the lanes, a **win-probability lane** (#1911): the whole game's curve from the player's side (ahead tinted ally, behind enemy), mapped onto the video through the recording's anchor, its five largest turning points as dots that seek 5 s before them; a "Swings" side-panel tab lists them (clock, what happened, signed points). Built in the webview from the client's timeline, kept beside the video as `win-probability.json` at finalisation; recordings made before #1911 and live-feed-only ones have none. Clips are cut by hand: drag across the
+  glyphs), the moments marked with the mark key with them (a primary-tinted bookmark badge and a line across the lanes;
+  a jump lands at the start of their 30 s), minute gridlines, the playhead, saved clips as gold bars. Under the lanes, a **win-probability lane** (#1911): the whole game's curve from the player's side (ahead tinted ally, behind enemy), mapped onto the video through the recording's anchor, its five largest turning points as dots that seek 5 s before them; a "Swings" side-panel tab lists them (clock, what happened, signed points). Built in the webview from the client's timeline, kept beside the video as `win-probability.json` at finalisation; recordings made before #1911 and live-feed-only ones have none. Clips are cut by hand: drag across the
   track, or I / O at the playhead (I/O move the selected range's ends), handles to adjust, as many ranges as wanted,
   each named from what it holds ("Triple kill on Ahri", "Kill + Dragon", editable), previewed, saved alone or all at
   once (`clip_save`), then listed under "Saved clips"; unsaved ranges survive leaving the page for the session. A
+  saved clip not published on YouTube can be adjusted (the ⟷ beside it): its range comes back as a range to move, and
+  saving it replaces the clip, keeping its favourite — how a marked moment's 30 s are widened or moved. A
   Moments tab lists every moment to jump to. "Keep full game" exempts it from the budget; "Delete full game" removes
   the video, its clips stay. A game still processing says its highlights are being finalised (live ones shown). Opened
   by `recording://recap` from the dashboard or the game page only, by a card, or by "Watch".

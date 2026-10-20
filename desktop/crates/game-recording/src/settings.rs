@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use shell_state::keys::{Chord, KeyCode};
 
 /// The settings file's format version, written into it so a later format can
 /// migrate rather than guess.
@@ -34,6 +35,11 @@ pub const MIN_BUDGET_BYTES: u64 = 2 * GB;
 /// H.264 bits per pixel per frame. One constant rather than a table per
 /// preset, so every resolution and frame rate gets a consistent quality.
 const BITS_PER_PIXEL: f64 = 0.1;
+
+/// The mark key's default, ⌥⇧5 / Alt+Shift+5: in the overlay's Alt+Shift
+/// and digit family, past the four digits it suggests for its panels, and on
+/// no default League bind (#2079).
+pub const DEFAULT_MARK_KEY: Chord = Chord::with(true, true, false, KeyCode::Digit5);
 
 /// One keyframe a second: a jump to a highlight lands on a keyframe within a
 /// second, and a fragment is never longer than that if the app dies mid-game.
@@ -200,6 +206,9 @@ pub struct RecordingSettings {
     pub budget_bytes: u64,
     /// `None` is the app's own data folder, decided by the shell.
     pub folder: Option<PathBuf>,
+    /// The chord that marks the moment while a game records (#2079); `None`
+    /// turns marking off.
+    pub mark_key: Option<Chord>,
 }
 
 impl Default for RecordingSettings {
@@ -215,6 +224,7 @@ impl Default for RecordingSettings {
             },
             budget_bytes: 50 * GB,
             folder: None,
+            mark_key: Some(DEFAULT_MARK_KEY),
         }
     }
 }
@@ -258,6 +268,13 @@ impl RecordingSettings {
                 .filter(|budget| *budget >= MIN_BUDGET_BYTES)
                 .unwrap_or(defaults.budget_bytes),
             folder: parse::<PathBuf>(fields.get("folder")).filter(|folder| folder.is_absolute()),
+            mark_key: match fields.get("markKey") {
+                None => defaults.mark_key,
+                Some(Value::Null) => None,
+                key => parse::<Chord>(key)
+                    .filter(|chord| chord.refusal(false).is_none())
+                    .or(defaults.mark_key),
+            },
         }
     }
 
@@ -356,6 +373,7 @@ mod tests {
             quality: quality(Resolution::P1440, FrameRate::Fps60),
             budget_bytes: 10 * GB,
             folder: Some(dir.path().join("videos")),
+            mark_key: Some(Chord::with(false, true, false, KeyCode::F9)),
         };
         settings.save(&path).unwrap();
 
@@ -389,6 +407,42 @@ mod tests {
         assert_eq!(settings.quality.frame_rate, FrameRate::Fps60);
         assert_eq!(settings.budget_bytes, defaults.budget_bytes);
         assert_eq!(settings.folder, None);
+    }
+
+    #[test]
+    fn the_mark_key_is_on_by_default_and_can_be_turned_off() {
+        let defaults = RecordingSettings::from_json("{}");
+        assert_eq!(defaults.mark_key, Some(DEFAULT_MARK_KEY));
+        assert_eq!(DEFAULT_MARK_KEY.label(false), "Alt+Shift+5");
+        assert_eq!(
+            RecordingSettings::from_json(r#"{ "markKey": null }"#).mark_key,
+            None
+        );
+        let chosen =
+            RecordingSettings::from_json(r#"{ "markKey": { "ctrl": true, "key": "KeyM" } }"#);
+        assert_eq!(
+            chosen.mark_key.map(|chord| chord.label(false)),
+            Some("Ctrl+M".to_string())
+        );
+    }
+
+    #[test]
+    fn a_mark_key_that_cannot_be_a_shortcut_falls_back_to_the_default() {
+        for refused in [
+            r#"{ "markKey": { "alt": true } }"#,
+            r#"{ "markKey": { "tab": true } }"#,
+            r#"{ "markKey": { "key": "Escape" } }"#,
+            r#"{ "markKey": { "alt": true, "shift": true, "key": "KeyO" } }"#,
+            r#"{ "markKey": { "meta": true, "key": "KeyQ" } }"#,
+            r#"{ "markKey": { "key": "NumpadEnter" } }"#,
+            r#"{ "markKey": 5 }"#,
+        ] {
+            assert_eq!(
+                RecordingSettings::from_json(refused).mark_key,
+                Some(DEFAULT_MARK_KEY),
+                "{refused}"
+            );
+        }
     }
 
     #[test]

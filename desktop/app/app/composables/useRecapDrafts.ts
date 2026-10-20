@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { GameRecording } from '~/types/recordings'
+import type { Clip, GameRecording } from '~/types/recordings'
 import { proposeClipTitle } from '~/utils/recording-moments'
 
 /** A range of a full game the player is cutting, not saved yet. */
@@ -11,6 +11,8 @@ export interface DraftClip {
   /** Renamed by the player: the proposed title no longer follows the range. */
   edited: boolean
   saving: boolean
+  /** A saved clip whose range this adjusts (a marked moment's, most often): saving it replaces that clip. */
+  replaces?: string
 }
 
 /** Shorter than this is a slip of the mouse, not a clip — and the shell cuts on 1 s keyframes. */
@@ -65,6 +67,23 @@ export function useRecapDrafts(recording: Ref<GameRecording | null>, lengthMs: R
     return key
   }
 
+  /**
+   * A saved clip's range back on the timeline, its ends free to move: saved,
+   * it replaces the clip — how a marked moment's 30 s are adjusted (#2079).
+   */
+  function adjust(clip: Pick<Clip, 'id' | 'startMs' | 'endMs' | 'title'>) {
+    const open = drafts.value.find(draft => draft.replaces === clip.id)
+    if (open) {
+      selected.value = open.key
+      return open.key
+    }
+    const range = bounded(clip.startMs, clip.endMs)
+    const key = `draft-${Date.now()}-${counter++}`
+    write([...drafts.value, { key, ...range, title: clip.title, edited: true, saving: false, replaces: clip.id }])
+    selected.value = key
+    return key
+  }
+
   function patch(key: string, change: Partial<DraftClip>) {
     write(drafts.value.map(draft => (draft.key === key ? { ...draft, ...change } : draft)))
   }
@@ -106,7 +125,7 @@ export function useRecapDrafts(recording: Ref<GameRecording | null>, lengthMs: R
     const draft = drafts.value.find(entry => entry.key === key)
     if (!game || !draft || draft.saving) return
     patch(key, { saving: true })
-    const clip = await saveClip(game.id, draft.startMs, draft.endMs, draft.title.trim() || propose(draft.startMs, draft.endMs))
+    const clip = await saveClip(game.id, draft.startMs, draft.endMs, draft.title.trim() || propose(draft.startMs, draft.endMs), draft.replaces)
     if (clip) remove(key)
     else patch(key, { saving: false })
   }
@@ -116,5 +135,5 @@ export function useRecapDrafts(recording: Ref<GameRecording | null>, lengthMs: R
     for (const draft of [...drafts.value]) await save(draft.key)
   }
 
-  return { drafts, selected, pendingIn, add, resize, rename, remove, setIn, setOut, save, saveAll }
+  return { drafts, selected, pendingIn, add, adjust, resize, rename, remove, setIn, setOut, save, saveAll }
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/recordings'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
+import { momentStart } from '~/utils/recording-moments'
 import { stepRate } from '~/utils/recording-timeline'
 
 /**
@@ -57,7 +58,8 @@ let stopAt: number | null = null
 let raf = 0
 
 const length = computed(() => props.lengthMs ?? videoLengthMs.value ?? 0)
-const sorted = computed(() => [...props.moments].sort((a, b) => a.videoMs - b.videoMs))
+/** In the order a jump lands on them: a marked moment at the start of its 30 s. */
+const sorted = computed(() => [...props.moments].sort((a, b) => momentStart(a, LEAD_MS) - momentStart(b, LEAD_MS)))
 const devHint = import.meta.dev && !insideTauri()
 
 const { immersive, hoveringControls, controlsHidden, wake, exitFullscreen, fullscreen } = useImmersivePlayer(root, playing)
@@ -121,14 +123,15 @@ function playRange(startMs: number, endMs: number) {
   void video.value?.play()
 }
 
-const jumpTo = (moment: Pick<Moment, 'videoMs'>) => seek(moment.videoMs - LEAD_MS)
+/** A few seconds before a moment; a marked moment from the start of its 30 s. */
+const jumpTo = (moment: Pick<Moment, 'videoMs'> & Partial<Pick<Moment, 'kind'>>) => seek(momentStart(moment, LEAD_MS))
 
 function nextMoment() {
-  const found = sorted.value.find(moment => moment.videoMs - LEAD_MS > currentMs.value + 500)
+  const found = sorted.value.find(moment => momentStart(moment, LEAD_MS) > currentMs.value + 500)
   if (found) jumpTo(found)
 }
 function previousMoment() {
-  const found = [...sorted.value].reverse().find(moment => moment.videoMs - LEAD_MS < currentMs.value - 1_500)
+  const found = [...sorted.value].reverse().find(moment => momentStart(moment, LEAD_MS) < currentMs.value - 1_500)
   if (found) jumpTo(found)
   else seek(0)
 }

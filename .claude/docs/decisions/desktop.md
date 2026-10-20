@@ -405,6 +405,27 @@ only over `/` or `/game` — the pages the game's own navigation would have take
 they opened by hand, the game page's rule. The Recordings page follows DPM's layout (the product owner's reference) in
 the site's materials; its settings are the short list of #1744 — no OBS (2026-10-01) — #1755, #1777.
 
+**A mark key keeps the 30 seconds before a press as a clip, cut as soon as the game ends (2026-10-20).** The product
+owner's pick from the Invade benchmark: a moment the timeline cannot flag — an outplay, a funny moment — had to be found
+again by scrubbing the full game. A chord, ⌥⇧5 / Alt+Shift+5 by default (the overlay's Alt+Shift and digit family, past
+the four digits it suggests for its panels, on no default League bind), set in the recording settings, marks the moment
+while a game records.
+- **Read like the overlay's chords**, by the same key watch: the keyboard's state, only while League is frontmost and a
+  game records — no hook, no hotkey, no Input Monitoring. The game gets the keys too, so the setting warns against the
+  player's League binds; a panel's chord, a reserved one or a system one is refused, and the overlay refuses a panel
+  the mark key's chord in turn.
+- **The video's own clock**, read from the capture at the press, so a mark needs no game-clock anchor; written to
+  `recording.json` at once (a crash keeps it), a press within a second of the last being the same one.
+- **A saved clip, not a kept game.** Once the video is closed each mark is cut into a clip of the 30 seconds before it,
+  titled with the game clock at the press: the player chose it, like a clip cut by hand, so the budget never deletes it
+  — keeping the whole game for it would spend a full game's disk on 30 seconds. The recap shows the mark with the
+  automatic moments and lets the player move the clip's ends; saving an adjusted range replaces the clip, keeping its
+  favourite (never one published on YouTube, whose link is the old cut's).
+- **Not instant replay (#1767).** The mark key acts on the full game being recorded and cuts after the game; #1767's
+  last-N-minutes save with an in-game confirmation, and the rolling buffer that would record without keeping the
+  game, stay deferred under its own call. It can reuse this key and window when it comes. No usage counter yet — the
+  desktop telemetry catalogue is the API's (#1952) — #2079.
+
 **A clip is published on YouTube through YouTube's own upload page, never its Data API (2026-10-12).** The product
 owner's call: the app opens `youtube.com/upload` in the player's browser, drags the clip's file onto it from the app
 and hands over a prepared title, description and tags; the player gives the video's link back and the clip keeps it.
