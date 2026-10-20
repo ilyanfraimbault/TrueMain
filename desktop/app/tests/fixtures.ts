@@ -8,6 +8,7 @@ export const DAY = 86_400_000
 export function game(overrides: Partial<PlayerGame> = {}): PlayerGame {
   return {
     gameId: 1,
+    participantId: 3,
     playedAt: 0,
     durationSeconds: 1800,
     queueId: 420,

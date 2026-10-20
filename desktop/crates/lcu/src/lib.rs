@@ -19,6 +19,7 @@ pub mod form;
 pub mod item_sets;
 pub mod laning;
 pub mod live;
+pub mod marks;
 pub mod model;
 pub mod record;
 pub mod runes;
@@ -38,6 +39,7 @@ pub use laning::{
     gaps_at_fifteen, laning_games, LaningForm, LaningGame, LANING_DEPTH, LANING_GAMES,
 };
 pub use live::LiveClient;
+pub use marks::TimelineMark;
 pub use model::{
     ChampSelectSession, ChampionMastery, CurrentSummoner, DraftState, GameflowPhase,
     GameflowPlayer, GameflowSession, TeamSlot,

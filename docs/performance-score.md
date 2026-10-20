@@ -13,6 +13,16 @@ game — and it is what decides the **MVP / ACE** accolade on a match row.
   row), `GET /truemains/{nameTag}/matches/{matchId}` (all ten participants) and
   `GET /truemains/{nameTag}/champions/{championId}/performance` (the aggregate,
   with the per-component breakdown).
+- **Ported to TypeScript for the desktop app** (#2075):
+  [`desktop/app/app/utils/performance-score.ts`](../desktop/app/app/utils/performance-score.ts)
+  (the formula) and [`match-performance.ts`](../desktop/app/app/utils/match-performance.ts)
+  (input assembly and ranking). The dashboard grades the games only the player's
+  client knows, from the client's scoreboard and its timeline's canonical marks
+  (`desktop/crates/lcu/src/marks.rs`, read by the ingestor's own frame rule). The
+  two implementations run the same vectors,
+  [`web/shared/fixtures/performance-score-vectors.json`](../web/shared/fixtures/performance-score-vectors.json)
+  (`PerformanceScoreVectorsTests` on the C# side, `performance-score.test.ts` in
+  the app), so a game TrueMain also holds gets the same score from both.
 
 ## The shape
 
@@ -194,7 +204,8 @@ Every constant lives on `PerformanceScore` (the spans, bands and caps) or in
 `RoleProfile.For` (the weights and per-role references). Changing one changes
 every score on the site, including which row wears the MVP badge — treat it as a
 product decision, not a tweak, and expect to update the golden vector in
-`PerformanceScoreTests` in the same commit.
+`PerformanceScoreTests` in the same commit — and the TypeScript port with the
+shared vectors, which fail on whichever side was left behind.
 
 The golden vector exists precisely so that a change is loud: it is a hand-
 computed reference stat line with the arithmetic written out in the test, and it

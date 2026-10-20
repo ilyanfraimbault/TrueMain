@@ -20,7 +20,9 @@ pub type SharedClient = Arc<RwLock<Option<Arc<LcuClient>>>>;
 
 /// Full scoreboards and timelines already read, by game. A finished game never
 /// changes, so each is asked for once per launch: a refresh after a game only
-/// reads the new one, and opening a row reads its timeline once.
+/// reads the new one. Both are read with the game's row, since its performance
+/// score grades the ten players on their scoreboard lines and their timeline
+/// marks (#2075); opening the row then reads nothing new.
 #[derive(Default)]
 pub struct GameCache {
     games: Mutex<HashMap<i64, Arc<HistoryGame>>>,
@@ -32,9 +34,9 @@ pub struct GameCache {
 /// history is paged back.
 const HISTORY_LENGTH: usize = 20;
 
-/// Scoreboards asked for at once. The client forwards these to Riot, so they
-/// are paced rather than fired twenty at a time.
-const SCOREBOARDS_AT_ONCE: usize = 4;
+/// Games read at once, each its scoreboard and its timeline. The client
+/// forwards these to Riot, so they are paced rather than fired twenty at a time.
+const GAMES_AT_ONCE: usize = 4;
 
 pub(crate) fn attached(client: &SharedClient) -> Result<Arc<LcuClient>, String> {
     client
@@ -96,22 +98,31 @@ pub async fn player_history(
     Ok(player_games(&client, &cache, &history.games.games).await)
 }
 
-/// The player's line of each game, completed from its scoreboard.
+/// The player's line of each game, completed from its scoreboard and its
+/// timeline's marks. A remake is never graded, so its timeline is not read.
 async fn player_games(
     client: &Arc<LcuClient>,
     cache: &GameCache,
     history: &[HistoryGame],
 ) -> Vec<PlayerGame> {
-    let scoreboards = scoreboards(client, cache, history).await;
-    history
+    let lines: Vec<(PlayerGame, &HistoryGame)> = history
         .iter()
-        .filter_map(|game| {
-            let line = PlayerGame::from_history(game)?;
-            let participant = PlayerGame::participant_id(game)?;
-            let scoreboard = scoreboards
-                .get(&game.game_id)
-                .and_then(|full| Scoreboard::of(full, participant));
-            Some(line.with_scoreboard(scoreboard.as_ref()))
+        .filter_map(|game| Some((PlayerGame::from_history(game)?, game)))
+        .collect();
+    let graded: Vec<i64> = lines
+        .iter()
+        .filter(|(line, _)| !line.remake)
+        .map(|(line, _)| line.game_id)
+        .collect();
+    let (scoreboards, timelines) = reads(client, cache, history, &graded).await;
+    lines
+        .into_iter()
+        .map(|(line, game)| {
+            let scoreboard = scoreboards.get(&game.game_id).and_then(|full| {
+                let timeline = timelines.get(&game.game_id).map(Arc::as_ref);
+                Scoreboard::of(full, line.participant_id, timeline)
+            });
+            line.with_scoreboard(scoreboard.as_ref())
         })
         .collect()
 }
@@ -128,13 +139,7 @@ pub async fn player_game(
 ) -> Result<GameDetail, String> {
     let client = attached(&client)?;
 
-    let known = cache
-        .games
-        .lock()
-        .expect("cache lock poisoned")
-        .get(&game_id)
-        .cloned();
-    let game = match known {
+    let game = match cached(&cache.games, game_id) {
         Some(game) => game,
         None => {
             let game = Arc::new(
@@ -143,84 +148,124 @@ pub async fn player_game(
                     .await
                     .map_err(|error| format!("could not read the game: {error}"))?,
             );
-            cache
-                .games
-                .lock()
-                .expect("cache lock poisoned")
-                .insert(game_id, game.clone());
+            remember(&cache.games, game_id, game.clone());
             game
         }
     };
 
-    let known = cache
-        .timelines
-        .lock()
-        .expect("cache lock poisoned")
-        .get(&game_id)
-        .cloned();
-    let timeline = match known {
+    let timeline = match cached(&cache.timelines, game_id) {
         Some(timeline) => Some(timeline),
-        None => match client.game_timeline(game_id).await {
-            Ok(timeline) => {
-                let timeline = Arc::new(timeline);
-                cache
-                    .timelines
-                    .lock()
-                    .expect("cache lock poisoned")
-                    .insert(game_id, timeline.clone());
-                Some(timeline)
-            }
-            Err(error) => {
-                tracing::debug!(%error, game_id, "no timeline");
-                None
-            }
-        },
+        None => read_timeline(&client, game_id)
+            .await
+            .inspect(|timeline| remember(&cache.timelines, game_id, timeline.clone())),
     };
 
     Ok(GameDetail::from_game(&game, timeline.as_deref()))
 }
 
-/// The full scoreboard of every game in `history`, from the cache or the
-/// client. A scoreboard that fails to read is simply missing.
-async fn scoreboards(
+type Reads = (
+    HashMap<i64, Arc<HistoryGame>>,
+    HashMap<i64, Arc<GameTimeline>>,
+);
+
+/// The full scoreboard of every game in `history`, and the timeline of the
+/// `graded` ones, from the cache or the client. One game's two reads go out
+/// together, a few games at a time; a read that fails is simply missing.
+async fn reads(
     client: &Arc<LcuClient>,
     cache: &GameCache,
     history: &[HistoryGame],
-) -> HashMap<i64, Arc<HistoryGame>> {
-    let wanted: Vec<i64> = history.iter().map(|game| game.game_id).collect();
-    let missing: Vec<i64> = {
-        let known = cache.games.lock().expect("cache lock poisoned");
-        wanted
+    graded: &[i64],
+) -> Reads {
+    let wanted: Vec<(i64, bool, bool)> = {
+        let games = cache.games.lock().expect("cache lock poisoned");
+        let timelines = cache.timelines.lock().expect("cache lock poisoned");
+        history
             .iter()
-            .filter(|id| !known.contains_key(id))
-            .copied()
+            .map(|game| game.game_id)
+            .map(|id| {
+                let timeline = graded.contains(&id) && !timelines.contains_key(&id);
+                (id, !games.contains_key(&id), timeline)
+            })
+            .filter(|(_, game, timeline)| *game || *timeline)
             .collect()
     };
 
     let mut reads = JoinSet::new();
     let mut read = Vec::new();
-    for game_id in missing {
-        if reads.len() >= SCOREBOARDS_AT_ONCE {
-            read.extend(reads.join_next().await.and_then(Result::ok).flatten());
+    for (game_id, game, timeline) in wanted {
+        if reads.len() >= GAMES_AT_ONCE {
+            read.extend(reads.join_next().await.and_then(Result::ok));
         }
         let client = client.clone();
         reads.spawn(async move {
-            let game = client
-                .game(game_id)
-                .await
-                .inspect_err(|error| tracing::debug!(%error, game_id, "no scoreboard"))
-                .ok()?;
-            Some((game_id, Arc::new(game)))
+            let (game, timeline) = tokio::join!(
+                async {
+                    if !game {
+                        return None;
+                    }
+                    client
+                        .game(game_id)
+                        .await
+                        .inspect_err(|error| tracing::debug!(%error, game_id, "no scoreboard"))
+                        .ok()
+                        .map(Arc::new)
+                },
+                async {
+                    if timeline {
+                        read_timeline(&client, game_id).await
+                    } else {
+                        None
+                    }
+                },
+            );
+            (game_id, game, timeline)
         });
     }
     while let Some(joined) = reads.join_next().await {
-        read.extend(joined.ok().flatten());
+        read.extend(joined.ok());
     }
 
-    let mut known = cache.games.lock().expect("cache lock poisoned");
-    known.extend(read);
-    wanted
-        .into_iter()
-        .filter_map(|id| Some((id, known.get(&id)?.clone())))
-        .collect()
+    for (game_id, game, timeline) in read {
+        if let Some(game) = game {
+            remember(&cache.games, game_id, game);
+        }
+        if let Some(timeline) = timeline {
+            remember(&cache.timelines, game_id, timeline);
+        }
+    }
+    let games = cache.games.lock().expect("cache lock poisoned");
+    let timelines = cache.timelines.lock().expect("cache lock poisoned");
+    let ids = history.iter().map(|game| game.game_id);
+    (
+        ids.clone()
+            .filter_map(|id| Some((id, games.get(&id)?.clone())))
+            .collect(),
+        ids.filter_map(|id| Some((id, timelines.get(&id)?.clone())))
+            .collect(),
+    )
+}
+
+async fn read_timeline(client: &LcuClient, game_id: i64) -> Option<Arc<GameTimeline>> {
+    client
+        .game_timeline(game_id)
+        .await
+        .inspect_err(|error| tracing::debug!(%error, game_id, "no timeline"))
+        .ok()
+        .map(Arc::new)
+}
+
+fn cached<T>(cache: &Mutex<HashMap<i64, Arc<T>>>, game_id: i64) -> Option<Arc<T>> {
+    cache
+        .lock()
+        .expect("cache lock poisoned")
+        .get(&game_id)
+        .cloned()
+}
+
+fn remember<T>(cache: &Mutex<HashMap<i64, Arc<T>>>, game_id: i64, value: Arc<T>) {
+    cache
+        .lock()
+        .expect("cache lock poisoned")
+        .insert(game_id, value);
 }
