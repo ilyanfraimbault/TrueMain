@@ -57,7 +57,9 @@ describe('OverlayObjectives', () => {
     await vi.advanceTimersByTimeAsync(60_000)
     expect(pill(wrapper, 'dragon').attributes('data-status')).toBe('up')
     expect(pill(wrapper, 'dragon').find('[data-countdown]').exists()).toBe(false)
-    expect(pill(wrapper, 'dragon').text()).toBe('')
+    // No drake taken yet: the pit is a row like the others, a green dot on the right.
+    expect(pill(wrapper, 'dragon').find('[data-side]').exists()).toBe(false)
+    expect(pill(wrapper, 'dragon').find('[data-up]').exists()).toBe(true)
     expect(pill(wrapper, 'grubs').text()).toBe('3:00')
   })
 
@@ -84,12 +86,15 @@ describe('OverlayObjectives', () => {
 
   it('shows the Elder\'s icon once a side holds the soul, and drops the camps that left the map', () => {
     const timers: NeutralTimers = { ...fresh, dragon: { at: 2110, until: null }, elder: true, drake: 'ocean' }
-    const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 1900, [['cloud'], ['ocean', 'hextech', 'ocean', 'ocean']]), syncedAt: NOW }, global })
+    const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 2200, [['cloud'], ['ocean', 'hextech', 'ocean', 'ocean']]), syncedAt: NOW }, global })
     expect(pill(wrapper, 'dragon').get('[data-icon]').attributes('src')).toMatch(/dragon_elder\.png$/)
     expect(pill(wrapper, 'dragon').get('[data-icon]').attributes('alt')).toBe('Elder')
     expect(pill(wrapper, 'dragon').findAll('[data-side="red"] img')).toHaveLength(4)
     expect(wrapper.findAll('[data-objective]').map(row => row.attributes('data-objective'))).toEqual(['dragon', 'baron'])
     expect(pill(wrapper, 'baron').attributes('data-status')).toBe('up')
+    expect(pill(wrapper, 'baron').find('[data-up]').exists()).toBe(true)
+    // Between the drakes, a standing pit is its icon alone.
+    expect(pill(wrapper, 'dragon').find('[data-up]').exists()).toBe(false)
   })
 
   it('says so off the Rift, where the shell has no timers', () => {

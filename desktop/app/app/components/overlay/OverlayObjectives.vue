@@ -8,11 +8,13 @@ import { SOON_SECONDS, dragonLabel, drakeIcon, formatCountdown, objectiveIcon, o
  * dragon pit, the Voidgrubs, the Rift Herald and Baron, with the game's own
  * minimap icon and, until it spawns, a countdown — the icon alone once it
  * stands. A camp that will not come again (taken, or gone from the map) leaves
- * the panel. The dragon pit's icon is its next drake's element once the Rift
- * turned to it (after the second drake — the API does not name the first two),
- * the Elder's once a side holds the soul; flanking it, the drakes each side
- * took, blue side's on the left, red side's on the right, as the scoreboard
- * draws them.
+ * the panel. A row is its icon on the left and its countdown, or a green dot
+ * while it stands, on the right — except the dragon pit once a drake fell: its
+ * icon then sits between the drakes each side took, blue side's on the left,
+ * red side's on the right, its countdown beside it and nothing while it
+ * stands. The pit's icon is its next drake's element once the Rift turned to
+ * it (after the second drake — the API does not name the first two), the
+ * Elder's once a side holds the soul.
  *
  * Only what the game shows every player: the shell derives the times from
  * the season's spawn rules and the kills the event feed announces
@@ -32,6 +34,8 @@ const clock = computed(() => props.game.gameTime + Math.max(0, now.value - props
 const timers = computed<NeutralTimers | null>(() => props.game.objectives.timers)
 const blue = computed(() => props.game.objectives.order.drakes)
 const red = computed(() => props.game.objectives.chaos.drakes)
+/** The dragon row sits between the drakes each side took — once there are any. */
+const flanked = (key: ObjectiveKey) => key === 'dragon' && blue.value.length + red.value.length > 0
 
 const NAMES: Record<Exclude<ObjectiveKey, 'dragon'>, string> = { grubs: 'Voidgrubs', herald: 'Rift Herald', baron: 'Baron Nashor' }
 
@@ -62,10 +66,10 @@ const rows = computed(() => {
         :data-objective="row.key"
         :data-status="row.status.kind"
         class="items-center gap-1.5 rounded bg-elevated/60 px-1.5 py-0.5"
-        :class="row.key === 'dragon' ? 'grid grid-cols-[1fr_auto_1fr]' : 'flex justify-between'"
+        :class="flanked(row.key) ? 'grid grid-cols-[1fr_auto_1fr]' : 'flex justify-between'"
       >
-        <!-- The dragon pit sits between the drakes each side took; the other camps are their icon and countdown, apart. -->
-        <template v-if="row.key === 'dragon'">
+        <!-- The dragon pit sits between the drakes each side took; otherwise a row is its icon, and its countdown or a green dot, apart. -->
+        <template v-if="flanked(row.key)">
           <span class="flex items-center gap-0.5" data-side="blue">
             <img v-for="(element, index) in blue" :key="index" :src="drakeIcon(element)" :alt="element" class="size-3.5 rounded-full ring-1 ring-ally/70">
           </span>
@@ -85,6 +89,7 @@ const rows = computed(() => {
           <span v-if="row.status.kind === 'countdown'" class="text-[11px] tabular-nums" :class="row.status.seconds <= SOON_SECONDS ? 'text-highlighted' : 'text-muted'" data-countdown>
             {{ formatCountdown(row.status.seconds) }}
           </span>
+          <span v-else class="mr-1 size-1.5 rounded-full bg-success shadow-[0_0_4px] shadow-success" data-up role="img" aria-label="Up" />
         </template>
       </li>
     </ul>

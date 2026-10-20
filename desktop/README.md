@@ -87,7 +87,8 @@ Tracking issue: **#1671**.
   turned, the Elder once a side holds the soul — between the drakes each side
   took, blue side's left and red side's right, then the Voidgrubs, the Rift
   Herald and Baron: icons only, the game's minimap ones, a countdown until each
-  spawns, gone from the panel once taken for good; derived by the shell from the
+  spawns or a green dot while it stands, gone from the panel once taken for
+  good; derived by the shell from the
   season's spawn rules, one table in `crates/live-client/src/timers.rs`, and the
   kills the event feed announces, so a patch that moves a timer changes that
   table; Summoner's Rift's standard game only), and, while TAB is held, each team's item gold and each lane's gap —
