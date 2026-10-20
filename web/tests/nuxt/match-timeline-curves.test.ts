@@ -95,7 +95,7 @@ describe('MatchDetailTimelineCurvesTooltip', () => {
     const teams = teamCurves(buildTimelineCurves(timeline, metric, 100)!, 100)
     const champion = (participantId: number) => ({ name: `Player ${participantId}`, iconUrl: `https://cdn.test/${participantId}.png` })
     return mountSuspended(MatchDetailTimelineCurvesTooltip, {
-      props: { x, ms: index * 60_000, lead: 1234, index, teams, metric, selfParticipantId: 3, pinnedParticipantId, champion },
+      props: { x, ms: index * 60_000, lead: 1234, index, teams, metric, pinnedParticipantId, champion },
     })
   }
 
@@ -115,11 +115,9 @@ describe('MatchDetailTimelineCurvesTooltip', () => {
     expect(wrapper.findAll('li .tabular-nums').every(value => value.classes().includes('text-gold'))).toBe(true)
   })
 
-  it('keys the viewer\'s row with the primary mark and rings the pinned portrait', async () => {
+  it('leaves the viewer\'s row unmarked and rings the pinned portrait', async () => {
     const wrapper = await mountCard('gold', 30, 7)
-    const marks = wrapper.findAll('[data-self-mark]')
-    expect(marks).toHaveLength(1)
-    expect(marks[0]!.element.parentElement!.getAttribute('data-participant')).toBe('3')
+    expect(wrapper.find('li[data-participant="3"] .font-semibold').exists()).toBe(false)
     expect(wrapper.find('li[data-participant="7"] .ring-inverted').exists()).toBe(true)
     expect(wrapper.findAll('.ring-inverted')).toHaveLength(1)
   })

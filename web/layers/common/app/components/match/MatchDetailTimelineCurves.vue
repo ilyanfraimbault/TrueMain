@@ -146,7 +146,6 @@ const differenceTone = computed(() => {
               v-bind="hovered"
               :teams="teams"
               :metric="metric"
-              :self-participant-id="selfParticipantId"
               :pinned-participant-id="pinned"
               :champion="champion"
             />
