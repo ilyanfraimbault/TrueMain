@@ -123,6 +123,8 @@ average would move the centre line every time the opponent pool shifts. Opponent
 `MinDecidedLaneGames`) are left off rather than drawn on the centre line, which would read as "dead even". The
 role picker is the panel's own and selects the lane on both sides, as the aggregate is keyed. The player-scoped
 champion page keeps the list: its live route has no lane data — 2026-10-18, #2094.
+The strip carries no caption, band labels, ring colours, counts or hardest/easiest summary: the icons' positions
+say it, and each icon's tooltip reads only the opponent and its lane win rate. The card is titled "Matchups" — product call after seeing it live, 2026-10-20, #2159.
 
 **Lane win rate stores three counters and divides by the *decided* lanes, not by games played.**
 A gold *threshold* at 15 min (`LaneOutcomeAggregation:GoldLeadThreshold`, 300) is what defines a won lane, and

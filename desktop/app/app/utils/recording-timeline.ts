@@ -3,8 +3,8 @@
  * video editor's) and the player's playback speeds. Pure, so the component only
  * holds the state.
  */
-import type { PlayerLane } from '~/utils/recording-moments'
-import { PLAYER_LANES } from '~/utils/recording-moments'
+import type { Moment } from '~/types/recordings'
+import { momentSide } from '~/utils/recording-moments'
 
 /** The window of the video across the timeline's width, ms. */
 export interface TimelineView { startMs: number, spanMs: number }
@@ -17,15 +17,59 @@ export function viewPercent(view: TimelineView, ms: number): string {
 
 export const isInView = (view: TimelineView, ms: number) => ms >= view.startMs && ms <= view.startMs + view.spanMs
 
-/** The timeline's rows, px: the objectives' row, then the lanes' panel under it, the curve's lane last. */
-export const TIMELINE_PANEL_TOP = 28
-export const TIMELINE_LANE_HEIGHT = 20
-export const TIMELINE_CURVE_HEIGHT = 40
-export const TIMELINE_LANES_HEIGHT = TIMELINE_LANE_HEIGHT * PLAYER_LANES.length
+/** The timeline's rows, px: the events' row, then the panel under it — the curve's lane, or a bare strip without one. */
+export const TIMELINE_PANEL_TOP = 20
+export const TIMELINE_CURVE_HEIGHT = 64
+export const TIMELINE_BARE_HEIGHT = 20
 
-/** The middle of a player lane, from the track's top. */
-export const timelineLaneCenter = (lane: PlayerLane) =>
-  TIMELINE_PANEL_TOP + PLAYER_LANES.indexOf(lane) * TIMELINE_LANE_HEIGHT + TIMELINE_LANE_HEIGHT / 2
+/** How close two events' dots may sit, px, before they read as one: closer, they are one dot. */
+export const EVENT_CLUSTER_PX = 10
+
+/**
+ * Events close enough on screen to be one dot, and the instant it is drawn at
+ * (the middle of the first and the last). A cluster reads as the side that
+ * owns it: `ally` when every game event in it went the player's side's way,
+ * `enemy` when none did, `mixed` otherwise; `marked` when it holds only
+ * moments the player marked — a mark beside a game event leaves the colour
+ * to the event, the mark's own line telling it apart.
+ */
+export interface EventCluster {
+  ms: number
+  moments: Moment[]
+  side: 'ally' | 'enemy' | 'mixed' | 'marked'
+}
+
+/** `moments` grouped into dots no closer than `gapMs`, in order: a chain of near events is one cluster. */
+export function clusterMoments(moments: Moment[], gapMs: number): EventCluster[] {
+  const sorted = [...moments].sort((a, b) => a.videoMs - b.videoMs)
+  const groups: Moment[][] = []
+  for (const moment of sorted) {
+    const last = groups.at(-1)
+    if (last && moment.videoMs - last.at(-1)!.videoMs <= gapMs) last.push(moment)
+    else groups.push([moment])
+  }
+  return groups.map((group) => {
+    const sides = new Set(group.map(moment => momentSide(moment)).filter(side => side !== 'marked'))
+    let side: EventCluster['side'] = 'marked'
+    if (sides.size > 1) side = 'mixed'
+    else if (sides.size === 1) side = [...sides][0]!
+    return {
+      ms: (group[0]!.videoMs + group.at(-1)!.videoMs) / 2,
+      moments: group,
+      side,
+    }
+  })
+}
+
+/** The cluster nearest `ms`, when one lies within `toleranceMs` of it. */
+export function clusterNear(clusters: EventCluster[], ms: number, toleranceMs: number): EventCluster | null {
+  let best: EventCluster | null = null
+  for (const cluster of clusters) {
+    const distance = Math.abs(cluster.ms - ms)
+    if (distance <= toleranceMs && (!best || distance < Math.abs(best.ms - ms))) best = cluster
+  }
+  return best
+}
 
 /** The narrowest window the timeline zooms to: a few seconds across, enough to land the playhead on a frame's neighbourhood. */
 export const MIN_VIEW_SPAN_MS = 4_000

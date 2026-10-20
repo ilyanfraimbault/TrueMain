@@ -4,7 +4,7 @@
 //! The overlay is a few independent panels, each its own window placed on its
 //! own (#1671's choice over one HUD): the next item, the win probability, the
 //! player's own pace, the item value, which by default shows only while the
-//! scoreboard (TAB) is held. Each panel shows always, while a chord is held,
+//! scoreboard (TAB) is held, and the neutral objectives' timers (#2078). Each panel shows always, while a chord is held,
 //! or toggled by one (#1915, chords in `keys`). The windows are the shell's (`src-tauri/src/overlay`), macOS-only and
 //! impossible to build on the Linux CI box; the decisions they apply live here
 //! so they are tested anywhere. The settings file is read the way the
@@ -51,14 +51,17 @@ pub enum OverlayPanel {
     ItemValue,
     /// Our CS per minute, with its curve, and gold per minute.
     Stats,
+    /// When the dragon, the grubs, the Herald and Baron are next up.
+    Objectives,
 }
 
 impl OverlayPanel {
-    pub const ALL: [OverlayPanel; 4] = [
+    pub const ALL: [OverlayPanel; 5] = [
         OverlayPanel::NextItem,
         OverlayPanel::WinProbability,
         OverlayPanel::ItemValue,
         OverlayPanel::Stats,
+        OverlayPanel::Objectives,
     ];
 
     /// The panel's name in a window label and a route.
@@ -68,6 +71,7 @@ impl OverlayPanel {
             OverlayPanel::WinProbability => "win-probability",
             OverlayPanel::ItemValue => "item-value",
             OverlayPanel::Stats => "stats",
+            OverlayPanel::Objectives => "objectives",
         }
     }
 
@@ -82,6 +86,7 @@ impl OverlayPanel {
             OverlayPanel::WinProbability => "Win probability",
             OverlayPanel::ItemValue => "Item value",
             OverlayPanel::Stats => "Your pace",
+            OverlayPanel::Objectives => "Objectives",
         }
     }
 
@@ -91,6 +96,7 @@ impl OverlayPanel {
             OverlayPanel::WinProbability => 1,
             OverlayPanel::ItemValue => 2,
             OverlayPanel::Stats => 3,
+            OverlayPanel::Objectives => 4,
         }
     }
 }
@@ -133,7 +139,7 @@ impl PanelTrigger {
 
 /// One flag per panel.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct PanelFlags([bool; 4]);
+pub struct PanelFlags([bool; 5]);
 
 impl PanelFlags {
     pub fn get(&self, panel: OverlayPanel) -> bool {
@@ -204,6 +210,7 @@ pub struct OverlaySettings {
     pub win_probability: PanelSettings,
     pub item_value: PanelSettings,
     pub stats: PanelSettings,
+    pub objectives: PanelSettings,
 }
 
 impl Default for OverlaySettings {
@@ -223,6 +230,7 @@ impl Default for OverlaySettings {
             win_probability: at(OverlayPanel::WinProbability, OverlayAnchor::TopLeft),
             item_value: at(OverlayPanel::ItemValue, OverlayAnchor::TopCenter),
             stats: at(OverlayPanel::Stats, OverlayAnchor::CenterLeft),
+            objectives: at(OverlayPanel::Objectives, OverlayAnchor::CenterRight),
         }
     }
 }
@@ -265,6 +273,7 @@ impl OverlaySettings {
             OverlayPanel::WinProbability => &self.win_probability,
             OverlayPanel::ItemValue => &self.item_value,
             OverlayPanel::Stats => &self.stats,
+            OverlayPanel::Objectives => &self.objectives,
         }
     }
 
@@ -274,6 +283,7 @@ impl OverlaySettings {
             OverlayPanel::WinProbability => &mut self.win_probability,
             OverlayPanel::ItemValue => &mut self.item_value,
             OverlayPanel::Stats => &mut self.stats,
+            OverlayPanel::Objectives => &mut self.objectives,
         }
     }
 
@@ -322,6 +332,26 @@ impl OverlaySettings {
             .filter(|other| *other != panel)
             .find(|other| self.panel(*other).trigger.chord() == Some(chord))
             .map(|other| format!("Already the shortcut of {}.", other.name()))
+    }
+
+    /// The panel `chord` brings on screen, if one does: the mark key (#2079)
+    /// may not be a panel's chord too.
+    pub fn panel_on(&self, chord: &Chord) -> Option<OverlayPanel> {
+        OverlayPanel::ALL
+            .into_iter()
+            .find(|panel| self.panel(*panel).trigger.chord().as_ref() == Some(chord))
+    }
+
+    /// The settings with every panel on `chord` back to its default trigger:
+    /// the chord is the mark key's.
+    pub fn freeing(mut self, chord: &Chord) -> Self {
+        while let Some(panel) = self.panel_on(chord) {
+            self.panel_mut(panel).trigger = PanelTrigger::default_for(panel);
+            if self.panel(panel).trigger.chord().as_ref() == Some(chord) {
+                self.panel_mut(panel).trigger = PanelTrigger::Always;
+            }
+        }
+        self
     }
 
     /// The keys the panels' chords name, for the shell to read and no other.
@@ -461,6 +491,7 @@ impl OverlaySettings {
             win_probability: panel("winProbability", defaults.win_probability),
             item_value: panel("itemValue", defaults.item_value),
             stats: panel("stats", defaults.stats),
+            objectives: panel("objectives", defaults.objectives),
         }
         .with_valid_triggers()
     }
@@ -788,6 +819,25 @@ mod tests {
     }
 
     #[test]
+    fn the_mark_keys_chord_is_taken_back_from_a_panel() {
+        let mark = Chord::with(true, true, false, KeyCode::Digit0);
+        let mut settings = OverlaySettings::default();
+        settings.panel_mut(Stats).trigger = PanelTrigger::Toggle {
+            chord: mark,
+            start_shown: true,
+        };
+        assert_eq!(settings.panel_on(&mark), Some(Stats));
+        assert_eq!(settings.panel_on(&Chord::TAB), Some(ItemValue));
+
+        let freed = settings.freeing(&mark);
+        assert_eq!(freed.panel_on(&mark), None);
+        assert_eq!(freed.panel(Stats).trigger, PanelTrigger::Always);
+        // A panel whose default is the chord itself is shown always.
+        let freed = OverlaySettings::default().freeing(&Chord::TAB);
+        assert_eq!(freed.panel(ItemValue).trigger, PanelTrigger::Always);
+    }
+
+    #[test]
     fn a_version_2_file_keeps_todays_behaviour() {
         let old = r#"{"version":2,"stats":{"enabled":true,"anchor":"top-left","custom":{"x":0.9,"y":0.5}},
                       "itemValue":{"enabled":true,"anchor":"top-center","custom":null}}"#;
@@ -1002,5 +1052,22 @@ mod tests {
             assert_eq!(OverlayPanel::from_slug(panel.slug()), Some(panel));
         }
         assert_eq!(OverlayPanel::from_slug("hud"), None);
+    }
+
+    #[test]
+    fn a_file_from_before_the_objectives_panel_gets_it_on_the_free_spot() {
+        let old = r#"{"version":3,"stats":{"enabled":false,"anchor":"top-left"}}"#;
+        let settings = OverlaySettings::from_json(old);
+        assert!(!settings.stats.enabled);
+        assert_eq!(settings.objectives, OverlaySettings::default().objectives);
+        assert!(settings.objectives.enabled);
+        assert_eq!(settings.objectives.trigger, PanelTrigger::Always);
+        let taken: Vec<_> = OverlayPanel::ALL
+            .into_iter()
+            .filter(|panel| *panel != Objectives)
+            .map(|panel| OverlaySettings::default().panel(panel).anchor)
+            .collect();
+        assert!(!taken.contains(&settings.objectives.anchor));
+        assert!(settings.shows(Objectives, &in_game()));
     }
 }

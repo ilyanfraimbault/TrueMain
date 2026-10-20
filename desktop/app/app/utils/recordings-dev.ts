@@ -1,5 +1,6 @@
 import type { CaptureAvailability, Clip, GameRecording, RecordingLibrary, RecordingSettings, RecordingSettingsView, RecordingStatus } from '~/types/recordings'
-import { cutClip, devLibrary, devSettings, devStatus } from '~/fixtures/recordings'
+import type { Chord } from '~/types/overlay'
+import { cutClip, devChordView, devLibrary, devMarkKeyRefusal, devSettings, devStatus } from '~/fixtures/recordings'
 import { devWinProbability } from '~/fixtures/recording-win-probability'
 
 /**
@@ -67,8 +68,16 @@ export async function devRecordingCall(command: string, args: Record<string, unk
     case 'set_recording_settings': {
       const next = args.settings as RecordingSettings
       next.budgetBytes = Math.max(next.budgetBytes, current.settings.minBudgetBytes)
-      current.settings = { ...current.settings, settings: copy(next) }
+      if (next.markKey) {
+        const refusal = devMarkKeyRefusal(next.markKey)
+        if (refusal) throw new Error(refusal)
+      }
+      current.settings = { ...current.settings, settings: copy(next), markKey: next.markKey ? devChordView(next.markKey) : null }
       return copy(current.settings)
+    }
+    case 'recording_check_mark_key': {
+      const chord = args.chord as Chord
+      return { refusal: devMarkKeyRefusal(chord), chord: devChordView(chord) }
     }
     case 'recording_status': return copy(current.status)
     case 'request_capture_permission':
@@ -96,8 +105,10 @@ export async function devRecordingCall(command: string, args: Record<string, unk
       const startMs = Math.floor(Number(args.startMs) / 1000) * 1000
       const endMs = Math.ceil(Number(args.endMs) / 1000) * 1000
       if (endMs - startMs < 1000) throw new Error('A clip lasts at least a second.')
-      const saved = cutClip(source, source.id, startMs, endMs, String(args.title).trim() || 'Clip', Date.now())
-      current.clips = [saved, ...current.clips.filter(entry => entry.id !== saved.id)]
+      // An adjusted range replaces its clip, keeping its favourite.
+      const replaced = typeof args.replaces === 'string' ? clip(current, args.replaces) : null
+      const saved = cutClip(source, source.id, startMs, endMs, String(args.title).trim() || 'Clip', Date.now(), replaced?.favorite)
+      current.clips = [saved, ...current.clips.filter(entry => entry.id !== saved.id && entry.id !== replaced?.id)]
         .sort((a, b) => b.gameStartedAtMs - a.gameStartedAtMs || b.startMs - a.startMs)
       return copy(saved)
     }
