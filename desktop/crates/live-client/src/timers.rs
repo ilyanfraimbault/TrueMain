@@ -83,6 +83,20 @@ pub enum DrakeElement {
 }
 
 impl DrakeElement {
+    /// A slain drake's element, from a `DragonKill`'s `DragonType`; `None`
+    /// for the Elder.
+    pub fn from_dragon_type(dragon_type: &str) -> Option<Self> {
+        match dragon_type.to_ascii_lowercase().as_str() {
+            "fire" => Some(Self::Infernal),
+            "water" => Some(Self::Ocean),
+            "earth" => Some(Self::Mountain),
+            "air" => Some(Self::Cloud),
+            "hextech" => Some(Self::Hextech),
+            "chemtech" => Some(Self::Chemtech),
+            _ => None,
+        }
+    }
+
     /// The element the Rift turned to, from `gameData.mapTerrain`; `None`
     /// while it is still `Default`.
     pub fn from_terrain(terrain: &str) -> Option<Self> {

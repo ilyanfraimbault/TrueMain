@@ -33,7 +33,7 @@ const HEIGHTS: Record<OverlayPanel, number> = {
   'win-probability': 48,
   'item-value': 200,
   'stats': 84,
-  'objectives': 86,
+  'objectives': 104,
 }
 
 /** The screen a browser-only `npm run dev` lays the panels on. */

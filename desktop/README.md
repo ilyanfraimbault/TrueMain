@@ -84,8 +84,8 @@ Tracking issue: **#1671**.
   gap and the map (turrets, inhibitors down, drakes, Baron, Elder), your CS per
   minute with its curve and gold per minute, the neutral objectives' next
   spawns (#2078: the dragon pit — its next drake's element once the Rift has
-  turned, the Elder once a side holds the soul — with each side's drakes and the
-  soul point, the Voidgrubs, the Rift Herald and Baron, each with the game's
+  turned, the Elder once a side holds the soul — with the drakes each side took
+  as their icons and the soul point, the Voidgrubs, the Rift Herald and Baron, each with the game's
   minimap icon and a countdown, a green dot while it stands, gone from the panel
   once taken for good; derived by the shell from the
   season's spawn rules, one table in `crates/live-client/src/timers.rs`, and the

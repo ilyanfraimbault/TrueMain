@@ -71,8 +71,8 @@ export function sampleGame(): GameState {
     ],
     gold: 600,
     objectives: {
-      order: { turrets: 3, inhibitors: [], dragons: 2, grubs: 2, baronUntil: null, elderUntil: null },
-      chaos: { turrets: 1, inhibitors: [], dragons: 1, grubs: 1, baronUntil: null, elderUntil: null },
+      order: { turrets: 3, inhibitors: [], dragons: 2, drakes: ['infernal', 'mountain'], baronUntil: null, elderUntil: null },
+      chaos: { turrets: 1, inhibitors: [], dragons: 1, drakes: ['hextech'], baronUntil: null, elderUntil: null },
       // At the sample's 26:00: the next drake in 1:15, the grubs and the
       // Herald done, Baron up since 20:00.
       timers: {

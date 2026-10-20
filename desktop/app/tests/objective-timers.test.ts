@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { GameObjectives, TeamObjectives } from '../app/types/game'
 import { dragonLabel, drakeStandings, formatCountdown, objectiveIcon, objectiveStatus } from '../app/utils/objective-timers'
 
-const team = (dragons: number): TeamObjectives => ({ turrets: 0, inhibitors: [], dragons, grubs: 0, baronUntil: null, elderUntil: null })
+const team = (dragons: number): TeamObjectives => ({ turrets: 0, inhibitors: [], dragons, drakes: Array(dragons).fill('cloud'), baronUntil: null, elderUntil: null })
 const objectives = (order: number, chaos: number): GameObjectives => ({ order: team(order), chaos: team(chaos), timers: null })
 
 describe('objectiveStatus', () => {
@@ -50,8 +50,8 @@ describe('the dragon pit', () => {
 describe('drakeStandings', () => {
   it('puts our side first and marks the soul point', () => {
     const { ours, theirs } = drakeStandings(objectives(1, 3), 'CHAOS')
-    expect(ours).toEqual({ count: 3, soulPoint: true, soul: false })
-    expect(theirs).toEqual({ count: 1, soulPoint: false, soul: false })
+    expect(ours).toEqual({ count: 3, elements: ['cloud', 'cloud', 'cloud'], soulPoint: true, soul: false })
+    expect(theirs).toEqual({ count: 1, elements: ['cloud'], soulPoint: false, soul: false })
   })
 
   it('has no soul point left once a side holds the soul', () => {

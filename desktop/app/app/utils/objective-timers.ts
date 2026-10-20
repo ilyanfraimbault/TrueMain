@@ -1,4 +1,4 @@
-import type { DrakeElement, GameObjectives, GameTeam, NeutralTimers, ObjectiveSpawn } from '~/types/game'
+import type { DrakeElement, GameObjectives, GameTeam, NeutralTimers, ObjectiveSpawn, TeamObjectives } from '~/types/game'
 
 /**
  * The objectives panel's pills (#2078), from the timers the shell derives
@@ -21,6 +21,11 @@ export const SOON_SECONDS = 60
 
 /** The game's own minimap icons, from Community Dragon (the CSP lets them through). */
 const MINIMAP_ICONS = 'https://raw.communitydragon.org/latest/game/assets/ux/minimap/icons'
+
+/** A drake's minimap icon. */
+export function drakeIcon(element: DrakeElement): string {
+  return `${MINIMAP_ICONS}/dragon_${element}.png`
+}
 
 /** The minimap icon of an objective; the dragon pit's is its next drake's element, or the Elder's. */
 export function objectiveIcon(key: ObjectiveKey, timers: Pick<NeutralTimers, 'elder' | 'drake'>): string {
@@ -66,6 +71,8 @@ export const SOUL_DRAKES = 4
 /** A side's drakes, and how close they are to the soul. */
 export interface DrakeStanding {
   count: number
+  /** Each drake's element, in the order they fell. */
+  elements: DrakeElement[]
   /** One drake from the soul, while no team holds it. */
   soulPoint: boolean
   soul: boolean
@@ -74,12 +81,13 @@ export interface DrakeStanding {
 /** Each side's drakes, ours (or blue side when spectating) first. */
 export function drakeStandings(objectives: GameObjectives, left: GameTeam): { ours: DrakeStanding, theirs: DrakeStanding } {
   const soulTaken = objectives.order.dragons >= SOUL_DRAKES || objectives.chaos.dragons >= SOUL_DRAKES
-  const standing = (count: number): DrakeStanding => ({
+  const standing = ({ dragons: count, drakes: elements }: TeamObjectives): DrakeStanding => ({
     count,
+    elements,
     soulPoint: !soulTaken && count === SOUL_DRAKES - 1,
     soul: count >= SOUL_DRAKES,
   })
-  const order = standing(objectives.order.dragons)
-  const chaos = standing(objectives.chaos.dragons)
+  const order = standing(objectives.order)
+  const chaos = standing(objectives.chaos)
   return left === 'ORDER' ? { ours: order, theirs: chaos } : { ours: chaos, theirs: order }
 }

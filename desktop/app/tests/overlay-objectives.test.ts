@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import type { GameState, NeutralTimers } from '../app/types/game'
+import type { DrakeElement, GameState, NeutralTimers } from '../app/types/game'
 import OverlayObjectives from '../app/components/overlay/OverlayObjectives.vue'
 import { sampleGame } from '../app/utils/overlay-sample'
 
@@ -9,14 +9,14 @@ import { sampleGame } from '../app/utils/overlay-sample'
 const global = { stubs: { AppMark: true, UIcon: true } }
 const NOW = 1_000_000
 
-function game(timers: NeutralTimers | null, gameTime: number, dragons: [number, number] = [0, 0]): GameState {
+function game(timers: NeutralTimers | null, gameTime: number, drakes: [DrakeElement[], DrakeElement[]] = [[], []]): GameState {
   const base = sampleGame()
   return {
     ...base,
     gameTime,
     objectives: {
-      order: { ...base.objectives.order, dragons: dragons[0], grubs: 0 },
-      chaos: { ...base.objectives.chaos, dragons: dragons[1], grubs: 0 },
+      order: { ...base.objectives.order, dragons: drakes[0].length, drakes: drakes[0] },
+      chaos: { ...base.objectives.chaos, dragons: drakes[1].length, drakes: drakes[1] },
       timers,
     },
   }
@@ -58,6 +58,7 @@ describe('OverlayObjectives', () => {
     expect(pill(wrapper, 'dragon').attributes('data-status')).toBe('up')
     expect(pill(wrapper, 'dragon').find('[data-up]').exists()).toBe(true)
     expect(pill(wrapper, 'dragon').text()).not.toContain('0:00')
+    expect(wrapper.find('[data-drakes]').exists()).toBe(false)
     expect(pill(wrapper, 'grubs').text()).toContain('3:00')
   })
 
@@ -70,11 +71,11 @@ describe('OverlayObjectives', () => {
       herald: GONE,
       baron: { at: 1855, until: null },
     }
-    const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 1606, [3, 1]), syncedAt: NOW }, global })
-    const drakes = wrapper.get('[data-drakes]').text()
-    expect(drakes).toContain('3')
-    expect(drakes).toContain('1')
-    expect(drakes).toContain('Soul pt')
+    const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 1606, [['infernal', 'mountain', 'mountain'], ['ocean']]), syncedAt: NOW }, global })
+    const icons = (side: string) => wrapper.findAll(`[data-side="${side}"] img`).map(img => img.attributes('src')!.split('/').pop())
+    expect(icons('ours')).toEqual(['dragon_infernal.png', 'dragon_mountain.png', 'dragon_mountain.png'])
+    expect(icons('theirs')).toEqual(['dragon_ocean.png'])
+    expect(wrapper.get('[data-soul]').text()).toBe('Soul point')
     expect(pill(wrapper, 'dragon').text()).toContain('Mountain')
     expect(pill(wrapper, 'dragon').get('img').attributes('src')).toMatch(/dragon_mountain\.png$/)
     expect(pill(wrapper, 'dragon').text()).toContain('4:52')
@@ -85,10 +86,11 @@ describe('OverlayObjectives', () => {
 
   it('names the Elder once a side holds the soul, and drops the camps that left the map', () => {
     const timers: NeutralTimers = { ...fresh, dragon: { at: 2110, until: null }, elder: true, drake: 'ocean' }
-    const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 1900, [1, 4]), syncedAt: NOW }, global })
+    const wrapper = mount(OverlayObjectives, { props: { game: game(timers, 1900, [['cloud'], ['ocean', 'hextech', 'ocean', 'ocean']]), syncedAt: NOW }, global })
     expect(pill(wrapper, 'dragon').text()).toContain('Elder')
     expect(pill(wrapper, 'dragon').get('img').attributes('src')).toMatch(/dragon_elder\.png$/)
-    expect(wrapper.get('[data-drakes]').text()).toContain('Soul')
+    expect(wrapper.get('[data-soul]').text()).toBe('Soul')
+    expect(wrapper.get('[data-soul]').classes()).toContain('text-enemy')
     expect(wrapper.findAll('[data-objective]').map(row => row.attributes('data-objective'))).toEqual(['dragon', 'baron'])
     expect(pill(wrapper, 'baron').find('[data-up]').exists()).toBe(true)
   })

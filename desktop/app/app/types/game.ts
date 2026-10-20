@@ -64,8 +64,8 @@ export interface TeamObjectives {
   inhibitors: number[]
   /** Elemental drakes this team slew; the Elder is not one of them. */
   dragons: number
-  /** Voidgrubs this team slew. */
-  grubs: number
+  /** The element of each of those drakes, in the order they fell. */
+  drakes: DrakeElement[]
   /** The game time this team's latest Baron buff ends at. */
   baronUntil: number | null
   /** The game time this team's latest Elder buff ends at. */

@@ -518,7 +518,8 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
 - **Objectives** (#2078, 2026-10-20): when the dragon pit (a drake, or the Elder once a side holds the soul), the
   Voidgrubs, the Rift Herald and Baron are next up — the game's minimap icons, a countdown, a green dot while it stands,
   no words for it ("Up", "Taken" were the product owner's no); a camp taken for good or gone from the map leaves the
-  panel — with each side's drakes and the soul point beside the dragon. The pit names its next drake's element from
+  panel — and under the dragon the drakes each side took as their icons, ours ringed in blue on the left, theirs in red
+  on the right, the soul point or the soul between (counts like "2–1" read as nothing, the product owner's call). The pit names its next drake's element from
   the Rift's terrain (`gameData.mapTerrain`, which turns after the second drake, the element of every drake after); the
   API names neither of the first two before they fall, so those read "Drake" with the plain icon rather than a guess.
   Only the game clock, the terrain and the kills the event feed announces to every player, against the

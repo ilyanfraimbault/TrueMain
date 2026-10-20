@@ -384,8 +384,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   with the game's minimap icon (Community Dragon's `ux/minimap/icons`) — a countdown to its next spawn, a green dot
   while it stands; a camp taken for good (grubs, Herald) or gone from the map leaves the panel. The pit is named and
   drawn as its next drake's element once the Rift has turned (`gameData.mapTerrain`, after the second drake), "Drake"
-  before, "Elder" once a side holds the soul; beside the dragon each side's
-  drakes with a "Soul pt"/"Soul" badge, beside the grubs each side's grubs. The shell sends game times, not countdowns
+  before, "Elder" once a side holds the soul; under it the drakes each side took, as their icons (each `DragonKill`'s
+  `DragonType`), ours ringed in blue on the left, theirs in red on the right, and a "Soul point"/"Soul" badge between. The shell sends game times, not countdowns
   (`live_client::timers`, inside the objectives change): the season's spawn rules in one table (`RIFT`: drakes 5:00 and
   5:00 after each, the Elder 6:00 after the soul and after each Elder, one camp of three grubs 8:00–14:45, the Herald
   15:00–19:45, Baron 20:00 and 6:00 after each) applied to the `DragonKill`, `HordeKill`, `HeraldKill` and `BaronKill`
