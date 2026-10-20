@@ -42,6 +42,20 @@ describe('PlayerLinks', () => {
     expect(wrapper.text()).toBe('')
   })
 
+  it('shows one button per platform, the first link the API lists for it', async () => {
+    const wrapper = await inApp(PlayersPlayerLinks, {
+      links: [
+        { kind: 'twitch', url: 'https://www.twitch.tv/dunlol' },
+        { kind: 'youtube', url: 'https://www.youtube.com/@Dunlol' },
+        { kind: 'youtube', url: 'https://www.youtube.com/c/Dunlol' },
+      ],
+    })
+
+    const links = wrapper.findAll('a')
+    expect(links.map(link => link.attributes('aria-label'))).toEqual(['Twitch', 'YouTube'])
+    expect(links[1]!.attributes('href')).toBe('https://www.youtube.com/@Dunlol')
+  })
+
   it('renders nothing when the person has none of those channels', async () => {
     const wrapper = await mountSuspended(PlayersPlayerLinks, {
       props: { links: [{ kind: 'website', url: 'https://example.com' }] },
