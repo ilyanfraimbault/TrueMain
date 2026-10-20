@@ -51,6 +51,7 @@ jobs:
             backend:
               - "backend/**"
               - "global.json"
+              - "web/shared/fixtures/performance-score-vectors.json"
             data:
               - "backend/Data/**"
             web:

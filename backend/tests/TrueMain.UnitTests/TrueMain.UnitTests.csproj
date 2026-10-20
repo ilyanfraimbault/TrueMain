@@ -35,6 +35,8 @@
     <Content Include="..\..\Ingestor\appsettings.json" CopyToOutputDirectory="PreserveNewest">
       <Link>ingestor.appsettings.json</Link>
     </Content>
+    <!-- The performance score's vectors, shared with the desktop app's TypeScript port (#2075). -->
+    <Content Include="..\..\..\web\shared\fixtures\performance-score-vectors.json" Link="performance-score-vectors.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

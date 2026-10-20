@@ -185,8 +185,8 @@ components.** The dashboard is for whoever installed the app, and TrueMain only 
 profile endpoints would leave most players with an empty page until #1682 settles an intake. The client already knows
 every player: the shell reads the ranked standing, the profile background skin and the latest 20 games from the LCU
 on demand (a Tauri command, not the pushed state — the record only moves when a game ends), each game's full
-scoreboard once per launch (kill participation, damage share, both teams), and a game's timeline when its row is
-opened (`player_game`), all cached by game.
+scoreboard once per launch (kill participation, damage share, both teams) and, since #2075, its timeline with it (the
+performance score's marks; a remake's is not read), all cached by game.
 
 **Installing the app never feeds the ingestion pipeline (2026-10-06).** The intake #1682 was waiting on is not built:
 the dashboard (profile, history, form tiles, LP curve) and the draft's "My pool" (the client's champion mastery) are
@@ -221,11 +221,25 @@ The client keeps no LP history, so the app notes the Solo/Duo standing on this m
 moved, 90 days deep; the curve and each game's LP gain come from those snapshots — the last before the game against
 the last after it and before the next Solo/Duo game, null across a promotion or with a side missing — and start empty
 on a fresh install rather than being estimated. The detail's laning @15 and first-to-level-2 are read from the
-timeline by the site's rules (the frame at 15:00 against the opposing lane; the second skill point). TrueMain's
-performance score and a participant's rank are not in the client's data and are not shown. The form tiles are the last
+timeline by the site's rules (the frame at 15:00 against the opposing lane; the second skill point). A participant's
+rank is not in the client's data and is not shown. (The performance score is now shown — #2075, below.) The form tiles are the last
 five games against the whole sample, in the ranked card's delta idiom (a trend arrow on the data axis, no sign); a
 flat move or a too-short sample shows no delta. No composite player score. Remakes are kept out of the list and of
 every average. The patch's best picks by lane stay as the no-client state (2026-09-30) — #1683.
+
+**The dashboard's games carry the site's performance score, MVP and ACE, graded on the client when TrueMain does not
+hold the game (2026-10-20, reverses the "no score" half of #1683).** #1683 held that the score was not in the client's
+data; it is — the score is a pure function of each player's scoreboard line and their leads over the lane opponent at
+the canonical marks, and the client serves both. The shell reads each listed game's timeline with its scoreboard (a
+remake's is not read) and reduces it to every player's gold, CS and XP at 5/10/15/20/30 by the ingestor's frame rule
+(nearest frame within 30 s, `lcu::marks`); the app grades the ten with a TypeScript port of the model
+(`utils/performance-score.ts`, `utils/match-performance.ts`) rather than a public scoring endpoint: no game data leaves
+the machine, it works offline and on every game the client lists. One model, two runtimes, held together by shared
+vectors (`web/shared/fixtures/performance-score-vectors.json`) that the C# and the app's suites both run — the model
+changes on both sides or fails on one. A row prefers TrueMain's stored score when TrueMain holds the game (one read of
+the player's latest 50 per session; a 404 for an untracked player grades everything locally), and the opened game's
+scoreboard is graded the same way, so the row and its detail always agree. A game without its scoreboard and a remake
+carry no score. Still no composite *player* score: this is the per-game score the site prints — #2075.
 
 **The app's lists are tables with fixed columns under headers; the tier list is the site's.** (The champions, truemains, favorites and matchup pages have since become the site's own, shared through the layer — #1732; a link to a page only the site has, such as a player's profile, opens it in the browser.) The truemains
 leaderboard drawn with the site's `LeaderboardRow` did not line up at the app's width — the row sizes its columns with
@@ -668,9 +682,11 @@ it among ten; the list beside them keys it with a primary bar only — no ring, 
 from the client's timeline (2026-10-19).** The same reduced timeline as the curve (`lcu::win_probability`) carries each
 player's gold and experience a minute; the site never has them (it keeps timelines at a few marks, #772), so the
 panel is the app's only, and it renders only when the timeline carries gold — never an empty panel. Under the curves,
-the team lead as a band drawn with the win probability's own band; the objectives on the time axis from the timeline's
-events; a list per side whose rows pin a line. Modelled on a competing companion's Gold tab (benchmark 2026-10-18) —
-#2102.
+the team lead as a band drawn with the win probability's own band; the kills and objectives on the time axis from the
+timeline's events, as the recap's timeline draws them (2026-10-20): a dot an event, blue above the line for our side, red
+below for the enemy's, merged when closer than a dot's width at the rendered size, a tooltip listing a dot's kills
+(killer → victims' portraits) and objectives (minimap icons) — the glyph row overlapped at busy moments; a list per side
+whose rows pin a line. Modelled on a competing companion's Gold tab (benchmark 2026-10-18) — #2102, #2171.
 
 **The app measures its own use: counters under an anonymous install id, folded per install and day; downloads are
 counted by the site's redirect (2026-10-02).** The site's Umami cannot see the app — a static bundle in a webview with a

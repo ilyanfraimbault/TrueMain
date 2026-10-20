@@ -39,6 +39,9 @@ const emit = defineEmits<{ loadOlder: [] }>()
 // the player's own client — the shared detail panel asks through this.
 provide(MATCH_DETAIL_SOURCE, usePlayerGameDetail)
 
+// A row's score is TrueMain's when it holds the game, else graded from the client's (#2075).
+const storedScores = useTruemainScores(() => props.nameTag)
+
 // A play button when this game was recorded: its recap, or its clips once the full game is gone.
 const { watchTarget } = useRecordings()
 
@@ -54,7 +57,11 @@ watch(total, (value) => {
 })
 const pageMatches = computed(() => listed.value
   .slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE)
-  .map(game => toMatchSummary(game, lpDeltaOf(game, props.allGames, props.rankHistory))))
+  .map(game => toMatchSummary(
+    game,
+    lpDeltaOf(game, props.allGames, props.rankHistory),
+    storedScores.value[String(game.gameId)],
+  )))
 
 // Read ahead until the page after this one is full, or the client has none left
 // — a filtered queue can take more than one read.
