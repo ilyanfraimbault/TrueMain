@@ -366,7 +366,10 @@ a first item. Both rates come from that one cohort, so what it leaves out cancel
 dimension, so the term pools every rank. The board is placed by the fold's own `DraftAxisEvaluator`, profile snapshot
 and thresholds; an ally not picked yet counts as an unprofiled member, so the axes appear with three allies on the
 board. The term is the mean over the placed axes, shrunk like the others, and **weighs 0** like the enemy team: the
-back-test (`Tools/DraftEvaluation`, now exporting the totals and the profiles) sets it on preprod data. Meanwhile the
+back-test (`Tools/DraftEvaluation`, now exporting the totals and the profiles) sets it on preprod data. First run
+(training 16.20, test 16.21, 7,549 main picks, every one placed): lane known 0.5200 at weight 0, rising with the
+weight to 0.5255 at 1 — inside the AUC's noise at that size (≈ 0.006), so it stays 0 until a mature patch or prod
+volume confirms it; the same run had the enemy team falling with its weight (0.5200 → 0.5134 at 1). Meanwhile the
 axis that moves the pick most is a `teamFit` reason (≥ 30 games, ≥ 0.1 pt once shrunk) — a measured figure with its
 games, like the lane phase. Facts that are not score terms (lane phase, team composition) are stated after the
 up-to-three score terms rather than only when one of the three slots is free: with a full card they would never show.
