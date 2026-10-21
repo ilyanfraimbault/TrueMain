@@ -16,7 +16,7 @@ two environments and the migration path in detail.
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
 | `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → verify the edge, and serve a held desktop app build the release catches up with |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
-| `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
+| `rollout.yml` | called by both deploys | Applies migrations over SSH, pre-pulls the images over SSH where enabled, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
 | `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/common/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; lint, typecheck, unit tests and static build of its Nuxt app (below) |
 | `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/common/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
@@ -283,7 +283,9 @@ file Docker Manager will.
 
 `rollout.yml` runs `migrate` then `deploy`; the deploy depends on the
 migration succeeding, so a failed script blocks the image roll
-(`docs/production-migrations.md`). The migration script is printed to the log
+(`docs/production-migrations.md`). Where it is enabled, the deploy job's first
+step pulls the images on the host before Docker Manager is asked for anything
+(*Pre-pull before recreate*). The migration script is printed to the log
 and uploaded as an artifact with 90-day retention, the only place the SQL is
 visible before it applies.
 
@@ -332,6 +334,100 @@ deployed gets its `-rc.N` tag (`tag` runs last). A group holds one running and
 one pending run, and queuing a third cancels the pending one: that is why the
 preprod load test keeps a group of its own (*Load test*).
 
+### Pre-pull before recreate
+
+Docker Manager **recreates before it pulls**: every container of the project
+is stopped and removed, then the images are pulled, then the stack starts. A
+pull that fails in between leaves every container `Created` and never started,
+so a registry error is not a skipped deploy but an outage that lasts until
+someone runs `docker compose up -d` by hand. Preprod was down twenty minutes
+that way, behind a green pipeline, on a GHCR `denied` (#1089).
+
+So the deploy job opens with `Pre-pull the images over SSH`: it asks the host
+to pull the four application images at `IMAGE_TAG` (api, web, admin and the
+ingestor both lanes run) and fails the run if the host cannot, before Docker
+Manager is called, while the previous containers still serve.
+`.github/scripts/prepull-images.sh` sends `pull <tag>` over the same CI key as
+the migration, with the migration's bounded retry on connection failures only
+(ssh exit 255: four attempts, 15, 30 then 60 seconds apart, 30-second
+`ConnectTimeout`, *Migration over SSH*). A pull that ran and failed is
+reported at once and not retried: nothing was touched, and re-running the
+failed jobs is the retry. The step has its own ten-minute timeout, which is
+why the deploy job's is 35.
+
+What it buys is bounded by `pull_policy: always` on the application services:
+Docker Manager still asks the registry once it has removed the containers.
+After a pre-pull every layer is already local, so that second pull is a
+manifest check per image instead of the whole download, and a tag the
+registry refuses or does not have never reaches the recreate at all.
+`.github/scripts/prepull-images.test.sh` pins the client with an `ssh` stub
+and runs in the `deploy-scripts` CI job.
+
+#### The CI key's forced command
+
+The CI key is pinned in each host's `authorized_keys` to a forced command, so a
+leaked key can never get a shell. Until #1089 that command was the migration
+alone and any remote command was discarded. It is now
+`.github/scripts/vps/ci-ssh-command.sh`, which reads the request sshd puts in
+`SSH_ORIGINAL_COMMAND` and accepts exactly two:
+
+- **No command, or `migrate`**: `exec`s the host's existing migration command
+  (default `/usr/local/bin/apply-migration.sh`) with the client's stdin, so
+  the `migrate` job, which sends no command and pipes SQL, runs exactly what it
+  ran before.
+- **`pull <tag>`**, the tag a 7 to 40 character lowercase git sha or a semver
+  (`1.22.0`, `1.23.0-rc.4`): runs `docker compose pull api web admin ingestor`
+  in the project directory with `IMAGE_TAG` set to the tag in an otherwise
+  empty environment (`HOME` and `PATH` aside), then prints
+  `ci-ssh-command: pulled <tag>`.
+
+Anything else, a moving tag such as `latest` included, is refused with exit
+64 and runs nothing. The tag is matched whole against the regex before it is
+used, the request is never evaluated by a shell, and the project directory and
+migration command are fixed in `authorized_keys`, never read from the client.
+`ci-ssh-command.test.sh`, next to it, pins the accepted and refused requests
+with `docker` and migration stubs and runs in the `deploy-scripts` CI job.
+
+The client requires the success line, not just exit 0: a host still on the
+previous forced command runs the migration with an empty stdin, which applies
+nothing and can exit 0. Without the line that would read as a pull; with it, the
+run fails and names the missing install.
+
+**Installing it** is a host write, done by the owner on each VPS, once per
+change to the script. `<project-dir>` is the environment's Docker Manager
+project directory (the one holding its `docker-compose.yml` and `.env`,
+`docs/preprod.md` and `docs/prod.md` say which), and `<ci-public-key>` the
+public half of the environment's `*_SSH_KEY`:
+
+```bash
+# 1. Copy the script from the commit you are installing, root-owned, not writable by others.
+install -o root -g root -m 755 ci-ssh-command.sh /usr/local/bin/ci-ssh-command.sh
+
+# 2. Check both requests by hand before switching the key over.
+SSH_ORIGINAL_COMMAND='pull <a-deployed-tag>' /usr/local/bin/ci-ssh-command.sh <project-dir>
+SSH_ORIGINAL_COMMAND='ls' /usr/local/bin/ci-ssh-command.sh <project-dir>; echo "exit $?"   # refused, exit 64
+
+# 3. In root's ~/.ssh/authorized_keys, on the CI key's line only, replace
+#      command="/usr/local/bin/apply-migration.sh"
+#    with
+#      command="/usr/local/bin/ci-ssh-command.sh <project-dir>"
+#    and keep the no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding options.
+```
+
+The existing migration script stays where it is: the new command delegates to
+it. Rolling back is restoring the old `command=` value. The next deploy's
+`migrate` job is the end-to-end check of the migration path; the pre-pull is
+only exercised once it is enabled.
+
+**Enabling the step**: it runs only when the repository variable
+`PREPROD_PREPULL_IMAGES` (preprod) or `PROD_PREPULL_IMAGES` (prod) is `true`,
+passed to `rollout.yml` as its `prepull` input. Unset, the step is skipped and
+the rollout behaves as before, which is what lets this ship ahead of the host
+install. Install the script on a host, then set that environment's variable
+under *Settings → Secrets and variables → Actions → Variables*; the next deploy
+of that environment pre-pulls. Turning the variable off is the rollback that
+needs no host access.
+
 ### Verifying the rollout reached the VPS
 
 `hostinger/deploy-on-vps` does not upload the compose file. It hands Docker
@@ -352,11 +448,11 @@ green.
 
 **The migration's SSH channel cannot be reused for this.** The CI key is
 pinned to a forced command in the host's `authorized_keys`
-(`command="…",no-pty`), so it may run the migration and nothing else: any
-remote command the workflow passes is discarded and the forced one runs in its
-place. That is the right shape for a CI credential and it is deliberately left
-alone, but it means the deploy job's evidence has to come from somewhere the
-key does not gate. The Hostinger API is that place, it needs no new secret,
+(`command="…",no-pty`), so it may run the migration and, since #1089, an image
+pull, and nothing else (*The CI key's forced command*): a `docker ps` is
+refused. That is the right shape for a CI credential and it is deliberately
+kept narrow, so the deploy job's evidence has to come from somewhere the key
+does not gate. The Hostinger API is that place, it needs no new secret,
 and it reports the live container list rather than what the compose file
 intends.
 
@@ -390,7 +486,9 @@ the `PROD_ENV_FILE` / `PREPROD_ENV_FILE` secret plus `IMAGE_TAG` and
 `APP_VERSION`. Nothing else in the repository reaches the host: not a sibling
 file a compose file would bind-mount with a relative path, not a script, not a
 config. The `migrate` job writes nothing either, it pipes SQL into a fixed
-command on the host.
+command on the host, and the pre-pull only adds images to the host's image
+store. The CI key's forced command (*Pre-pull before recreate*) is the one
+repository file on the host, installed by hand rather than by the deploy.
 
 So **every piece of configuration a deployed stack needs lives inside its
 compose file**: the edge Caddyfile and maintenance page of both edges

@@ -75,6 +75,7 @@ jobs:
       app_version: ${{ github.event.release.tag_name }}
       ssh_host_key: ${{ vars.PROD_SSH_HOST_KEY }}
       vm_id: ${{ vars.HOSTINGER_PROD_VM_ID }}
+      prepull: ${{ vars.PROD_PREPULL_IMAGES == 'true' }}
     secrets:
       ssh_host: ${{ secrets.PROD_SSH_HOST }}
       ssh_key: ${{ secrets.PROD_SSH_KEY }}
