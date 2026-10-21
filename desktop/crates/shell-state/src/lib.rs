@@ -6,6 +6,7 @@
 //! that run anywhere.
 
 pub mod keys;
+pub mod kits;
 pub mod overlay;
 pub mod screens;
 pub mod window;

@@ -1,4 +1,4 @@
-import type { BuildRunePage } from '~/types/build'
+import type { KitRunePage } from '#shared/types/kit'
 
 /** What the shell answers when every rune page is the player's own (`runes.rs`). */
 const NO_SLOT = 'no-slot'
@@ -21,7 +21,7 @@ export function useRuneImport() {
   /** The client has to be there to take the page. */
   const available = computed(() => state.value.connected)
 
-  async function importRunes(page: BuildRunePage, champion: string) {
+  async function importRunes(page: KitRunePage, champion: string) {
     if (pending.value) return
     pending.value = true
     try {
