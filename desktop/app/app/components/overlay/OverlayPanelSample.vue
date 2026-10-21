@@ -10,7 +10,7 @@ import { SAMPLE_BUILD_ORDER, SAMPLE_NEXT_ITEM, SAMPLE_PACE_REFERENCE, sampleGame
  * panel is placed — in the layout editor or the on-screen preview — at the
  * size and look it will have over a game.
  */
-defineProps<{ panel: OverlayPanel }>()
+withDefaults(defineProps<{ panel: OverlayPanel, lanes?: boolean }>(), { lanes: true })
 
 const game = sampleGame()
 const syncedAt = Date.now()
@@ -30,5 +30,6 @@ const missing = computed(() => Math.max(0, goldToComplete(itemId, held, items.va
   <OverlayWinProbability v-else-if="panel === 'win-probability'" :game="game" :synced-at="syncedAt" />
   <OverlayStats v-else-if="panel === 'stats'" :game="game" :reference="SAMPLE_PACE_REFERENCE" />
   <OverlayObjectives v-else-if="panel === 'objectives'" :game="game" :synced-at="syncedAt" />
-  <OverlayItemValue v-else :game="game" />
+  <OverlayLaneGold v-else-if="panel === 'lane-gold'" :game="game" />
+  <OverlayItemValue v-else :game="game" :lanes="lanes" />
 </template>

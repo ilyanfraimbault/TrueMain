@@ -396,7 +396,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   never recorded), its price against the gold in hand and its share of games. Its data comes from `useNextItemPanel`,
   shared with the overlay. A layers button by the clock (and a status line's "Customize" in the waiting state) opens the Overlay page.
 - **In-game overlay** (#1795 on macOS, window layer from the #1673 spike, `docs/desktop-overlay-spike.md`; #1798 on
-  Windows) — five panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
+  Windows) — six panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
   `CGShieldingWindowLevel` (League's Full Screen captures the display), on Windows a topmost `WS_EX_NOACTIVATE` layered
   window over a Borderless or Windowed game (the settings say so: Windows draws nothing over exclusive Full Screen) —
   placed on the monitor the game runs on (#1914: the frontmost game window's frame, matched to the monitor holding
@@ -441,14 +441,29 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   15:00–19:45, Baron 20:00 and 6:00 after each) applied to the `DragonKill`, `HordeKill`, `HeraldKill` and `BaronKill`
   events; off Summoner's Rift's standard game (`CLASSIC` on map 11) it says it has no timers. Default spot top
   centre, always shown. **Item value** (300 pt, `OverlayItemValue.vue`, default spot centre right since #2184), only while TAB is held: each
-  team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
-  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). Each panel shows **always**,
-  **while a chord is held** or **toggled** by one (#1915; defaults: item value held with TAB, the others always;
+  team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — the lanes only
+  while the lane-gold plates are off — item gold being
+  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). **Lane gold**
+  (#2186, `OverlayLaneGold.vue`, `OverlayGoldPlate.vue`, `utils/lane-gold.ts`), held with TAB too: a small dark plate
+  per row of the game's own TAB scoreboard, down its middle — the item-gold gap of the row's two players (blue side
+  left, red side right, each team in lane order, the API's order without lanes), a chevron toward the side ahead,
+  ours blue / theirs red, `1.5k` past 1,000. Its window is see-through (transparent webview; on macOS through Tauri's
+  `macOSPrivateApi`), click-through, never dragged: the shell sizes and places it on the scoreboard's five rows from
+  the game's window and the client's HUD settings (`/lol-game-settings/v1/game-settings`: `HUD.GlobalScale`,
+  `HUD.MirroredScoreboard`, read at game start and on the Overlay page, Riot's defaults without a client;
+  `shell_state::scoreboard`, mirrored in `utils/scoreboard-geometry.ts`) — rows growing upwards from a fixed bottom edge
+  with the HUD scale, sized by the window's height against 1080p (its width below 16:9); constants measured on one
+  real 1080p TAB screenshot, still to be confirmed in games at several HUD scales; a mirrored scoreboard keeps the
+  teams on their sides, so it moves nothing. Each panel shows **always**,
+  **while a chord is held** or **toggled** by one (#1915; defaults: item value and lane gold held with TAB — the one
+  chord two panels may share — the others always;
   a toggle starts each game shown or hidden as set, ⌥⇧O still hides everything). The chords and ⌥⇧O are read
   from the keyboard's state, only over the game (no hotkey reaches the app over a captured display; no hook, no Input
   Monitoring needed). Set up on
   the **Overlay page** (`/overlay`, sidebar, any time — #1819): a copy of the screen at its aspect ratio (the window's
-  screen, 1920 × 1080 in a browser) with the game's minimap and ability bar outlined, each panel that is on drawn where
+  screen, 1920 × 1080 in a browser) with the game's minimap and ability bar outlined — and, while the lane gold is on,
+  the TAB scoreboard's five rows at the player's HUD scale with the plates on them (not draggable; a **Lane gold
+  nudge** slider moves them ±60 px of a 1080p screen, settings file v4) — each panel that is on drawn where
   it sits (its anchor spot, or where it was dragged — the shell's rule mirrored in `utils/overlay-layout.ts`) as itself:
   the real panel over a sample game (`OverlayPanelSample.vue`, `utils/overlay-sample.ts`), shrunk to the screen's scale
   and sized by measuring it, so its edges are where they will be in game (#1857). Drag a panel to move it (stored as a
@@ -470,6 +485,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
   reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
   browser dev scenarios hold the feed's state at two of its readings (checked by `live-client/tests/scenarios.rs`).
+  Under its controls, a small 1920 × 1080 screen draws the lane-gold plates of the reading just sent on the
+  scoreboard's outline (`OverlayScoreboardPreview.vue`, `utils/sim-reading.ts`).
 - **Capture spike** (development only, #1745) — `truemain-capture-spike` records one League game through the
   platform capture helper (`desktop/capture/macos`: ScreenCaptureKit + VideoToolbox, a separate process speaking
   JSON lines) and `game-recording`'s session, then writes the video, its highlights, a `report.md` of what it measured

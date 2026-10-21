@@ -47,13 +47,23 @@ tauri_panel! {
     })
 }
 
-/// One panel's window, hidden, its page on `url`. Never on the main thread:
-/// the panel is made there (AppKit), and this waits for it.
-pub fn build(app: &AppHandle, label: &str, url: &str, opacity: f64) -> Result<(), String> {
+/// One panel's window, hidden, its page on `url`; `see_through` leaves its
+/// background clear, no shadow nor corners, for the page to draw only what
+/// covers the game. Never on the main thread: the panel is made there
+/// (AppKit), and this waits for it.
+pub fn build(
+    app: &AppHandle,
+    label: &str,
+    url: &str,
+    opacity: f64,
+    see_through: bool,
+) -> Result<(), String> {
     let (done, built) = std::sync::mpsc::channel();
     let (handle, label, url) = (app.clone(), label.to_string(), url.to_string());
     app.run_on_main_thread(move || {
-        let _ = done.send(build_now(&handle, &label, &url, opacity).map_err(|e| e.to_string()));
+        let _ = done.send(
+            build_now(&handle, &label, &url, opacity, see_through).map_err(|e| e.to_string()),
+        );
     })
     .map_err(|error| error.to_string())?;
     built.recv().map_err(|error| error.to_string())?
@@ -87,6 +97,7 @@ fn build_now(
     label: &str,
     url: &str,
     opacity: f64,
+    see_through: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let panel = PanelBuilder::<_, OverlayWindow>::new(app, label)
         .url(WebviewUrl::App(url.into()))
@@ -100,8 +111,9 @@ fn build_now(
         .hides_on_deactivate(false)
         .becomes_key_only_if_needed(true)
         .ignores_mouse_events(true)
-        .has_shadow(true)
-        .corner_radius(12.0)
+        .has_shadow(!see_through)
+        .corner_radius(if see_through { 0.0 } else { 12.0 })
+        .transparent(see_through)
         .alpha_value(opacity)
         .add_style_mask(StyleMask::empty().nonactivating_panel())
         .collection_behavior(
@@ -111,8 +123,10 @@ fn build_now(
                 .stationary()
                 .ignores_cycle(),
         )
-        .with_window(|window| {
+        .with_window(move |window| {
             window
+                // The webview's own background too (needs `macOSPrivateApi`).
+                .transparent(see_through)
                 .decorations(false)
                 .resizable(false)
                 .focused(false)
