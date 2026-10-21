@@ -11,7 +11,7 @@ import { SAMPLE_CLOCK, SAMPLE_OBJECTIVES } from '~/utils/desktop-landing-sample'
  */
 const canonicalIcon = useCanonicalIcon()
 const MINIMAP = 'https://raw.communitydragon.org/latest/game/assets/ux/minimap/icons'
-const icon = (name: string) => canonicalIcon(`${MINIMAP}/${name}.png`)
+const minimap = (name: string) => `${MINIMAP}/${name}.png`
 
 const countdown = (at: number) => {
   const seconds = Math.max(0, at - SAMPLE_CLOCK)
@@ -37,18 +37,18 @@ const PILLS = [
         class="flex h-6 w-16 items-center justify-center gap-1 rounded-full ring-1 ring-inset"
         :class="pill.waiting ? 'bg-elevated/40 ring-transparent' : 'bg-elevated/70 ring-default'"
       >
-        <img :src="icon(pill.icon)" alt="" width="16" height="16" class="size-4 shrink-0" :class="{ 'opacity-45 grayscale': pill.waiting }">
+        <img :src="canonicalIcon(minimap(pill.icon))" alt="" width="16" height="16" class="size-4 shrink-0" :class="{ 'opacity-45 grayscale': pill.waiting }">
         <span class="text-[11px] leading-none tabular-nums" :class="pill.waiting ? 'text-dimmed' : 'text-muted'">{{ countdown(pill.at) }}</span>
       </li>
     </ol>
     <div class="grid h-3.5 grid-cols-[1fr_auto_1fr] items-center gap-1" data-soul-race>
       <span class="flex items-center justify-end gap-0.5">
         <span class="h-px flex-1 bg-linear-to-r from-transparent to-ally/50" />
-        <img v-for="(element, index) in drakes.ally" :key="index" :src="icon(`dragon_${element}`)" alt="" width="14" height="14" class="size-3.5 rounded-full ring-1 ring-ally/70">
+        <img v-for="(element, index) in drakes.ally" :key="index" :src="canonicalIcon(minimap(`dragon_${element}`))" alt="" width="14" height="14" class="size-3.5 rounded-full ring-1 ring-ally/70">
       </span>
-      <img :src="icon(`dragon_${next}`)" alt="" width="14" height="14" class="size-3.5">
+      <img :src="canonicalIcon(minimap(`dragon_${next}`))" alt="" width="14" height="14" class="size-3.5">
       <span class="flex items-center gap-0.5">
-        <img v-for="(element, index) in drakes.enemy" :key="index" :src="icon(`dragon_${element}`)" alt="" width="14" height="14" class="size-3.5 rounded-full ring-1 ring-enemy/70">
+        <img v-for="(element, index) in drakes.enemy" :key="index" :src="canonicalIcon(minimap(`dragon_${element}`))" alt="" width="14" height="14" class="size-3.5 rounded-full ring-1 ring-enemy/70">
         <span class="h-px flex-1 bg-linear-to-r from-enemy/50 to-transparent" />
       </span>
     </div>

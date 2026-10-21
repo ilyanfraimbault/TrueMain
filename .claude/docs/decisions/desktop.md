@@ -271,7 +271,7 @@ desktop pages show the product moving; ours described one moment with a still, w
 recordings and goals (since removed, #2074). The page keeps the #1725 capture of champion select under the hero and the left-aligned,
 card-free typography, then one section per moment — champion select, in game, recordings — each
 with a scene redrawn from the app's components in HTML/CSS (`web/app/components/desktop/landing/`): the ranked
-picks and the hover beat (the rune import was cut from the scene: off-topic at that step, the product owner's call), the four overlay panels arriving at their default anchors as the steps scroll
+picks and the hover beat (the rune import was cut from the scene: off-topic at that step, the product owner's call), the five overlay panels (the objectives strip since #2193) arriving at their default anchors as the steps scroll
 by, the recap with a clip cut and saved. Every drawn value is the app's own overlay-preview
 sample (`utils/desktop-landing-sample.ts`, the shape of `overlay-sample.ts`; the win probability runs the shared model
 on it) or a sample, and the ranked picks carry no figure, for the same reason the podium is never captured.
