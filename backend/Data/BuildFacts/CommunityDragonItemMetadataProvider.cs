@@ -118,7 +118,8 @@ public sealed class CommunityDragonItemMetadataProvider(
                     IsSupportQuestCompletion = supportFamily.IsCompletion(item.Id),
                     IsStarterClassItem = IsStarterClassItem(item, isBootsItem),
                     Categories = categories.ToFrozenSet(StringComparer.Ordinal),
-                    GrantsGrievousWounds = item.Description.Contains("Grievous Wounds", StringComparison.OrdinalIgnoreCase)
+                    GrantsGrievousWounds = item.Description.Contains("Grievous Wounds", StringComparison.OrdinalIgnoreCase),
+                    Components = [.. item.From ?? []],
                 };
             });
 

@@ -4,7 +4,7 @@ export const OVERLAY_PANELS: OverlayPanel[] = ['next-item', 'win-probability', '
 
 /** What each panel is called and shows, for the player choosing them. */
 export const OVERLAY_PANEL_INFO: Record<OverlayPanel, { label: string, description: string }> = {
-  'next-item': { label: 'Next item', description: 'The next item to buy, and the gold it still needs.' },
+  'next-item': { label: 'Build path', description: 'The next item, the gold it still needs, and its components in the order the mains buy them.' },
   'win-probability': { label: 'Win probability', description: 'Each side\'s chance to win, from the item-gold gap and the map. The whole game.' },
   'stats': { label: 'Your pace', description: 'CS and gold per minute, beside the median of games at your Solo/Duo tier. Gold reads a little low: used potions and sell-back losses are invisible to the game.' },
   'item-value': { label: 'Item value', description: 'What each team\'s items are worth, and each lane\'s gap. While TAB is held by default.' },

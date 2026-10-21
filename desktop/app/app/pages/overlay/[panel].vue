@@ -26,7 +26,7 @@ const panel = computed<OverlayPanel>(() => {
 })
 
 const PLACEHOLDERS: Record<OverlayPanel, string> = {
-  'next-item': 'Your next item shows here during a game.',
+  'next-item': 'Your build path shows here during a game.',
   'win-probability': 'The win probability shows here during a game.',
   'item-value': 'Each team\'s item gold shows here during a game.',
   'stats': 'Your CS and gold per minute show here during a game.',

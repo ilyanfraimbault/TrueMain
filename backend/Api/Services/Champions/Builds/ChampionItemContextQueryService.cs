@@ -3,6 +3,7 @@ using Data.Entities;
 using Data.ItemContext;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Champions;
+using TrueMain.Services.Champions.ItemRoutes;
 using TrueMain.Services.Champions.Scopes;
 
 namespace TrueMain.Services.Champions.Builds;
@@ -51,17 +52,38 @@ public interface IChampionItemContextQueryService
 /// </remarks>
 public sealed class ChampionItemContextQueryService(
     TrueMainDbContext db,
+    IItemRouteQueryService routes,
     IChampionReadCache cache) : IChampionItemContextQueryService
 {
-    public Task<ChampionItemContextResponse> GetAsync(
+    public async Task<ChampionItemContextResponse> GetAsync(
         int championId,
         string position,
         string? patch,
         CancellationToken ct = default)
-        => cache.GetOrComputeAsync(
+    {
+        var response = await cache.GetOrComputeAsync(
             $"champions:item-context:{championId}:{position}:{patch ?? "auto"}",
             token => ComputeAsync(championId, position, patch, token),
             ct);
+
+        if (response.Patch is null || response.Items.Count == 0)
+        {
+            return response;
+        }
+
+        // The build paths (#2183) are joined outside the cached verdicts: they need the item
+        // metadata, whose outage must not be cached as a champion without paths.
+        var paths = await routes.GetAsync(championId, position, response.Patch, ct);
+        return response with
+        {
+            Routes = [.. response.Items
+                .Where(item => item.Slot is nameof(ItemContextSlot.Build) or nameof(ItemContextSlot.Boots))
+                .Select(item => item.ItemId)
+                .Distinct()
+                .Select(paths.ReadModel)
+                .Where(route => route.Steps.Count > 0)],
+        };
+    }
 
     private async Task<ChampionItemContextResponse> ComputeAsync(
         int championId,

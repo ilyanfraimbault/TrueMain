@@ -19,6 +19,8 @@ export function useNextItem(game: Ref<GameState | null>) {
   const { champions } = useChampionStatics()
 
   const answer = ref<NextItemResponse | null>(null)
+  // In a browser-only `npm run dev`, a dev scenario may carry the answer (#2183).
+  const devAnswer = import.meta.dev && !insideTauri() ? useDevScenarios().nextItem : null
   const pending = ref(false)
   const failed = ref(false)
 
@@ -59,6 +61,11 @@ export function useNextItem(game: Ref<GameState | null>) {
     const request = current ? nextItemRequest(current, order.value, championIdOf) : null
     if (!request) {
       answer.value = null
+      return
+    }
+    if (devAnswer?.value) {
+      answer.value = devAnswer.value
+      failed.value = false
       return
     }
     const mine = ++generation

@@ -1,9 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TrueMain.ReadModels.Champions;
 using TrueMain.TestKit;
 
@@ -26,6 +31,9 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
     private const int Health = 3083;
     private const int Ninja = 3047;
     private const int Mercs = 3111;
+    private const int Warden = 3082;
+    private const int Belt = 1011;
+    private const int Boots = 1001;
 
     /// <summary>Five enemies whose profiles deal almost only magic damage.</summary>
     private static readonly int[] MagicEnemies = [1, 7, 8, 10, 13];
@@ -111,6 +119,33 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task NextItem_CarriesEachCandidatesBuildPath_InTheOrderTheMainsBuyIt()
+    {
+        await SeedAsync();
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // The recipe lists the Warden's Mail first; the mains start on the Belt in 24 of 30 games.
+            db.ChampionItemComponentOrders.AddRange(
+                Order(Armor, Belt, 1, 24), Order(Armor, Belt, 2, 6),
+                Order(Armor, Warden, 1, 6), Order(Armor, Warden, 2, 24));
+            await db.SaveChangesAsync();
+        }
+
+        var response = await PostAsync(new { position = Position, items = Array.Empty<int>() });
+
+        var armor = response.Build!.Candidates.Single(candidate => candidate.ItemId == Armor);
+        armor.Route.Select(step => (step.ItemId, step.Rank, step.Cost)).Should().Equal((Belt, 1, 900), (Warden, 2, 1000));
+        armor.Route[0].Share.Should().BeApproximately(0.8, 1e-9);
+        armor.Route.Should().OnlyContain(step => step.Measured);
+        armor.RouteGames.Should().Be(30);
+
+        // No counts for the boots: their recipe stands, and says it is not measured.
+        var ninja = response.Boots!.Candidates.Single(candidate => candidate.ItemId == Ninja);
+        ninja.Route.Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new ItemRouteStepReadModel { ItemId = Boots, Cost = 300, Rank = 1, Share = null, Measured = false });
+    }
+
+    [Fact]
     public async Task NextItem_PlacesUnlanedEnemiesAroundTheGivenOnes()
     {
         await SeedAsync();
@@ -163,10 +198,54 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
             BaseAddress = new Uri("https://localhost")
         });
 
+    /// <summary>
+    /// API factory with a deterministic item-metadata source, so the build paths never call
+    /// CommunityDragon from the test suite.
+    /// </summary>
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
         : TrueMainWebApplicationFactory<Program>(
             fixture,
-            [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
+            [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")])
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IItemMetadataProvider>();
+                services.AddSingleton<IItemMetadataProvider>(new RecipeMetadataProvider());
+            });
+        }
+    }
+
+    private sealed class RecipeMetadataProvider : IItemMetadataProvider
+    {
+        private static readonly IReadOnlyDictionary<int, ItemMetadata> Items = new Dictionary<int, ItemMetadata>
+        {
+            // Id, PriceTotal, InStore, IsConsumable, IsBootsItem, IsBaseBoots, IsFinalItem, IsFinalBoots
+            [Armor] = new(Armor, 2700, true, false, false, false, true, false) { Components = [Warden, Belt] },
+            [Warden] = new(Warden, 1000, true, false, false, false, false, false),
+            [Belt] = new(Belt, 900, true, false, false, false, false, false),
+            [Ninja] = new(Ninja, 1200, true, false, true, false, true, true) { Components = [Boots] },
+            [Boots] = new(Boots, 300, true, false, true, true, false, false),
+        };
+
+        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(Items);
+    }
+
+    private static ChampionItemComponentOrder Order(int item, int component, int rank, int games)
+        => new()
+        {
+            ChampionId = Champion,
+            Position = Position,
+            Patch = Patch,
+            ItemId = item,
+            ComponentId = component,
+            Rank = rank,
+            Games = games,
+            AggregatedAtUtc = DateTime.UtcNow,
+        };
 
     private async Task SeedAsync()
     {

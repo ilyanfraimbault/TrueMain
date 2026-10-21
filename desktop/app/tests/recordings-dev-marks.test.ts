@@ -36,7 +36,7 @@ describe('the dev recordings and the mark key', () => {
     expect(devMarkKeyRefusal(chord({ key: 'Escape' }))).toContain('Esc and Enter')
     expect(devMarkKeyRefusal(chord({ meta: true, key: 'KeyQ' }))).toContain('system')
     expect(devMarkKeyRefusal(chord({ alt: true, shift: true, key: 'KeyO' }))).toContain('hides the whole overlay')
-    expect(devMarkKeyRefusal(chord({ alt: true, shift: true, key: 'Digit1' }))).toBe('Already the shortcut of Next item.')
+    expect(devMarkKeyRefusal(chord({ alt: true, shift: true, key: 'Digit1' }))).toBe('Already the shortcut of Build path.')
     expect(devMarkKeyRefusal(chord({ ctrl: true, key: 'KeyM' }))).toBeNull()
     expect(devChordView(chord({ alt: true, key: 'KeyQ' })).warning).toContain('Q ability')
     expect(devChordView(chord({ ctrl: true, key: 'KeyM' })).warning).toBeNull()
@@ -44,7 +44,7 @@ describe('the dev recordings and the mark key', () => {
 
   it('check, save and refuse a mark key through the commands', async () => {
     const check = await devRecordingCall('recording_check_mark_key', { chord: chord({ alt: true, shift: true, key: 'Digit1' }) }) as TriggerCheck
-    expect(check.refusal).toBe('Already the shortcut of Next item.')
+    expect(check.refusal).toBe('Already the shortcut of Build path.')
 
     const view = await devRecordingCall('recording_settings') as RecordingSettingsView
     const off = await devRecordingCall('set_recording_settings', { settings: { ...view.settings, markKey: null } }) as RecordingSettingsView

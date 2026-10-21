@@ -3,6 +3,7 @@ import type { GameState } from '~/types/game'
 import type { AppState } from '~/types/lcu'
 import type { PlayerRecord } from '~/types/record'
 import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { NextItemResponse } from '~/utils/next-item'
 import { EMPTY_STATE } from '~/types/lcu'
 
 export interface Scenario {
@@ -21,6 +22,12 @@ export interface Scenario {
    * cannot drift from what the feed actually sends.
    */
   game?: GameState
+  /**
+   * A made-up next-item answer for that game, build paths included (#2183),
+   * so the panel renders without a backend that serves them. Dev-only like
+   * the rest: its figures are not measurements.
+   */
+  nextItem?: NextItemResponse
 }
 
 /**
@@ -46,6 +53,7 @@ export function useDevScenarios() {
   const recommendation = useState<DraftRecommendation | null>('dev-recommendation', () => null)
   const record = useState<PlayerRecord | null>('dev-record', () => null)
   const rankHistory = useState<RankHistoryEntry[]>('dev-rank-history', () => [])
+  const nextItem = useState<NextItemResponse | null>('dev-next-item', () => null)
   // `useLiveGame`'s own state, set directly as `lcu-state` is above.
   const game = useState<GameState | null>('live-game', () => null)
   const gameSyncedAt = useState<number>('live-game-synced-at', () => Date.now())
@@ -68,6 +76,7 @@ export function useDevScenarios() {
     recommendation.value = found?.recommendation ? JSON.parse(JSON.stringify(found.recommendation)) : null
     record.value = found?.record ? JSON.parse(JSON.stringify(found.record)) : null
     rankHistory.value = found?.rankHistory ? JSON.parse(JSON.stringify(found.rankHistory)) : []
+    nextItem.value = found?.nextItem ? JSON.parse(JSON.stringify(found.nextItem)) : null
     game.value = found?.game ? JSON.parse(JSON.stringify(found.game)) : null
     gameSyncedAt.value = Date.now()
     current.value = found?.id ?? ''
@@ -82,5 +91,5 @@ export function useDevScenarios() {
     }
   }
 
-  return { scenarios, current, recommendation, record, rankHistory, load, select }
+  return { scenarios, current, recommendation, record, rankHistory, nextItem, load, select }
 }

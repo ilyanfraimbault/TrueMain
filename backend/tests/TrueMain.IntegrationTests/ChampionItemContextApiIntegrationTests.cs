@@ -1,9 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TrueMain.ReadModels.Champions;
 using TrueMain.TestKit;
 
@@ -20,6 +25,9 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
     private const string Position = "TOP";
     private const string Patch = "16.4";
     private const string OlderPatch = "16.3";
+    private const int Visage = 3065;
+    private const int Kindlegem = 3067;
+    private const int Cowl = 3211;
 
     private readonly PostgresFixture _fixture;
 
@@ -66,6 +74,28 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetItemContext_CarriesTheBuildPathOfEachBuildItem()
+    {
+        await SeedAsync();
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // Measured on the patch before, which the served one reaches back to: the Cowl first.
+            db.ChampionItemComponentOrders.AddRange(
+                Order(Visage, Cowl, 1, 20), Order(Visage, Cowl, 2, 5),
+                Order(Visage, Kindlegem, 1, 5), Order(Visage, Kindlegem, 2, 20));
+            await db.SaveChangesAsync();
+        }
+
+        var response = await GetAsync($"/champions/{Champion}/item-context?position={Position}&patch={Patch}");
+
+        var route = response.Routes.Should().ContainSingle("the core item has no recipe the metadata knows").Subject;
+        route.ItemId.Should().Be(Visage);
+        route.Measured.Should().BeTrue();
+        route.Games.Should().Be(25);
+        route.Steps.Select(step => step.ItemId).Should().Equal(Cowl, Kindlegem);
+    }
+
+        [Fact]
     public async Task GetItemContext_MarksTheInGameAxisAsSuch()
     {
         await SeedAsync(inGameAxis: true);
@@ -121,10 +151,49 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
             BaseAddress = new Uri("https://localhost")
         });
 
+    /// <summary>API factory with a deterministic item-metadata source: the build paths never call CommunityDragon from the suite.</summary>
     private sealed class ApiWebApplicationFactory(PostgresFixture fixture)
         : TrueMainWebApplicationFactory<Program>(
             fixture,
-            [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
+            [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")])
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IItemMetadataProvider>();
+                services.AddSingleton<IItemMetadataProvider>(new RecipeMetadataProvider());
+            });
+        }
+    }
+
+    private sealed class RecipeMetadataProvider : IItemMetadataProvider
+    {
+        private static readonly IReadOnlyDictionary<int, ItemMetadata> Items = new Dictionary<int, ItemMetadata>
+        {
+            // Id, PriceTotal, InStore, IsConsumable, IsBootsItem, IsBaseBoots, IsFinalItem, IsFinalBoots
+            [Visage] = new(Visage, 2700, true, false, false, false, true, false) { Components = [Kindlegem, Cowl] },
+            [Kindlegem] = new(Kindlegem, 800, true, false, false, false, false, false),
+            [Cowl] = new(Cowl, 1250, true, false, false, false, false, false),
+        };
+
+        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(Items);
+    }
+
+    private static ChampionItemComponentOrder Order(int item, int component, int rank, int games)
+        => new()
+        {
+            ChampionId = Champion,
+            Position = Position,
+            Patch = OlderPatch,
+            ItemId = item,
+            ComponentId = component,
+            Rank = rank,
+            Games = games,
+            AggregatedAtUtc = DateTime.UtcNow,
+        };
 
     private async Task SeedAsync(bool inGameAxis = false)
     {

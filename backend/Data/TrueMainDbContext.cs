@@ -78,6 +78,10 @@ public class TrueMainDbContext : DbContext
     // verdicts, read by the desktop app's in-game panel through POST champions/{id}/next-item.
     public DbSet<ChampionNextItemTerm> ChampionNextItemTerms => Set<ChampionNextItemTerm>();
 
+    // The order the mains buy each item's components in (#2183), folded in the same pass and
+    // served on each next-item candidate as its build path.
+    public DbSet<ChampionItemComponentOrder> ChampionItemComponentOrders => Set<ChampionItemComponentOrder>();
+
     // The desktop overlay's pace benchmark (#1912): per-minute CS and gold-earned
     // histograms per (patch, tier, position), folded from each timeline in memory at
     // ingestion by TimelineIngestionService — never a per-minute participant grid.
