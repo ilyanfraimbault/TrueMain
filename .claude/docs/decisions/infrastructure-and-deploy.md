@@ -82,6 +82,19 @@ Verifying was preferred to moving the rollout onto SSH and dropping Docker Manag
 failure mode, lose the hosting panel's view of the stack, and still need this check to notice the next
 one — #1394, `docs/ci.md`.
 
+**The deploy pre-pulls the images over the CI key before Docker Manager recreates anything (2026-10-05).**
+Docker Manager stops and removes every container before it pulls, so a registry error mid-deploy left preprod
+fully down for twenty minutes behind a green run. The deploy job now asks the host for `pull <tag>` first and
+fails while the old containers still serve. It goes through **the existing CI key**, not a new one: its forced
+command became a dispatcher (`.github/scripts/vps/ci-ssh-command.sh`) that accepts only the migration and
+`pull <tag>`, the tag matched whole against a git sha or semver regex, and refuses everything else — still no
+shell, still no `docker ps`, so the rollout check above keeps reading the Hostinger API. The script is
+versioned in the repo but installed on each host by the owner, and the step stays behind a per-environment
+`*_PREPULL_IMAGES` variable until it is; the client requires the dispatcher's success line, so a host still on
+the old forced command fails the step instead of passing for a pull. Docker Manager's own pull still runs
+(`pull_policy: always`), so this narrows that window to a manifest check rather than closing it — #1089,
+`docs/ci.md`.
+
 **Both deploy pipelines serialise at workflow level, not per job.**
 Preprod needs it because the `-rc.N` counter is read from the remote tags; prod needs it because two
 releases published back to back would interleave their `publish` jobs and race for the moving `:latest`
