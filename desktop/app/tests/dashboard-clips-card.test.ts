@@ -43,6 +43,7 @@ function clip(id: string, createdAtMs: number): Clip {
     moments: [],
     youtubeUrl: null,
     videoOnDisk: true,
+    automatic: [],
   }
 }
 

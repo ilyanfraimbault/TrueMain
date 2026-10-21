@@ -2,7 +2,7 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 import type { LibraryItem } from '~/utils/recording-library'
 import { itemTitle, recordingKda, revealLabel } from '~/utils/recording-library'
-import { isMarked } from '~/utils/recording-moments'
+import { clipOrigin } from '~/utils/auto-clips'
 import { getQueueLabel } from '#common/utils/queues'
 
 /**
@@ -29,8 +29,11 @@ const confirming = ref(false)
 const publishing = ref(false)
 const freeing = ref(false)
 const clip = computed(() => (isClip.value ? library.value?.clips.find(entry => entry.id === props.item.id) ?? null : null))
-/** A clip of a moment the player marked with the mark key (#2079). */
-const marked = computed(() => clip.value?.moments.some(isMarked) ?? false)
+/** Marked with the mark key (#2079), clipped automatically (#1766) or cut by hand; a full game's film. */
+const origin = computed(() => {
+  if (clip.value) return clipOrigin(clip.value)
+  return isClip.value ? { icon: 'i-lucide-scissors', label: 'Clip' } : { icon: 'i-lucide-film', label: 'Full game' }
+})
 
 function togglePin() {
   if (isClip.value) void updateClip(props.item.id, { favorite: !props.item.pinned })
@@ -76,10 +79,10 @@ async function remove() {
         <div class="flex min-w-0 items-center gap-2">
           <ChampionPortrait :champion-id="item.championId" size="sm" class="size-7! rounded-md!" />
           <UIcon
-            :name="marked ? 'i-lucide-bookmark' : isClip ? 'i-lucide-scissors' : 'i-lucide-film'"
+            :name="origin.icon"
             class="size-3.5 shrink-0"
             :class="isClip ? 'text-primary' : 'text-dimmed'"
-            :title="marked ? 'Marked in game' : isClip ? 'Clip' : 'Full game'"
+            :title="origin.label"
           />
           <p class="truncate text-[13px] font-semibold text-highlighted" :title="title">{{ title }}</p>
           <UIcon v-if="item.youtubeUrl && item.videoOnDisk" name="i-lucide-youtube" class="ml-auto size-3.5 shrink-0 text-muted" title="Published on YouTube" />

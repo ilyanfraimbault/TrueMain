@@ -163,6 +163,7 @@ export function cutClip(
       .map(moment => ({ ...moment, videoMs: moment.videoMs - startMs, endVideoMs: moment.endVideoMs - startMs })),
     youtubeUrl: null,
     videoOnDisk: true,
+    automatic: [],
   }
 }
 
@@ -197,7 +198,8 @@ export function devLibrary(now = Date.now()) {
     ...markClips(ahriToday),
     runClip(ahriGone!, null, 4, 'Quadra kill on Ahri', true),
     runClip(ahriGone!, null, 3, 'Triple kill on Ahri'),
-    runClip(ahriYesterday, ahriYesterday.id, 3, 'Triple kill on Ahri'),
+    // Cut by the shell once the game was finalised (#1766).
+    { ...runClip(ahriYesterday, ahriYesterday.id, 3, 'Triple kill on Ahri'), automatic: ['multiKill' as const] },
     runClip(ahriYesterday, ahriYesterday.id, 2, 'Double kill'),
     // Published, then its file deleted: it plays from YouTube.
     { ...runClip(syndraGone!, null, 5, 'Pentakill on Syndra', true), youtubeUrl: 'https://www.youtube.com/watch?v=jNQXAC9IVRw', videoOnDisk: false, sizeBytes: 64_000 },
@@ -235,6 +237,7 @@ export function devSettings(): RecordingSettingsView {
       budgetBytes: 20_000_000_000,
       folder: null,
       markKey: DEV_MARK_KEY,
+      autoClips: ['multiKill', 'steal', 'ace', 'firstBlood', 'teamfight', 'combo'],
     },
     markKey: devChordView(DEV_MARK_KEY),
     folder: DEV_FOLDER,

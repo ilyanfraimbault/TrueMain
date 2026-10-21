@@ -56,6 +56,19 @@ impl DragonKind {
             _ => None,
         }
     }
+
+    /// From the live feed's `DragonType`.
+    pub(crate) fn from_dragon_type(dragon_type: &str) -> Option<Self> {
+        match dragon_type {
+            "Fire" => Some(Self::Infernal),
+            "Earth" => Some(Self::Mountain),
+            "Water" => Some(Self::Ocean),
+            "Air" => Some(Self::Cloud),
+            "Hextech" => Some(Self::Hextech),
+            "Chemtech" => Some(Self::Chemtech),
+            _ => None,
+        }
+    }
 }
 
 /// An objective taken, in game time.

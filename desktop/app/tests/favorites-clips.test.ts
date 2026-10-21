@@ -42,6 +42,7 @@ function clip(id: string, favorite: boolean, overrides: Partial<Clip> = {}): Cli
     moments: [],
     youtubeUrl: null,
     videoOnDisk: true,
+    automatic: [],
     ...overrides,
   }
 }

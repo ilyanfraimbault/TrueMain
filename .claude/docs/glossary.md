@@ -255,6 +255,11 @@ A moment the player kept by pressing the **mark key** while the game recorded; i
 before the press.
 _Avoid_: highlight (the app's own kills, deaths and assists), instant replay (#1767's saved last minutes)
 
+**Automatic clip**:
+A clip the app cut on its own once a game was finalised, of a play the player picked in the settings (a multi-kill, a
+steal, an ace, first blood, a teamfight, kills into an objective), titled from the game's events alone.
+_Avoid_: highlight (the player's kills, deaths and assists on the timeline), auto-highlight
+
 **Win probability**:
 An in-game estimate from lane leads and map objectives; overlay and post-game only.
 

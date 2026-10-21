@@ -19,7 +19,17 @@ export interface RecordingSettings {
   folder: string | null
   /** The chord that marks a moment while a game records (#2079); `null` = marking off. */
   markKey: Chord | null
+  /** The plays cut as clips of their own once a game is finalised (#1766); empty = automatic clips off. */
+  autoClips: AutoClipKind[]
 }
+
+/**
+ * A play the shell can clip automatically (`AutoClipKind`,
+ * `crates/game-recording/src/auto_clips.rs`): a triple kill or more, an epic
+ * monster the player's side stole, an ace the player was in, first blood the
+ * player drew, a teamfight they took part in, a multi-kill then an objective.
+ */
+export type AutoClipKind = 'multiKill' | 'steal' | 'ace' | 'firstBlood' | 'teamfight' | 'combo'
 
 export interface RecordingSettingsView {
   settings: RecordingSettings
@@ -156,6 +166,8 @@ export interface Clip {
   youtubeUrl: string | null
   /** False once a published clip's file was deleted to free space: it plays from YouTube (#2005). */
   videoOnDisk: boolean
+  /** The plays an automatic clip holds (#1766); empty for a clip the player cut or marked. */
+  automatic: AutoClipKind[]
 }
 
 export interface RecordingLibrary {
