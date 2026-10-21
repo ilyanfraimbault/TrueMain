@@ -11,7 +11,7 @@ import { championIconUrl } from '~/utils/desktop-landing-sample'
  * sample, its champions the frame's lobby (`desktop-landing-sample.ts`).
  * The scene: the playhead goes to the triple kill and its dot opens the
  * tooltip the app shows on hover (#2171) — who killed whom, the drake taken
- * beside it — then a range is dragged across it, the app names it, it is
+ * beside it — past a moment marked with the mark key (#2079), then a range is dragged across it, the app names it, it is
  * saved and joins the saved clips.
  */
 defineProps<{ patch: string | null }>()
@@ -41,10 +41,13 @@ const DOTS = [
   { at: 1216, side: 'ally' },
   { at: 1292, side: 'ally' },
   { at: 1349, side: 'ally' },
+  // A press of the mark key: its own dot, and a line across the panel.
+  { at: 1460, side: 'mark' },
   { at: 1577, side: 'ally' },
   { at: 1634, side: 'ally' },
 ] as const
-const MOMENTS = 16
+const MOMENTS = 17
+const MARKS = DOTS.filter(dot => dot.side === 'mark')
 
 /** The triple kill's dot: its tooltip, as the app lists a dot's events. */
 const TOOLTIP_AT = 807
@@ -76,6 +79,7 @@ const SIDE_DOT = {
   ally: 'bg-ally',
   enemy: 'bg-enemy',
   mixed: 'bg-[linear-gradient(90deg,var(--color-ally)_50%,var(--color-enemy)_50%)]',
+  mark: 'bg-primary',
 } as const
 
 const playhead = computed(() => (reached(1) ? 803 : 76))
@@ -155,6 +159,7 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.ro
           <div class="absolute inset-x-0 overflow-hidden rounded-md bg-muted ring-1 ring-default" :style="{ top: `${PANEL_TOP}px`, height: `${PANEL}px` }">
             <div class="absolute inset-y-0 left-0 bg-white/[0.035] transition-[width] duration-[1400ms] ease-in-out" :style="{ width: pct(playhead) }" />
             <div v-for="at in TICKS" :key="`grid-${at}`" class="absolute inset-y-0 w-px bg-white/[0.04]" :style="{ left: pct(at) }" />
+            <div v-for="mark in MARKS" :key="`mark-${mark.at}`" class="absolute inset-y-0 w-px bg-primary/60" :style="{ left: pct(mark.at) }" />
             <div
               v-for="clip in SAVED"
               :key="clip.title"
