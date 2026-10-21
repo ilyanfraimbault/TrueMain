@@ -43,7 +43,7 @@ pub use clips::{
     StoredClip,
 };
 pub use highlights::{Highlight, HighlightKind, HighlightSource};
-pub use marks::{Mark, MARK_WINDOW_MS};
+pub use marks::{Mark, MarkLength, MARK_WINDOW_MS};
 pub use moments::{DragonKind, Moment, MomentKind, Objective, ObjectiveKind};
 pub use plays::{Play, PlayKind};
 pub use session::{Capture, CaptureError, Change, GameInfo, GameOutcome, Session, SessionError};

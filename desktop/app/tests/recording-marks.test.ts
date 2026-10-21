@@ -16,6 +16,8 @@ describe('marked moments', () => {
     expect(momentStart(marked(754_000), 5_000)).toBe(754_000 - MARK_WINDOW_MS)
     expect(momentStart({ kind: 'kill', videoMs: 754_000 }, 5_000)).toBe(749_000)
     expect(momentStart({ videoMs: 754_000 }, 5_000)).toBe(749_000)
+    // A mark keeps the length chosen at its press (#1767).
+    expect(momentStart({ ...marked(754_000), windowMs: 120_000 }, 5_000)).toBe(634_000)
   })
 
   it('name a range holding nothing else', () => {

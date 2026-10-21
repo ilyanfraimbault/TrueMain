@@ -101,7 +101,9 @@ const availability = computed(() => {
           :class="!current.enabled && 'opacity-50'"
           :mark-key="current.markKey"
           :chord="settings?.markKey ?? null"
+          :length="current.markLength"
           @change="apply({ markKey: $event })"
+          @length="apply({ markLength: $event })"
         />
 
         <RecordingsAutoClips
