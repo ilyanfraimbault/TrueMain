@@ -1136,6 +1136,54 @@ namespace Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionScalingStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Bucket")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EloBracket")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TeamPosition")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "TeamPosition", "Patch", "EloBracket", "Bucket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_scaling_stats_grain");
+
+                    b.ToTable("champion_scaling_stats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_champion_scaling_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
+                        });
+                });
+
             modelBuilder.Entity("Data.Entities.ChampionSynergyBaselineStat", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1608,6 +1656,11 @@ namespace Data.Migrations
                     b.Property<int>("QueueId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("ScalingAggregated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("SynergyAggregated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1655,6 +1708,9 @@ namespace Data.Migrations
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_profile_pending")
                         .HasFilter("\"ProfileAggregated\" = false");
+
+                    b.HasIndex(new[] { "QueueId" }, "IX_matches_scaling_pending")
+                        .HasFilter("\"ScalingAggregated\" = false");
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_snapshot_prune_pending")
                         .HasFilter("\"TimelineIngested\" = true AND \"TimelineSnapshotsPruned\" = false");

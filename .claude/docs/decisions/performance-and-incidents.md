@@ -175,9 +175,9 @@ enumerate or evict. The token read is itself cached for 5 s and single-flighted,
 version probe becoming the new hot query. An empty database is just another version (`none`), so a first-ever
 fold invalidates the empty answers by moving the token.
 
-**For the live folds the backstop *is* the freshness bound, and that is the trade.** Scaling, item
-timings, synergies, the live branch of matchups, mains-comparison and the composition selection
-read `match_participants` directly, so they also move with match ingestion — which since #1374 runs in a lane
+**For the live folds the backstop *is* the freshness bound, and that is the trade.** The trio synergies,
+the live branch of matchups, mains-comparison and the composition selection (scaling and item timings too, until
+#1368 folded the first and dropped the second) read `match_participants` directly, so they also move with match ingestion — which since #1374 runs in a lane
 of its own, decoupled from aggregation. The token does not track that, so those answers can sit up to the
 30-minute absolute expiry where they used to sit one minute. Accepted knowingly: these are precisely the reads
 that measured 2–5 s cold, the staleness is bounded and never a wrong answer, and part B of #1368 moves them
@@ -354,3 +354,28 @@ stored successes only, so the next refresh re-ran the same scan.
   The ProblemDetails body names neither the read nor the failure behind it.
 
 Source: #2132, #1427, #1631.
+
+## The scaling chart reads a fold, and item timings is gone (2026-10-21)
+
+**Decision.** `GET /champions/{id}/scaling` sums rows of `champion_scaling_stats` — per (champion, lane, patch,
+elo band, game-length bucket) games and wins of the champion cohort — folded once per match by
+`ChampionScalingAggregationProcess` on the incremental pattern (its own `ScalingAggregated` flag, the shared
+`AdditiveUpsert`, retention drops a stale patch's rows with the others). The bucket edges live once, in
+`Data/Aggregation/ChampionScalingBuckets.cs`. `GET /champions/{id}/item-timings` was deleted end to end instead of
+being pre-aggregated: no client had called it since power spikes replaced the panel (#628); the `ItemEvents` it read
+stay, they feed builds and the item-context fold.
+
+**Why.** Scaling is drawn on every champion page and its live fold over `match_participants` measured 33–44 s cold on
+production (Gwen TOP, Thresh UTILITY, Jhin BOTTOM, 2026-10-05) for an answer that never changes once a match is in.
+The fold composes `ChampionCohort` and the `matches.Patch` column exactly as the live read did, and
+`ChampionScalingAggregationParityIntegrationTests` keeps the old SQL as its oracle and checks the two agree on every
+(champion, lane, patch, band) cell of a mixed corpus — so the chart did not change meaning when it moved.
+
+**What changed for a reader.** Two edges, both shared with the matchup rows: the cohort and the elo band are
+judged at fold time (a participant stamped after its match was folded stays in the band it had), and "all
+patches" now also sums frozen patches whose matches retention has removed. The table ships empty and the retained
+history drains in batches (`ScalingAggregation:MatchBatchSize` 1 000, `MaxMatchesPerRun` 100 000), so right after
+the deploy the chart counts fewer games until the backlog is through. The directory rollup and the warm-up pass
+moved to #1945, conditional on a cold-p95 measurement after this ships.
+
+Source: #1368, #628, #1945.

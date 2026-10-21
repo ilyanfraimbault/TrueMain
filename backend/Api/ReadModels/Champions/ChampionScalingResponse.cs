@@ -4,7 +4,7 @@ namespace TrueMain.ReadModels.Champions;
 /// How a champion's win rate changes with game length, at a position. Win rate
 /// is bucketed by game duration; <see cref="ScalingIndex"/> is the win-rate gap
 /// between the longest and shortest qualifying bucket (positive = scales into
-/// the late game). Computed live from match participants — no timeline needed.
+/// the late game). Read from the <c>champion_scaling_stats</c> aggregate (#1368).
 /// </summary>
 public sealed record ChampionScalingResponse
 {

@@ -202,7 +202,7 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
 
         entity.HasIndex(e => e.RiotAccountId);
 
-        // The champion-page reads (builds, matchups, scaling, leads, item-timings)
+        // The champion-page reads (builds, matchups, leads, synergies)
         // all filter the tracked-account rows by champion + lane. A partial
         // index on those columns (only the tracked rows, ~1/10 of the table) turns
         // those filters into an index seek instead of a scan of the whole
