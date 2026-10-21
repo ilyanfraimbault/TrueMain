@@ -5,11 +5,12 @@ import {
   DesktopLandingDraftDemo,
   DesktopLandingGameScreen,
   DesktopLandingInGame,
+  DesktopLandingLanePlates,
   DesktopLandingOverlayPanel,
   DesktopLandingRecapDemo,
 } from '#components'
 import type { StaticItemData } from '#shared/types/static-data'
-import { sampleWinProbability } from '~/utils/desktop-landing-sample'
+import { plateGold, sampleLaneGold, sampleWinProbability } from '~/utils/desktop-landing-sample'
 
 // `/download`'s drawn scenes (#2072). Each is server-rendered — and drawn for a
 // visitor who asked for less motion — in its final state, so these pin that
@@ -42,9 +43,20 @@ describe('LandingOverlayPanel', () => {
     const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'next-item', patch: PATCH, items: ITEMS } })
 
     expect(wrapper.text()).toContain('Infinity Edge')
-    expect(wrapper.text()).toContain('650 gold to go')
+    expect(wrapper.text()).toMatch(/1[,\u202F\u00A0 ]?400 to go/)
     expect(wrapper.find('img').attributes('src')).toContain('3031.png')
     expect(wrapper.attributes('style')).toContain('width: 232px')
+  })
+
+  it('walks the build path: the held part checked, the one the gold buys ringed with its price, the rest later', async () => {
+    const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'next-item', patch: PATCH, items: ITEMS } })
+
+    const tiles = wrapper.findAll('[data-build-path] li')
+    expect(tiles.map(tile => tile.attributes('data-state'))).toEqual(['owned', 'buy', 'later'])
+    expect(tiles[0]!.find('img').classes()).toContain('grayscale')
+    expect(tiles[1]!.find('img').classes()).toContain('ring-primary')
+    expect(tiles[1]!.text()).toBe('1300')
+    expect(tiles[2]!.text()).toBe('875')
   })
 
   it('draws the build row under it: done dimmed, the next one ringed, the rest to come', async () => {
@@ -84,49 +96,83 @@ describe('LandingOverlayPanel', () => {
     // The curve ends on a dot, as OverlayStats draws it.
     expect(wrapper.findAll('circle')).toHaveLength(1)
   })
+})
 
-  it('sums item gold lane by lane, leaving out consumables and trinkets', async () => {
-    const items = { ...ITEMS, 3047: item('Plated Steelcaps', 1200, ['Consumable']) }
-    const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'item-value', patch: PATCH, items } })
-    const rows = wrapper.findAll('li')
+describe('LandingObjectives', () => {
+  it('counts the camps down from the sample clock, Baron waiting on the Herald, the soul race under them', async () => {
+    const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'objectives', patch: PATCH, items: null } })
 
-    expect(rows).toHaveLength(5)
+    const pills = wrapper.findAll('li')
+    expect(pills.map(pill => pill.attributes('data-objective'))).toEqual(['dragon', 'herald', 'baron'])
+    expect(pills.map(pill => pill.text())).toEqual(['2:37', '1:37', '6:37'])
+    expect(pills[2]!.find('img').classes()).toContain('grayscale')
+    const race = wrapper.find('[data-soul-race]')
+    expect(race.findAll('img.ring-ally\\/70')).toHaveLength(1)
+    expect(race.findAll('img.ring-enemy\\/70')).toHaveLength(1)
+  })
+})
+
+describe('sampleLaneGold', () => {
+  it('sums item gold lane by lane, leaving out consumables and trinkets', () => {
+    const lanes = sampleLaneGold({ ...ITEMS, 3047: item('Plated Steelcaps', 1200, ['Consumable']) })!
+
+    expect(lanes).toHaveLength(5)
     // Bottom lane: Jinx holds an Infinity Edge (3,450) and a Cloak of Agility (600), Ezreal nothing priced here.
-    expect(rows[3]!.text()).toContain('4,050')
+    expect(lanes[3]).toMatchObject({ ours: 4050, theirs: 0 })
     // Support: Locket on both sides, the boots counted as a consumable for this test.
-    expect(rows[4]!.text()).toContain('2,200')
-    expect(wrapper.findAll('img')).toHaveLength(10)
+    expect(lanes[4]).toMatchObject({ ours: 2200, theirs: 2200 })
+    expect(sampleLaneGold(null)).toBeNull()
+  })
+})
+
+describe('LandingLanePlates', () => {
+  it('puts each lane\'s item-gold gap on its row, pointing at the side ahead', async () => {
+    const wrapper = await mountSuspended(DesktopLandingLanePlates, { props: { patch: PATCH, items: ITEMS } })
+
+    const rows = wrapper.findAll('[data-row]')
+    expect(rows).toHaveLength(5)
+    const lanes = sampleLaneGold(ITEMS)!
+    rows.forEach((row, index) => {
+      const lane = lanes[index]!
+      const expected = lane.ours === lane.theirs ? 'even' : lane.ours > lane.theirs ? 'left' : 'right'
+      expect(row.find('[data-ahead]').attributes('data-ahead')).toBe(expected)
+      if (expected !== 'even') expect(row.text()).toBe(plateGold(Math.abs(lane.ours - lane.theirs)))
+    })
   })
 
-  it('shows dashes until the item map is read', async () => {
-    const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'item-value', patch: null, items: null } })
+  it('draws no row before the item map is read', async () => {
+    const wrapper = await mountSuspended(DesktopLandingLanePlates, { props: { patch: PATCH, items: null } })
 
-    expect(wrapper.text()).toContain('–')
-    expect(wrapper.findAll('img')).toHaveLength(0)
+    expect(wrapper.findAll('[data-row]')).toHaveLength(0)
   })
 })
 
 describe('LandingGameScreen', () => {
-  it('turns on the panels it is given, item value only while TAB is held', async () => {
+  it('turns on the panels it is given, and under TAB the plates alone, never the item value', async () => {
     const wrapper = await mountSuspended(DesktopLandingGameScreen, {
-      props: { shown: ['win-probability', 'item-value'], tabHeld: false, patch: PATCH, items: ITEMS },
+      props: { shown: ['win-probability', 'lane-gold'], tabHeld: false, patch: PATCH, items: ITEMS },
     })
 
     expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(1)
+    expect(wrapper.find('.landing-plates').classes()).not.toContain('is-on')
 
     await wrapper.setProps({ tabHeld: true })
-    expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(2)
+    expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(1)
+    expect(wrapper.find('.landing-plates').classes()).toContain('is-on')
+    expect(wrapper.findAll('[data-row]')).toHaveLength(5)
     expect(wrapper.find('kbd').classes()).toContain('opacity-100')
   })
 })
 
 describe('LandingInGame', () => {
-  it('lists the four panels and draws them all when the steps cannot drive the screen', async () => {
+  it('lists the five panels and draws them all when the steps cannot drive the screen', async () => {
     const wrapper = await mountSuspended(DesktopLandingInGame, { props: { patch: PATCH, items: ITEMS } })
 
-    expect(wrapper.findAll('ol > li')).toHaveLength(4)
+    expect(wrapper.findAll('h3')).toHaveLength(5)
     expect(wrapper.text()).toContain('What to buy next')
+    expect(wrapper.text()).toContain('The next objectives, timed')
     expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(4)
+    expect(wrapper.find('.landing-plates').classes()).toContain('is-on')
   })
 })
 

@@ -8,7 +8,7 @@ import type { DesktopRelease } from '~~/shared/types/desktop'
 useSeoMeta({
   title: 'TrueMain desktop app (beta)',
   description:
-    'The TrueMain companion for League of Legends: picks from your own pool in champion select, the rune page in one click, an overlay with win probability, your pace and your next item, and your games recorded to cut your best plays. For macOS and Windows.',
+    'The TrueMain companion for League of Legends: picks from your own pool in champion select, the rune page in one click, an overlay with win probability, your pace, your build path, the objective timers and every lane\'s gold gap on the scoreboard, and your games recorded to cut your best plays. For macOS and Windows.',
 })
 
 const { data: release, status, error } = await useFetch<DesktopRelease | null>('/api/desktop/release')
@@ -31,17 +31,21 @@ const stopReading = watch(staticPatch, (value) => {
 
 const DRAFT_POINTS = [
   { icon: 'i-lucide-list-ordered', title: 'Picks from your pool', body: 'Your ten most-mastered champions on your lane, ranked as the draft fills, each with its reason: the matchup, a synergy, a safe blind.' },
+  { icon: 'i-lucide-git-branch', title: 'Your own kit', body: 'Your build per champion and lane — a branching item tree, a rune page, two spells — imported on your click, then followed in game.' },
   { icon: 'i-lucide-hand', title: 'Hover, lock and ban from the app', body: 'On your click only. A ban always asks first, and nothing is ever locked, banned or accepted for you.' },
   { icon: 'i-lucide-download', title: 'Runes and item set in one click', body: 'The page and the build on screen go into the client as "TrueMain: <champion>", replaced in place — never one of your pages.' },
 ] as const
 
 const MORE = [
-  { icon: 'i-lucide-user-round', title: 'Your profile', body: 'Rank, form and LP curve, for any account.' },
+  { icon: 'i-lucide-trending-up', title: 'Your rank, game by game', body: 'The LP curve, the LP each game moved and your Flex standing.' },
+  { icon: 'i-lucide-calendar-check', title: 'Today, at a glance', body: 'Games, W–L, LP and time played since midnight.' },
+  { icon: 'i-lucide-crown', title: 'Every game scored', body: 'A performance score on each game, MVP and ACE marked.' },
+  { icon: 'i-lucide-chart-spline', title: 'The game\'s timeline', body: 'Gold, XP and CS curves for all ten, with the kills and objectives.' },
+  { icon: 'i-lucide-clapperboard', title: 'Your latest clips', body: 'The last four you saved, on the dashboard.' },
+  { icon: 'i-lucide-star', title: 'Favorites', body: 'Players, champions and clips you follow, in one place.' },
   { icon: 'i-lucide-scan-eye', title: 'The lobby, scouted', body: 'Each player\'s rank, role and form on their pick.' },
-  { icon: 'i-lucide-badge-check', title: 'True mains, marked', body: 'Who mains their champion, and their build.' },
-  { icon: 'i-lucide-chart-pie', title: 'The damage mix', body: 'Each team\'s physical and magic split.' },
   { icon: 'i-lucide-layout-list', title: 'The site, inside', body: 'Tier list, champions and matchups, no browser.' },
-  { icon: 'i-lucide-command', title: 'One search field', body: '⌘K or Ctrl K, even with League closed.' },
+  { icon: 'i-lucide-badge-check', title: 'True mains, marked', body: 'Who mains their champion, and their build.' },
 ] as const
 </script>
 
@@ -120,7 +124,7 @@ const MORE = [
       <DesktopLandingSection
         id="in-game"
         moment="In game"
-        title="Four small panels, right on the game."
+        title="Small panels, right on the game."
         lead="Drawn from the game's own live data in windows of their own that never take your keyboard. Nothing is injected and nothing reads the game's memory. Move them, resize them, or hide them all with one shortcut."
       >
         <DesktopLandingInGame :patch="patch" :items="items ?? null" />
@@ -130,7 +134,7 @@ const MORE = [
         id="recordings"
         moment="Recordings"
         title="Your games on tape, the plays a cut away."
-        lead="Turn recording on and every game is captured with its kills, deaths, assists and objectives on the timeline. Drag across a moment to cut a clip; it is named from what it holds and kept as its own file, ready to publish on YouTube."
+        lead="Turn recording on and every game is captured with its kills, deaths, assists and objectives on the timeline, under the win-probability curve. Press the mark key in game to keep the thirty seconds before it; drag across any other moment to cut a clip. Each is named from what it holds and kept as its own file, ready to publish on YouTube."
       >
         <figure>
           <DesktopLandingRecapDemo :patch="patch" aria-hidden="true" />
