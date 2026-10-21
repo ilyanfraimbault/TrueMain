@@ -28,7 +28,7 @@ function choose(slot: 0 | 1, spellId: number) {
     <UPopover v-for="slot in [0, 1] as const" :key="slot" v-model:open="open[slot]">
       <button
         type="button"
-        class="rounded ring-1 ring-transparent transition hover:ring-primary/60 focus-visible:ring-primary focus-visible:outline-none"
+        class="rounded transition hover:brightness-125 focus-visible:outline-2 focus-visible:outline-primary"
         :aria-label="`Spell ${slot + 1}: ${name(spells[slot])}`"
       >
         <GameTooltipSummonerSpellIcon :spell="summoners[spells[slot]] ?? null" :width="36" :height="36" class="size-9 rounded" />
