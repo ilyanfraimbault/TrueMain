@@ -120,6 +120,15 @@ public interface IMainCandidateRepository
     Task<int> ReleaseExpiredClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct);
 
     /// <summary>
+    /// <see cref="ReleaseExpiredClaimsAsync(DateTime, CancellationToken)"/> narrowed to the
+    /// candidates of <paramref name="platforms"/>, or every candidate when null (#1457).
+    /// </summary>
+    Task<int> ReleaseExpiredClaimsAsync(
+        DateTime leaseCutoffUtc,
+        IReadOnlyCollection<string>? platforms,
+        CancellationToken ct);
+
+    /// <summary>
     /// Of <paramref name="puuids"/> on <paramref name="platformId"/>, the ones that already
     /// carry a candidate row seen at or after <paramref name="seenSinceUtc"/> — i.e. the
     /// accounts whose champion-mastery call would re-read masteries we just stored (#1358).

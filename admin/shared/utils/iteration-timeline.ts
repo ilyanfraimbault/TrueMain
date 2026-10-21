@@ -19,6 +19,9 @@ export interface IterationKind {
 
 const KIND_BY_MODE: Readonly<Record<string, IterationKind>> = {
   FetchLane: { id: 'fetch', label: 'Fetch' },
+  // The fetch lane run as permanent workers (#1457): its maintenance passes and its workers'
+  // batches are both fetch work.
+  FetchWorkers: { id: 'fetch', label: 'Fetch' },
   AggregateLane: { id: 'aggregate', label: 'Aggregate' },
   Full: { id: 'full', label: 'Full' },
 }

@@ -191,6 +191,10 @@ One named step of the ingestion pipeline; each execution is a **process run**.
 **Fetch lane / aggregate lane**:
 The two halves of the pipeline: the fetch lane is bound by Riot calls, the aggregate lane by the database.
 
+**Fetch worker**:
+A permanent per-region loop that claims, fetches and writes matches beside the fetch lane's **maintenance pass** (#1457).
+_Avoid_: ingestion lane, worker lane
+
 **Claim**:
 Match ingestion taking a batch of accounts to fetch; it sizes every upstream budget (**intake capacity**).
 

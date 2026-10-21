@@ -57,10 +57,21 @@ internal sealed class RiotRateLimitWindow(int permitLimit, TimeSpan duration)
             return TimeSpan.Zero;
         }
 
-        // The oldest issue instant is the one whose expiry frees a permit. Peek is
-        // safe: Count >= effectiveLimit >= 1 here.
-        var wait = _issued.Peek() + Duration - now;
+        // The count can sit above the limit asked for: a caller held to a narrower cap than
+        // the window's own (another caller's reservation, #1457) sees a window the others
+        // filled further. It needs (Count - effectiveLimit + 1) permits back, so the instant
+        // that frees it is the expiry of that many-th oldest issue. With a full window and no
+        // narrowing this is the oldest one, as it always was.
+        var wait = _issued.ElementAt(_issued.Count - Math.Max(1, effectiveLimit)) + Duration - now;
         return wait > TimeSpan.Zero ? wait : TimeSpan.Zero;
+    }
+
+    /// <summary>How many issues fall inside the window at <paramref name="now"/>.</summary>
+    /// <param name="now">The instant the count is taken at.</param>
+    public int CountAt(DateTimeOffset now)
+    {
+        Trim(now);
+        return _issued.Count;
     }
 
     /// <summary>Records that a request was issued at <paramref name="now"/>.</summary>
