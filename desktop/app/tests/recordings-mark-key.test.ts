@@ -58,7 +58,7 @@ describe('RecordingsMarkKey', () => {
   })
 
   it('shows the shell\'s refusal and saves nothing', async () => {
-    checkMarkKey.mockImplementation(async () => ({ refusal: 'Already the shortcut of Next item.', chord: { label: '⌥⇧1', warning: null } }))
+    checkMarkKey.mockImplementation(async () => ({ refusal: 'Already the shortcut of Build path.', chord: { label: '⌥⇧1', warning: null } }))
     const wrapper = mount(RecordingsMarkKey, { global, props: { markKey: ALT_SHIFT_0, chord: { label: '⌥⇧0', warning: null } } })
     const field = wrapper.find('button[aria-label^="Mark key"]')
 
@@ -67,7 +67,7 @@ describe('RecordingsMarkKey', () => {
     await flushPromises()
 
     expect(wrapper.emitted('change')).toBeUndefined()
-    expect(wrapper.find('.text-error').text()).toBe('Already the shortcut of Next item.')
+    expect(wrapper.find('.text-error').text()).toBe('Already the shortcut of Build path.')
     expect(field.text()).toBe('⌥⇧1')
   })
 

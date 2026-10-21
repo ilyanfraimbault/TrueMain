@@ -210,6 +210,7 @@ public sealed class ChampionItemContextAggregationProcess(
 
         var byMatch = slim.GroupBy(p => p.MatchId).ToDictionary(g => g.Key, g => g.ToList());
         var accumulator = new ItemContextAccumulator();
+        var componentOrders = new ComponentOrderAccumulator();
         var folded = 0;
 
         foreach (var matchId in cohortMatchIds)
@@ -245,10 +246,14 @@ public sealed class ChampionItemContextAggregationProcess(
                     settings.Axes);
 
                 var scope = new ItemContextScope(self.ChampionId, self.TeamPosition, patch);
-                foreach (var (slot, edges) in ItemContextSlotResolver.Resolve(build.ItemEvents, build.FinalItems, metadata))
+                var slots = ItemContextSlotResolver.Resolve(build.ItemEvents, build.FinalItems, metadata);
+                foreach (var (slot, edges) in slots)
                 {
                     accumulator.Add(scope, slot, edges, axes, self.Win);
                 }
+
+                // The component order (#2183) reads the same timeline, for the items just resolved.
+                componentOrders.Add(scope, ComponentOrderResolver.Resolve(build.ItemEvents, ItemContextSlotResolver.CompletedItems(slots), metadata));
 
                 folded++;
             }
@@ -256,6 +261,7 @@ public sealed class ChampionItemContextAggregationProcess(
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await ItemContextUpsert.WriteAsync(db, accumulator, aggregatedAtUtc, ct);
+        await componentOrders.WriteAsync(db, aggregatedAtUtc, ct);
         await FlagAsync(db, matchIds, ct);
         await transaction.CommitAsync(ct);
 
