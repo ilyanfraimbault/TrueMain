@@ -263,12 +263,18 @@ The deploy depends on this job succeeding, so a failed or skipped migration
 blocks the image roll.
 
 `PREPROD_SSH_KEY`'s public half is installed in the VPS's
-`~/.ssh/authorized_keys` with a forced `command=/usr/local/bin/apply-migration.sh`
-(plus `no-pty`/`no-port-forwarding`/`no-agent-forwarding`/`no-X11-forwarding`) —
-whatever the CI step sends as a remote command is ignored, so a leaked key
-can only ever pipe SQL into that one fixed `psql` invocation, never get a
-general root shell. The script itself (owning the container name and compose
-path) lives on the VPS, not in the workflow.
+`~/.ssh/authorized_keys` with a forced `command=` (plus
+`no-pty`/`no-port-forwarding`/`no-agent-forwarding`/`no-X11-forwarding`), so a
+leaked key can never get a general root shell. Since #1089 that command is
+`.github/scripts/vps/ci-ssh-command.sh`, installed by hand: it accepts the
+migration (no remote command, SQL on stdin, delegated to the host's
+`/usr/local/bin/apply-migration.sh`, which owns the container name and runs
+that one fixed `psql` invocation) and `pull <tag>` of the four application
+images, and refuses anything else. Install steps, and the
+`PREPROD_PREPULL_IMAGES` variable that turns the deploy's pre-pull on once the
+script is in place, are in `docs/ci.md` (*Pre-pull before recreate*). Until
+both are done, the host keeps `command=/usr/local/bin/apply-migration.sh` and
+the pre-pull stays off.
 
 ### Manual fallback
 

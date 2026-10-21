@@ -116,6 +116,7 @@ jobs:
       app_version: ${{ needs.version.outputs.version }}
       ssh_host_key: ${{ vars.PREPROD_SSH_HOST_KEY }}
       vm_id: ${{ vars.HOSTINGER_PREPROD_VM_ID }}
+      prepull: ${{ vars.PREPROD_PREPULL_IMAGES == 'true' }}
     secrets:
       ssh_host: ${{ secrets.PREPROD_SSH_HOST }}
       ssh_key: ${{ secrets.PREPROD_SSH_KEY }}

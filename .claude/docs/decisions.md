@@ -315,6 +315,7 @@ Last verified against `develop` on 2026-09-02.
 - An incomplete prod deployment configuration fails the release run; it is never a green skip — #1228
 - The deploy preflight rejects `INGESTOR_JOB_MODE=Full` when the compose file runs an aggregate lane — #1493
 - A deploy job proves the environment moved; the API acknowledgement is not evidence — #1394, #1365, #1374
+- The deploy pre-pulls the images over the CI key (forced command `migrate` | `pull <tag>`) before Docker Manager recreates anything (2026-10-05) — #1089
 - Both deploy pipelines serialise at workflow level, not per job — #1228
 - Integration tests run on pushes to `develop`/`master`, not only on pull requests — #1228
 - Preprod tracks `develop`, has its own Riot API key, and is deliberately tiny — a new key forces an empty database — #705
