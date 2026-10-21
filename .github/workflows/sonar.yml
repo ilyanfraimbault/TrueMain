@@ -30,6 +30,8 @@ jobs:
       pull-requests: read
     outputs:
       run: ${{ steps.decide.outputs.run }}
+      backend: ${{ steps.decide.outputs.backend }}
+      apps: ${{ steps.decide.outputs.apps }}
 
     steps:
       - name: Filter changed paths
@@ -45,14 +47,55 @@ jobs:
               - "!.claude/**"
               - "!LICENSE"
 
+      - name: Filter the analysed areas
+        id: areas
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          filters: |
+            sonar:
+              - ".github/workflows/sonar.yml"
+            backend:
+              - "backend/**"
+              - "global.json"
+              - "web/shared/fixtures/performance-score-vectors.json"
+            web:
+              - "web/**"
+            admin:
+              - "admin/**"
+              - "web/layers/nitro/**"
+              - "web/shared/**"
+            desktop_app:
+              - "desktop/app/**"
+
       - name: Decide
         id: decide
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          EXHAUSTIVE: ${{ github.event_name != 'pull_request' }}
+          EXHAUSTIVE: ${{ github.event_name != 'pull_request' || steps.areas.outputs.sonar == 'true' }}
           CODE: ${{ steps.filter.outputs.code }}
+          BACKEND: ${{ steps.areas.outputs.backend }}
+          WEB: ${{ steps.areas.outputs.web }}
+          ADMIN: ${{ steps.areas.outputs.admin }}
+          DESKTOP_APP: ${{ steps.areas.outputs.desktop_app }}
           BASE: ${{ github.event.pull_request.base.ref }}
         run: |
+          set -euo pipefail
+          flag() { if [ "$EXHAUSTIVE" = "true" ] || [ "$1" = "true" ]; then echo true; else echo false; fi; }
+          apps='[]'
+          add_app() {
+            if [ "$(flag "$3")" = true ]; then
+              apps="$(jq -c --arg a "$1" --arg n "$2" '. + [{app: $a, artifact: $n}]' <<< "$apps")"
+            fi
+          }
+          add_app web web "$WEB"
+          add_app admin admin "$ADMIN"
+          add_app desktop/app desktop-app "$DESKTOP_APP"
+          {
+            echo "backend=$(flag "$BACKEND")"
+            echo "apps=$apps"
+          } | tee -a "$GITHUB_OUTPUT"
+
           if [ -z "$SONAR_TOKEN" ]; then
             echo "::notice::SONAR_TOKEN is not available to this run; the SonarQube Cloud analysis is skipped."
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -71,18 +114,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: plan
-    if: needs.plan.outputs.run == 'true'
+    if: needs.plan.outputs.run == 'true' && needs.plan.outputs.apps != '[]'
 
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - app: web
-            artifact: web
-          - app: admin
-            artifact: admin
-          - app: desktop/app
-            artifact: desktop-app
+        include: ${{ fromJSON(needs.plan.outputs.apps) }}
 
     defaults:
       run:
@@ -128,7 +165,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     needs: [plan, frontend-coverage]
-    if: needs.plan.outputs.run == 'true'
+    if: >-
+      !cancelled() &&
+      needs.plan.outputs.run == 'true' &&
+      (needs.frontend-coverage.result == 'success' || needs.frontend-coverage.result == 'skipped')
 
     defaults:
       run:
@@ -172,6 +212,7 @@ jobs:
         run: dotnet tool restore
 
       - name: Download the lcov reports
+        if: needs.plan.outputs.apps != '[]'
         uses: actions/download-artifact@v8
         with:
           pattern: lcov-*
@@ -198,12 +239,14 @@ jobs:
         run: dotnet build TrueMain.sln --configuration Release --no-restore
 
       - name: Unit tests with coverage
+        if: needs.plan.outputs.backend == 'true'
         run: >-
           dotnet test --project tests/TrueMain.UnitTests/TrueMain.UnitTests.csproj
           --configuration Release --no-build
           --coverage --coverage-output-format xml --coverage-output "$RUNNER_TEMP/coverage/unit.xml"
 
       - name: Integration tests with coverage
+        if: needs.plan.outputs.backend == 'true'
         run: >-
           dotnet test --project tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj
           --configuration Release --no-build

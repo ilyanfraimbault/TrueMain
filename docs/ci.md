@@ -18,7 +18,7 @@ two environments and the migration path in detail.
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
 | `rollout.yml` | called by both deploys | Applies migrations over SSH, pre-pulls the images over SSH where enabled, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/common/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; lint, typecheck, unit tests and static build of its Nuxt app (below) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/common/` or `web/shared/`, each job on its own paths | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; lint, typecheck, unit tests and static build of its Nuxt app (below) |
 | `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/common/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
 | `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
@@ -45,10 +45,13 @@ which downstream jobs are worth a runner:
 
 | Output | Paths | Gates |
 | ------ | ----- | ----- |
-| `backend` | `backend/**`, `global.json`, `web/shared/fixtures/performance-score-vectors.json` | backend build + unit + integration tests, API and Ingestor image builds — the vectors are linked into the unit tests, which pin the C# score to the desktop app's port (#2075) |
+| `backend` | `backend/**`, `global.json`, `web/shared/fixtures/performance-score-vectors.json` | backend build + unit + integration tests — the vectors are linked into the unit tests, which pin the C# score to the desktop app's port (#2075) |
 | `data` | `backend/Data/**` | `migrate-fresh` |
-| `web` | `web/**` | the site's frontend job, its image build |
-| `admin` | `admin/**`, and from the site `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's frontend job, its image build |
+| `web` | `web/**` | the site's frontend job |
+| `admin` | `admin/**`, and from the site `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's frontend job |
+| `backend_image` | `backend/*/Dockerfile`, `backend/.dockerignore`, `backend/Directory.*.props`, `backend/**/*.csproj` | API and Ingestor image builds |
+| `web_image` | `web/Dockerfile`, `web/.dockerignore`, `web/package.json`, `web/package-lock.json`, `web/**/nuxt.config.ts` | the site's image build |
+| `admin_image` | `admin/Dockerfile`, `admin/.dockerignore`, `admin/package.json`, `admin/package-lock.json`, `admin/nuxt.config.ts`, and from the site `web/.dockerignore`, `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
 | `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt`, `compose.preprod.yaml`, `compose.prod.yaml` | deploy-script tests, file sizes |
 | `ci` | `ci.yml`, `.github/actions/**` | everything |
@@ -172,6 +175,16 @@ the base image's own npm and SDK rather than the pinned CI toolchain, so a
 lock file that installs in the frontend job can still fail inside the image
 (#1236). Layer caches are scoped per image (`type=gha,scope=<image>`) and
 shared with the deploy builds.
+
+On a PR an image only builds when its packaging changes (the `*_image` filters
+above, #2218): the Dockerfile and `.dockerignore`, the dependency manifests and
+lock files, the .NET project files, and `nuxt.config.ts`, which holds the trace
+rule the web image asserts below and the font providers. Every other change is
+code the `backend` and `frontend` jobs already compile; building it again in an
+image proved nothing they had not. The admin image also rebuilds on the site
+paths its second context copies, since an import there reaching outside them
+only fails inside the image. The `develop` push builds all four before preprod
+deploys them, so a break the filter misses stops there, never at a release.
 
 The admin image is the one built from two contexts. Its own is `./admin`; the
 server layer it extends (`web/layers/nitro`, #1625) lives in the site's tree,
@@ -636,6 +649,17 @@ log before the upload, and a step that runs even when the test was cut short
 corners. The screenshots, a JSON per step and the app's log
 are uploaded as an artifact.
 
+A `changes` job gates each of these jobs on what it compiles (#2218), as in
+`ci.yml`: the `Rust crates` job on the workspace manifests, `desktop/crates/`
+and `desktop/capture/windows/`; the Windows shell job on those and
+`desktop/src-tauri/`; the macOS spike on those and `desktop/capture/macos/`;
+the Windows overlay on the shell's paths and `desktop/app/`, its smoke script
+and the fixtures it replays; the `Nuxt app` job on `desktop/app/` and the
+site's two shared paths. A change to the site's shared layer therefore runs the
+`Nuxt app` job alone: the Windows and macOS jobs build Rust, which it never
+reaches. A change to `desktop.yml`, a push and a draft marked ready behave as
+in `ci.yml`.
+
 ## Desktop releases
 
 The desktop companion has its own version, never the site's release flow (#1719,
@@ -814,13 +838,14 @@ the production app every version production has caught up with.
 
 ## Claude review
 
-`claude-review.yml` posts inline comments prefixed `BLOCKING:` or `NIT:` and
-always ends with one formal review: approve when nothing is blocking, request
-changes otherwise. It reviews along two axes kept apart in its body, so one
+`claude-review.yml` posts blocking points only (#2218): a clean PR gets a bare
+approval with no body and no inline comment; otherwise each point is an inline
+comment prefixed `BLOCKING:` and the review requests changes. Suggestions, nits
+and code smells are never posted, so a review that says anything is one to act
+on. It reviews along two axes kept apart in its body, so one
 cannot mask the other: **Spec** (does the diff do what the linked issue's
 `Scope`/`Acceptance` ask, read with `gh issue view`; the PR body when there is
-no issue) and **Standards** (the repository's written rules). Code smells
-from a fixed list (Fowler's) are only ever `NIT:` suggestions. The prompt defines blocking narrowly (bugs, security, data
+no issue) and **Standards** (the repository's written rules). The prompt defines blocking narrowly (bugs, security, data
 loss, regressions, missing tests, project rules CI cannot catch) and forbids
 flagging versions or APIs from memory, because the repository regularly runs
 tooling newer than the model's training data. Dependabot is in `allowed_bots`
@@ -850,13 +875,22 @@ build costs runner minutes, not wall time, since it runs beside CI.
   push that brought it, and the gate cannot be tuned, so it would only ever
   restate the coverage of code merged before the gate existed (#2061) — each
   with a notice instead of a red check. It filters inside the workflow, not
-  with `on: paths`, so the required check below exists on every PR.
+  with `on: paths`, so the required check below exists on every PR. It also
+  plans what the analysis needs (#2218): the frontend coverage of the apps the
+  PR touches (`web` on `web/**`, `admin` on its own tree and the site paths it
+  extends, the desktop app on `desktop/app/**`), and the backend test suites
+  only when the backend changed (`ci.yml`'s `backend` paths). A PR analysis
+  rates new code only, so an area the PR leaves alone needs no coverage report.
+  Pushes to `develop` and a change to `sonar.yml` plan everything. The build
+  itself always runs: the .NET scanner reads the TypeScript and Vue code
+  through it, so skipping it would mean a second scanner and a different set
+  of analysed files from one PR to the next.
 - `frontend-coverage` runs each app's vitest suite with v8 coverage (lcov) and
   rewrites the app-relative `SF:` paths to repo-relative ones. It installs with
   `--ignore-scripts` and runs only the apps' own `postinstall` (`nuxt prepare`),
   so no dependency's lifecycle script runs in a job that sits next to the token. The desktop app's
   run only covers its own tree; the shared layer's coverage comes from `web`.
-- `analysis` wraps the Release build and both test suites between
+- `analysis` wraps the Release build and, when planned, both test suites between
   `dotnet-sonarscanner begin` and `end`. Coverage comes from
   `Microsoft.Testing.Extensions.CodeCoverage` (`dotnet test --coverage`, XML
   format): `dotnet-coverage collect` cannot instrument the Microsoft Testing
