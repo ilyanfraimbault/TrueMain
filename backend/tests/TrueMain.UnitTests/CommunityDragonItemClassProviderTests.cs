@@ -81,6 +81,22 @@ public sealed class CommunityDragonItemClassProviderTests
     }
 
     [Fact]
+    public async Task GetClassesAsync_ReadsLatestOnce_ForEveryUnpublishedPatch()
+    {
+        using var handler = new FakeHandler { Unpublished = "30." };
+        var provider = CreateProvider(handler, new FakeTimeProvider());
+
+        for (var minor = 1; minor <= 20; minor++)
+        {
+            var answer = await provider.GetClassesAsync($"30.{minor}.1", CancellationToken.None);
+            answer.Patch.Should().Be("latest");
+        }
+
+        handler.Requested.Count(url => url.Contains("/latest/", StringComparison.Ordinal))
+            .Should().Be(1, "the latest branch is read once, not once per unknown patch");
+    }
+
+    [Fact]
     public async Task GetClassesAsync_RetriesAfterAFailedLoad()
     {
         using var handler = new FakeHandler { FailOnce = true };
@@ -115,7 +131,7 @@ public sealed class CommunityDragonItemClassProviderTests
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
             }
 
-            if (Unpublished is not null && url.Contains($"/{Unpublished}/", StringComparison.Ordinal))
+            if (Unpublished is not null && url.Contains($"/{Unpublished}", StringComparison.Ordinal))
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
             }
