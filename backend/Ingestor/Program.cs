@@ -106,10 +106,16 @@ builder.Services.AddScoped<IChampionCoverageProvider, ChampionCoverageProvider>(
 // resilience handler as the Riot clients (#251). The provider fetches with
 // CancellationToken.None (it caches the in-flight task per patch), so the pipeline's
 // total timeout — and the client timeout above it — are the only bounds on the call.
+// One provider per resolution, so its per-patch cache lives as long as the process run
+// that holds it (the Api keeps a singleton instead, #2212).
 builder.Services
-    .AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>(ConfigureCommunityDragonClient)
+    .AddHttpClient(nameof(CommunityDragonItemMetadataProvider), ConfigureCommunityDragonClient)
     .AcceptCompressedResponses()
     .AddCommunityDragonResilienceHandler();
+builder.Services.AddTransient<IItemMetadataProvider>(services => new CommunityDragonItemMetadataProvider(
+    () => services.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(CommunityDragonItemMetadataProvider)),
+    services.GetRequiredService<ILogger<CommunityDragonItemMetadataProvider>>(),
+    services.GetRequiredService<TimeProvider>()));
 // Data Dragon has the same profile as CommunityDragon for our purposes — a static-file
 // CDN fetched once per patch and cached in-process, with no Retry-After semantics — so
 // the champion-statics client (#1449, the profile fold's ranged flag) rides the same
