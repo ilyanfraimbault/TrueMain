@@ -13,6 +13,20 @@ const props = defineProps<{ headroom: RiotApiHeadroom | null }>()
 function formatCallsPerDay(value: number | null): string {
   return value === null ? '—' : `${formatNumber(Math.round(value))}/day`
 }
+// A cost per account is a fraction of a call on a real roster (0.16/day), so it keeps
+// two significant digits where a rounded integer would read 0.
+function formatCostPerAccount(value: number | null): string {
+  if (value === null) {
+    return '—'
+  }
+  return value >= 10 ? formatNumber(Math.round(value)) : value.toPrecision(2)
+}
+// A host the roster barely touches fits billions more accounts; past a million the exact
+// figure only widens the table, so the rows read it compactly (the headline stays exact).
+const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
+function formatRowAccounts(value: number | null): string {
+  return value !== null && value >= 1_000_000 ? compact.format(value) : formatAccounts(value)
+}
 function formatWindowSeconds(seconds: number): string {
   if (seconds % 3600 === 0) {
     return `${seconds / 3600}h`
@@ -64,50 +78,52 @@ const binding = computed(() =>
         </p>
       </div>
 
-      <table class="w-full text-sm">
-        <thead class="text-xs text-muted uppercase">
-          <tr>
-            <th class="py-1 text-left font-normal">
-              Host
-            </th>
-            <th class="py-1 text-right font-normal">
-              Cost / account
-            </th>
-            <th class="hidden sm:table-cell py-1 text-right font-normal">
-              Binding limit
-            </th>
-            <th class="py-1 text-right font-normal">
-              Spare
-            </th>
-            <th class="py-1 text-right font-normal">
-              Accounts fit
-            </th>
-          </tr>
-        </thead>
-        <tbody class="tabular-nums">
-          <tr
-            v-for="route in headroom.routes"
-            :key="route.route"
-            :class="route.route === headroom.bindingRoute ? 'text-highlighted font-medium' : 'text-muted'"
-          >
-            <td class="py-1 font-mono">
-              {{ route.route }}
-            </td>
-            <td class="py-1 text-right">
-              {{ formatCallsPerDay(route.callsPerAccountPerDay) }}
-            </td>
-            <td class="hidden sm:table-cell py-1 text-right">
-              {{ limitLabel(route) }}
-            </td>
-            <td class="py-1 text-right">
-              {{ formatCallsPerDay(route.spareCallsPerDay) }}
-            </td>
-            <td class="py-1 text-right">
-              {{ formatAccounts(route.additionalAccountsHeadroom) }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="text-xs text-muted uppercase">
+            <tr>
+              <th class="py-1 text-left font-normal">
+                Host
+              </th>
+              <th class="py-1 pl-4 text-right font-normal">
+                Calls / account / day
+              </th>
+              <th class="hidden xl:table-cell py-1 pl-4 text-right font-normal">
+                Binding limit
+              </th>
+              <th class="py-1 pl-4 text-right font-normal">
+                Spare / day
+              </th>
+              <th class="py-1 pl-4 text-right font-normal">
+                Accounts fit
+              </th>
+            </tr>
+          </thead>
+          <tbody class="tabular-nums whitespace-nowrap">
+            <tr
+              v-for="route in headroom.routes"
+              :key="route.route"
+              :class="route.route === headroom.bindingRoute ? 'text-highlighted font-medium' : 'text-muted'"
+            >
+              <td class="py-1 font-mono">
+                {{ route.route }}
+              </td>
+              <td class="py-1 pl-4 text-right">
+                {{ formatCostPerAccount(route.callsPerAccountPerDay) }}
+              </td>
+              <td class="hidden xl:table-cell py-1 pl-4 text-right">
+                {{ limitLabel(route) }}
+              </td>
+              <td class="py-1 pl-4 text-right">
+                {{ route.spareCallsPerDay === null ? '—' : formatNumber(Math.round(route.spareCallsPerDay)) }}
+              </td>
+              <td class="py-1 pl-4 text-right">
+                {{ formatRowAccounts(route.additionalAccountsHeadroom) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
     <p v-else class="text-sm text-muted">
       Not enough data yet to estimate: {{ (headroom?.observedWindowHours ?? 0).toFixed(1) }}h of per-host history,
