@@ -33,6 +33,9 @@ public sealed class RiotQuotaQueryService(
     private static readonly HashSet<string> RegionalRoutes =
         new(["americas", "europe", "asia", "sea"], StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>The route the Data query reports for calls whose host could not be read.</summary>
+    internal const string UnknownRoute = "unknown";
+
     public async Task<RiotQuotaReadModel> GetAsync(string? window, CancellationToken ct)
     {
         var (resolved, key) = RiotApiUsageQueryService.ResolveWindow(window);
@@ -76,9 +79,7 @@ public sealed class RiotQuotaQueryService(
         return new RiotRouteQuotaReadModel
         {
             Route = route.Route,
-            Kind = RegionalRoutes.Contains(route.Route) ? "regional"
-                : route.Route == "unknown" ? "unknown"
-                : "platform",
+            Kind = KindOf(route.Route),
             Calls = route.Calls,
             RateLimited = route.RateLimited,
             RateLimitedRate = route.Calls > 0 ? (double)route.RateLimited / route.Calls : null,
@@ -105,6 +106,12 @@ public sealed class RiotQuotaQueryService(
                 .ToList()
         };
     }
+
+    /// <summary>The budget family of a routing host: <c>regional</c>, <c>platform</c> or <c>unknown</c>.</summary>
+    internal static string KindOf(string route)
+        => RegionalRoutes.Contains(route) ? "regional"
+            : route == UnknownRoute ? "unknown"
+            : "platform";
 
     /// <summary>
     /// The count Riot reported for <paramref name="windowSeconds"/> in an

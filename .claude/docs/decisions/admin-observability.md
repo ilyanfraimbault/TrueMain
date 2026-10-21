@@ -193,6 +193,16 @@ page renders an explicit "not enough data" state instead of extrapolating a dail
 same reasoning as the disk forecast's absent state below. Implementation:
 `RiotApiUsageQueryService.BuildHeadroom`/`ResolveBindingLimit` (`internal static`, unit-tested directly).
 
+**Since #1894 the estimate is computed per routing host, and the tightest host binds.** Riot meters each
+routing host separately (#1458), so the original figure — the app's total 7-day volume against the limit of
+whichever host answered last — described no real budget. Each host's calls/day, from route-keyed rollups
+only, is divided by tracked accounts and set against the binding window of the limit *that host* advertised;
+the host with the fewest additional accounts caps the headline and is named, on the tab and on the `/health`
+tile alike. New accounts are assumed to cost each host what the current ones do (the current regional mix).
+The 24h guard now counts route-keyed history only, rates are measured over the covered span rather than the
+nominal 7 days, calls whose host could not be read belong to no budget and are left out, and a host with no
+parseable limit header keeps its cost row but cannot bind.
+
 ## The configuration viewer is an allow-list, and each host reports itself (2026-08-08)
 
 **Decision:** `/ops/configuration` (#1034) exposes sections through a hand-declared allow-list

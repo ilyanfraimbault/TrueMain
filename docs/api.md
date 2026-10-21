@@ -2177,11 +2177,22 @@ Métriques d'usage de la Riot API sur une fenêtre relative.
     "observedWindowHours": 168.0,
     "requiredWindowHours": 24.0,
     "trackedAccounts": 10400,
-    "callsPerAccountPerDay": 42.5,
-    "observedCallsPerDay": 442000.0,
-    "bindingLimit": { "limit": 100, "windowSeconds": 120, "maxCallsPerDay": 72000.0 },
-    "spareCallsPerDay": 18000.0,
-    "additionalAccountsHeadroom": 423
+    "additionalAccountsHeadroom": 5200,
+    "bindingRoute": "europe",
+    "routes": [
+      {
+        "route": "europe", "kind": "regional",
+        "observedCallsPerDay": 48000.0, "callsPerAccountPerDay": 4.615,
+        "bindingLimit": { "limit": 100, "windowSeconds": 120, "maxCallsPerDay": 72000.0 },
+        "spareCallsPerDay": 24000.0, "additionalAccountsHeadroom": 5200
+      },
+      {
+        "route": "euw1", "kind": "platform",
+        "observedCallsPerDay": 9000.0, "callsPerAccountPerDay": 0.865,
+        "bindingLimit": { "limit": 100, "windowSeconds": 120, "maxCallsPerDay": 72000.0 },
+        "spareCallsPerDay": 63000.0, "additionalAccountsHeadroom": 72799
+      }
+    ]
   }
 }
 ```
@@ -2194,13 +2205,26 @@ Métriques d'usage de la Riot API sur une fenêtre relative.
   (#1035) : « qui consomme le budget » n'est pas la même question que « quel endpoint ».
 - `headroom` (#1035) estime « combien de comptes suivis en plus tiendraient », et est
   **toujours calculé sur 7 jours**, indépendamment de `window` — un budget ne se juge
-  pas sur une heure. `sufficientData` à `false` (avec seulement `observedWindowHours` /
-  `requiredWindowHours` renseignés, le reste `null`) quand l'historique est trop mince,
-  qu'aucun compte n'est suivi ou qu'aucun snapshot de rate-limit n'a été vu : l'estimation
-  rend cet état absent au lieu d'extrapoler d'une fenêtre trop courte.
-- `headroom.bindingLimit` est la fenêtre de rate-limit applicatif dont le plafond
+  pas sur une heure. Il est calculé **par host de routage** (#1894) : Riot compte chaque
+  host à part, donc chaque entrée de `routes` met les appels/jour de ce host (rollups
+  `routeKeyed` seulement) face à la limite que **ce host** a annoncée — jamais deux hosts
+  additionnés ni comparés à la limite d'un autre. `bindingRoute` est le host qui accepte le
+  moins de comptes en plus, et `additionalAccountsHeadroom` est son chiffre ; `routes`
+  commence par lui. Les nouveaux comptes sont supposés coûter à chaque host ce que coûtent
+  les actuels (mix régional courant). Les appels sans host lisible (`unknown`) ne relèvent
+  d'aucun budget et sont exclus.
+- `sufficientData` à `false` (avec seulement `observedWindowHours` /
+  `requiredWindowHours` / `trackedAccounts` renseignés, `routes` vide) quand l'historique
+  découpé par route fait moins de 24 h, qu'aucun compte n'est suivi ou qu'aucun host n'a
+  renvoyé d'en-tête de limite : l'estimation rend cet état absent au lieu d'extrapoler
+  d'une fenêtre trop courte. `observedWindowHours` est la période réellement couverte (la
+  rétention ou la bascule #1458 peuvent couper les 7 jours) : tous les débits divisent par
+  elle.
+- `routes[].bindingLimit` est la fenêtre de rate-limit applicatif du host dont le plafond
   journalier soutenu est le **plus petit** — celle qui contraint en premier sous charge
-  continue, pas celle dont le ratio instantané est le plus haut.
+  continue, pas celle dont le ratio instantané est le plus haut. `bindingLimit`,
+  `spareCallsPerDay` et `additionalAccountsHeadroom` valent `null` pour un host qui n'a
+  renvoyé aucun en-tête de limite exploitable : il garde son coût mais ne peut pas lier.
 
 ## `GET /ops/riot-quota`
 
@@ -2249,7 +2273,7 @@ les hosts régionaux.
 - `routes` : hosts régionaux (`americas`/`europe`/`asia`/`sea`) d'abord, puis plateformes,
   chacun par `calls` décroissant — deux budgets indépendants, jamais additionnés.
 - `calls` compte chaque tentative physique, 429 compris. `utilisation` = appels sur la
-  période couverte / ce que la limite liante (même règle que `headroom.bindingLimit`)
+  période couverte / ce que la limite liante (même règle que `headroom.routes[].bindingLimit`)
   autorise sur cette période ; `currentUtilisation` = le dernier `X-App-Rate-Limit-Count`
   du host sur cette fenêtre liante, à `observedAtUtc`. Les deux valent `null` si le host
   n'a renvoyé aucun en-tête de limite exploitable : sans limite annoncée, pas de ratio.

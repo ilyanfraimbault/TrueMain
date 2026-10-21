@@ -81,6 +81,34 @@ public sealed class RiotQuotaQuery(MongoLogContext context) : IRiotQuotaQuery
         return new RiotQuotaUsage(since, await oldestTask, await oldestRouteKeyedTask, routes);
     }
 
+    public async Task<RiotHeadroomInputs> GetHeadroomInputsAsync(CancellationToken ct)
+    {
+        var (since, _, _) = RiotApiUsageQuery.ResolveWindow(RiotUsageWindow.Last7Days);
+        if (!context.IsActive)
+        {
+            return new RiotHeadroomInputs(since, null, []);
+        }
+
+        var routeKeyed = Filter.Eq(doc => doc.RouteKeyed, true);
+        var filter = Filter.Gte(doc => doc.BucketStartUtc, since) & routeKeyed;
+
+        var callsTask = AggregateRouteCallsAsync(filter, ct);
+        var headersTask = AggregateLatestHeadersAsync(filter, ct);
+        var oldestRouteKeyedTask = OldestBucketAsync(routeKeyed, ct);
+
+        await Task.WhenAll(callsTask, headersTask, oldestRouteKeyedTask);
+
+        var headers = await headersTask;
+        var routes = (await callsTask)
+            .Select(calls => new RiotRouteVolume(
+                calls.Route,
+                calls.Calls,
+                headers.TryGetValue(calls.Route, out var latest) ? latest.AppRateLimit : null))
+            .ToList();
+
+        return new RiotHeadroomInputs(since, await oldestRouteKeyedTask, routes);
+    }
+
     // Walks the descending bucket index backwards, so the route-keyed lookup only scans
     // the legacy rollups older than the cutover — bounded by the retention.
     private async Task<DateTime?> OldestBucketAsync(
@@ -135,6 +163,31 @@ public sealed class RiotQuotaQuery(MongoLogContext context) : IRiotQuotaQuery
                 row["rateLimited"].ToInt64(),
                 row["errors"].ToInt64(),
                 row["activeMinutes"].ToInt64()))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Calls per route, in one group stage: the headroom needs no active-minute count, so it
+    /// skips the per-minute stage of <see cref="AggregateRouteTotalsAsync"/>.
+    /// </summary>
+    private async Task<IReadOnlyList<(string Route, long Calls)>> AggregateRouteCallsAsync(
+        FilterDefinition<RiotApiCallRollupDocument> filter,
+        CancellationToken ct)
+    {
+        var group = new BsonDocument
+        {
+            { "_id", "$route" },
+            { "calls", new BsonDocument("$sum", "$count") }
+        };
+
+        var rows = await context.RiotApiCallRollups
+            .Aggregate()
+            .Match(filter)
+            .Group<BsonDocument>(group)
+            .ToListAsync(ct);
+
+        return rows
+            .Select(row => (KeyOf(row["_id"]), row["calls"].ToInt64()))
             .ToList();
     }
 
