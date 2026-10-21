@@ -212,6 +212,49 @@ docker exec -i <postgres-container> psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
 The general rule: when a migration depends on a server setting shipped alongside it,
 expect to apply it by hand after the restart, and say so in the PR.
 
+### Pre-building a heavy index out of band
+
+A new index on `match_participants` reads the whole heap to build, however small the
+index itself, and inside the migrate job's transaction it does so under a `SHARE`
+lock: reads keep flowing, but every ingestor write waits for the full pass. When
+that pass is long enough to matter, the index is built by the operator with
+`CONCURRENTLY` (no write lock) **before** the deploy that carries its migration, and
+the migration itself is a guarded `CREATE INDEX IF NOT EXISTS` that the rollout then
+skips. The index stays declared in the model, so EF, the compiled model and the
+schema agree, and a fresh database still gets it from the migrations alone (an empty
+table builds instantly).
+
+On each environment — preprod before the PR merges to `develop`, prod before the
+release is published — feed the index's statement (table below) to psql on standard
+input, then check the result:
+
+```bash
+docker exec -i <postgres-container> psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
+SET statement_timeout = 0;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "IX_match_participants_team_position_pending"
+  ON match_participants ("MatchId", "TeamId") WHERE "TeamPosition" = '';
+SELECT indisvalid FROM pg_index
+  WHERE indexrelid = '"IX_match_participants_team_position_pending"'::regclass;
+SQL
+```
+
+- Standard input, not `-c`: psql runs a script read from stdin one statement per
+  transaction, while a multi-statement `-c` is a single transaction, which
+  `CONCURRENTLY` refuses.
+- A `CONCURRENTLY` build that fails or is interrupted leaves an `INVALID` index behind,
+  and `IF NOT EXISTS` would then keep that unusable index forever. If the check
+  returns `f`, run `DROP INDEX CONCURRENTLY "<index name>";` and build again.
+- Skipping the pre-build is not fatal: the migrate job builds the index itself, inside
+  its transaction, at the cost of stalling ingestor writes for one heap pass. The
+  script's 10-minute `statement_timeout` bounds it, and a rollback leaves nothing
+  behind.
+
+The indexes built this way:
+
+| Index | Columns and filter | Since |
+|---|---|---|
+| `IX_match_participants_team_position_pending` | `("MatchId", "TeamId") WHERE "TeamPosition" = ''` | #2095 |
+
 ## CI wiring
 
 Both `deploy-preprod.yml` (on every push to `develop`) and `deploy-prod.yml`
