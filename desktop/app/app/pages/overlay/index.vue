@@ -3,6 +3,7 @@ import { formatPercentage } from '#shared/utils/ddragon'
 import type { OverlayPanel, OverlayPanelSettings, OverlaySettings, OverlayShow, PanelTrigger } from '~/types/overlay'
 import type { Point } from '~/utils/overlay-layout'
 import { OVERLAY_OPACITY, OVERLAY_PANELS, OVERLAY_SCALE, PANEL_KEY, SCOREBOARD_NUDGE } from '~/types/overlay'
+import { nudgeLabel } from '~/utils/scoreboard-geometry'
 
 /**
  * The in-game overlay (#1795), set up out of game (#1819): which panels show
@@ -52,18 +53,10 @@ const nudge = ref(0)
 watch(() => current.value?.scale, value => (scale.value = value ?? 1), { immediate: true })
 watch(() => current.value?.opacity, value => (opacity.value = value ?? 0.95), { immediate: true })
 watch(() => current.value?.scoreboardNudge, value => (nudge.value = value ?? 0), { immediate: true })
-const nudgeLabel = computed(() => (nudge.value === 0 ? 'None' : `${Math.abs(nudge.value)} px ${nudge.value < 0 ? 'up' : 'down'}`))
 let timer: ReturnType<typeof setTimeout> | undefined
-// One save for every slider moved within the delay, none lost to the next.
-let pending: Partial<OverlaySettings> = {}
 function settle(change: Partial<OverlaySettings>) {
-  pending = { ...pending, ...change }
   clearTimeout(timer)
-  timer = setTimeout(() => {
-    const settled = pending
-    pending = {}
-    apply(settled)
-  }, 250)
+  timer = setTimeout(() => apply(change), 250)
 }
 onBeforeUnmount(() => clearTimeout(timer))
 
@@ -153,7 +146,7 @@ onBeforeUnmount(() => void preview(false))
       <section v-if="current.laneGold.enabled" class="flex flex-col gap-2">
         <div class="flex items-baseline justify-between">
           <h3 class="stat-label">Lane gold nudge</h3>
-          <span class="stat-value text-sm">{{ nudgeLabel }}</span>
+          <span class="stat-value text-sm">{{ nudgeLabel(nudge) }}</span>
         </div>
         <USlider
           :model-value="nudge"

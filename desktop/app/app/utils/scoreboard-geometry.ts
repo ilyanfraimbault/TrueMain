@@ -50,6 +50,12 @@ export function scoreboardRows(frame: Size, hud: Pick<HudSettings, 'globalScale'
   }
 }
 
+/** The player's nudge as the Overlay page shows it: `None`, `12 px up`, `8 px down`. */
+export function nudgeLabel(nudge: number): string {
+  if (nudge === 0) return 'None'
+  return `${Math.abs(nudge)} px ${nudge < 0 ? 'up' : 'down'}`
+}
+
 /** The lane-gold window on `frame`: `width` wide, on the board's middle, as tall as its rows — the shell's `plates_rect`. */
 export function platesBox(frame: Size, hud: Pick<HudSettings, 'globalScale'>, nudge: number, width: number): Box {
   const rows = scoreboardRows(frame, hud, nudge)

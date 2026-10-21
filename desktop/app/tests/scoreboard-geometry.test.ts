@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_HUD } from '~/types/overlay'
-import { platesBox, SCOREBOARD_ROWS, scoreboardRows } from '~/utils/scoreboard-geometry'
+import { nudgeLabel, platesBox, SCOREBOARD_ROWS, scoreboardRows } from '~/utils/scoreboard-geometry'
 
 // The same values as `crates/shell-state/src/scoreboard.rs`'s tests: the shell
 // places the window, this draws it on the Overlay page — they must agree.
@@ -42,6 +42,12 @@ describe('scoreboard geometry', () => {
     const top = (nudge: number) => scoreboardRows({ width: 1280, height: 720 }, DEFAULT_HUD, nudge).top
     expect(top(-20) - top(0)).toBeCloseTo(-13.33, 1)
     expect(top(500)).toBeCloseTo(top(60), 6)
+  })
+
+  it('names the nudge the way the slider moves it', () => {
+    expect(nudgeLabel(0)).toBe('None')
+    expect(nudgeLabel(-12)).toBe('12 px up')
+    expect(nudgeLabel(8)).toBe('8 px down')
   })
 
   it('spans the five rows with the plates window, on the middle', () => {
