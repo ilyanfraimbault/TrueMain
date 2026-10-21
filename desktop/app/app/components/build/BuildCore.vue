@@ -40,7 +40,11 @@ withDefaults(defineProps<{
     <div class="grid gap-x-6 gap-y-5 @xl:grid-cols-[minmax(0,1fr)_272px] @xl:items-center">
       <div class="flex flex-wrap items-start justify-around gap-x-6 gap-y-5">
         <div class="flex flex-col gap-5">
-          <ChampionCoreSpells :summoners="summonerSpells" :summoners-map="summonersMap" :summoners-pending="summonersPending" />
+          <div class="relative">
+            <ChampionCoreSpells :summoners="summonerSpells" :summoners-map="summonersMap" :summoners-pending="summonersPending" />
+            <!-- A kit's spell import (#2185), in the summoners' corner as the runes' is in theirs. -->
+            <div v-if="$slots.spells" class="absolute -right-8 top-6"><slot name="spells" /></div>
+          </div>
           <ChampionCoreStarterItems :starter="starterItems" :items-map="itemsMap" />
         </div>
         <div class="flex flex-col gap-5">

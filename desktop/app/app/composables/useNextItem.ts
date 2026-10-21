@@ -102,5 +102,5 @@ export function useNextItem(game: Ref<GameState | null>) {
     controller?.abort()
   })
 
-  return { answer, pending, failed }
+  return { answer, pending, failed, order }
 }
