@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DraftSuggestionItem } from '~/types/draft'
+import { comfortOf, comfortText } from '~/utils/draft-comfort'
 import { damageNote } from '~/utils/draft-damage'
 
 /**
@@ -37,6 +38,7 @@ const { nameOf, champions } = useChampionStatics()
 const { writable } = useChampSelectActions()
 const { entryOf, status: tierListStatus } = useTierList()
 const { profileOf } = useDamageProfiles()
+const { games } = usePlayerRecord()
 
 /** What each pick does to our damage mix, when it answers a one-sided team (#1907). Never part of the order, never on a ban. */
 const notes = computed(() => {
@@ -46,6 +48,15 @@ const notes = computed(() => {
     item.championId,
     damageNote(allies, profileOf(item.championId, props.position)),
   ]))
+})
+
+/** The player's own recent games on each pick, from their client (#1906): said on hover, never part of the order. */
+const comforts = computed(() => {
+  if (props.mode !== 'pick') return new Map<number, string>()
+  return new Map(props.suggestions.flatMap((item) => {
+    const comfort = comfortOf(games.value, item.championId)
+    return comfort ? [[item.championId, comfortText(nameOf(item.championId), comfort)] as const] : []
+  }))
 })
 
 const search = ref('')
@@ -144,6 +155,7 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
           :focused="focused === item.championId"
           :height="heightOf(index)"
           :note="notes.get(item.championId) ?? null"
+          :comfort="comforts.get(item.championId) ?? null"
         >
           <!-- The card's click previews the build; the write is the control over its corner, a separate target. -->
           <button

@@ -25,7 +25,12 @@ const { turnLabel } = provideChampSelectActions(draft)
 const { myPool, hasPool, lanePool, candidates } = useDraftCandidates(draft)
 
 const pinnedLanes = ref<Record<number, string>>({})
-const { recommendation, pending: ranking, error: rankError } = useDraftRecommendation(draft, pinnedLanes, candidates)
+// The player's record (standing, latest games) feeds the bracket and the comfort lines; held
+// for the session, read again only when stale.
+const { refresh: readRecord } = usePlayerRecord()
+onMounted(() => void readRecord())
+const eloBracket = useDraftEloBracket()
+const { recommendation, pending: ranking, error: rankError } = useDraftRecommendation(draft, pinnedLanes, candidates, eloBracket)
 
 /**
  * Bans are the question on our ban turn, and in the planning phase once the
@@ -36,7 +41,7 @@ const banTime = computed(() => {
   if (action?.kind === 'ban' && action.inProgress) return true
   return props.draft.timerPhase === 'PLANNING' && props.draft.myChampion !== null && !props.draft.myChampionLocked
 })
-const { bans, pending: banPending, error: banError } = useDraftBans(draft, lanePool, banTime)
+const { bans, pending: banPending, error: banError } = useDraftBans(draft, lanePool, banTime, eloBracket)
 
 const pickSuggestions = computed<DraftSuggestionItem[]>(() => (recommendation.value?.candidates ?? []).map(candidate => ({
   championId: candidate.championId,

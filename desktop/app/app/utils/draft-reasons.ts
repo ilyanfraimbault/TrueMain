@@ -46,6 +46,24 @@ function laneLabel(position: string): string {
   return positionLabel(position, { short: true }) ?? position.toLowerCase()
 }
 
+/**
+ * Our team as a `teamFit` reason's band describes it — the item-context axes'
+ * own bands (`DraftAxisThresholds`): allies' magic share under 30% / from 55%,
+ * frontliners none / one / two or more.
+ */
+const TEAM_BANDS: Record<string, Record<string, { short: string, full: string }>> = {
+  AllyMagicDamage: {
+    Low: { short: 'Physical team', full: 'a mostly physical team' },
+    Mid: { short: 'Mixed team', full: 'a mixed-damage team' },
+    High: { short: 'Magic team', full: 'a mostly magic team' },
+  },
+  AllyFrontline: {
+    Low: { short: 'No frontline', full: 'no frontliner among its allies' },
+    Mid: { short: 'One frontline', full: 'one frontliner among its allies' },
+    High: { short: 'Frontline team', full: 'two frontliners or more among its allies' },
+  },
+}
+
 function signTone(value: number | null): ReasonText['tone'] {
   if (value === null || value === 0) return 'neutral'
   return value > 0 ? 'good' : 'bad'
@@ -100,6 +118,16 @@ export function describeReason(reason: DraftReason, nameOf: (championId: number)
         full: `${draftPoints(delta)} with ${name}${reason.tentative ? ', who is only hovering' : ''} over ${games(reason.games)}`,
         tone: signTone(delta),
       }
+    case 'teamFit': {
+      const team = TEAM_BANDS[reason.axis ?? '']?.[reason.bucket ?? ''] ?? { short: 'Your team', full: 'your team so far' }
+      return {
+        headline: signed(delta),
+        unit: 'pts',
+        short: `${team.short}${reason.tentative ? ' (hover)' : ''}`,
+        full: `${draftPoints(delta)} with ${team.full}${reason.tentative ? ', counting a hovered pick' : ''}, over ${games(reason.games)}`,
+        tone: signTone(delta),
+      }
+    }
     case 'lanePhase': {
       const rate = reason.rate ?? 0.5
       return {
