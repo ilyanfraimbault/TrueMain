@@ -21,7 +21,7 @@ const props = defineProps<{
 }>()
 
 /** The app's panel widths, in points (`PANEL_WIDTHS`). */
-const WIDTHS: Record<LandingOverlayPanelKind, number> = { 'next-item': 232, 'win-probability': 160, 'pace': 176, 'objectives': 212, 'item-value': 300 }
+const WIDTHS: Record<LandingOverlayPanelKind, number> = { 'next-item': 232, 'win-probability': 160, 'pace': 176, 'objectives': 292, 'item-value': 300 }
 
 const canonicalIcon = useCanonicalIcon()
 const itemIcon = (id: number) => (props.patch ? `https://ddragon.leagueoflegends.com/cdn/${props.patch}/img/item/${id}.png` : null)

@@ -30,7 +30,7 @@ const STEPS: { panel: LandingOverlayPanelKind, title: string, body: string, keys
   {
     panel: 'objectives',
     title: 'The next objectives, timed',
-    body: 'When the dragon, the Voidgrubs, the Rift Herald and Baron are next up, and the drakes each side holds — from the game clock and the kills the game announces, what every player can see, kept for you.',
+    body: 'When the dragon, the Voidgrubs, the Rift Herald and Baron are next up, in one strip above the game, and the race to the soul under it — from the game clock and the kills the game announces: what every player can see, kept for you.',
   },
   {
     panel: 'item-value',

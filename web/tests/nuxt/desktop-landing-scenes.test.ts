@@ -107,14 +107,16 @@ describe('LandingOverlayPanel', () => {
 })
 
 describe('LandingObjectives', () => {
-  it('sets the dragon pit between the drakes each side took, then counts the camps down from the sample clock', async () => {
+  it('counts the camps down from the sample clock, Baron waiting on the Herald, the soul race under them', async () => {
     const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'objectives', patch: PATCH, items: null } })
 
-    const rows = wrapper.findAll('li')
-    expect(rows).toHaveLength(3)
-    expect(rows[0]!.findAll('img.ring-ally\\/70')).toHaveLength(1)
-    expect(rows[0]!.findAll('img.ring-enemy\\/70')).toHaveLength(1)
-    expect(rows.map(row => row.text())).toEqual(['2:37', '1:37', '6:37'])
+    const pills = wrapper.findAll('li')
+    expect(pills.map(pill => pill.attributes('data-objective'))).toEqual(['dragon', 'herald', 'baron'])
+    expect(pills.map(pill => pill.text())).toEqual(['2:37', '1:37', '6:37'])
+    expect(pills[2]!.find('img').classes()).toContain('grayscale')
+    const race = wrapper.find('[data-soul-race]')
+    expect(race.findAll('img.ring-ally\\/70')).toHaveLength(1)
+    expect(race.findAll('img.ring-enemy\\/70')).toHaveLength(1)
   })
 })
 

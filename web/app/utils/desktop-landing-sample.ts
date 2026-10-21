@@ -56,10 +56,10 @@ export const SAMPLE_PACE_REFERENCE = {
 } as const
 
 /**
- * The objectives panel's sample at 13:23 (#2078's rules): a drake each side, the
- * Rift turned Infernal so the next one is named, due at 16:00; the grubs gone;
- * the Herald at 15:00 and Baron at 20:00. Each spawn is a game time, in seconds,
- * as the shell sends it.
+ * The objectives strip's sample at 13:23 (#2078's rules, #2184's strip): a drake
+ * each side, the Rift turned Infernal so the next one is named, due at 16:00; the
+ * grubs gone, so the Herald counts down to 15:00, and Baron, due at 20:00, waits
+ * on the Herald. Each spawn is a game time, in seconds, as the shell sends it.
  */
 export const SAMPLE_OBJECTIVES = {
   drakes: { ally: ['cloud'], enemy: ['infernal'] },
