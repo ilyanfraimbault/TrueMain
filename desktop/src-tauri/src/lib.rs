@@ -156,6 +156,8 @@ const READABLE_PATHS: &[&str] = &[
     "/champions/directory",
     // Every champion's damage profile, for the draft's team damage bars (#1905).
     "/champions/damage-profiles",
+    // The in-game shop's class of every item, for the kit editor's item picker.
+    "/items/classes",
     "/truemains",
     "/truemains/search",
     "/truemains/lookup",
@@ -449,6 +451,7 @@ mod tests {
         assert!(readable("/champions/tierlist"));
         assert!(readable("/champions/directory"));
         assert!(readable("/champions/damage-profiles"));
+        assert!(readable("/items/classes"));
         assert!(readable("/benchmarks/pace"));
         assert!(readable("/benchmarks/form"));
         assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));

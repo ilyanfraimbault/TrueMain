@@ -24,6 +24,7 @@ const global = {
     UPopover: { template: '<div><slot /><slot name="content" /></div>' },
     UModal: { props: ['open', 'title'], template: '<div v-if="open" class="modal"><h2>{{ title }}</h2><slot name="body" /></div>' },
     UInput: { props: ['modelValue'], emits: ['update:modelValue'], template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)">' },
+    UTabs: { props: ['items', 'modelValue'], emits: ['update:modelValue'], template: '<div class="tabs"><button v-for="tab in items" :key="tab.value" class="tab" :data-active="tab.value === modelValue" @click="$emit(\'update:modelValue\', tab.value)">{{ tab.label }}</button></div>' },
   },
 }
 
@@ -164,6 +165,27 @@ describe('KitItemPicker', () => {
     await wrapper.get('[aria-label="Lich Bane"]').trigger('click')
     expect(wrapper.emitted('pick')).toEqual([[3100]])
     expect(wrapper.emitted('update:open')).toEqual([[false]])
+  })
+})
+
+describe('KitItemPicker by shop class', () => {
+  it('filters the legendaries by the class picked, and offers no filter without classes', async () => {
+    const shop = { ...items, 3031: item(3031, { name: 'Infinity Edge' }) }
+    const classes = { 6655: ['Mage'], 3100: ['Mage', 'Assassin'], 3089: ['Mage'], 4645: ['Mage'], 3031: ['Marksman'] }
+    const wrapper = mount(KitItemPicker, { props: { open: true, items: shop, groups: ['legendary'], classes, title: 'Add an item' }, global })
+    const shown = () => wrapper.findAll('section button').map(button => button.attributes('aria-label'))
+    expect(wrapper.findAll('.tab').map(tab => tab.text())).toEqual(['All', 'Fighter', 'Marksman', 'Assassin', 'Mage', 'Tank', 'Support'])
+    expect(shown()).toHaveLength(5)
+
+    await wrapper.findAll('.tab').find(tab => tab.text() === 'Marksman')!.trigger('click')
+    expect(shown()).toEqual(['Infinity Edge'])
+    await wrapper.findAll('.tab').find(tab => tab.text() === 'Tank')!.trigger('click')
+    expect(wrapper.text()).toContain('No item in this class.')
+
+    const bare = mount(KitItemPicker, { props: { open: true, items: shop, groups: ['legendary'], title: 'Add an item' }, global })
+    expect(bare.find('.tabs').exists()).toBe(false)
+    const starter = mount(KitItemPicker, { props: { open: true, items: shop, groups: ['starter', 'component'], classes, title: 'Starter item' }, global })
+    expect(starter.find('.tabs').exists()).toBe(false)
   })
 })
 

@@ -908,4 +908,6 @@ took (the earliest completed when two were, the first child where it splits), th
 or runner-up — those are the mains' figures — and falls back to the mains' answer, said as such, once the kit has
 nothing left — #2185. The boots are a list to pick between, the first the default, still one slot of a full build;
 any of them held counts as the boots done; the tree takes legendaries only, components being a build's steps, not
-its choices — #2201.
+its choices — #2201. The picker groups legendaries by the in-game shop's classes, read from the game data (the
+`mItemAttributes` bits — no other source carries them) by the API once per patch and served small, never by the app:
+the dump is ~16 MB — #2203.

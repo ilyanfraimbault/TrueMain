@@ -327,6 +327,14 @@ builder.Services.AddHttpClient<IChampionStaticsProvider, DataDragonChampionStati
 // not-yet-published patch has been served from the fallback branch (#1107).
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
+// The shop classes of the game's items, for the desktop kit editor's picker: read from
+// CommunityDragon's dump of the game data (about 16 MB), so a singleton whose per-patch
+// cache outlives a request.
+builder.Services.AddHttpClient(nameof(CommunityDragonItemClassProvider));
+builder.Services.AddSingleton<IItemClassProvider>(services => new CommunityDragonItemClassProvider(
+    () => services.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(CommunityDragonItemClassProvider)),
+    services.GetRequiredService<ILogger<CommunityDragonItemClassProvider>>(),
+    services.GetRequiredService<TimeProvider>()));
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
 builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();

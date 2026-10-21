@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import type { StaticItemData } from '#shared/types/static-data'
-import type { KitItemGroup } from '~/utils/kit-items'
-import { kitItemGroups, searchKitItems } from '~/utils/kit-items'
+import type { ItemClassMap, ItemShopClass, KitItemGroup } from '~/utils/kit-items'
+import { ITEM_SHOP_CLASSES, kitItemGroups, searchKitItems } from '~/utils/kit-items'
 
 /**
  * The item picker of the kit editor: the patch's Rift shop, searched by name,
  * grouped — legendaries, boots, components, starters — each icon with the
- * site's item card on hover (`GameTooltipItemIcon`). An item that would repeat
+ * site's item card on hover (`GameTooltipItemIcon`). The legendaries filter by
+ * the in-game shop's classes — Fighter, Marksman, Assassin, Mage, Tank,
+ * Support — once those are read (`useItemClasses`). An item that would repeat
  * one already taken is shown, with its card, but cannot be taken.
  */
 const props = withDefaults(defineProps<{
@@ -16,19 +18,30 @@ const props = withDefaults(defineProps<{
   /** Items that cannot go here, and why, after the item's name. */
   blocked?: number[]
   blockedNote?: string
+  /** Each item's shop classes; without them the picker offers no class filter. */
+  classes?: ItemClassMap
   title: string
-}>(), { blocked: () => [], blockedNote: 'already on this path' })
+}>(), { blocked: () => [], blockedNote: 'already on this path', classes: () => ({}) })
 
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ pick: [itemId: number] }>()
 
 const query = ref('')
+const shopClass = ref<ItemShopClass | 'all'>('all')
 watch(open, (value) => {
-  if (value) query.value = ''
+  if (!value) return
+  query.value = ''
+  shopClass.value = 'all'
 })
 
+const classTabs = [{ label: 'All', value: 'all' }, ...ITEM_SHOP_CLASSES]
+const filtersByClass = computed(() => props.groups.includes('legendary') && Object.keys(props.classes).length > 0)
+
 const grouped = computed(() => kitItemGroups(props.items))
-const sections = computed(() => searchKitItems(props.items, grouped.value, query.value, props.groups))
+const sections = computed(() => searchKitItems(props.items, grouped.value, query.value, props.groups, {
+  shopClass: filtersByClass.value && shopClass.value !== 'all' ? shopClass.value : null,
+  classes: props.classes,
+}))
 
 function pick(itemId: number) {
   if (props.blocked.includes(itemId)) return
@@ -40,10 +53,21 @@ function pick(itemId: number) {
 <template>
   <UModal v-model:open="open" :title="title" :ui="{ content: 'max-w-xl', body: 'p-0 sm:p-0' }">
     <template #body>
-      <div class="border-b border-default p-3">
+      <div class="space-y-2 border-b border-default p-3">
         <UInput v-model="query" icon="i-lucide-search" placeholder="Search an item" class="w-full" aria-label="Search an item" />
+        <UTabs
+          v-if="filtersByClass"
+          v-model="shopClass"
+          :items="classTabs"
+          :content="false"
+          variant="pill"
+          color="neutral"
+          size="xs"
+          aria-label="Item class"
+          :ui="{ list: 'ring ring-default', indicator: 'rounded-md bg-accented shadow-none', trigger: 'px-2.5 data-[state=active]:text-highlighted' }"
+        />
       </div>
-      <div class="max-h-[22rem] space-y-4 overflow-y-auto p-3">
+      <div class="h-[22rem] space-y-4 overflow-y-auto p-3">
         <section v-for="section in sections" :key="section.group">
           <h3 class="stat-label mb-2">{{ section.label }}</h3>
           <div class="grid grid-cols-[repeat(auto-fill,minmax(2.25rem,1fr))] gap-1.5">
@@ -60,7 +84,9 @@ function pick(itemId: number) {
             </button>
           </div>
         </section>
-        <p v-if="sections.length === 0" class="py-6 text-center text-sm text-muted">No item matches “{{ query }}”.</p>
+        <p v-if="sections.length === 0" class="py-6 text-center text-sm text-muted">
+          {{ query ? `No item matches “${query}”.` : 'No item in this class.' }}
+        </p>
       </div>
     </template>
   </UModal>
