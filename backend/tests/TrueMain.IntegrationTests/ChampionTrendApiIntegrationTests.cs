@@ -253,6 +253,7 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
         }
 
         await seeder.SaveAsync(db);
+        await LightRecordSeed.BackfillFromScopesAsync(_fixture);
     }
 
     // Seven consecutive MIDDLE patches for the champion under test so the
@@ -292,6 +293,7 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
         }
 
         await seeder.SaveAsync(db);
+        await LightRecordSeed.BackfillFromScopesAsync(_fixture);
     }
 
     private sealed class ApiWebApplicationFactory(

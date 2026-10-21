@@ -55,6 +55,19 @@ stored for it; `ALL` is the sum of the brackets, as on the scopes. Three calls:
 The subtraction is floored at zero so a record that drifted from hand-edited scopes is rewritten by the next
 replacement instead of failing every run on the row's wins-within-games check — #1956, #1467.
 
+**"Trend by patch" and the lifetime games total read the light record; the other cross-patch readers cannot (2026-10-21).**
+Step 2 of the two-level retention. `ChampionTrendQueryService` reads `champion_patch_stats` (numerators and the
+lane total, mains only as before) and the ban pair, and the homepage's `gamesAnalyzed` sums the record instead
+of the scopes — the same figures while the scopes exist, since the record is their per-patch sum, and the only
+ones left once #1958 purges them. The trend endpoint gains the optional `eloBracket` filter the record keeps its
+bracket grain for (tiers and `TIER_PLUS`, bans summed over the filter's bands as in the directory); the web does
+not forward the page's rank filter yet, so the chart and the banner's moves still read every rank. The audit of
+every full-aggregate reader found the rest single-patch except account-level reads the record cannot answer —
+the truemains leaderboard's games / W-L / KDA cells, its Games/KDA sorts and its per-account top build (every
+patch summed), the persona "last game" fallback (`MAX(LastGameStartTimeUtc)`) — and the ops views of the
+aggregates themselves (account explorer, aggregation stats, patch coverage). Those change meaning under the purge
+and are #1958's to settle before it ships — #1957, #1467.
+
 **Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid.**
 The dense per-minute grid grew to ~13 GB / 55.6M rows for exactly one consumer (power spikes); every other
 reader uses only those five marks. It was first pruned once a match was powerspike-aggregated (#772, #694);

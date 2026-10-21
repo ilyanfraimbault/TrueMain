@@ -1,5 +1,7 @@
+using Core.Lol.Ranking;
 using Core.Options;
 using Data;
+using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Champions;
@@ -13,15 +15,19 @@ public interface IChampionTrendQueryService
     /// Builds the per-patch winrate / pickrate series for a champion on a
     /// single position, spanning up to the five most recent patches that have
     /// data (oldest → newest). The series is cross-patch by design — no patch
-    /// filter is taken, so the caller's active patch never scopes it. The
-    /// position is the requested one when given and canonical, otherwise the
-    /// champion's dominant lane on its latest patch. Returns an empty series
-    /// (not null) when the champion has no aggregate scopes, so the caller can
-    /// render a "not enough data" state without a 404.
+    /// filter is taken, so the caller's active patch never scopes it. It reads
+    /// the light per-patch record (<c>champion_patch_stats</c> + the ban pair,
+    /// #1956/#1957), the only level that outlives a patch's full aggregates.
+    /// The position is the requested one when given and canonical, otherwise
+    /// the champion's dominant lane on its latest patch. <paramref name="eloBracket"/>
+    /// is the usual rank filter (a tier or <c>TIER_PLUS</c>; null or <c>ALL</c>
+    /// for every rank). Returns an empty series (not null) when the champion has
+    /// no record, so the caller can render a "not enough data" state without a 404.
     /// </summary>
     Task<ChampionTrendReadModel> GetTrendAsync(
         int championId,
         string? position,
+        string? eloBracket,
         CancellationToken ct);
 }
 
@@ -44,42 +50,39 @@ public sealed class ChampionTrendQueryService(
     public Task<ChampionTrendReadModel> GetTrendAsync(
         int championId,
         string? position,
+        string? eloBracket,
         CancellationToken ct)
         => cache.GetOrComputeAsync(
-            $"champions:trend:{championId}:{position ?? "auto"}",
-            token => ComputeTrendAsync(championId, position, token),
+            $"champions:trend:{championId}:{position ?? "auto"}:{EloBracket.ResolveToken(eloBracket)}",
+            token => ComputeTrendAsync(championId, position, EloBracket.ResolveFilterOrEmpty(eloBracket), token),
             ct);
 
     private async Task<ChampionTrendReadModel> ComputeTrendAsync(
         int championId,
         string? position,
+        IReadOnlyList<string>? bracketBands,
         CancellationToken ct)
     {
-        // Cast the configured queue (a LolQueueId) to the int the persisted
-        // scope stores, matching ChampionSummariesQueryService so both read the
-        // same rows.
+        // Cast the configured queue (a LolQueueId) to the int the record stores,
+        // matching ChampionSummariesQueryService so both read the same population.
         var queueId = (int)options.Value.QueueId;
 
-        // Pull every positioned scope for this champion in one round-trip and
+        // Pull every positioned row for this champion in one round-trip and
         // fold the per-(patch, position) totals in memory. A champion spans a
-        // handful of patches × at most five lanes, so the row set is tiny and
-        // re-querying per patch would only add latency. Blank positions are
-        // the "no lane" sentinel and never belong on a per-lane trend; Trim()
-        // mirrors the directory's scope filter so a whitespace-only position
-        // can't leak a phantom lane the directory hides.
-        var champRows = await db.ChampionAggregateScopes
-            .AsNoTracking()
-            .Where(scope => scope.ChampionId == championId && scope.QueueId == queueId)
-            .Where(scope => scope.Position.Trim() != string.Empty)
-            // Mains only, the population this read has always described (#1346
-            // added the non-main rows; every pre-existing read keeps its meaning).
-            .Where(scope => scope.IsMain)
-            .GroupBy(scope => new { scope.GameVersion, scope.Position })
+        // handful of patches × at most five lanes × the brackets, so the row set
+        // is tiny and re-querying per patch would only add latency. Blank
+        // positions are the "no lane" sentinel and never belong on a per-lane
+        // trend; Trim() mirrors the directory's scope filter so a whitespace-only
+        // position can't leak a phantom lane the directory hides.
+        var champRows = await ForTrend(queueId, bracketBands)
+            .Where(stat => stat.ChampionId == championId)
+            .Where(stat => stat.Position.Trim() != string.Empty)
+            .GroupBy(stat => new { stat.Patch, stat.Position })
             .Select(group => new ChampionPatchRow(
-                group.Key.GameVersion,
+                group.Key.Patch,
                 group.Key.Position,
-                group.Sum(scope => scope.Games),
-                group.Sum(scope => scope.Wins)))
+                group.Sum(stat => stat.Games),
+                group.Sum(stat => stat.Wins)))
             .ToListAsync(ct);
 
         if (champRows.Count == 0)
@@ -120,13 +123,14 @@ public sealed class ChampionTrendQueryService(
         }
 
         var patchesInSeries = lanePatches.Select(row => row.Patch).ToList();
-        var laneTotals = await LoadLaneTotalsAsync(queueId, resolvedPosition, patchesInSeries, ct);
+        var laneTotals = await LoadLaneTotalsAsync(queueId, bracketBands, resolvedPosition, patchesInSeries, ct);
 
-        // The endpoint carries no elo filter, so this reads the stored ALL band
-        // (#920). Patches older than ban ingestion are simply absent from the
-        // lookup and their points keep a null BanRate — a real gap in the series,
-        // which the chart renders as "no ban history yet" rather than as a 0%.
-        var banScopes = await ChampionBanRateQueries.LoadAsync(db, patchesInSeries, bracketBands: null, ct);
+        // No rank filter reads the stored ALL band, a filter sums its bands (#920)
+        // — the directory's rule, through the same helper. Patches older than ban
+        // ingestion are simply absent from the lookup and their points keep a null
+        // BanRate — a real gap in the series, which the chart renders as "no ban
+        // history yet" rather than as a 0%.
+        var banScopes = await ChampionBanRateQueries.LoadAsync(db, patchesInSeries, bracketBands, ct);
 
         var points = lanePatches
             .OrderBy(row => patchSortKeys.Resolve(row.Patch))
@@ -181,30 +185,46 @@ public sealed class ChampionTrendQueryService(
 
     /// <summary>
     /// Total TrueMain games on <paramref name="position"/> per patch across
-    /// every champion — the pickrate denominators. Computed in SQL with a
-    /// single GROUP BY over the requested patches so the share each champion
-    /// row gets matches <see cref="ChampionSummaryReadModel.PickRate"/>
-    /// exactly. Summed as <c>long</c>: a lane total fans in over every
-    /// champion on the patch, the widest accumulator here.
+    /// every champion — the pickrate denominators. The record holds every
+    /// champion, so the lane total is a GROUP BY over it, with the same
+    /// population and bracket set as the numerators and the same definition as
+    /// <see cref="ChampionSummaryReadModel.PickRate"/>. Summed as <c>long</c>: a
+    /// lane total fans in over every champion on the patch, the widest
+    /// accumulator here.
     /// </summary>
     private async Task<IReadOnlyDictionary<string, long>> LoadLaneTotalsAsync(
         int queueId,
+        IReadOnlyList<string>? bracketBands,
         string position,
         IReadOnlyList<string> patches,
         CancellationToken ct)
     {
-        var totals = await db.ChampionAggregateScopes
-            .AsNoTracking()
-            .Where(scope => scope.QueueId == queueId && scope.Position == position)
-            .Where(scope => patches.Contains(scope.GameVersion))
-            // Mains only, the population this read has always described (#1346
-            // added the non-main rows; every pre-existing read keeps its meaning).
-            .Where(scope => scope.IsMain)
-            .GroupBy(scope => scope.GameVersion)
-            .Select(group => new { Patch = group.Key, Games = group.Sum(scope => (long)scope.Games) })
+        var totals = await ForTrend(queueId, bracketBands)
+            .Where(stat => stat.Position == position && patches.Contains(stat.Patch))
+            .GroupBy(stat => stat.Patch)
+            .Select(group => new { Patch = group.Key, Games = group.Sum(stat => (long)stat.Games) })
             .ToListAsync(ct);
 
         return totals.ToDictionary(row => row.Patch, row => row.Games, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// The light record rows every trend figure reads: the queue, mains only — the
+    /// population this read has always described (#1346 added the non-main rows;
+    /// every pre-existing read keeps its meaning) — and the rank filter. Null bands
+    /// are every rank: the record stores per-tier rows only, so the unfiltered read
+    /// is their sum. An empty set (a rejected filter) matches nothing rather than
+    /// falling back to every rank.
+    /// </summary>
+    private IQueryable<ChampionPatchStat> ForTrend(int queueId, IReadOnlyList<string>? bracketBands)
+    {
+        var stats = db.ChampionPatchStats
+            .AsNoTracking()
+            .Where(stat => stat.QueueId == queueId && stat.IsMain);
+
+        return bracketBands is null
+            ? stats
+            : stats.Where(stat => bracketBands.Contains(stat.EloBracket));
     }
 
     private sealed record ChampionPatchRow(string Patch, string Position, int Games, int Wins);

@@ -40,7 +40,8 @@ public interface IChampionSummariesQueryService
     /// <para>
     /// One <c>SUM</c> pushed to SQL rather than a directory per patch: the number is a
     /// scalar, and the patches behind it only ever grow. Cached for half an hour so the
-    /// most-hit page on the site does not scan the aggregate table per request.
+    /// most-hit page on the site does not scan the record per request. Read from the
+    /// light per-patch record (#1957), which keeps every patch the full aggregates drop.
     /// </para>
     /// </summary>
     Task<long> GetTotalGamesAsync(CancellationToken ct);
@@ -147,18 +148,21 @@ public sealed class ChampionSummariesQueryService(
 
     private async Task<long> ComputeTotalGamesAsync(CancellationToken ct)
     {
-        // No patch clause at all — that is the point of the figure. Nullable inside the
-        // Sum so an empty table comes back as SQL NULL and maps to 0 instead of failing
-        // to materialise into a non-nullable long.
+        // No patch clause at all — that is the point of the figure, so it reads the
+        // light per-patch record (#1957): the scopes summed per patch, which keeps
+        // every patch once its full aggregates are purged (#1958) — the same total
+        // while they are not. Nullable inside the Sum so an empty table comes back
+        // as SQL NULL and maps to 0 instead of failing to materialise into a
+        // non-nullable long.
         var sw = Stopwatch.StartNew();
-        var total = await db.ChampionAggregateScopes
+        var total = await db.ChampionPatchStats
             .AsNoTracking()
-            .Where(scope => scope.QueueId == (int)options.Value.QueueId)
+            .Where(stat => stat.QueueId == (int)options.Value.QueueId)
             // Mains only (#1346): the homepage chip counts main games analysed,
             // and it is a headline number — it must not quadruple overnight
             // because the aggregate started holding a second population.
-            .Where(scope => scope.IsMain)
-            .SumAsync(scope => (long?)scope.Games, ct) ?? 0L;
+            .Where(stat => stat.IsMain)
+            .SumAsync(stat => (long?)stat.Games, ct) ?? 0L;
         sw.Stop();
         logger.LogInformation(
             "{Surface} sql=total_games total={Total} elapsed={ElapsedMs}ms",

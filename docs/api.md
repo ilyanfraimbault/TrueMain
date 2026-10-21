@@ -301,6 +301,8 @@ patch actif, sans filtre — la home n'a ni sélecteur de patch ni sélecteur d'
   toujours, pas celui du patch. Un chiffre affiché sans qualificatif ne doit pas
   chuter à chaque rotation de patch. Il compte aussi les scopes sous le plancher et
   sans position, donc ce n'est **pas** la somme des `topRows` (une courte tranche).
+  Lu dans l'enregistrement léger par patch (`champion_patch_stats`, #1957) — les
+  scopes sommés par patch, qui survivent à la purge des agrégats complets (#1958).
 - `patchVersion` est le patch que le site sert, pas forcément le plus récent avec
   des données : un patch trop mince pour remplir un annuaire est sauté (#1109).
 - Lit la même entrée de cache qu'un `GET /champions` non filtré : les deux surfaces
@@ -415,9 +417,18 @@ La réponse a exactement la même forme que sans le filtre. Deux différences de
 ## `GET /champions/{championId}/trend`
 
 Évolution winrate/pickrate/banrate sur les ~5 derniers patchs, pour une position.
-Volontairement **cross-patch** (ignore tout filtre de patch).
+Volontairement **cross-patch** (ignore tout filtre de patch). Lue dans
+l'enregistrement léger par patch (`champion_patch_stats` + `champion_ban_stats` /
+`ban_scope_totals`, #1957), le seul niveau qu'un patch garde une fois ses agrégats
+complets purgés.
 
-**Query** — `position` (string, optionnel ; défaut = lane dominante du champion).
+**Query**
+
+| Param        | Type   | Requis | Défaut         | Description |
+|--------------|--------|--------|----------------|-------------|
+| `position`   | string | non    | lane dominante | Lane dominante du champion sur son dernier patch. |
+| `eloBracket` | string | non    | `ALL`          | Filtre de palier (`GOLD`, `GOLD_PLUS`…), comme `GET /champions`. |
+
 Une valeur non vide qui ne canonicalise pas est un **`400`** : elle n'est pas
 silencieusement ramenée à « pas de filtre ».
 
@@ -436,8 +447,8 @@ silencieusement ramenée à « pas de filtre ».
 ```
 
 - `banRate` : `null` sur tout patch antérieur à la collecte des bans (#920), donc une
-  série partiellement nulle est le cas normal au début. Toutes tranches d'elo confondues
-  (l'endpoint n'a pas de filtre de rang).
+  série partiellement nulle est le cas normal au début. Sans `eloBracket`, la bande `ALL`
+  stockée ; avec, la somme des bandes du filtre, comme l'annuaire.
 
 ## `GET /champions/{championId}/patch-diff`
 
