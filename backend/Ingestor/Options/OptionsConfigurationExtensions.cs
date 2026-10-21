@@ -61,6 +61,13 @@ public static class OptionsConfigurationExtensions
 
         services.AddOptionsWithValidator<MatchFetchWorkersOptions, MatchFetchWorkersOptionsValidator>(
                 configuration, MatchFetchWorkersOptions.SectionName)
+            .PostConfigure(options =>
+            {
+                if (options.RampStages.Count == 0)
+                {
+                    options.RampStages = [.. MatchFetchWorkersOptions.DefaultRampStages];
+                }
+            })
             .Validate(
                 options => options.RampStages.Count > 0
                            && options.RampStages.All(stage => stage > 0)

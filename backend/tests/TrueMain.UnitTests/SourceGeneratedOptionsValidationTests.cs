@@ -84,13 +84,42 @@ public sealed class SourceGeneratedOptionsValidationTests
     [InlineData("Job:Mode", "Nope", "Job:Mode must be one of:*")]
     // The ramp (#1459): a stage past the list, and a list that does not climb.
     [InlineData("MatchFetchWorkers:RampStage", "5", "MatchFetchWorkers:RampStage must name one of*")]
-    [InlineData("MatchFetchWorkers:RampStages:1", "20", "MatchFetchWorkers:RampStages must list*strictly ascending*")]
     [InlineData("RiotRateLimit:ReservedShares:AccountRefresh", "0.6", "RiotRateLimit:ReservedShares must each be between 0 and 0.5*")]
     public void Validate_KeepsTheCrossFieldRulesAsLambdas(string key, string value, string expectedMessage)
     {
         var validate = () => RunStartupValidation((key, value));
 
         validate.Should().Throw<OptionsValidationException>().WithMessage($"*{expectedMessage}*");
+    }
+
+    [Fact]
+    public void Validate_RejectsARampThatDoesNotClimb()
+    {
+        var validate = () => RunStartupValidation(
+            ("MatchFetchWorkers:RampStages:0", "40"),
+            ("MatchFetchWorkers:RampStages:1", "30"));
+
+        validate.Should().Throw<OptionsValidationException>()
+            .WithMessage("*MatchFetchWorkers:RampStages must list*strictly ascending*");
+    }
+
+    [Fact]
+    public void RampStages_Configured_ReplaceTheDefaultsRatherThanExtendingThem()
+    {
+        // The binder appends to a list that already holds items, so a production key's new
+        // ramp would have landed after the personal-key stages (#1459 review).
+        RampStagesBoundFrom(("MatchFetchWorkers:RampStages:0", "100"), ("MatchFetchWorkers:RampStages:1", "200"))
+            .Should().Equal(100, 200);
+        RampStagesBoundFrom().Should().Equal(MatchFetchWorkersOptions.DefaultRampStages);
+    }
+
+    private static List<int> RampStagesBoundFrom(params (string Key, string Value)[] overrides)
+    {
+        var services = new ServiceCollection();
+        services.AddValidatedOptions(BuildConfiguration(overrides));
+
+        using var provider = services.BuildServiceProvider();
+        return provider.GetRequiredService<IOptions<MatchFetchWorkersOptions>>().Value.RampStages;
     }
 
     [Fact]
