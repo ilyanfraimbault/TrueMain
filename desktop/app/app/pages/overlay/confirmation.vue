@@ -46,8 +46,8 @@ useHead({
 </script>
 
 <template>
-  <div ref="content" class="inline-flex items-center gap-2 px-3 py-2 whitespace-nowrap" role="status">
+  <output ref="content" class="inline-flex items-center gap-2 px-3 py-2 whitespace-nowrap">
     <UIcon name="i-lucide-bookmark-check" class="size-4 shrink-0 text-primary" />
     <span class="text-xs font-semibold text-highlighted">{{ text ?? '' }}</span>
-  </div>
+  </output>
 </template>
