@@ -41,15 +41,17 @@ public sealed class ChampionScalingAggregationProcess(
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     TimeProvider timeProvider) : IIngestorProcess
 {
+    private const string IntegerType = "integer";
+
     private static readonly AdditiveUpsert<KeyValuePair<ScalingKey, ScalingAccumulator>> ScalingUpsert =
         new AdditiveUpsert<KeyValuePair<ScalingKey, ScalingAccumulator>>("champion_scaling_stats")
-            .Key("ChampionId", "integer", r => r.Key.ChampionId)
+            .Key("ChampionId", IntegerType, r => r.Key.ChampionId)
             .Key("TeamPosition", "text", r => r.Key.TeamPosition)
             .Key("Patch", "text", r => r.Key.Patch)
             .Key("EloBracket", "text", r => r.Key.EloBracket)
-            .Key("Bucket", "integer", r => r.Key.Bucket)
-            .Sum("Games", "integer", r => r.Value.Games)
-            .Sum("Wins", "integer", r => r.Value.Wins);
+            .Key("Bucket", IntegerType, r => r.Key.Bucket)
+            .Sum("Games", IntegerType, r => r.Value.Games)
+            .Sum("Wins", IntegerType, r => r.Value.Wins);
 
     public string Name => "ChampionScalingAggregation";
 
