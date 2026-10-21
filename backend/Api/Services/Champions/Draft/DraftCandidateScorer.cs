@@ -64,7 +64,8 @@ public static class DraftCandidateScorer
             enemies.Select(input => new DraftEnemyPairing(input.Pairing, input.Weight)).ToList(), k);
         var (fit, fitShrunk) = DraftScoring.TeamFit([.. teamFit.Axes.Select(axis => axis.Fit)], k);
         var score = DraftScoring.Score(
-            laneShrunk, occupied, blind.Shrunk, strength.Shrunk(k), synergyShrunk, weights, enemyShrunk, fitShrunk);
+            laneShrunk, occupied, blind.Shrunk, strength.Shrunk(k), synergyShrunk, weights,
+            new DraftBoardTerms(enemyShrunk, fitShrunk));
 
         var laneGamesInPlay = occupied >= 0.5d ? lane.Games : blind.Games;
 

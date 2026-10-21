@@ -45,8 +45,8 @@ public class DraftTeamFitTests
         Assert.Equal(0d, Weights.TeamFit);
         Assert.Equal(
             DraftScoring.Score(0d, 1d, 0d, 0d, 0d, Weights),
-            DraftScoring.Score(0d, 1d, 0d, 0d, 0d, Weights, teamFitShrunk: 0.05));
-        Assert.True(DraftScoring.Score(0d, 1d, 0d, 0d, 0d, Weights with { TeamFit = 0.5 }, teamFitShrunk: 0.05) > 0d);
+            DraftScoring.Score(0d, 1d, 0d, 0d, 0d, Weights, new DraftBoardTerms(TeamFitShrunk: 0.05)));
+        Assert.True(DraftScoring.Score(0d, 1d, 0d, 0d, 0d, Weights with { TeamFit = 0.5 }, new DraftBoardTerms(TeamFitShrunk: 0.05)) > 0d);
     }
 
     [Fact]

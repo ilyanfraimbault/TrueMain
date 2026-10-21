@@ -71,6 +71,12 @@ public sealed record DraftScoringWeights
     public double HoveredAlly { get; init; } = 0.5d;
 }
 
+/// <summary>
+/// The terms read off the rest of the board — the enemy team beyond our lane (#1713) and
+/// our team's composition (#1906) — each shrunk; both weigh 0 until the back-test sets them.
+/// </summary>
+public readonly record struct DraftBoardTerms(double EnemyShrunk = 0d, double TeamFitShrunk = 0d);
+
 /// <summary>An ally on the board, as the synergy term sees it.</summary>
 public readonly record struct DraftAllyPairing(DraftComponent Pairing, bool Hovered);
 
@@ -315,15 +321,14 @@ public static class DraftScoring
         double strengthShrunk,
         double synergyShrunk,
         DraftScoringWeights weights,
-        double enemyShrunk = 0d,
-        double teamFitShrunk = 0d)
+        DraftBoardTerms board = default)
     {
         var occupied = Math.Clamp(laneOccupied, 0d, 1d);
         var lane = (occupied * laneShrunk) + ((1d - occupied) * blindShrunk);
         return (weights.Lane * lane)
             + (weights.Strength * strengthShrunk)
-            + (weights.Enemy * enemyShrunk)
-            + (weights.TeamFit * teamFitShrunk)
+            + (weights.Enemy * board.EnemyShrunk)
+            + (weights.TeamFit * board.TeamFitShrunk)
             + (weights.Synergy * synergyShrunk);
     }
 
