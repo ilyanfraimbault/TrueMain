@@ -124,6 +124,19 @@ public static class OpsEvents
     public static readonly EventId FrontendRequestAborted = new(1016, nameof(FrontendRequestAborted));
 
     /// <summary>
+    /// The match-fetch workers stopped claiming because a host resource crossed its
+    /// backpressure threshold (#1459): which resource, its reading and the threshold. A
+    /// throttled pipeline is visible from this row rather than merely slow.
+    /// </summary>
+    public static readonly EventId IngestionBackpressureActivated = new(1017, nameof(IngestionBackpressureActivated));
+
+    /// <summary>
+    /// Every resource is back above its release level and the match-fetch workers claim
+    /// again (#1459); carries how long the backpressure held.
+    /// </summary>
+    public static readonly EventId IngestionBackpressureReleased = new(1018, nameof(IngestionBackpressureReleased));
+
+    /// <summary>
     /// The ids of the events logged through source-generated <c>[LoggerMessage]</c> methods
     /// (#1636), whose attribute takes a constant rather than an <see cref="EventId"/>. The
     /// method names the event after the field it mirrors, so <see cref="Resolve"/> matches
@@ -155,7 +168,9 @@ public static class OpsEvents
         LogRecordsDropped,
         FrontendServerError,
         FrontendUpstreamErrors,
-        FrontendRequestAborted
+        FrontendRequestAborted,
+        IngestionBackpressureActivated,
+        IngestionBackpressureReleased
     ];
 
     private static readonly Dictionary<string, int> IdByName =

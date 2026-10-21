@@ -100,6 +100,7 @@ public sealed class WorkerFetchWorkersTests
                 _iterations,
                 _callers,
                 Substitute.For<IRiotRateLimiter>(),
+                MatchFetchWorkerPoolTests.Unpressured(),
                 Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions { Platforms = platforms }),
                 Microsoft.Extensions.Options.Options.Create(new MatchFetchWorkersOptions()),
                 TestIngestorMetrics.Create(),

@@ -48,6 +48,10 @@ public sealed class SourceGeneratedOptionsValidationTests
     [InlineData("LadderSync:ApexRefreshInterval", "-1.00:00:00", "LadderSyncOptions.ApexRefreshInterval must be between 00:00:00 and*")]
     // MainAnalysisOptions lives in Core; the ingestor's generated validator still covers it.
     [InlineData("MainAnalysis:MatchesToConsider", "0", "MainAnalysisOptions.MatchesToConsider must be between 1 and 2147483647.")]
+    // The fetch workers and their brake (#1457, #1459).
+    [InlineData("MatchFetchWorkers:RampStage", "0", "MatchFetchWorkersOptions.RampStage must be between 1 and 100.")]
+    [InlineData("IngestionBackpressure:MinFreeDiskPercent", "100", "IngestionBackpressureOptions.MinFreeDiskPercent must be between 0 and 99.")]
+    [InlineData("IngestionBackpressure:DiskPath", " ", "The IngestionBackpressureOptions.DiskPath field is required.")]
     public void Validate_RejectsAttributeViolations(string key, string value, string expectedMessage)
     {
         var validate = () => RunStartupValidation((key, value));
@@ -78,6 +82,10 @@ public sealed class SourceGeneratedOptionsValidationTests
     [InlineData("Scoring:ScarcityWeight", "5", "Scoring:ScarcityWeight must not exceed recency + rank + points*")]
     [InlineData("ItemContextAggregation:MinPickRate", "0.9", "ItemContextAggregation:MinPickRate must be below CoreRate.")]
     [InlineData("Job:Mode", "Nope", "Job:Mode must be one of:*")]
+    // The ramp (#1459): a stage past the list, and a list that does not climb.
+    [InlineData("MatchFetchWorkers:RampStage", "5", "MatchFetchWorkers:RampStage must name one of*")]
+    [InlineData("MatchFetchWorkers:RampStages:1", "20", "MatchFetchWorkers:RampStages must list*strictly ascending*")]
+    [InlineData("RiotRateLimit:ReservedShares:AccountRefresh", "0.6", "RiotRateLimit:ReservedShares must each be between 0 and 0.5*")]
     public void Validate_KeepsTheCrossFieldRulesAsLambdas(string key, string value, string expectedMessage)
     {
         var validate = () => RunStartupValidation((key, value));

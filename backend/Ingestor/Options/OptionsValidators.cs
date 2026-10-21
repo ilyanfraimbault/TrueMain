@@ -23,6 +23,9 @@ internal sealed partial class RiotRateLimitOptionsValidator : IValidateOptions<R
 internal sealed partial class MatchFetchWorkersOptionsValidator : IValidateOptions<MatchFetchWorkersOptions>;
 
 [OptionsValidator]
+internal sealed partial class IngestionBackpressureOptionsValidator : IValidateOptions<IngestionBackpressureOptions>;
+
+[OptionsValidator]
 internal sealed partial class CommunityDragonOptionsValidator : IValidateOptions<CommunityDragonOptions>;
 
 [OptionsValidator]

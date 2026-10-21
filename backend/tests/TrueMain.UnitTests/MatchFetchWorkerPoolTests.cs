@@ -122,6 +122,56 @@ public sealed class MatchFetchWorkerPoolTests
         await claims.DidNotReceive().ReleaseOrphanedClaimsAsync(Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task RunAsync_UnderBackpressure_FinishesTheBatchInFlightAndHoldsTheNextClaimUntilRelease()
+    {
+        // #1459: the brake degrades throughput, never correctness. A batch already claimed is
+        // fetched and written to the end, and only the next claim waits for the resource.
+        var time = new FakeTimeProvider();
+        var probe = Substitute.For<IHostResourceProbe>();
+        var reading = new HostResourceReading(80, 80);
+        probe.Read(Arg.Any<string>()).Returns(_ => reading);
+        var backpressure = new IngestionBackpressure(
+            probe,
+            Microsoft.Extensions.Options.Options.Create(new IngestionBackpressureOptions { MinFreeDiskPercent = 50 }),
+            time,
+            NullLogger<IngestionBackpressure>.Instance);
+
+        using var inFlight = new ManualResetEventSlim();
+        var finished = 0;
+        var process = new ScriptedProcess(
+            ct =>
+            {
+                inFlight.Wait(ct);
+                Interlocked.Increment(ref finished);
+                return Worked(ct);
+            },
+            Worked,
+            Empty);
+        var pool = BuildPool(process, ["EUW1"], out _, out var claims, timeProvider: time, backpressure: backpressure);
+        using var cts = new CancellationTokenSource();
+
+        var running = pool.RunAsync(runOnce: false, cts.Token);
+        await process.WaitForBatchesAsync(1);
+
+        reading = new HostResourceReading(80, 20);
+        inFlight.Set();
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        time.Advance(TimeSpan.FromMinutes(5));
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+
+        finished.Should().Be(1, "the batch claimed before the resource dropped runs to its end");
+        process.Batches.Should().HaveCount(1, "no claim is made while the disk is below its threshold");
+        backpressure.IsActive.Should().BeTrue();
+
+        reading = new HostResourceReading(80, 80);
+        await process.WaitForBatchesAsync(2, time, TimeSpan.FromSeconds(30));
+
+        await StopAsync(cts, running);
+        await claims.DidNotReceive().ReleaseOrphanedClaimsAsync(
+            Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
+    }
+
     /// <summary>
     /// Stops the pool and waits for it. A worker cancelled between two batches ends its loop
     /// quietly and one cancelled inside a wait throws; both are a clean stop.
@@ -161,7 +211,8 @@ public sealed class MatchFetchWorkerPoolTests
         out IMatchClaimService claims,
         int? batchSize = 5,
         int laneBatchSize = 50,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IngestionBackpressure? backpressure = null)
     {
         var iterations = new IterationContext();
         var callers = new CallerContext();
@@ -181,11 +232,24 @@ public sealed class MatchFetchWorkerPoolTests
             iterations,
             callers,
             limiter,
+            backpressure ?? Unpressured(),
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions { Platforms = platforms, BatchSize = laneBatchSize }),
             Microsoft.Extensions.Options.Options.Create(new MatchFetchWorkersOptions { BatchSize = batchSize }),
             TestIngestorMetrics.Create(),
             timeProvider ?? TimeProvider.System,
             NullLogger<MatchFetchWorkerPool>.Instance);
+    }
+
+    /// <summary>A brake whose host always has room, for the tests that are not about it.</summary>
+    internal static IngestionBackpressure Unpressured()
+    {
+        var probe = Substitute.For<IHostResourceProbe>();
+        probe.Read(Arg.Any<string>()).Returns(new HostResourceReading(80, 80));
+        return new IngestionBackpressure(
+            probe,
+            Microsoft.Extensions.Options.Options.Create(new IngestionBackpressureOptions()),
+            TimeProvider.System,
+            NullLogger<IngestionBackpressure>.Instance);
     }
 
     private sealed record Batch(IReadOnlyCollection<string> Platforms, int BatchSize, string? Caller, JobMode? Mode);
