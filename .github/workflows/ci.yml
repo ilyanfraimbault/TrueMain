@@ -273,6 +273,12 @@ jobs:
       - name: Migration over SSH
         run: .github/scripts/apply-migration.test.sh
 
+      - name: Pre-pull over SSH
+        run: .github/scripts/prepull-images.test.sh
+
+      - name: VPS forced command
+        run: .github/scripts/vps/ci-ssh-command.test.sh
+
       - name: Edge verification
         run: .github/scripts/verify-edge.test.sh
 

@@ -161,8 +161,9 @@ SET statement_timeout = '10min';
 - **`ON_ERROR_STOP`.** Without it psql keeps reading after an error, the
   transaction ends in a rollback, and psql still exits 0, which would let the
   deploy roll new images onto the old schema. The guard makes the failure
-  visible whatever flags the VPS's forced command
-  (`/usr/local/bin/apply-migration.sh`) passes.
+  visible whatever flags the VPS's migration command
+  (`/usr/local/bin/apply-migration.sh`, which the CI key's forced command
+  runs) passes.
 
 **Retry behaviour.** The whole script runs in one transaction
 (`--single-transaction`), so a lock timeout rolls back every statement before
@@ -256,8 +257,8 @@ The migrate job, in each workflow:
    from a GitHub-hosted runner (prod: no published port at all; preprod:
    loopback-only). The SSH key is dedicated to CI and locked to a forced
    `command=` on the VPS side (see `docs/preprod.md`/`docs/prod.md`), so the
-   workflow doesn't send a remote command at all — whatever it sent would be
-   ignored anyway. The host key is pinned via a `PREPROD_SSH_HOST_KEY`/
+   workflow doesn't send a remote command at all, which the forced command
+   reads as the migration. The host key is pinned via a `PREPROD_SSH_HOST_KEY`/
    `PROD_SSH_HOST_KEY` repo variable rather than trusted fresh from
    `ssh-keyscan` on every run, which would only be TOFU-per-run (no real
    protection, since ephemeral runners never have a prior-trusted
