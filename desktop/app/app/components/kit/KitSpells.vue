@@ -34,13 +34,12 @@ function choose(slot: 0 | 1, spellId: number) {
         <GameTooltipSummonerSpellIcon :spell="summoners[spells[slot]] ?? null" :width="36" :height="36" class="size-9 rounded" />
       </button>
       <template #content>
-        <div class="grid grid-cols-5 gap-1.5 p-2" role="listbox" :aria-label="`Spell ${slot + 1}`">
+        <div class="grid grid-cols-5 gap-1.5 p-2" role="group" :aria-label="`Spell ${slot + 1}`">
           <button
             v-for="spellId in RIFT_SPELLS"
             :key="spellId"
             type="button"
-            role="option"
-            :aria-selected="spells[slot] === spellId"
+            :aria-pressed="spells[slot] === spellId"
             :aria-label="name(spellId)"
             :title="name(spellId)"
             class="rounded transition"

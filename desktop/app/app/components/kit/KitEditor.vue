@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Kit } from '#shared/types/kit'
 import type { KitItemGroup } from '~/utils/kit-items'
-import { KIT_NAME_MAX, kitIssues, withBoots } from '~/utils/kit'
+import { cloneKit, KIT_NAME_MAX, kitIssues, withBoots } from '~/utils/kit'
 import { addChild, blockedItems, removeSubtree, replaceItem } from '~/utils/kit-tree'
 
 /**
@@ -15,8 +15,8 @@ const emit = defineEmits<{ save: [kit: Kit], cancel: [] }>()
 
 const { items, summoners, runeTree } = useStaticData()
 
-const draft = ref<Kit>(JSON.parse(JSON.stringify(props.kit)))
-watch(() => props.kit.id, () => (draft.value = JSON.parse(JSON.stringify(props.kit))))
+const draft = ref<Kit>(cloneKit(props.kit))
+watch(() => props.kit.id, () => (draft.value = cloneKit(props.kit)))
 
 const issues = computed(() => kitIssues(draft.value, runeTree.value))
 

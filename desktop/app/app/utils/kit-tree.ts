@@ -83,8 +83,8 @@ function editLevel(tree: KitNode[], parent: number[], edit: (level: KitNode[]) =
 }
 
 export function replaceItem(tree: KitNode[], at: number[], itemId: number): KitNode[] {
-  if (at.length === 0) return tree
-  const index = at[at.length - 1]!
+  const index = at.at(-1)
+  if (index === undefined) return tree
   return editLevel(tree, at.slice(0, -1), level => level.map((node, i) => (i === index ? { ...node, itemId } : node)))
 }
 
@@ -95,8 +95,8 @@ export function addChild(tree: KitNode[], at: number[], itemId: number): KitNode
 
 /** The tree without the node at `at` and everything under it. */
 export function removeSubtree(tree: KitNode[], at: number[]): KitNode[] {
-  if (at.length === 0) return tree
-  const index = at[at.length - 1]!
+  const index = at.at(-1)
+  if (index === undefined) return tree
   return editLevel(tree, at.slice(0, -1), level => level.filter((_, i) => i !== index))
 }
 
@@ -150,7 +150,7 @@ export interface KitStep {
  */
 export function nextKitStep(tree: KitNode[], boots: number | null, order: number[], held: number[]): KitStep | null {
   const path = heldPath(tree, order, held)
-  const level = path.length === 0 ? tree : path[path.length - 1]!.children
+  const level = path.at(-1)?.children ?? tree
   const next = level[0]
   if (next) return { itemId: next.itemId, isBoots: false }
   if (boots && !held.includes(boots)) return { itemId: boots, isBoots: true }
@@ -171,15 +171,12 @@ export function kitOrder(tree: KitNode[], boots: number | null, order: number[],
     level = level[0].children
   }
   const next = nextKitStep(tree, boots, order, held)
-  const steps: NextItemOrderStep[] = [...path, ...rest].map(itemId => ({
-    itemId,
-    isBoots: false,
-    state: path.includes(itemId) ? 'Completed' : next?.itemId === itemId ? 'Next' : 'Upcoming',
-  }))
-  if (boots) {
-    const state = held.includes(boots) ? 'Completed' : next?.itemId === boots ? 'Next' : 'Upcoming'
-    steps.splice(Math.min(1, steps.length), 0, { itemId: boots, isBoots: true, state })
+  const stateOf = (itemId: number, done: boolean): NextItemOrderStep['state'] => {
+    if (done) return 'Completed'
+    return next?.itemId === itemId ? 'Next' : 'Upcoming'
   }
+  const steps: NextItemOrderStep[] = [...path, ...rest].map(itemId => ({ itemId, isBoots: false, state: stateOf(itemId, path.includes(itemId)) }))
+  if (boots) steps.splice(Math.min(1, steps.length), 0, { itemId: boots, isBoots: true, state: stateOf(boots, held.includes(boots)) })
   return steps
 }
 

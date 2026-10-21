@@ -31,7 +31,12 @@ const V_GAP = 26
 
 const layout = computed(() => layoutKitTree(props.tree, { size: props.size, hGap: H_GAP, vGap: V_GAP }))
 const depthCap = computed(() => maxDepth(props.boots))
-const width = computed(() => layout.value.width + (props.editable ? (props.tree.length ? H_GAP : 0) + props.size : 0))
+/** The tree's width, plus the "new first item" slot when editable — after a gap when it follows a root. */
+const width = computed(() => {
+  if (!props.editable) return layout.value.width
+  const gap = props.tree.length > 0 ? H_GAP : 0
+  return layout.value.width + gap + props.size
+})
 const height = computed(() => Math.max(layout.value.height, props.size))
 
 const name = (itemId: number) => props.items[itemId]?.name ?? `Item ${itemId}`

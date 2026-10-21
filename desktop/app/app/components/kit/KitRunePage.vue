@@ -32,13 +32,12 @@ const SHARD = 18
 <template>
   <div class="flex flex-wrap items-start gap-x-8 gap-y-4">
     <section class="flex flex-col items-center gap-2" aria-label="Primary tree">
-      <div class="flex gap-1" role="radiogroup" aria-label="Primary tree">
+      <div class="flex gap-1" role="group" aria-label="Primary tree">
         <button
           v-for="style in tree.styles"
           :key="style.styleId"
           type="button"
-          role="radio"
-          :aria-checked="style.styleId === page.primaryStyleId"
+          :aria-pressed="style.styleId === page.primaryStyleId"
           :aria-label="styleName(style.styleId)"
           class="rounded-full p-0.5 transition"
           :class="style.styleId === page.primaryStyleId ? 'selected-perk' : 'deselected hover:opacity-100'"
@@ -81,13 +80,12 @@ const SHARD = 18
 
     <div class="flex flex-col gap-4">
       <section class="flex flex-col items-center gap-2" aria-label="Secondary tree">
-        <div class="flex gap-1" role="radiogroup" aria-label="Secondary tree">
+        <div class="flex gap-1" role="group" aria-label="Secondary tree">
           <button
             v-for="style in secondaryStyles"
             :key="style.styleId"
             type="button"
-            role="radio"
-            :aria-checked="style.styleId === page.secondaryStyleId"
+            :aria-pressed="style.styleId === page.secondaryStyleId"
             :aria-label="styleName(style.styleId)"
             class="rounded-full p-0.5 transition"
             :class="style.styleId === page.secondaryStyleId ? 'selected-perk' : 'deselected hover:opacity-100'"

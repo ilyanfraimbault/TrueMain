@@ -85,7 +85,7 @@ describe('KitList', () => {
 describe('KitSpells', () => {
   it('swaps the two when a slot takes the other\'s spell', async () => {
     const wrapper = mount(KitSpells, { props: { modelValue: [4, 14], summoners: {} }, global })
-    const options = (slot: number) => wrapper.findAll(`[aria-label="Spell ${slot}"] [role="option"]`)
+    const options = (slot: number) => wrapper.findAll(`[aria-label="Spell ${slot}"] button`)
     await options(1).find(option => option.attributes('aria-label') === 'Spell 14')!.trigger('click')
     expect(wrapper.emitted('update:modelValue')).toEqual([[[14, 4]]])
     await wrapper.setProps({ modelValue: [4, 14] })
@@ -104,14 +104,14 @@ describe('KitRunePage', () => {
     await wrapper.get('[aria-label="Dark Harvest"]').trigger('click')
     expect(updates()[0]).toMatchObject({ primaryKeystoneId: 8128 })
 
-    await wrapper.findAll('[role="radiogroup"][aria-label="Primary tree"] [role="radio"]')[2]!.trigger('click')
+    await wrapper.findAll('[role="group"][aria-label="Primary tree"] button')[2]!.trigger('click')
     expect(updates()[1]).toMatchObject({ primaryStyleId: 8000, secondaryStyleId: 8200 })
-    await wrapper.findAll('[role="radiogroup"][aria-label="Secondary tree"] [role="radio"]')[0]!.trigger('click')
+    await wrapper.findAll('[role="group"][aria-label="Secondary tree"] button')[0]!.trigger('click')
     expect(updates()[2]).toMatchObject({ secondaryStyleId: 8100, secondaryPerk1Id: 8126 })
 
-    await wrapper.findAll('section[aria-label="Primary tree"] button[aria-pressed]')[3]!.trigger('click')
+    await wrapper.findAll('section[aria-label="Primary tree"] > div:not([role]) button')[3]!.trigger('click')
     expect(updates()[3]).toMatchObject({ primaryPerk1Id: 9111 })
-    await wrapper.findAll('section[aria-label="Secondary tree"] button[aria-pressed]')[5]!.trigger('click')
+    await wrapper.findAll('section[aria-label="Secondary tree"] > div:not([role]) button')[5]!.trigger('click')
     expect(updates()[4]).toMatchObject({ secondaryPerk1Id: 8126, secondaryPerk2Id: 8138 })
     await wrapper.findAll('[aria-label="Shards"] button')[4]!.trigger('click')
     expect(updates()).toHaveLength(6)

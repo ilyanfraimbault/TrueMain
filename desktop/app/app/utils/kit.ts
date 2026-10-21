@@ -13,8 +13,20 @@ export const EMPTY_STORE: KitStore = { kits: [], active: {} }
 /** The key a kit is active under: one kit per champion and position. */
 export const activeKey = (championId: number, position: string) => `${championId}:${position}`
 
+/** A kit's id: a random UUID from the platform's crypto (the webview and Node both have it). */
 export function newKitId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `kit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+  if (typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID()
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
+  return `kit-${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}`
+}
+
+/**
+ * A copy of a kit sharing nothing with it — what the editor works on. Field by field rather than
+ * `structuredClone`: a kit read out of the reactive store carries proxies, which `structuredClone` refuses.
+ */
+export function cloneKit(kit: Kit): Kit {
+  const cloneNodes = (nodes: KitNode[]): KitNode[] => nodes.map(node => ({ itemId: node.itemId, children: cloneNodes(node.children) }))
+  return { ...kit, runes: { ...kit.runes }, spells: [kit.spells[0], kit.spells[1]], starter: [...kit.starter], tree: cloneNodes(kit.tree) }
 }
 
 /** The rune page of a build, without its measured figures. */

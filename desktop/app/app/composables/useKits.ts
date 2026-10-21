@@ -1,5 +1,5 @@
 import type { Kit, KitStore } from '#shared/types/kit'
-import { activeKey, EMPTY_STORE, freeName, newKitId, readStore } from '~/utils/kit'
+import { activeKey, cloneKit, EMPTY_STORE, freeName, newKitId, readStore } from '~/utils/kit'
 
 /** Where the dev server keeps kits, with no shell to keep them. */
 const BROWSER_KEY = 'truemain:kits:v1'
@@ -104,7 +104,7 @@ export function useKits() {
     const kit = store.value.kits.find(other => other.id === id)
     if (!kit) return null
     const taken = kitsFor(kit.championId, kit.position).map(other => other.name)
-    const copy: Kit = { ...JSON.parse(JSON.stringify(kit)) as Kit, id: newKitId(), name: freeName(`${kit.name} copy`, taken) }
+    const copy: Kit = { ...cloneKit(kit), id: newKitId(), name: freeName(`${kit.name} copy`, taken) }
     await save(copy)
     return copy
   }

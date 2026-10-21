@@ -85,12 +85,14 @@ export interface NamedItemBlock {
 export function kitItemSetBlocks(kit: Kit, name: (itemId: number) => string, known: (itemId: number) => boolean): NamedItemBlock[] {
   const keep = (ids: number[]) => ids.filter(known)
   const paths = kitPaths(kit.tree).map(keep).filter(path => path.length > 0)
+  const titleOf = (path: number[], index: number) => {
+    if (paths.length === 1) return 'Core'
+    const label = index === 0 ? 'Core' : `Path ${index + 1}`
+    return `${label} · ${name(path.at(-1)!)}`
+  }
   return [
     { title: 'Starter', items: keep(kit.starter) },
     { title: 'Boots', items: keep(kit.boots ? [kit.boots] : []) },
-    ...paths.map((path, index) => ({
-      title: paths.length === 1 ? 'Core' : `${index === 0 ? 'Core' : `Path ${index + 1}`} · ${name(path[path.length - 1]!)}`,
-      items: path,
-    })),
+    ...paths.map((path, index) => ({ title: titleOf(path, index), items: path })),
   ].filter(block => block.items.length > 0)
 }

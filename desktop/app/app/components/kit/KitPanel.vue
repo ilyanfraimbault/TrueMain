@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Kit } from '#shared/types/kit'
 import { positionLabel } from '#common/utils/positions'
-import { freeName, KIT_NAME_MAX, kitFromBuild } from '~/utils/kit'
+import { cloneKit, freeName, KIT_NAME_MAX, kitFromBuild } from '~/utils/kit'
 import { defaultRunePage } from '~/utils/kit-runes'
 
 /**
@@ -125,7 +125,7 @@ async function confirmDelete() {
             :title="shown.id === activeId ? 'Click to go back to TrueMain\'s build' : 'Champion select and the overlay follow this kit'"
             @click="toggleActive(shown)"
           />
-          <UButton label="Edit" icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" @click="editing = JSON.parse(JSON.stringify(shown))" />
+          <UButton label="Edit" icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" @click="editing = cloneKit(shown)" />
           <UDropdownMenu :items="menu(shown)" :content="{ align: 'end' }">
             <UButton icon="i-lucide-ellipsis" size="xs" color="neutral" variant="ghost" aria-label="More actions" />
           </UDropdownMenu>
