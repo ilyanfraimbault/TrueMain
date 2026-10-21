@@ -440,6 +440,29 @@ while a game records.
   game, stay deferred under its own call. It can reuse this key and window when it comes. No usage counter yet — the
   desktop telemetry catalogue is the API's (#1952) — #2079.
 
+**Automatic clips cut the plays the player picks once a game is finalised, titled only from what the events show
+(2026-10-21).** The product owner's reference is DPM's "Recording & clips": the plays worth keeping cut out on their
+own, listed beside the full games. Deferred on 2026-10-05 until the manual clips proved used, then put on Sprint 9 by
+the product owner — #1766.
+- **Six kinds, all on by default, each a setting**: a multi-kill from a triple (doubles come too often), a multi-kill
+  (from a double) followed within 45 s by an objective the player's side took — not a tower ("Triple kill into
+  Baron") —, an epic monster the player's side stole, an ace by the player's side with a kill or assist of the player
+  in the 30 s before, first blood the player drew, and a teamfight — four champions or more down, each kill within 15 s
+  of the last, the player killing, dying or assisting in it ("Teamfight 3/0/1"). None picked turns it off.
+- **Sources**: the timeline for the player's kills, the objectives and the teamfights; the live feed's own `Stolen`,
+  `Ace` and `FirstBlood` for steals, aces and first blood, which the timeline does not mark, sided with the game's
+  player list (`/liveclientdata/playerlist`) — a play whose side the names do not tell is left out, never guessed.
+  The player's champion in a title ("Pentakill on Ahri") is the one the player list names.
+- **Windows**: 10 s before a play (20 s for a steal and an ace) to 5 s after, placed through the anchor; overlapping
+  windows are one clip named after its most telling play (a combo, a steal, a multi-kill, an ace, a teamfight, first
+  blood); a kind turned off neither clips nor names. The thumbnail is taken at that play.
+- **Saved clips like the others**: cut without re-encoding by the helper once the game is finalised, outliving the
+  full game, never deleted by the budget (they still count in it). A clip adjusted in the recap becomes a clip of the
+  player's own.
+- **Not titled from the screen.** "Flash charm", "Insec", "Wind wall the ult" would need reading the video or the
+  game's memory (Riot policy, Vanguard): out of scope. The steals, aces and teamfights are not drawn on the recap's
+  timeline yet — #1766.
+
 **A clip is published on YouTube through YouTube's own upload page, never its Data API (2026-10-12).** The product
 owner's call: the app opens `youtube.com/upload` in the player's browser, drags the clip's file onto it from the app
 and hands over a prepared title, description and tags; the player gives the video's link back and the clip keeps it.
