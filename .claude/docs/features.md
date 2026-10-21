@@ -521,7 +521,14 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   the keyboard's state in the overlay's key watch, only while League is frontmost and a game records, each press notes
   the second of the video (`recording.json`'s `marks`, written at once; a press within a second of the last is the same
   mark). Once the video is closed each mark is cut into a clip of the 30 s before it, titled with the game clock at the
-  press ("Marked at 12:34"), a saved clip like any other — never deleted by the budget. A game that closes on its loading screen
+  press ("Marked at 12:34"), a saved clip like any other — never deleted by the budget. **Automatic clips** (#1766):
+  once the game is finalised, the plays picked in the recording settings ("Automatic clips": multi-kills from a
+  triple, kills into an objective, steals, aces, teamfights, first blood — all on by default, none = off) are cut as
+  saved clips, each 10 s (20 s for a steal or an ace) before the play to 5 s after, overlapping ones merged and
+  titled after the most telling ("Pentakill on Ahri", "Triple kill into Baron", "Elder Dragon stolen", "Ace",
+  "Teamfight 3/0/1", "First blood on Ahri"), thumbnailed at the play, marked with a sparkles icon on the cards and in
+  the recap's saved clips. Steals, aces and first blood come from the live feed sided by its player list, the rest
+  from the timeline (or the live feed without it). A game that closes on its loading screen
   (under a minute, the game clock never ran) is not kept; a game starting while the last one still waits for the match
   history is recorded (the history wait gives up, the next game does not).
 - **Recordings** (`/recordings`, #1755) — the full games and clips on disk, laid out as DPM's recordings page in the
@@ -529,7 +536,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   a toolbar (search over titles and champions; All / Clips / Full games; a champion; favourites only — favourite clips
   and kept games; a "More" menu for queue and result; the count shown; grouping by day — default —, game, champion or
   none); the cards four across (16:9 thumbnail, else the champion's splash, with how long ago and the length; portrait,
-  kind icon — scissors for a clip, a bookmark for a marked moment's clip, film for a full game — and title, a full game reading as champion · result; K/D/A,
+  kind icon — scissors for a clip, a bookmark for a marked moment's clip, sparkles for an automatic clip, film for a
+  full game — and title, a full game reading as champion · result; K/D/A,
   KDA ratio, queue; "Recording" / "Finalising" on a game not ready), each with a menu (favourite or keep, show in
   Finder / Explorer, delete with a confirmation). Empty states: recording off (what an hour costs, from the shell's
   estimate), nothing yet, nothing matching; capture not allowed (a button asking macOS), unsupported (Linux, Windows
@@ -639,7 +647,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   gold standing in the companion window (it is in the overlay, on TAB), a loading-screen panel in the overlay (dropped
   2026-10-04, #1869: the game page's loading state shows the board), TrueMain's
   participants' ranks in the dashboard's history, LP history from before the app was installed
-  (#1682), automatic clips (#1766) and instant replay (#1767), changing the recordings folder from the app.
+  (#1682), instant replay (#1767), steals / aces / teamfights on the recap's timeline, changing the recordings
+  folder from the app.
 
 ---
 
