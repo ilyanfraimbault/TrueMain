@@ -26,7 +26,7 @@ namespace Data.CompiledModels
                 navigationCount: 2,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 3,
-                namedIndexCount: 3,
+                namedIndexCount: 4,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -482,6 +482,11 @@ namespace Data.CompiledModels
                 new[] { id },
                 name: "IX_match_participants_role_bound_pending");
             iX_match_participants_role_bound_pending.AddAnnotation("Relational:Filter", "\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
+
+            var iX_match_participants_team_position_pending = runtimeEntityType.AddIndex(
+                new[] { matchId, teamId },
+                name: "IX_match_participants_team_position_pending");
+            iX_match_participants_team_position_pending.AddAnnotation("Relational:Filter", "\"TeamPosition\" = ''");
 
             return runtimeEntityType;
         }
