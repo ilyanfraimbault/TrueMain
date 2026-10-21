@@ -118,6 +118,11 @@ builder.Services
     .AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>(ConfigureCommunityDragonClient)
     .AcceptCompressedResponses()
     .AddCommunityDragonResilienceHandler();
+// Item stats for the item-context fold's in-game axes (#1750): the same Data Dragon profile.
+builder.Services
+    .AddHttpClient<IItemStatsProvider, DataDragonItemStatsProvider>(ConfigureCommunityDragonClient)
+    .AcceptCompressedResponses()
+    .AddCommunityDragonResilienceHandler();
 builder.Services.AddScoped<ChampionPatternSourceRowReader>();
 builder.Services.AddScoped<ChampionPatternAggregateBuilder>();
 builder.Services.AddScoped<ChampionPatternAggregatePersister>();

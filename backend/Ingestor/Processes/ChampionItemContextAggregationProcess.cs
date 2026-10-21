@@ -5,6 +5,7 @@ using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
+using Data.Statics;
 using Ingestor.Options;
 using Ingestor.Processes.Components.ItemContextAggregation;
 using Ingestor.Processes.Summaries;
@@ -58,6 +59,7 @@ public sealed class ChampionItemContextAggregationProcess(
     IOptions<MainAnalysisOptions> analysisOptions,
     IOptions<ItemContextAggregationOptions> options,
     IItemMetadataProvider itemMetadataProvider,
+    IItemStatsProvider itemStatsProvider,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     TimeProvider timeProvider) : IIngestorProcess
 {
@@ -76,10 +78,10 @@ public sealed class ChampionItemContextAggregationProcess(
         var participants = 0;
         var touched = new HashSet<ItemContextScope>();
 
-        // Per-run caches: one metadata load and one profile snapshot per patch, however
-        // many batches touch it.
-        var itemMetadataByPatch = new Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>>(StringComparer.Ordinal);
-        var profilesByPatch = new Dictionary<string, ChampionProfileSnapshot>(StringComparer.Ordinal);
+        // Per-run caches: one metadata load, one profile snapshot and one item catalogue per
+        // patch, however many batches touch it.
+        var patchData = new ItemContextPatchData(itemMetadataProvider, itemStatsProvider, settings);
+        var distribution = new BuiltAxisDistribution();
 
         while (settings.MaxMatchesPerRun == 0 || processedMatches < settings.MaxMatchesPerRun)
         {
@@ -119,7 +121,7 @@ public sealed class ChampionItemContextAggregationProcess(
             }
 
             var folded = await ProcessBatchAsync(
-                db, matchIds, itemMetadataByPatch, profilesByPatch, settings, aggregatedAtUtc, ct);
+                db, matchIds, patchData, distribution, settings, aggregatedAtUtc, ct);
 
             processedMatches += matchIds.Count;
             participants += folded.Participants;
@@ -138,25 +140,27 @@ public sealed class ChampionItemContextAggregationProcess(
         touched.UnionWith(await ScopesWithoutTermsAsync(ct));
 
         var verdicts = await RebuildVerdictsAsync(touched, settings, aggregatedAtUtc, ct);
+        var builtAxes = distribution.Quantiles();
 
         logger.LogInformation(
             "Champion item context aggregation summary: matches={Matches}, batches={Batches}, "
-            + "participants={Participants}, scopes={Scopes}, verdicts={Verdicts}.",
+            + "participants={Participants}, scopes={Scopes}, verdicts={Verdicts}, builtAxes={@BuiltAxes}.",
             processedMatches,
             batches,
             participants,
             touched.Count,
-            verdicts);
+            verdicts,
+            builtAxes);
 
         return new ChampionItemContextAggregationSummary(
-            processedMatches, batches, participants, touched.Count, verdicts);
+            processedMatches, batches, participants, touched.Count, verdicts, builtAxes);
     }
 
     private async Task<(int Participants, IReadOnlyCollection<ItemContextScope> Scopes)> ProcessBatchAsync(
         TrueMainDbContext db,
         List<string> matchIds,
-        Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>> itemMetadataByPatch,
-        Dictionary<string, ChampionProfileSnapshot> profilesByPatch,
+        ItemContextPatchData patchData,
+        BuiltAxisDistribution distribution,
         ItemContextAggregationOptions settings,
         DateTime aggregatedAtUtc,
         CancellationToken ct)
@@ -202,6 +206,14 @@ public sealed class ChampionItemContextAggregationProcess(
                 p.ItemEvents))
             .ToDictionaryAsync(row => (row.MatchId, row.ParticipantId), ct);
 
+        // The enemies' timelines, for the in-game axes (#1750): one query per side, the tracked
+        // ones already in hand with the builds.
+        var enemyTimelines = await BuiltAxisTimelines.LoadAsync(
+            db,
+            slim.Where(p => cohortMatchIds.Contains(p.MatchId) && cohort.Includes(p.MatchId, p.ParticipantId)).Select(p => (p.MatchId, p.TeamId)),
+            slim.Select(p => (p.MatchId, p.TeamId)),
+            ct);
+
         var leads = await db.MatchParticipantTimelineSnapshots
             .AsNoTracking()
             .Where(s => cohortMatchIds.Contains(s.MatchId) && s.IntervalMinute == LaneLeadMinute)
@@ -222,9 +234,17 @@ public sealed class ChampionItemContextAggregationProcess(
                 continue;
             }
 
-            var metadata = await GetItemMetadataAsync(itemMetadataByPatch, patch, match.GameVersion, ct);
-            var profiles = await GetProfilesAsync(profilesByPatch, db, patch, settings, ct);
+            var metadata = await patchData.MetadataAsync(patch, match.GameVersion, ct);
+            var profiles = await patchData.ProfilesAsync(db, patch, ct);
+            var catalog = await patchData.CatalogAsync(patch, match.GameVersion, ct);
             var roster = byMatch[matchId];
+
+            IReadOnlyList<ItemEvent>? Timeline(SlimParticipant participant)
+            {
+                var key = (matchId, participant.ParticipantId);
+                var events = builds.TryGetValue(key, out var tracked) ? tracked.ItemEvents : enemyTimelines.GetValueOrDefault(key);
+                return events is { Count: > 0 } ? events : null;
+            }
 
             foreach (var self in roster)
             {
@@ -247,9 +267,20 @@ public sealed class ChampionItemContextAggregationProcess(
 
                 var scope = new ItemContextScope(self.ChampionId, self.TeamPosition, patch);
                 var slots = ItemContextSlotResolver.Resolve(build.ItemEvents, build.FinalItems, metadata);
+
+                // A team sum missing one enemy is not a smaller sum: no enemy-team axis then.
+                var enemies = roster.Where(other => other.TeamId != self.TeamId).Select(Timeline).ToList();
+                var branchAxes = BuiltBranchAxes.Resolve(
+                    slots.GetValueOrDefault(ItemContextSlot.Build, []),
+                    enemies.Count > 0 && enemies.TrueForAll(timeline => timeline is not null) ? [.. enemies.OfType<IReadOnlyList<ItemEvent>>()] : null,
+                    opponent is null ? null : Timeline(opponent),
+                    catalog,
+                    settings.BuiltAxes,
+                    distribution);
+
                 foreach (var (slot, edges) in slots)
                 {
-                    accumulator.Add(scope, slot, edges, axes, self.Win);
+                    accumulator.Add(scope, slot, edges, axes, self.Win, slot == ItemContextSlot.Build ? branchAxes : null);
                 }
 
                 // The component order (#2183) reads the same timeline, for the items just resolved.
@@ -448,38 +479,6 @@ public sealed class ChampionItemContextAggregationProcess(
         => db.Matches
             .Where(m => matchIds.Contains(m.Id))
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.ItemContextAggregated, true), ct);
-
-    private async Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemMetadataAsync(
-        Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>> cache,
-        string patch,
-        string gameVersion,
-        CancellationToken ct)
-    {
-        if (!cache.TryGetValue(patch, out var metadata))
-        {
-            metadata = await itemMetadataProvider.GetItemsAsync(gameVersion, ct);
-            cache[patch] = metadata;
-        }
-
-        return metadata;
-    }
-
-    private static async Task<ChampionProfileSnapshot> GetProfilesAsync(
-        Dictionary<string, ChampionProfileSnapshot> cache,
-        TrueMainDbContext db,
-        string patch,
-        ItemContextAggregationOptions settings,
-        CancellationToken ct)
-    {
-        if (!cache.TryGetValue(patch, out var snapshot))
-        {
-            snapshot = await ChampionProfileSnapshot.LoadAsync(
-                db, patch, settings.ProfileLookbackPatches, settings.MinProfileGames, ct);
-            cache[patch] = snapshot;
-        }
-
-        return snapshot;
-    }
 
     private sealed record SlimParticipant(
         string MatchId, int ParticipantId, int ChampionId, int TeamId, string TeamPosition, bool Win);

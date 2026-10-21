@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Core.Lol.Patches;
 using Microsoft.Extensions.Logging;
@@ -26,9 +25,6 @@ public sealed class DataDragonChampionStaticsProvider(
     HttpClient httpClient,
     ILogger<DataDragonChampionStaticsProvider> logger) : IChampionStaticsProvider
 {
-    private const string VersionsUrl = "https://ddragon.leagueoflegends.com/api/versions.json";
-
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyDictionary<int, ChampionStatics>>>> _cache =
         new(StringComparer.Ordinal);
 
@@ -56,21 +52,7 @@ public sealed class DataDragonChampionStaticsProvider(
 
     private async Task<IReadOnlyDictionary<int, ChampionStatics>> LoadAsync(string patch, CancellationToken ct)
     {
-        var versions = await httpClient.GetFromJsonAsync<List<string>>(VersionsUrl, JsonOptions, ct) ?? [];
-        if (versions.Count == 0)
-        {
-            throw new InvalidOperationException("Data Dragon returned no versions.");
-        }
-
-        var version = versions.FirstOrDefault(v => v.StartsWith(patch + ".", StringComparison.Ordinal));
-        if (version is null)
-        {
-            version = versions[0];
-            logger.LogWarning(
-                "Data Dragon has not published patch {Patch} yet; reading champion statics from its newest version {Version}.",
-                patch,
-                version);
-        }
+        var version = await DataDragonVersions.ResolveAsync(httpClient, patch, logger, "champion statics", ct);
 
         var url = $"https://ddragon.leagueoflegends.com/cdn/{version}/data/en_US/champion.json";
         await using var stream = await httpClient.GetStreamAsync(url, ct);
