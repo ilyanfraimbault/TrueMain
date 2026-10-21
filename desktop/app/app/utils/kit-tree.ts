@@ -93,6 +93,21 @@ export function addChild(tree: KitNode[], at: number[], itemId: number): KitNode
   return editLevel(tree, at, level => [...level, { itemId, children: [] }])
 }
 
+/**
+ * The tree with the node at `at` and its sibling at `index` traded places,
+ * each with what follows it: how the player picks which branch comes first —
+ * the default one, followed in game.
+ */
+export function swapSiblings(tree: KitNode[], at: number[], index: number): KitNode[] {
+  const from = at.at(-1)
+  if (from === undefined || from === index) return tree
+  return editLevel(tree, at.slice(0, -1), (level) => {
+    const [a, b] = [level[from], level[index]]
+    if (!a || !b) return level
+    return level.map((node, i) => (i === from ? b : i === index ? a : node))
+  })
+}
+
 /** The tree without the node at `at` and everything under it. */
 export function removeSubtree(tree: KitNode[], at: number[]): KitNode[] {
   const index = at.at(-1)

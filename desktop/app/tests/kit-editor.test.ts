@@ -18,7 +18,7 @@ const picker = {
   methods: { next: () => nextPick },
   template: '<div v-if="open" class="picker" :data-title="title" :data-blocked="blocked.join()" :data-groups="groups.join()"><button class="pick" @click="$emit(\'pick\', next())" /></div>',
 }
-const tree = { props: ['tree', 'editable'], emits: ['pick', 'remove'], template: '<div class="tree" :data-roots="tree.map(n => n.itemId).join()"><button class="branch" @click="$emit(\'pick\', { at: [0], mode: \'child\' })" /><button class="replace" @click="$emit(\'pick\', { at: [0, 1], mode: \'replace\' })" /><button class="drop" @click="$emit(\'remove\', [0, 1])" /></div>' }
+const tree = { props: ['tree', 'editable'], emits: ['pick', 'remove'], template: '<div class="tree" :data-roots="tree.map(n => n.itemId).join()"><button class="branch" @click="$emit(\'pick\', { at: [0], mode: \'child\' })" /><button class="replace" @click="$emit(\'pick\', { at: [0, 1], mode: \'replace\' })" /><button class="drop" @click="$emit(\'remove\', [0, 1])" /><button class="swap" @click="$emit(\'swap\', [0, 0], 1)" /></div>' }
 const global = {
   // The starter and boots rows are drawn for real: the test clicks through them.
   components: { KitItemSlots },
@@ -112,12 +112,15 @@ describe('KitEditor', () => {
     await wrapper.get('.pick').trigger('click')
     await wrapper.get('[aria-label="Remove Item 3020"]').trigger('click')
 
+    // The two branches traded: the second becomes the default.
+    await wrapper.get('.swap').trigger('click')
+
     await wrapper.get('input').setValue('Into mages')
     const save = wrapper.findAll('.u-button').find(button => button.text() === 'Save kit')!
     await save.trigger('click')
     const saved = wrapper.emitted('save')![0]![0] as Kit
     expect(saved).toMatchObject({ name: 'Into mages', boots: [3111], starter: [3157, 2003, 3157] })
-    expect(saved.tree[0]!.children.map(child => child.itemId)).toEqual([3100, 3157])
+    expect(saved.tree[0]!.children.map(child => child.itemId)).toEqual([3157, 3100])
   })
 
   it('lists what keeps it from being saved', async () => {

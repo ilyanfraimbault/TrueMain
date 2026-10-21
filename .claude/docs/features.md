@@ -319,7 +319,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   changed resets its rows, the secondary's two runes on two rows, `utils/kit-runes.ts`), and the tree drawn as the
   build tree (`KitTree.vue`): a node clicked asks for another item, × drops it and what follows, and every row ends
   on a dashed "+" slot while the path has room — under a leaf the next item, beside items another branch, on the
-  first row another first item (#2197); the tree takes legendaries only (#2201). The item picker searches the Rift's
+  first row another first item (#2197); the tree takes legendaries only, and an item dragged onto a sibling (or
+  moved with Alt+←/→) trades places with it, each with its branch — the leftmost is the default (#2201). The item picker searches the Rift's
   shop by name, grouped legendaries / boots / components / starters, from Data Dragon (map 11 only, boot upgrades and
   duplicate names left out, `utils/kit-items.ts`), each icon with the site's item card on hover; an item already on
   the path (or a boots already chosen) is greyed, its card still shown. What keeps a kit from being saved is listed under

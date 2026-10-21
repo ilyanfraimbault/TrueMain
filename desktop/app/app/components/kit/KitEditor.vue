@@ -2,7 +2,7 @@
 import type { Kit } from '#shared/types/kit'
 import type { KitItemGroup } from '~/utils/kit-items'
 import { cloneKit, KIT_BOOTS_MAX, KIT_NAME_MAX, kitIssues, withBoots } from '~/utils/kit'
-import { addChild, blockedItems, removeSubtree, replaceItem } from '~/utils/kit-tree'
+import { addChild, blockedItems, removeSubtree, replaceItem, swapSiblings } from '~/utils/kit-tree'
 
 /**
  * The kit editor (#2185): a draft of the kit, saved as a whole or dropped.
@@ -71,6 +71,7 @@ function picked(itemId: number) {
   }
 }
 
+const swapNodes = (at: number[], index: number) => (draft.value = { ...draft.value, tree: swapSiblings(draft.value.tree, at, index) })
 const removeNode = (at: number[]) => (draft.value = { ...draft.value, tree: removeSubtree(draft.value.tree, at) })
 const removeStarter = (index: number) => (draft.value = { ...draft.value, starter: draft.value.starter.filter((_, i) => i !== index) })
 const removeBoots = (index: number) => (draft.value = withBoots(draft.value, draft.value.boots.filter((_, i) => i !== index)))
@@ -107,8 +108,8 @@ const removeBoots = (index: number) => (draft.value = withBoots(draft.value, dra
 
     <div>
       <p class="stat-label mb-1">Items</p>
-      <p class="mb-3 text-xs text-dimmed">Click an item to change it, a + to add one: under an item, the one that follows it; beside items, another branch. The leftmost branch is the one followed in game.</p>
-      <KitTree :tree="draft.tree" :items="items" :boots="draft.boots" editable @pick="target = { kind: 'tree', ...$event }" @remove="removeNode" />
+      <p class="mb-3 text-xs text-dimmed">Click an item to change it, a + to add one: under an item, the one that follows it; beside items, another branch. Drag an item onto another of its row to swap them: the leftmost, on the solid line, is the one followed in game.</p>
+      <KitTree :tree="draft.tree" :items="items" :boots="draft.boots" editable @pick="target = { kind: 'tree', ...$event }" @remove="removeNode" @swap="swapNodes" />
     </div>
 
     <ul v-if="issues.length" class="space-y-1 text-sm text-warning" aria-live="polite">

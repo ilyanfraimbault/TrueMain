@@ -66,6 +66,30 @@ describe('KitTree', () => {
     expect(empty.find('[aria-label="Add the first item"]').exists()).toBe(true)
   })
 
+  it('trades two siblings on a drag or Alt+arrow, and asks for no item after a drag', async () => {
+    const wrapper = mount(KitTree, { props: { tree: kit().tree, items, boots: [3020], editable: true }, global, attachTo: document.body })
+    const lich = wrapper.get('[aria-label="Replace Lich Bane"]')
+    // Lich Bane (left) dragged onto Shadowflame: 32 px nodes, 12 px apart, so Shadowflame's centre is 44 px right.
+    // Lich Bane (left) dragged onto Shadowflame. The test DOM lays nothing out: the canvas sits at 0, so a
+    // node's centre is its style's offset plus half its 32 px.
+    const centre = (label: string) => {
+      const box = wrapper.get(`[aria-label="${label}"]`).element.parentElement as HTMLElement
+      return { clientX: Number.parseFloat(box.style.left) + 16, clientY: Number.parseFloat(box.style.top) + 16, button: 0, pointerId: 1 }
+    }
+    const [from, onto] = [centre('Replace Lich Bane'), centre('Replace Shadowflame')]
+    await lich.trigger('pointerdown', from)
+    await lich.trigger('pointermove', onto)
+    await lich.trigger('pointerup', onto)
+    await lich.trigger('click')
+    expect(wrapper.emitted('swap')).toEqual([[[0, 0], 1]])
+    expect(wrapper.emitted('pick')).toBeUndefined()
+
+    await wrapper.get('[aria-label="Replace Shadowflame"]').trigger('keydown', { key: 'ArrowLeft', altKey: true })
+    await wrapper.get('[aria-label="Replace Luden\'s Echo"]').trigger('keydown', { key: 'ArrowRight', altKey: true })
+    expect(wrapper.emitted('swap')).toEqual([[[0, 0], 1], [[0, 1], 0]])
+    wrapper.unmount()
+  })
+
   it('draws the tree read-only', () => {
     const wrapper = mount(KitTree, { props: { tree: kit().tree, items, boots: [3020] }, global })
     expect(wrapper.findAll('button')).toHaveLength(0)

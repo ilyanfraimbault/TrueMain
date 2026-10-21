@@ -13,10 +13,11 @@ import {
   nextKitStep,
   nodeAt,
   removeSubtree,
+  swapSiblings,
   replaceItem,
   treeDepth,
 } from '~/utils/kit-tree'
-import { layoutKitTree } from '~/utils/kit-tree-layout'
+import { layoutKitTree, siblingAt } from '~/utils/kit-tree-layout'
 
 const n = (itemId: number, ...children: KitNode[]): KitNode => ({ itemId, children })
 
@@ -30,6 +31,13 @@ const SORC = 3020
 const tree = [n(LUDENS, n(LICH, n(RABADON)), n(SHADOWFLAME, n(ZHONYA)))]
 
 describe('the tree', () => {
+  it('trades two siblings, each with what follows it', () => {
+    const swapped = swapSiblings(tree, [0, 1], 0)
+    expect(kitPaths(swapped)).toEqual([[LUDENS, SHADOWFLAME, ZHONYA], [LUDENS, LICH, RABADON]])
+    expect(swapSiblings(tree, [0, 1], 1)).toBe(tree)
+    expect(swapSiblings(tree, [0, 1], 5)).toEqual(tree)
+  })
+
   it('lists every path, the default first', () => {
     expect(kitPaths(tree)).toEqual([[LUDENS, LICH, RABADON], [LUDENS, SHADOWFLAME, ZHONYA]])
     expect(kitPaths([])).toEqual([])
@@ -139,6 +147,15 @@ describe('the layout', () => {
     // The default path's edges are drawn last.
     expect(layout.edges.at(-1)!.child.main).toBe(true)
     expect(layoutKitTree([], { size: 10, hGap: 2, vGap: 4 })).toEqual({ nodes: [], edges: [], slots: [], width: 0, height: 0 })
+  })
+
+  it('finds the sibling a dragged node is over, and nothing else', () => {
+    const layout = layoutKitTree(tree, { size: 10, hGap: 2, vGap: 4 })
+    // Lich at x 5, Shadowflame at x 17, on the row at y 19.
+    expect(siblingAt(layout, [0, 0], 18, 20, 10)).toBe(1)
+    expect(siblingAt(layout, [0, 0], 5, 19, 10)).toBeNull()
+    expect(siblingAt(layout, [0, 0], 17, 33, 10)).toBeNull()
+    expect(siblingAt(layout, [0, 0, 0], 17, 33, 10)).toBeNull()
   })
 
   it('ends every row with room on a slot, the default path kept straight', () => {
