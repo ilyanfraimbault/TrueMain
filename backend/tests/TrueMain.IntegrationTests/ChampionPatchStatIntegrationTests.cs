@@ -15,8 +15,9 @@ namespace TrueMain.IntegrationTests;
 
 /// <summary>
 /// The light per-patch record (#1956) must answer "Trend by patch" exactly as the full
-/// aggregates do today, per elo bracket, and keep answering it once those are purged —
-/// the acceptance of #1956, and what #1957 (move the read) and #1958 (purge) rest on.
+/// aggregates did, per elo bracket, and keep answering it once those are purged — the
+/// acceptance of #1956, of #1957 (the trend endpoint reads the record) and what #1958
+/// (purge) rests on.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public sealed class ChampionPatchStatIntegrationTests : IAsyncLifetime
@@ -51,7 +52,7 @@ public sealed class ChampionPatchStatIntegrationTests : IAsyncLifetime
         (await persister.BackfillPatchStatsIfEmptyAsync(DateTime.UtcNow, CancellationToken.None))
             .Should().BeGreaterThan(0, "the record is filled from the scopes already there");
 
-        // What the chart shows today: the trend endpoint, reading the full aggregates.
+        // What the chart shows: the trend endpoint, reading the light record (#1957).
         var served = await GetServedTrendAsync();
         served.Points.Select(point => point.Patch).Should().Equal(Patches);
 
@@ -59,7 +60,7 @@ public sealed class ChampionPatchStatIntegrationTests : IAsyncLifetime
         var perBracketBefore = new Dictionary<string, Dictionary<string, TrendFigures>>(StringComparer.Ordinal);
         await using (var db = _fixture.CreateDbContext())
         {
-            // The scope-side mirror of the service is faithful: same figures as the endpoint.
+            // The endpoint serves what the full aggregates gave before the read moved.
             ShouldMatchServed(await FromScopesAsync(db, brackets: null), served);
 
             unfilteredBefore = await FromLightRecordAsync(db, brackets: null);
@@ -98,6 +99,57 @@ public sealed class ChampionPatchStatIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TrendEndpoint_ServesTheFullAggregateFiguresPerRankFilter_BeforeAndAfterThePurge()
+    {
+        await SeedFullAggregatesAsync();
+        await LightRecordSeed.BackfillFromScopesAsync(_fixture);
+
+        // Every rank, each stored bracket, and an "and above" filter: the endpoint, now on
+        // the light record, against ChampionTrendQueryService's arithmetic over the full
+        // aggregates — the read it replaced (#1957).
+        string?[] filters = [null, .. Brackets, "PLATINUM_PLUS"];
+        var servedBefore = new Dictionary<string, ChampionTrendReadModel>(StringComparer.Ordinal);
+        foreach (var filter in filters)
+        {
+            var served = await GetServedTrendAsync(filter);
+            served.Points.Select(point => point.Patch).Should().Equal(Patches, filter ?? "every rank");
+
+            await using var db = _fixture.CreateDbContext();
+            var bands = filter is null ? null : EloBracket.ResolveFilterOrEmpty(filter)!.ToArray();
+            ShouldMatchServed(await FromScopesAsync(db, bands), served);
+            servedBefore[filter ?? EloBracket.All] = served;
+        }
+
+        // A filter narrows the figures: GOLD alone is not every rank.
+        servedBefore[EloBracket.Gold].Points.Select(point => point.Games)
+            .Should().NotEqual(servedBefore[EloBracket.All].Points.Select(point => point.Games));
+
+        // The full aggregates of 16.3 and 16.4 go; the served series does not change.
+        await AggregateRetention.DeleteExpiredAsync(
+            new TestDbContextFactory(_fixture), 1, NullLogger.Instance, CancellationToken.None);
+
+        foreach (var filter in filters)
+        {
+            (await GetServedTrendAsync(filter)).Should().BeEquivalentTo(servedBefore[filter ?? EloBracket.All]);
+        }
+    }
+
+    [Fact]
+    public async Task TrendEndpoint_RejectsAnUnknownRankFilter()
+    {
+        await using var api = new TrueMainWebApplicationFactory<Program>(
+            _fixture, [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
+        using var client = api.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync($"/champions/{ChampionId}/trend?position=middle&eloBracket=WOOD");
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Backfill_RunsOnlyOnAnEmptyRecord()
     {
         await SeedFullAggregatesAsync();
@@ -129,7 +181,7 @@ public sealed class ChampionPatchStatIntegrationTests : IAsyncLifetime
         }
     }
 
-    private async Task<ChampionTrendReadModel> GetServedTrendAsync()
+    private async Task<ChampionTrendReadModel> GetServedTrendAsync(string? eloBracket = null)
     {
         await using var api = new TrueMainWebApplicationFactory<Program>(
             _fixture, [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")]);
@@ -138,14 +190,16 @@ public sealed class ChampionPatchStatIntegrationTests : IAsyncLifetime
             BaseAddress = new Uri("https://localhost")
         });
 
-        var trend = await client.GetFromJsonAsync<ChampionTrendReadModel>($"/champions/{ChampionId}/trend?position=middle");
+        var query = eloBracket is null ? string.Empty : $"&eloBracket={eloBracket}";
+        var trend = await client.GetFromJsonAsync<ChampionTrendReadModel>(
+            $"/champions/{ChampionId}/trend?position=middle{query}");
         trend.Should().NotBeNull();
         return trend!;
     }
 
     /// <summary>
-    /// <c>ChampionTrendQueryService</c>'s arithmetic over the full aggregates — mains only,
-    /// lane total over every champion — with the rank filter it is to gain (#1957).
+    /// <c>ChampionTrendQueryService</c>'s arithmetic over the full aggregates, the read it
+    /// replaced (#1957) — mains only, lane total over every champion — with its rank filter.
     /// </summary>
     private static async Task<Dictionary<string, TrendFigures>> FromScopesAsync(TrueMainDbContext db, string[]? brackets)
     {

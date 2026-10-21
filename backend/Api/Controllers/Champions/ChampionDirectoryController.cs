@@ -146,7 +146,9 @@ public sealed class ChampionDirectoryController(
     /// <summary>
     /// Winrate / pickrate evolution across the last five patches for a champion
     /// on a single position. Intentionally cross-patch — it takes no patch
-    /// filter, so the directory's active patch never scopes the series. Always
+    /// filter, so the directory's active patch never scopes the series. Read from
+    /// the light per-patch record (#1957), which honours the optional
+    /// <paramref name="eloBracket"/> filter (a bad one is a 400 as elsewhere). Always
     /// 200 with a (possibly empty) series so the chart can render its own "not
     /// enough data" state — a champion the directory never observed simply
     /// yields no points.
@@ -157,6 +159,7 @@ public sealed class ChampionDirectoryController(
     public async Task<ActionResult<ChampionTrendReadModel>> GetChampionTrendAsync(
         int championId,
         [FromQuery] string? position,
+        [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
         if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
@@ -164,7 +167,12 @@ public sealed class ChampionDirectoryController(
             return problem;
         }
 
-        var trend = await trendQueryService.GetTrendAsync(championId, normalizedPosition, ct);
+        if (!this.TryNormalizeOptionalEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
+        {
+            return bracketProblem;
+        }
+
+        var trend = await trendQueryService.GetTrendAsync(championId, normalizedPosition, normalizedBracket, ct);
         return Ok(trend);
     }
 }

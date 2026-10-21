@@ -208,6 +208,7 @@ Last verified against `develop` on 2026-09-02.
 - Aggregate retention is opt-in per environment: `AggregateRetainedPatchCount` defaults to 0 (frozen forever); preprod sets 2 — #711; superseded for production by the two-level retention below once it ships
 - Build aggregates live for the current and previous patch; every patch keeps a light win/pick/ban record per champion × position × elo bracket, written before the full aggregates are dropped (2026-10-06) — #1467
 - The light record is `champion_patch_stats` (games, wins), folded with every scope replacement, plus the ban pair, which moves to the light level and leaves retention (2026-10-21) — #1956
+- "Trend by patch" (now with an optional `eloBracket`) and the lifetime games total read the light record; the leaderboard's and personas' account-level cross-patch reads cannot and are #1958's to settle (2026-10-21) — #1957
 - Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid — #772, #694, #1599
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back, and the bracket is the participant's stamp (2026-10-19) — #1367, #1365
