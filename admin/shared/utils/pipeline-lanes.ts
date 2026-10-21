@@ -28,8 +28,11 @@ export interface ChainLink {
 
 /** A lane's steps within one iteration, plus what the lane as a whole did. */
 export interface LaneBranch {
-  /** `other` is the catch-all for a run whose process is in no lane. */
-  id: PipelineLaneId | 'other'
+  /**
+   * `other` is the catch-all for a run whose process is in no lane; `workers` is a batch of
+   * the permanent match-fetch workers a `FetchWorkers` host runs beside its fetch lane.
+   */
+  id: PipelineLaneId | 'workers' | 'other'
   label: string
   description: string
   links: ChainLink[]
@@ -98,6 +101,11 @@ export function buildLaneBranches(runs: readonly ProcessRun[]): LaneBranch[] {
   // ingestor records the mode it opened the pass with. Drawing such a run against a
   // whole lane would put eleven "Not run" chips beside it and claim they were
   // skipped, the same misreading the lane split was made to remove, just narrower.
+  const fetchWorkers = fetchWorkersBranches(runs)
+  if (fetchWorkers) {
+    return fetchWorkers
+  }
+
   const singleProcessMode = singleProcessModeOf(runs)
   if (singleProcessMode) {
     const links: ChainLink[] = runs.map(run => ({
@@ -165,7 +173,42 @@ function singleProcessModeOf(runs: readonly ProcessRun[]): string | null {
   return mode
 }
 
-const COMPOSITE_JOB_MODES: ReadonlySet<string> = new Set(['Full', 'FetchLane', 'AggregateLane'])
+const COMPOSITE_JOB_MODES: ReadonlySet<string> = new Set(['Full', 'FetchLane', 'AggregateLane', 'FetchWorkers'])
+
+/** The fetch-lane step `FetchWorkers` runs as permanent workers rather than in its pass. */
+const WORKER_STEP = 'MatchIngestion'
+
+/**
+ * The branches of a `FetchWorkers` iteration (#1457), or null for any other mode. That mode
+ * records two kinds of pass: its maintenance pass (the fetch lane less match fetching) and
+ * each batch of its permanent workers. Against the plain fetch lane, the first would show
+ * match fetching as skipped, the second eight steps it never meant to run — and batches,
+ * far more frequent, would push the maintenance pass out of the live tree. So a batch gets
+ * its own `workers` branch.
+ */
+function fetchWorkersBranches(runs: readonly ProcessRun[]): LaneBranch[] | null {
+  if (runs.length === 0 || runs.find(run => run.jobMode)?.jobMode !== 'FetchWorkers') {
+    return null
+  }
+
+  if (runs.every(run => run.processName === WORKER_STEP)) {
+    const links: ChainLink[] = runs.map(run => ({ processName: run.processName, outcome: run.status, run }))
+    return [toBranch(
+      'workers',
+      'Fetch workers',
+      'One batch of a permanent match-fetch worker: it claims its region\'s accounts, downloads their matches and claims again, beside the fetch lane.',
+      links,
+    )]
+  }
+
+  const fetchLane = PIPELINE_LANES.find(lane => lane.id === 'fetch')!
+  const byName = new Map(runs.map(run => [run.processName, run]))
+  const links: ChainLink[] = fetchLane.steps.filter(step => step !== WORKER_STEP).map((processName) => {
+    const run = byName.get(processName) ?? null
+    return { processName, outcome: run?.status ?? 'notRun', run }
+  })
+  return [toBranch('fetch', fetchLane.label, fetchLane.description, links)]
+}
 
 function toBranch(
   id: LaneBranch['id'],
