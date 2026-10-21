@@ -123,6 +123,24 @@ public sealed class IngestorProcessRegistrationTests
         }
     }
 
+    /// <summary>
+    /// FetchWorkers (#1457) is the fetch lane with one of its steps run differently: it owns
+    /// exactly the same steps — so the boot reconciles and releases what the fetch lane would
+    /// — and its sequenced pass is that lane less match fetching, in the same order.
+    /// </summary>
+    [Fact]
+    public void FetchWorkers_OwnsTheFetchLane_AndSequencesEveryStepButMatchFetching()
+    {
+        var fetch = JobModeSequence.For(JobMode.FetchLane);
+
+        JobModeSequence.For(JobMode.FetchWorkers).Should().Equal(fetch);
+        JobModeSequence.SequencedStepsFor(JobMode.FetchWorkers)
+            .Should().Equal(fetch.Where(step => step != JobMode.MatchIngestionOnly));
+        JobModeSequence.RunsPermanentFetchWorkers(JobMode.FetchWorkers).Should().BeTrue();
+        JobModeSequence.SequencedStepsFor(JobMode.FetchLane).Should().Equal(fetch, "the lane keeps its sequential pass");
+        JobModeSequence.CompositeModes.Should().Contain(JobMode.FetchWorkers);
+    }
+
     [Fact]
     public void For_Full_RunsEveryProcessOnce()
     {

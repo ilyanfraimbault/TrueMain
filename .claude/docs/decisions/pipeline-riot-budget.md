@@ -24,7 +24,8 @@ actually exhausted.
 **Acquisition is serialized per routing value.** The budget is a property of the routing value, so "may I send
 now" has to be decided one caller at a time to stay correct. It costs nothing: the sustained personal-key
 allowance is under one request per second per region, and regions never wait on each other — which is the
-whole point.
+whole point. Since #1457 only the *decision* is serialized, under a lock; a caller that may not send releases
+it and sleeps (see the permanent fetch workers below for why holding it while waiting became starvation).
 **The two halves of the limiter sit on opposite sides of the resilience handler.** The first attempt put both
 inside it, reasoning that a retried attempt should wait for its own permit. Preprod disproved that within an
 hour of the deploy: inside the resilience pipeline, the wait for a permit is charged to the **10-second
@@ -119,7 +120,8 @@ The count is denormalised onto the account rather than joined from `rank_snapsho
 in an `ORDER BY` over the claimable set — a lateral join to each account's newest snapshot is the one query
 the claim cannot afford to run per candidate row (#1360).
 
-**Match ingestion fans out one worker per platform, and stays sequential inside one.**
+**Match ingestion fans out one worker per platform, and stays sequential inside one.** (Under `FetchWorkers`,
+#1457, each permanent worker runs this per platform of its own routing value — see the entry below.)
 The same #1359 measurement: a claim batch walked in one serial loop ran at 0.77 req/s — one region's sustained
 allowance — while the other two regional budgets went unused. The fan-out is across routing values because
 that is the grain of the budget; going wider *within* a platform would only queue behind the limiter that now
@@ -129,6 +131,60 @@ platform order once the workers finish — the run summary is read by humans com
 so a non-deterministic merge order would be a regression in its own right. A platform's failure stays its
 own: the per-account catch was already there, and the result being local is what stops one bad account from
 costing the other regions.
+
+## Match fetching runs as permanent per-region workers, paced by a target rate and beside reserved shares (2026-10-21)
+
+**`JobMode.FetchWorkers` runs `MatchIngestion` as one permanent worker per regional routing value, beside a
+maintenance pass of the fetch lane's other steps.** Riot's application limit is a rate per routing host, so
+every minute the sequential lane spent in `LadderSync`, `Discovery` or `MainActivity` — none of which calls a
+regional host — was regional budget lost for good. The contention was for wall clock, never for quota, so the
+fix is to stop sharing the clock: each worker claims a batch of its own platforms, fetches and writes it, and
+claims again, while the maintenance pass runs on `Job:IntervalMinutes`.
+
+- **A new composite mode, not a change of `FetchLane`.** `FetchWorkers` owns exactly the fetch lane's steps
+  (`JobModeSequence.For` returns the same list), so boot-time run reconciliation and orphan-claim release are
+  unchanged; only `SequencedStepsFor` drops `MatchIngestion` from its pass. `FetchLane` keeps its sequential,
+  `RunOnce`-restarted behaviour, and `INGESTOR_JOB_MODE=FetchLane` is the rollback. Under `FetchWorkers`,
+  `Job:RunOnce` still means one pass of everything the lane owns: one maintenance pass and one batch per worker.
+- **The maintenance pass runs every minute, not back-to-back.** "At least as often as before" is met with a
+  1-minute wait (the old pass also waited out a `MatchIngestion` step of several minutes), and a floor is needed
+  because a pass of skipped cadence guards takes seconds: back-to-back would hot-loop `Harvest` and `Scoring`
+  against Postgres. The deployed containers therefore set `Job:RunOnce=false` (`INGESTOR_RUN_ONCE`).
+- **The workers reuse `MatchIngestionProcess`, narrowed through a scoped `MatchIngestionScope`** (platforms,
+  batch size), so the claim's ordering, depth/breadth split and per-platform deficit allocation are untouched
+  within a routing value. Across routing values the batch is no longer split by deficit: the regions do not
+  share a budget or a clock any more, so there is nothing left to allocate between them.
+- **A worker only ever touches its own platforms' claims.** The lease reap at the top of a batch and the
+  release a cancelled batch runs on its way out are narrowed to the worker's platforms — the other workers'
+  claims are live — and the "release everything" orphan sweep stays boot-only. A batch whose every account
+  failed backs off like a failed batch, or the reverted accounts would be re-claimed and re-failed in a loop.
+- **The target rate is a ceiling the limiter enforces on the `MatchIngestion` caller**
+  (`MatchFetchWorkers:TargetRequestsPerMinute`, a sliding minute per routing value), set by the pool while the
+  workers run and lifted when they stop, so the sequential `FetchLane` keeps its unpaced step. **The default is
+  30 calls a minute per regional host: production's measured `MatchIngestion` average over the week before the
+  change** (per-minute rollups, wall clock, roughly 25–32 per host), so the topology change alone does not move
+  throughput. A personal key's ceiling for the ramp (#1459) is 44 a minute: 50 sustained, 47.5 after the 5 %
+  headroom, less the default reservations.
+- **Reserved shares per caller on the regional routes** (`RiotRateLimit:ReservedShares`, AccountRefresh 0.05 and
+  ManualSeed 0.02 by default, at most 0.5 in total). While a reserved caller is active — waiting for a permit or
+  within `ReservationLingerSeconds` of its last call — its share of every window, less what it already spent
+  there, is held back from everyone else; idle, it holds nothing, so the share goes back to the workers. Rounded
+  up, so a share always reserves at least one permit of a window. Platform routes keep the plain first-come
+  budget: no caller asked for a share there, and `LadderSync` is the one that would pay for it.
+- **The wait no longer holds the routing value.** Waiting under the semaphore queued every caller behind
+  whoever was first, harmless with one process at a time and starvation with a worker keeping several
+  fetches open; a caller held back by a reservation also re-decides after at most a linger, so a share that
+  lapses is handed back without waiting out a two-minute window.
+- **Each worker batch is its own iteration, stamped `FetchWorkers`.** The admin draws a batch as a separate
+  *Fetch workers* branch and the maintenance pass as the fetch lane without `MatchIngestion`, so neither reads
+  as a lane that skipped steps and batches never push the maintenance pass out of the live tree. The lane
+  duty cycle reads the mode as one lane, which is what it is.
+
+What this does **not** do: measure the result. That AccountRefresh and ManualSeed keep completing under the
+workers' load, that the 429 rate holds and that the maintenance processes run at least as often as before are
+preprod observations, made after the merge — CI cannot see pacing (#1371→#1376).
+
+Source: #1457 (follows #1374, #1371, #1376, #1474; epic #1460).
 
 ## A Riot call that stores nothing is a bug, not a cost (2026-09-02)
 

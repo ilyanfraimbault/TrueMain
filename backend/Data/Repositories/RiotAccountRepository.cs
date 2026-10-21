@@ -267,17 +267,31 @@ public sealed partial class RiotAccountRepository(TrueMainDbContext db) : IRiotA
             .ToListAsync(ct);
 
     public Task<int> ReleaseExpiredMatchIngestClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct)
-        => db.RiotAccounts
-            // Served by IX_riot_accounts_ingest_claim_lease, the partial index this state
-            // already has: (MatchIngestStatus, MatchIngestClaimedAtUtc, ...) WHERE status <> 0.
+        => ReleaseExpiredMatchIngestClaimsAsync(leaseCutoffUtc, null, ct);
+
+    public Task<int> ReleaseExpiredMatchIngestClaimsAsync(
+        DateTime leaseCutoffUtc,
+        IReadOnlyCollection<string>? platforms,
+        CancellationToken ct)
+    {
+        // Served by IX_riot_accounts_ingest_claim_lease, the partial index this state
+        // already has: (MatchIngestStatus, MatchIngestClaimedAtUtc, ...) WHERE status <> 0.
+        var expired = db.RiotAccounts
             .Where(account => account.MatchIngestStatus == MatchIngestStatus.Processing
                               && (account.MatchIngestClaimedAtUtc == null
-                                  || account.MatchIngestClaimedAtUtc < leaseCutoffUtc))
-            .ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(account => account.MatchIngestStatus, MatchIngestStatus.Idle)
-                    .SetProperty(account => account.MatchIngestClaimedAtUtc, (DateTime?)null),
-                ct);
+                                  || account.MatchIngestClaimedAtUtc < leaseCutoffUtc));
+
+        if (platforms is not null)
+        {
+            expired = expired.Where(account => platforms.Contains(account.PlatformId));
+        }
+
+        return expired.ExecuteUpdateAsync(
+            setters => setters
+                .SetProperty(account => account.MatchIngestStatus, MatchIngestStatus.Idle)
+                .SetProperty(account => account.MatchIngestClaimedAtUtc, (DateTime?)null),
+            ct);
+    }
 
     public Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct)
     {
