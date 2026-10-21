@@ -15,7 +15,7 @@ const minimap = (name: string) => `${MINIMAP}/${name}.png`
 
 const countdown = (at: number) => {
   const seconds = Math.max(0, at - SAMPLE_CLOCK)
-  return `${Math.floor(seconds / 60)}:${`${seconds % 60}`.padStart(2, '0')}`
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
 const { drakes, next, spawns } = SAMPLE_OBJECTIVES
