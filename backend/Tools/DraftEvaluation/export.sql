@@ -36,6 +36,18 @@ copy (
   select "Side", "ChampionId", "TeamPosition", sum("Games") as "Games", sum("Wins") as "Wins"
   from champion_opponent_baseline_stats where "Patch" in (:train) group by 1, 2, 3
 ) to stdout with csv header;
+-- The team-composition term (#1906): the item-context fold's root build totals on the ally
+-- axes, and the champion profiles the allies are placed with.
+\echo ===teamfit===
+copy (
+  select "ChampionId", "Position", "Axis", "Bucket", sum("Games") as "Games", sum("Wins") as "Wins"
+  from champion_item_context_totals
+  where "Patch" in (:train) and "Slot" = 'Build' and "ParentItemId" = 0
+    and "Axis" in ('Overall', 'AllyMagicDamage', 'AllyFrontline')
+  group by 1, 2, 3, 4
+) to stdout with csv header;
+\echo ===profiles===
+copy (select * from champion_profile_stats where "Patch" in (:train)) to stdout with csv header;
 \echo ===roster===
 copy (
   with mm as (

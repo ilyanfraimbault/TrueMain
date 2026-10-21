@@ -85,6 +85,26 @@ describe('describeReason', () => {
     expect(text.short).toBe('Wins lane vs Zed')
   })
 
+  it('words the team composition from its axis and band', () => {
+    const physical = describeReason(reason({ kind: 'teamFit', axis: 'AllyMagicDamage', bucket: 'Low', delta: 0.021, games: 1240 }), nameOf, 'MIDDLE')
+    expect(physical.headline).toBe('+2.1')
+    expect(physical.unit).toBe('pts')
+    expect(physical.short).toBe('Physical team')
+    expect(physical.full).toBe('+2.1 pts with a mostly physical team, over 1,240 games')
+    expect(physical.tone).toBe('good')
+
+    const frontline = describeReason(reason({ kind: 'teamFit', axis: 'AllyFrontline', bucket: 'Low', delta: -0.03, games: 400, tentative: true }), nameOf, 'MIDDLE')
+    expect(frontline.short).toBe('No frontline (hover)')
+    expect(frontline.full).toBe('−3.0 pts with no frontliner among its allies, counting a hovered pick, over 400 games')
+    expect(frontline.tone).toBe('bad')
+  })
+
+  it('still reads a composition band it does not know', () => {
+    const text = describeReason(reason({ kind: 'teamFit', axis: 'AllyTankiness', bucket: 'High', delta: 0.01, games: 50 }), nameOf, 'MIDDLE')
+    expect(text.short).toBe('Your team')
+    expect(text.full).toContain('your team so far')
+  })
+
   it('still shows the figure of a kind it does not know', () => {
     const text = describeReason(reason({ kind: 'teamComp', delta: 0.01 }), nameOf, 'MIDDLE')
     expect(text.headline).toBe('+1.0')

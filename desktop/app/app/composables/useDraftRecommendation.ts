@@ -38,6 +38,8 @@ export function useDraftRecommendation(
   draft: Ref<DraftState | null>,
   pinnedLanes: Ref<Record<number, string>>,
   candidates: Ref<number[]>,
+  /** The player's bracket (`useDraftEloBracket`); null reads every bracket. */
+  eloBracket: Ref<string | null> = ref(null),
 ) {
   const recommendation = ref<DraftRecommendation | null>(null)
   const pending = ref(false)
@@ -83,6 +85,8 @@ export function useDraftRecommendation(
       allies: allies.value,
       hoveredAllies: hoveredAllies.value,
       bans: [...state.allyBans, ...state.enemyBans],
+      // No patch: the API reads its newest one, the previous as a per-champion fallback.
+      eloBracket: eloBracket.value,
     }
     // A pool wider than one request is split, and the answers merged: the
     // lanes come from the first, the candidates from all of them.
@@ -124,6 +128,7 @@ export function useDraftRecommendation(
     allies.value,
     hoveredAllies.value,
     candidates.value,
+    eloBracket.value,
   ]))
 
   watch(key, () => {

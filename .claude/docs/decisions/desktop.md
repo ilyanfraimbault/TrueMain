@@ -52,7 +52,16 @@ order — each candidate's score depends on it alone, so the merge is exact. The
 (lane first, blind safety before the enemy shows our lane opponent — #1906); the enemy-team component is #1713
 (2026-09-27) — #1675. Player comfort (mastery, the player's recent games on the champion) decides the pool and is
 shown as a reason; it never enters the score or breaks ties — no composite player score, #1671/#1683 (2026-10-05)
-— #1906.
+— #1906. The reason is a line on the card's hover counted from the last 20 non-remake games of the client's history
+("Your Ahri: 12 of your last 20 games, 7 wins", `utils/draft-comfort.ts`, 2026-10-21).
+
+**The draft asks for the player's tier and above (2026-10-21).** Both draft requests carry `eloBracket` =
+`<TIER>_PLUS` from the player's Solo/Duo standing as this machine last saw it (the rank history the overlay's pace
+panel reads), bare `CHALLENGER` at the top, and nothing — every bracket — when no tier is known. Not the tier alone:
+most of what is folded is high-elo, so one low tier would shrink every delta to nothing; not every bracket either,
+which answers a Gold player with Iron games. "And above" keeps the sample of the tiers they will meet and play
+against as they climb. The lane prior and the team composition ignore it (pooled on purpose). `useDraftEloBracket`,
+`utils/draft-elo.ts` — #1906.
 
 **A suggestion card leads with its strongest reason, never with the score.** The score is a ranking key built from
 shrunk deltas and weights; printed as "+2.1%" it reads as a chance to win, which the draft never shows. The card's

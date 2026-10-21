@@ -4,6 +4,7 @@ using System.Text.Json;
 using AwesomeAssertions;
 using Core.Lol.Ranking;
 using Data.Entities;
+using Data.ItemContext;
 using Microsoft.AspNetCore.Mvc.Testing;
 using TrueMain.ReadModels.Champions;
 
@@ -58,7 +59,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
     /// <summary>The champions every <c>ALLY</c> baseline row puts at <see cref="Position"/> on the current patch.</summary>
     private const double LaneGamesOnCurrent = 3_000 + 1_000 + 1_000 + 600 + 400 + 400 + 200;
 
-    private static readonly string[] TextFreeStringFields = ["kind", "position"];
+    private static readonly string[] TextFreeStringFields = ["kind", "position", "axis", "bucket"];
 
     private readonly PostgresFixture _fixture;
 
@@ -202,8 +203,9 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
         ahri.SynergyDelta.Should().BeApproximately((0.10 + (0.5 * 0.15)) / 1.5, 1e-9);
         ahri.SynergyGames.Should().Be(800);
 
+        // Three score terms, then the lane phase into Zed, which is never one.
         ahri.Reasons.Select(r => r.Kind).Should().Equal(
-            DraftReasonKinds.LaneMatchup, DraftReasonKinds.Synergy, DraftReasonKinds.Synergy);
+            DraftReasonKinds.LaneMatchup, DraftReasonKinds.Synergy, DraftReasonKinds.Synergy, DraftReasonKinds.LanePhase);
         var lulu = ahri.Reasons.Single(r => r.Kind == DraftReasonKinds.Synergy && r.ChampionId == Lulu);
         lulu.Position.Should().Be("UTILITY");
         lulu.Delta.Should().BeApproximately(0.10, 1e-9);
@@ -216,6 +218,49 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
 
         draft.Candidates.Single(c => c.ChampionId == LeBlanc).SynergyGames
             .Should().Be(0, "LeBlanc has no measured pairing with either ally");
+    }
+
+    [Fact]
+    public async Task PostDraftAsync_WithThreeAlliesOnTheBoard_StatesTheTeamComposition()
+    {
+        await SeedAsync();
+        await SeedTeamFitAsync();
+
+        await using var factory = new TrueMainWebApplicationFactory<Program>(_fixture);
+        using var client = CreateClient(factory);
+
+        var response = await client.PostAsJsonAsync("/champions/draft", new
+        {
+            position = Position,
+            allies = new Dictionary<string, int> { ["JUNGLE"] = LeeSin, ["TOP"] = Garen },
+            hoveredAllies = new Dictionary<string, int> { ["UTILITY"] = Lulu },
+            candidates = new[] { Ahri, LeBlanc },
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadAsStringAsync();
+        AssertTextFreeReasons(json);
+        var draft = JsonSerializer.Deserialize<DraftRecommendationResponse>(json, JsonSerializerOptions.Web)!;
+
+        // Three mostly physical allies, Garen the one frontline: AllyMagicDamage Low and
+        // AllyFrontline Mid. Ahri wins 65% of 400 games with a physical team against 50%
+        // overall (+15 pts); with one frontline, 50% of 500 (no effect). The stale patch's
+        // rows and the boots slot's are never read.
+        var ahri = draft.Candidates.Single(c => c.ChampionId == Ahri);
+        ahri.TeamFitDelta.Should().BeApproximately(0.075, 1e-9);
+        ahri.TeamFitGames.Should().Be(500);
+        var fit = ahri.Reasons[^1];
+        fit.Kind.Should().Be(DraftReasonKinds.TeamFit);
+        fit.Axis.Should().Be("AllyMagicDamage");
+        fit.Bucket.Should().Be("Low");
+        fit.Delta.Should().BeApproximately(0.15, 1e-9);
+        fit.Games.Should().Be(400);
+        fit.Tentative.Should().BeTrue("Lulu is only hovering");
+
+        // The composition is stated, not scored (weight 0 until the back-test sets it):
+        // it comes after the terms that are.
+        ahri.Reasons.Take(ahri.Reasons.Count - 1).Should().NotContain(r => r.Kind == DraftReasonKinds.TeamFit);
+        draft.Candidates.Single(c => c.ChampionId == LeBlanc).TeamFitGames
+            .Should().Be(0, "LeBlanc has no item-context totals");
     }
 
     [Fact]
@@ -418,7 +463,8 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Every reason is a kind and numbers: the only strings are the kind and a lane.
+    /// Every reason is a kind and numbers: the only strings are codes — the kind, a lane,
+    /// a composition axis and its band.
     /// </summary>
     private static void AssertTextFreeReasons(string json)
     {
@@ -525,6 +571,61 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
 
         await db.SaveChangesAsync();
     }
+
+    /// <summary>
+    /// The composition term's inputs: the allies' profiles, and Ahri's item-context totals
+    /// on the ally axes.
+    /// </summary>
+    private async Task SeedTeamFitAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        db.ChampionProfileStats.AddRange(
+            Profile(LeeSin, "JUNGLE", magicShare: 0.1, tankRate: 0.1),
+            Profile(Garen, "TOP", magicShare: 0, tankRate: 0.9),
+            Profile(Lulu, "UTILITY", magicShare: 0.2, tankRate: 0));
+
+        db.ChampionItemContextTotals.AddRange(
+            Total(Current, ItemContextSlot.Build, ItemContextAxis.Overall, ItemContextBucket.All, games: 1_000, wins: 500),
+            Total(Current, ItemContextSlot.Build, ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low, games: 400, wins: 260),
+            Total(Current, ItemContextSlot.Build, ItemContextAxis.AllyMagicDamage, ItemContextBucket.High, games: 300, wins: 60),
+            Total(Current, ItemContextSlot.Build, ItemContextAxis.AllyFrontline, ItemContextBucket.Mid, games: 500, wins: 250),
+            Total(Current, ItemContextSlot.Boots, ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low, games: 900, wins: 0),
+            Total(Stale, ItemContextSlot.Build, ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low, games: 5_000, wins: 0));
+
+        await db.SaveChangesAsync();
+    }
+
+    private static ChampionProfileStat Profile(int championId, string position, double magicShare, double tankRate)
+        => new()
+        {
+            ChampionId = championId,
+            Position = position,
+            Patch = Current,
+            Games = 1_000,
+            GameDurationSecondsSum = 1_800_000,
+            MagicDamageToChampionsSum = (long)(magicShare * 15_000_000),
+            PhysicalDamageToChampionsSum = (long)((1 - magicShare) * 15_000_000),
+            ItemGames = 1_000,
+            TankGames = (int)(tankRate * 1_000),
+            AggregatedAtUtc = DateTime.UtcNow,
+        };
+
+    private static ChampionItemContextTotal Total(
+        string patch, ItemContextSlot slot, ItemContextAxis axis, ItemContextBucket bucket, int games, int wins)
+        => new()
+        {
+            ChampionId = Ahri,
+            Position = Position,
+            Patch = patch,
+            Slot = slot,
+            ParentItemId = 0,
+            Axis = axis,
+            Bucket = bucket,
+            Games = games,
+            Wins = wins,
+            AggregatedAtUtc = DateTime.UtcNow,
+        };
 
     private static ChampionMatchupStat Matchup(
         int championId, int opponentChampionId, string patch, int games, int wins, int laneWins = 0, int laneLosses = 0)

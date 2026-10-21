@@ -218,6 +218,17 @@ jobs:
           pattern: lcov-*
           path: ${{ runner.temp }}/lcov
 
+      - name: Place a lone lcov report under its artifact's name
+        if: needs.plan.outputs.apps != '[]'
+        env:
+          APPS: ${{ needs.plan.outputs.apps }}
+        run: |
+          if [ -f "$RUNNER_TEMP/lcov/lcov.info" ]; then
+            name="lcov-$(jq -r '.[0].artifact' <<< "$APPS")"
+            mkdir -p "$RUNNER_TEMP/lcov/$name"
+            mv "$RUNNER_TEMP/lcov/lcov.info" "$RUNNER_TEMP/lcov/$name/lcov.info"
+          fi
+
       - name: Begin analysis
         run: >-
           dotnet tool run dotnet-sonarscanner begin
@@ -229,6 +240,7 @@ jobs:
           /d:sonar.qualitygate.wait="$WAIT_FOR_GATE"
           /d:sonar.cs.roslyn.ignoreIssues=true
           /d:sonar.exclusions="**/Migrations/**,**/CompiledModels/**,**/tests/**,**/*.test.ts,web/server/utils/dev-api-mock.ts,.claude/**,**/node_modules/**,**/.nuxt/**,**/.output/**,**/coverage/**"
+          /d:sonar.coverage.exclusions="backend/Tools/**"
           /d:sonar.cs.vscoveragexml.reportsPaths="$RUNNER_TEMP/coverage/*.xml"
           /d:sonar.javascript.lcov.reportPaths="$RUNNER_TEMP/lcov/lcov-web/lcov.info,$RUNNER_TEMP/lcov/lcov-admin/lcov.info,$RUNNER_TEMP/lcov/lcov-desktop-app/lcov.info"
 

@@ -38,8 +38,8 @@ public class DraftEnemyTeamTests
         Assert.Equal(0d, weights.Enemy);
         Assert.Equal(
             DraftScoring.Score(0d, 1d, 0d, 0d, 0d, weights),
-            DraftScoring.Score(0d, 1d, 0d, 0d, 0d, weights, enemyShrunk: 0.05));
-        Assert.True(DraftScoring.Score(0d, 1d, 0d, 0d, 0d, weights with { Enemy = 0.5 }, enemyShrunk: 0.05) > 0d);
+            DraftScoring.Score(0d, 1d, 0d, 0d, 0d, weights, new DraftBoardTerms(EnemyShrunk: 0.05)));
+        Assert.True(DraftScoring.Score(0d, 1d, 0d, 0d, 0d, weights with { Enemy = 0.5 }, new DraftBoardTerms(EnemyShrunk: 0.05)) > 0d);
     }
 
     [Fact]

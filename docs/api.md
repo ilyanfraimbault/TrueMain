@@ -969,13 +969,21 @@ candidats — ne tient pas dans une query string, et qu'elle change à chaque pi
   change de lane ; **0,5 est un pile ou face** entre deux lectures, pas "à moitié
   juste". `laneOpponentChampionId` est `null` tant qu'aucun ennemi n'est placé sur
   la lane du joueur — état normal en début de draft, pas une erreur.
-- `score` = `matchupDelta` + `synergyDelta`, deux **différences mesurées** (win rate
-  contre l'adversaire résolu moins win rate à la lane ; observé moins attendu avec
-  les alliés verrouillés) gardées séparées jusqu'au client, qui peut dire *laquelle*
-  porte un pick. Ce n'est pas une probabilité de victoire. `thinSample` signale
-  qu'aucune moitié n'atteint son plancher de parties : le candidat est renvoyé
-  quand même, chiffres compris, pour être affiché comme non prouvé plutôt que
-  retiré en silence.
+- `score` est une clé de tri, jamais une probabilité de victoire : des **différences
+  mesurées** (en points de win rate, avec leurs parties) gardées séparées jusqu'au
+  client — lane (`matchupDelta`, pondérée par la probabilité de chaque adversaire),
+  `blind` pour la part de lane encore inconnue, force à la lane (`strengthDelta`),
+  équipe ennemie (`enemyDelta`), composition de l'équipe (`teamFitDelta` : win rate du
+  pick quand la part magique et la frontline de ses alliés sont dans la bande du
+  board, moins son win rate global, dès trois alliés posés) et synergie moyenne
+  (`synergyDelta`) — chacune réduite vers 0 selon ses parties (#1906). Équipe ennemie
+  et composition pèsent 0 tant qu'un back-test ne les a pas fixées. `reasons` donne
+  les 2–3 termes qui portent le pick, puis les faits hors score (`lanePhase`,
+  `teamFit` avec ses codes `axis` / `bucket`), en données sans texte. `thinSample`
+  signale qu'aucune lecture n'atteint son plancher de parties : le candidat est
+  renvoyé quand même, pour être affiché comme non prouvé plutôt que retiré en
+  silence. L'app desktop envoie la tranche du joueur et au-dessus (`GOLD_PLUS`), pas
+  de patch : le serveur lit son patch le plus récent, le précédent en repli.
 
 ---
 
