@@ -33,21 +33,7 @@ public sealed class MatchTeamPositionCorrectionProcess(
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
-        // Empty TeamPosition is the only "unresolved" signal Riot's data carries
-        // (mirrors MatchDataQualityRules' own check), so this is a small,
-        // selective subset of an otherwise huge table.
-        var candidateTeams = await db.MatchParticipants
-            .AsNoTracking()
-            .Where(p => p.TeamPosition == "")
-            .Select(p => new { p.MatchId, p.TeamId })
-            .Distinct()
-            // Ordered after Distinct (EF erases an ordering placed before it), so the
-            // batch is a deterministic slice instead of whatever order the scan happens
-            // to yield.
-            .OrderBy(t => t.MatchId)
-            .ThenBy(t => t.TeamId)
-            .Take(BatchSize)
-            .ToListAsync(ct);
+        var candidateTeams = await CandidateTeamsQuery(db).ToListAsync(ct);
 
         if (candidateTeams.Count == 0)
         {
@@ -56,6 +42,7 @@ public sealed class MatchTeamPositionCorrectionProcess(
 
         var matchIds = candidateTeams.Select(t => t.MatchId).Distinct().ToList();
         var members = await db.MatchParticipants
+            .AsNoTracking()
             .Where(p => matchIds.Contains(p.MatchId))
             .Select(p => new { p.Id, p.MatchId, p.TeamId, p.TeamPosition })
             .ToListAsync(ct);
@@ -111,5 +98,32 @@ public sealed class MatchTeamPositionCorrectionProcess(
         }
 
         return new TeamPositionCorrectionSummary(corrected, candidateTeams.Count);
+    }
+
+    /// <summary>
+    /// The (match, team) pairs that still carry an unresolved lane, one batch in key
+    /// order. Empty TeamPosition is the only "unresolved" signal Riot's data carries
+    /// (mirrors MatchDataQualityRules' own check). Steady state is a handful of
+    /// ambiguous teams re-read on every pass, so the scan must cost what it returns:
+    /// <c>IX_match_participants_team_position_pending</c> holds exactly these rows, in
+    /// this order (#2095).
+    /// </summary>
+    public static IQueryable<CandidateTeam> CandidateTeamsQuery(TrueMainDbContext db) =>
+        db.MatchParticipants
+            .AsNoTracking()
+            .Where(p => p.TeamPosition == "")
+            .Select(p => new CandidateTeam { MatchId = p.MatchId, TeamId = p.TeamId })
+            .Distinct()
+            // Ordered after Distinct (EF erases an ordering placed before it), so the
+            // batch is a deterministic slice instead of whatever order the scan happens
+            // to yield.
+            .OrderBy(t => t.MatchId)
+            .ThenBy(t => t.TeamId)
+            .Take(BatchSize);
+
+    public sealed record CandidateTeam
+    {
+        public required string MatchId { get; init; }
+        public required int TeamId { get; init; }
     }
 }
