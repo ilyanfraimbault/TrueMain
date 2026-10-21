@@ -14,103 +14,173 @@ using TrueMain.Services.Ops.Stats;
 namespace TrueMain.UnitTests;
 
 /// <summary>
-/// The budget-headroom arithmetic (#1035): binding-limit selection across the app
-/// rate-limit's windows, the three "not enough to trust an extrapolation" guards,
-/// and the <c>X-App-Rate-Limit</c> pair parser. Exercises the internal statics
-/// directly (<c>InternalsVisibleTo</c>) — no Mongo/Postgres involved, since this is
-/// pure arithmetic over already-fetched inputs.
+/// The budget-headroom arithmetic (#1035), per routing host since #1894: each host against
+/// its own advertised limit, the binding host, the "not enough to trust an extrapolation"
+/// guards (route-keyed history included), and the <c>X-App-Rate-Limit</c> pair parser.
+/// Exercises the internal statics directly (<c>InternalsVisibleTo</c>) — no Mongo/Postgres
+/// involved, since this is pure arithmetic over already-fetched inputs.
 /// </summary>
 public sealed class RiotApiUsageQueryServiceTests
 {
-    private static readonly DateTime Now = DateTime.UtcNow;
+    private static readonly DateTime Now = new(2026, 10, 21, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Since = Now.AddDays(-7);
+
+    // 100 calls / 120 s -> 72,000 calls/day sustained; the 1 s window allows far more.
+    private const string AppLimit = "20:1,100:120";
 
     [Fact]
-    public void BuildHeadroom_ObservedSpanBelowTwentyFourHours_IsInsufficientData()
+    public void BuildHeadroom_RouteKeyedHistoryBelowTwentyFourHours_IsInsufficientData()
     {
-        var saturation = new RiotApiSaturationInputs(
-            TotalCalls: 10_000,
-            EarliestBucketUtc: Now.AddHours(-2),
-            RateLimit: RateLimit("20:1,100:120", "5:1,80:120"));
+        // Seven days of rollups may exist, but only 2 h of them are route-keyed: the
+        // per-host rate cannot be trusted yet.
+        var inputs = Inputs(Now.AddHours(-2), Route("europe", 10_000, AppLimit));
 
-        var headroom = RiotApiUsageQueryService.BuildHeadroom(saturation, trackedAccounts: 100);
+        var headroom = RiotApiUsageQueryService.BuildHeadroom(inputs, trackedAccounts: 100, Now);
 
         headroom.SufficientData.Should().BeFalse();
-        headroom.ObservedWindowHours.Should().BeApproximately(2, 0.1);
+        headroom.ObservedWindowHours.Should().BeApproximately(2, 0.001);
         headroom.RequiredWindowHours.Should().Be(24);
+        headroom.TrackedAccounts.Should().Be(100);
         headroom.AdditionalAccountsHeadroom.Should().BeNull();
+        headroom.BindingRoute.Should().BeNull();
+        headroom.Routes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void BuildHeadroom_NoRouteKeyedRollupAtAll_IsInsufficientDataWithNothingObserved()
+    {
+        var headroom = RiotApiUsageQueryService.BuildHeadroom(Inputs(oldestRouteKeyed: null), 100, Now);
+
+        headroom.SufficientData.Should().BeFalse();
+        headroom.ObservedWindowHours.Should().Be(0);
     }
 
     [Fact]
     public void BuildHeadroom_NoTrackedAccounts_IsInsufficientData()
     {
-        var saturation = new RiotApiSaturationInputs(
-            TotalCalls: 10_000,
-            EarliestBucketUtc: Now.AddDays(-7),
-            RateLimit: RateLimit("20:1,100:120", "5:1,80:120"));
+        var inputs = Inputs(Since.AddDays(-3), Route("europe", 10_000, AppLimit));
 
-        var headroom = RiotApiUsageQueryService.BuildHeadroom(saturation, trackedAccounts: 0);
+        var headroom = RiotApiUsageQueryService.BuildHeadroom(inputs, trackedAccounts: 0, Now);
 
         headroom.SufficientData.Should().BeFalse();
         headroom.TrackedAccounts.Should().Be(0);
     }
 
     [Fact]
-    public void BuildHeadroom_NoRateLimitSnapshot_IsInsufficientData()
+    public void BuildHeadroom_NoHostAdvertisedALimit_IsInsufficientData()
     {
-        var saturation = new RiotApiSaturationInputs(
-            TotalCalls: 10_000,
-            EarliestBucketUtc: Now.AddDays(-7),
-            RateLimit: null);
+        var inputs = Inputs(Since, Route("europe", 10_000, null), Route("euw1", 5_000, null));
 
-        var headroom = RiotApiUsageQueryService.BuildHeadroom(saturation, trackedAccounts: 100);
+        var headroom = RiotApiUsageQueryService.BuildHeadroom(inputs, trackedAccounts: 100, Now);
 
         headroom.SufficientData.Should().BeFalse();
+        headroom.ObservedWindowHours.Should().BeApproximately(168, 0.001);
     }
 
     [Fact]
-    public void BuildHeadroom_SufficientData_ComputesCostPerAccountAndAdditionalHeadroom()
+    public void BuildHeadroom_EachHostAgainstItsOwnLimit_TheTightestOneBinds()
     {
-        // 7 days exactly, 100 tracked accounts, 700,000 calls total -> 100,000/day
-        // observed, 1,000 calls/account/day. Binding limit is the 120s window
-        // (100 * 86400 / 120 = 72,000/day) rather than the 1s window
-        // (20 * 86400 / 1 = 1,728,000/day) — the tighter sustained ceiling.
-        var saturation = new RiotApiSaturationInputs(
-            TotalCalls: 700_000,
-            EarliestBucketUtc: Now.AddDays(-7),
-            RateLimit: RateLimit("20:1,100:120", "5:1,80:120"));
+        // 7 days, 100 tracked accounts, every host advertising 72,000 calls/day.
+        //   europe: 350,000 calls -> 50,000/day, 500/account/day, 22,000 spare -> 44 accounts.
+        //   euw1:   70,000 calls  -> 10,000/day, 100/account/day, 62,000 spare -> 620 accounts.
+        // Summed, the two would read 60,000/day against one 72,000 ceiling (120 more
+        // accounts): the pre-#1894 figure, which describes no real budget.
+        var inputs = Inputs(
+            Since.AddDays(-10),
+            Route("euw1", 70_000, AppLimit),
+            Route("europe", 350_000, AppLimit));
 
-        var headroom = RiotApiUsageQueryService.BuildHeadroom(saturation, trackedAccounts: 100);
+        var headroom = RiotApiUsageQueryService.BuildHeadroom(inputs, trackedAccounts: 100, Now);
 
         headroom.SufficientData.Should().BeTrue();
-        headroom.TrackedAccounts.Should().Be(100);
-        headroom.ObservedCallsPerDay!.Value.Should().BeApproximately(100_000, 50);
-        headroom.CallsPerAccountPerDay!.Value.Should().BeApproximately(1_000, 1);
-        headroom.BindingLimit.Should().NotBeNull();
-        headroom.BindingLimit!.Limit.Should().Be(100);
-        headroom.BindingLimit.WindowSeconds.Should().Be(120);
-        headroom.BindingLimit.MaxCallsPerDay.Should().BeApproximately(72_000, 0.5);
-        // Observed (100,000/day) already exceeds the binding ceiling (72,000/day):
-        // spare is clamped to 0, not negative, and headroom is 0 more accounts.
-        headroom.SpareCallsPerDay.Should().Be(0);
+        headroom.ObservedWindowHours.Should().BeApproximately(168, 0.001);
+        headroom.BindingRoute.Should().Be("europe");
+        headroom.AdditionalAccountsHeadroom.Should().Be(44);
+        headroom.Routes.Select(r => r.Route).Should().Equal("europe", "euw1");
+
+        var europe = headroom.Routes[0];
+        europe.Kind.Should().Be("regional");
+        europe.ObservedCallsPerDay.Should().BeApproximately(50_000, 0.001);
+        europe.CallsPerAccountPerDay.Should().BeApproximately(500, 0.001);
+        europe.BindingLimit!.Limit.Should().Be(100);
+        europe.BindingLimit.WindowSeconds.Should().Be(120);
+        europe.SpareCallsPerDay!.Value.Should().BeApproximately(22_000, 0.001);
+
+        var euw1 = headroom.Routes[1];
+        euw1.Kind.Should().Be("platform");
+        euw1.SpareCallsPerDay!.Value.Should().BeApproximately(62_000, 0.001);
+        euw1.AdditionalAccountsHeadroom.Should().Be(620);
+    }
+
+    [Fact]
+    public void BuildHeadroom_HostsWithDifferentLimits_AreEachMeasuredAgainstTheirOwn()
+    {
+        // Same 10,000 calls/day on both hosts, but asia advertises half europe's ceiling
+        // (50:120 -> 36,000/day): asia binds, at (36,000 - 10,000) / 100 = 260 accounts.
+        var inputs = Inputs(
+            Since,
+            Route("europe", 70_000, AppLimit),
+            Route("asia", 70_000, "10:1,50:120"));
+
+        var headroom = RiotApiUsageQueryService.BuildHeadroom(inputs, trackedAccounts: 100, Now);
+
+        headroom.BindingRoute.Should().Be("asia");
+        headroom.AdditionalAccountsHeadroom.Should().Be(260);
+        headroom.Routes.Single(r => r.Route == "europe").AdditionalAccountsHeadroom.Should().Be(620);
+    }
+
+    [Fact]
+    public void BuildHeadroom_SaturatedHost_ClampsSpareToZeroAndBindsAtZero()
+    {
+        // europe: 100,000/day against a 72,000/day ceiling — spare clamped, never negative.
+        var inputs = Inputs(
+            Since,
+            Route("europe", 700_000, AppLimit),
+            Route("euw1", 7_000, AppLimit));
+
+        var headroom = RiotApiUsageQueryService.BuildHeadroom(inputs, trackedAccounts: 100, Now);
+
+        headroom.BindingRoute.Should().Be("europe");
         headroom.AdditionalAccountsHeadroom.Should().Be(0);
+        headroom.Routes[0].SpareCallsPerDay.Should().Be(0);
     }
 
     [Fact]
-    public void BuildHeadroom_SpareCapacity_YieldsPositiveAdditionalAccounts()
+    public void BuildHeadroom_ShortRouteKeyedHistory_MeasuresOverTheCoveredSpanOnly()
     {
-        // 100,000 calls over 7 days -> ~14,286/day observed, ~143/account/day.
-        // Binding ceiling (100:120) is 72,000/day, so ~57,714/day spare ->
-        // floor(57714 / 142.857) = 404 additional accounts.
-        var saturation = new RiotApiSaturationInputs(
-            TotalCalls: 100_000,
-            EarliestBucketUtc: Now.AddDays(-7),
-            RateLimit: RateLimit("20:1,100:120", "5:1,80:120"));
+        // Route-keyed rollups only go back 2 days: 20,000 calls are 10,000/day, not the
+        // 2,857/day a division by the nominal 7 days would make of them.
+        var inputs = Inputs(Now.AddDays(-2), Route("europe", 20_000, AppLimit));
 
-        var headroom = RiotApiUsageQueryService.BuildHeadroom(saturation, trackedAccounts: 100);
+        var headroom = RiotApiUsageQueryService.BuildHeadroom(inputs, trackedAccounts: 100, Now);
 
         headroom.SufficientData.Should().BeTrue();
-        headroom.SpareCallsPerDay!.Value.Should().BeGreaterThan(0);
-        headroom.AdditionalAccountsHeadroom.Should().BeGreaterThan(0);
+        headroom.ObservedWindowHours.Should().BeApproximately(48, 0.001);
+        headroom.Routes[0].ObservedCallsPerDay.Should().BeApproximately(10_000, 0.001);
+        headroom.AdditionalAccountsHeadroom.Should().Be(620);
+    }
+
+    [Fact]
+    public void BuildHeadroom_UnknownAndUnlimitedHosts_NeverBind()
+    {
+        // "unknown" belongs to no budget: left out. A host without a limit header keeps its
+        // measured cost but cannot bind.
+        var inputs = Inputs(
+            Since,
+            Route("unknown", 7_000_000, AppLimit),
+            Route("kr", 700_000, null),
+            Route("euw1", 70_000, AppLimit));
+
+        var headroom = RiotApiUsageQueryService.BuildHeadroom(inputs, trackedAccounts: 100, Now);
+
+        headroom.SufficientData.Should().BeTrue();
+        headroom.BindingRoute.Should().Be("euw1");
+        headroom.Routes.Select(r => r.Route).Should().Equal("euw1", "kr");
+        var kr = headroom.Routes[1];
+        kr.CallsPerAccountPerDay.Should().BeApproximately(1_000, 0.001);
+        kr.BindingLimit.Should().BeNull();
+        kr.SpareCallsPerDay.Should().BeNull();
+        kr.AdditionalAccountsHeadroom.Should().BeNull();
     }
 
     [Fact]
@@ -150,6 +220,9 @@ public sealed class RiotApiUsageQueryServiceTests
         binding!.WindowSeconds.Should().Be(120);
     }
 
-    private static RiotApiRateLimitSnapshot RateLimit(string appLimit, string appCount)
-        => new(Now, appLimit, appCount, null, null, null, null);
+    private static RiotHeadroomInputs Inputs(DateTime? oldestRouteKeyed, params RiotRouteVolume[] routes)
+        => new(Since, oldestRouteKeyed, routes);
+
+    private static RiotRouteVolume Route(string route, long calls, string? appLimit)
+        => new(route, calls, appLimit);
 }

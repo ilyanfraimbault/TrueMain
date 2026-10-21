@@ -890,6 +890,11 @@ build costs runner minutes, not wall time, since it runs beside CI.
   `--ignore-scripts` and runs only the apps' own `postinstall` (`nuxt prepare`),
   so no dependency's lifecycle script runs in a job that sits next to the token. The desktop app's
   run only covers its own tree; the shared layer's coverage comes from `web`.
+  `analysis` downloads the reports by pattern: `download-artifact` puts each
+  one in a folder named after its artifact, except when a single one matches
+  (a PR touching one app), which it unpacks straight into the target folder —
+  so the scanner is given both `lcov/lcov.info` and the per-app paths, and
+  ignores whichever do not exist.
 - `analysis` wraps the Release build and, when planned, both test suites between
   `dotnet-sonarscanner begin` and `end`. Coverage comes from
   `Microsoft.Testing.Extensions.CodeCoverage` (`dotnet test --coverage`, XML

@@ -100,32 +100,61 @@ public sealed record RiotApiCallerUsageReadModel
 
 /// <summary>
 /// Budget-headroom estimate (#1035): "how many more tracked accounts fit". Always
-/// computed over the last 7 days, independent of the panel's selected window.
-/// <see cref="SufficientData"/> is <see langword="false"/> — with only
-/// <see cref="ObservedWindowHours"/>/<see cref="RequiredWindowHours"/> set — when
-/// there isn't yet enough rollup history, no accounts are tracked, or no rate-limit
-/// snapshot was seen; the estimate deliberately renders that absent state instead
-/// of extrapolating from a too-thin window.
+/// computed over the last 7 days, independent of the panel's selected window, and per
+/// routing host (#1894) — Riot meters each host separately, so each one in
+/// <see cref="Routes"/> is measured against its own advertised limit and the one with the
+/// fewest additional accounts, <see cref="BindingRoute"/>, sets
+/// <see cref="AdditionalAccountsHeadroom"/>. <see cref="SufficientData"/> is
+/// <see langword="false"/> — with only <see cref="ObservedWindowHours"/>/
+/// <see cref="RequiredWindowHours"/>/<see cref="TrackedAccounts"/> set — when the
+/// route-keyed history is shorter than the required window, no accounts are tracked, or no
+/// host returned a rate-limit header; the estimate deliberately renders that absent state
+/// instead of extrapolating from a too-thin window.
 /// </summary>
 public sealed record RiotApiHeadroomReadModel
 {
     public bool SufficientData { get; init; }
 
+    /// <summary>Hours of route-keyed history the rates were measured over (at most 7 days).</summary>
     public double ObservedWindowHours { get; init; }
 
     public double RequiredWindowHours { get; init; }
 
     public long TrackedAccounts { get; init; }
 
-    public double? CallsPerAccountPerDay { get; init; }
+    /// <summary>The binding host's figure: the fewest additional accounts any host can absorb.</summary>
+    public long? AdditionalAccountsHeadroom { get; init; }
 
-    public double? ObservedCallsPerDay { get; init; }
+    /// <summary>The routing host that caps <see cref="AdditionalAccountsHeadroom"/>.</summary>
+    public string? BindingRoute { get; init; }
+
+    /// <summary>Every host with traffic, the binding one first (fewest additional accounts).</summary>
+    public IReadOnlyList<RiotRouteHeadroomReadModel> Routes { get; init; } = [];
+}
+
+/// <summary>
+/// One routing host's headroom (#1894): its calls/day over the covered span, that cost per
+/// tracked account, and what is left under the binding window of the limit it advertised.
+/// <see cref="BindingLimit"/>, <see cref="SpareCallsPerDay"/> and
+/// <see cref="AdditionalAccountsHeadroom"/> are null when the host returned no parseable
+/// <c>X-App-Rate-Limit</c> header.
+/// </summary>
+public sealed record RiotRouteHeadroomReadModel
+{
+    public string Route { get; init; } = string.Empty;
+
+    /// <summary><c>regional</c> or <c>platform</c> — two budget families, never added.</summary>
+    public string Kind { get; init; } = string.Empty;
+
+    public double ObservedCallsPerDay { get; init; }
+
+    public double CallsPerAccountPerDay { get; init; }
 
     public RiotApiBindingLimitReadModel? BindingLimit { get; init; }
 
     public double? SpareCallsPerDay { get; init; }
 
-    /// <summary>Floor of spare capacity divided by the per-account cost.</summary>
+    /// <summary>Floor of the host's spare capacity divided by its per-account cost.</summary>
     public long? AdditionalAccountsHeadroom { get; init; }
 }
 

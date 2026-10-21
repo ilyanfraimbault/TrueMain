@@ -24,31 +24,33 @@ public interface IRiotApiUsageQueryService
 /// aggregation and window semantics live in Data (so the Api stays
 /// persistence-ignorant); this service parses the window string and maps the
 /// <see cref="RiotApiUsage"/> read-model onto the <see cref="RiotApiUsageReadModel"/>
-/// API contract. It also composes the budget-headroom estimate (#1035): Mongo call
-/// volume plus the Postgres tracked-account count (same read
-/// <see cref="OverviewQueryService"/> uses) is arithmetic, not persistence, so it
+/// API contract. It also composes the budget-headroom estimate (#1035, per routing host
+/// since #1894): per-host Mongo call volume plus the Postgres tracked-account count (same
+/// read <see cref="OverviewQueryService"/> uses) is arithmetic, not persistence, so it
 /// lives here rather than in either data layer.
 /// </summary>
-public sealed class RiotApiUsageQueryService(IRiotApiUsageQuery query, TrueMainDbContext db)
-    : IRiotApiUsageQueryService
+public sealed class RiotApiUsageQueryService(
+    IRiotApiUsageQuery query,
+    IRiotQuotaQuery quotaQuery,
+    TrueMainDbContext db) : IRiotApiUsageQueryService
 {
     // Below this much observed history, a calls/day extrapolation is treated as
     // unreliable rather than guessed at — the estimate renders an explicit absent
     // state instead (#1035 acceptance criterion).
-    private static readonly TimeSpan MinimumSaturationWindow = TimeSpan.FromHours(24);
+    private static readonly TimeSpan MinimumHeadroomWindow = TimeSpan.FromHours(24);
 
     public async Task<RiotApiUsageReadModel> GetAsync(string? window, string? endpoint, CancellationToken ct)
     {
         var (resolved, key) = ResolveWindow(window);
 
         var usageTask = query.GetAsync(resolved, endpoint, ct);
-        var saturationTask = query.GetSaturationInputsAsync(ct);
+        var headroomTask = quotaQuery.GetHeadroomInputsAsync(ct);
         var trackedAccountsTask = db.RiotAccounts.AsNoTracking().CountAsync(ct);
 
-        await Task.WhenAll(usageTask, saturationTask, trackedAccountsTask);
+        await Task.WhenAll(usageTask, headroomTask, trackedAccountsTask);
 
         var usage = await usageTask;
-        var saturation = await saturationTask;
+        var headroom = await headroomTask;
         var trackedAccounts = await trackedAccountsTask;
 
         return new RiotApiUsageReadModel
@@ -109,7 +111,7 @@ public sealed class RiotApiUsageQueryService(IRiotApiUsageQuery query, TrueMainD
                     Errors = c.Errors
                 })
                 .ToList(),
-            Headroom = BuildHeadroom(saturation, trackedAccounts)
+            Headroom = BuildHeadroom(headroom, trackedAccounts, DateTime.UtcNow)
         };
     }
 
@@ -129,55 +131,88 @@ public sealed class RiotApiUsageQueryService(IRiotApiUsageQuery query, TrueMainD
         };
 
     /// <summary>
-    /// Arithmetic on measured cost per account (#1035): calls/day observed over
-    /// the last 7 days, divided by tracked accounts, compared against the
-    /// tightest sustained-load app rate-limit ceiling. Guards against three ways
-    /// the estimate could mislead rather than inform: too little history to trust
-    /// the daily rate, zero tracked accounts (division has no meaning), and no
-    /// rate-limit snapshot to compare against.
+    /// Arithmetic on measured cost per account (#1035), one routing host at a time (#1894):
+    /// Riot meters each host separately, so a host's calls/day over the covered span are
+    /// divided by tracked accounts and compared against the tightest sustained ceiling of
+    /// <em>that host's</em> advertised app limit — calls from different hosts are never added,
+    /// nor compared to another host's limit. The host with the fewest additional accounts
+    /// binds: it caps the estimate. New accounts are assumed to cost each host what the
+    /// current ones do (the current regional mix).
+    /// <para>
+    /// Three guards keep the estimate from misleading: route-keyed history shorter than
+    /// <see cref="MinimumHeadroomWindow"/> (the retention or the #1458 cutover may cut the
+    /// 7 days short, and the rate is measured over the covered span only), no tracked
+    /// accounts, and no host with a parseable limit header. Calls whose host could not be
+    /// read (<c>"unknown"</c>) belong to no budget and are left out.
+    /// </para>
     /// </summary>
-    internal static RiotApiHeadroomReadModel BuildHeadroom(RiotApiSaturationInputs saturation, int trackedAccounts)
+    internal static RiotApiHeadroomReadModel BuildHeadroom(
+        RiotHeadroomInputs inputs,
+        int trackedAccounts,
+        DateTime now)
     {
-        var now = DateTime.UtcNow;
-        var observedSpan = now - (saturation.EarliestBucketUtc ?? now);
-        var requiredHours = MinimumSaturationWindow.TotalHours;
-
-        if (observedSpan < MinimumSaturationWindow || trackedAccounts <= 0 || saturation.RateLimit is null)
+        var counted = inputs.OldestRouteKeyedBucketUtc ?? now;
+        var coverageStart = counted > inputs.SinceUtc ? counted : inputs.SinceUtc;
+        var covered = now - coverageStart;
+        var insufficient = new RiotApiHeadroomReadModel
         {
-            return new RiotApiHeadroomReadModel
-            {
-                SufficientData = false,
-                ObservedWindowHours = observedSpan.TotalHours,
-                RequiredWindowHours = requiredHours,
-                TrackedAccounts = Math.Max(0, trackedAccounts)
-            };
+            SufficientData = false,
+            ObservedWindowHours = Math.Max(0, covered.TotalHours),
+            RequiredWindowHours = MinimumHeadroomWindow.TotalHours,
+            TrackedAccounts = Math.Max(0, trackedAccounts)
+        };
+
+        if (covered < MinimumHeadroomWindow || trackedAccounts <= 0)
+        {
+            return insufficient;
         }
 
-        var bindingLimit = ResolveBindingLimit(saturation.RateLimit.AppRateLimit);
-        if (bindingLimit is null)
+        var routes = inputs.Routes
+            .Where(route => route.Route != RiotQuotaQueryService.UnknownRoute)
+            .Select(route => BuildRouteHeadroom(route, covered, trackedAccounts))
+            .OrderBy(route => route.AdditionalAccountsHeadroom ?? long.MaxValue)
+            .ThenBy(route => route.Route, StringComparer.Ordinal)
+            .ToList();
+
+        if (routes.All(route => route.BindingLimit is null))
         {
-            return new RiotApiHeadroomReadModel
-            {
-                SufficientData = false,
-                ObservedWindowHours = observedSpan.TotalHours,
-                RequiredWindowHours = requiredHours,
-                TrackedAccounts = trackedAccounts
-            };
+            return insufficient;
         }
 
-        var observedCallsPerDay = saturation.TotalCalls / observedSpan.TotalDays;
-        var callsPerAccountPerDay = observedCallsPerDay / trackedAccounts;
-        var spareCallsPerDay = Math.Max(0, bindingLimit.MaxCallsPerDay - observedCallsPerDay);
-        var additionalAccounts = callsPerAccountPerDay > 0
-            ? (long)Math.Floor(spareCallsPerDay / callsPerAccountPerDay)
-            : (long?)null;
+        var binding = routes.FirstOrDefault(route => route.AdditionalAccountsHeadroom is not null);
 
-        return new RiotApiHeadroomReadModel
+        return insufficient with
         {
             SufficientData = true,
-            ObservedWindowHours = observedSpan.TotalHours,
-            RequiredWindowHours = requiredHours,
-            TrackedAccounts = trackedAccounts,
+            AdditionalAccountsHeadroom = binding?.AdditionalAccountsHeadroom,
+            BindingRoute = binding?.Route,
+            Routes = routes
+        };
+    }
+
+    /// <summary>
+    /// One host's share of the estimate. A host that advertised no parseable limit keeps its
+    /// measured cost but gets no spare capacity nor account count — it cannot bind.
+    /// </summary>
+    internal static RiotRouteHeadroomReadModel BuildRouteHeadroom(
+        RiotRouteVolume route,
+        TimeSpan covered,
+        int trackedAccounts)
+    {
+        var observedCallsPerDay = route.Calls / covered.TotalDays;
+        var callsPerAccountPerDay = observedCallsPerDay / trackedAccounts;
+        var bindingLimit = ResolveBindingLimit(route.AppRateLimit);
+        var spareCallsPerDay = bindingLimit is null
+            ? (double?)null
+            : Math.Max(0, bindingLimit.MaxCallsPerDay - observedCallsPerDay);
+        var additionalAccounts = spareCallsPerDay is not null && callsPerAccountPerDay > 0
+            ? (long)Math.Floor(spareCallsPerDay.Value / callsPerAccountPerDay)
+            : (long?)null;
+
+        return new RiotRouteHeadroomReadModel
+        {
+            Route = route.Route,
+            Kind = RiotQuotaQueryService.KindOf(route.Route),
             ObservedCallsPerDay = observedCallsPerDay,
             CallsPerAccountPerDay = callsPerAccountPerDay,
             BindingLimit = bindingLimit,
