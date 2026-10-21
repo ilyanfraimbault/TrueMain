@@ -77,6 +77,9 @@ internal sealed partial class SynergyAggregationOptionsValidator : IValidateOpti
 internal sealed partial class OpponentAggregationOptionsValidator : IValidateOptions<OpponentAggregationOptions>;
 
 [OptionsValidator]
+internal sealed partial class ScalingAggregationOptionsValidator : IValidateOptions<ScalingAggregationOptions>;
+
+[OptionsValidator]
 internal sealed partial class LaneOutcomeAggregationOptionsValidator : IValidateOptions<LaneOutcomeAggregationOptions>;
 
 [OptionsValidator]

@@ -8,14 +8,13 @@ namespace TrueMain.Controllers.Champions;
 
 /// <summary>
 /// What a champion builds at a position: the build page itself — items, runes, skill order,
-/// summoners, optionally narrowed to a lane opponent — and the item-timing curve computed from
-/// the same purchase events. One controller because the two read the same participants through
-/// the same scope, so a divergence between them would be a bug in one page, not two.
+/// summoners — optionally narrowed to a lane opponent. One controller because the two read the
+/// same participants through the same scope, so a divergence between them would be a bug in one
+/// page, not two.
 /// </summary>
 public sealed class ChampionBuildsController(
     IChampionBuildsQueryService buildsQueryService,
-    IChampionMatchupBuildsQueryService matchupBuildsQueryService,
-    IChampionItemTimingsQueryService itemTimingsQueryService) : ChampionsControllerBase
+    IChampionMatchupBuildsQueryService matchupBuildsQueryService) : ChampionsControllerBase
 {
     [HttpGet("{championId:int}")]
     [ProducesResponseType(typeof(ChampionResponse), StatusCodes.Status200OK)]
@@ -83,44 +82,5 @@ public sealed class ChampionBuildsController(
             ct: ct);
 
         return response is null ? NotFound() : Ok(response);
-    }
-
-    /// <summary>
-    /// Average first-purchase time of each item for a champion at a position — the
-    /// item timeline, computed live from the participants' item-purchase
-    /// events. <paramref name="position"/> is the required Riot team position; an
-    /// unrecognised position is a 400. Always 200 with a (possibly empty) list
-    /// ordered earliest-first; items below the sample floor are dropped. The caller
-    /// classifies items (core / boots / consumable) from static item data.
-    /// </summary>
-    [HttpGet("{championId:int}/item-timings")]
-    [ProducesResponseType(typeof(ChampionItemTimingsResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ChampionItemTimingsResponse>> GetChampionItemTimingsAsync(
-        int championId,
-        [FromQuery] string? position,
-        [FromQuery] string? patch,
-        [FromQuery] string? eloBracket,
-        CancellationToken ct = default)
-    {
-        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
-        {
-            return problem;
-        }
-
-        var normalizedPatch = PatchParameter.Normalize(patch);
-        if (!this.TryNormalizeOptionalEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
-        {
-            return bracketProblem;
-        }
-
-        var response = await itemTimingsQueryService.GetAsync(
-            championId,
-            normalizedPosition,
-            normalizedPatch,
-            normalizedBracket,
-            ct);
-
-        return Ok(response);
     }
 }

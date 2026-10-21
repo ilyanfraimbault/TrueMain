@@ -93,5 +93,11 @@ public enum JobMode
     /// the operator champion stats read (#2132). Appended for the same reason as the values
     /// above.
     /// </summary>
-    ChampionGameCountRefreshOnly = 29
+    ChampionGameCountRefreshOnly = 29,
+
+    /// <summary>
+    /// Folds each match into the champion scaling aggregate the champion page's game-length
+    /// chart reads (#1368). Appended for the same reason as the values above.
+    /// </summary>
+    ScalingAggregationOnly = 30
 }
