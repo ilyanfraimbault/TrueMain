@@ -138,7 +138,7 @@ describe('LandingInGame', () => {
   it('lists the five panels and draws them all when the steps cannot drive the screen', async () => {
     const wrapper = await mountSuspended(DesktopLandingInGame, { props: { patch: PATCH, items: ITEMS } })
 
-    expect(wrapper.findAll('ol > li')).toHaveLength(5)
+    expect(wrapper.findAll('h3')).toHaveLength(5)
     expect(wrapper.text()).toContain('What to buy next')
     expect(wrapper.text()).toContain('The next objectives, timed')
     expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(5)
