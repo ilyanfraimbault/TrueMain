@@ -6,7 +6,7 @@ import { isMarked } from '~/utils/recording-moments'
  * once a game is finalised, and how a clip says where it came from.
  */
 
-/** Every kind, in the shell's order (`AutoClipKind::ALL`), named as the settings list them. */
+/** Every kind, in the order the settings list them — the biggest plays first. */
 export const AUTO_CLIP_KINDS: { value: AutoClipKind, label: string, description: string }[] = [
   { value: 'multiKill', label: 'Multi-kills', description: 'A triple kill, a quadra kill, a pentakill.' },
   { value: 'combo', label: 'Kills into an objective', description: 'A multi-kill, then a dragon, a Baron, an inhibitor.' },
@@ -16,6 +16,7 @@ export const AUTO_CLIP_KINDS: { value: AutoClipKind, label: string, description:
   { value: 'firstBlood', label: 'First blood', description: 'When you draw it.' },
 ]
 
+/** The shell's own order (`AutoClipKind::ALL`), which the saved settings keep. */
 const SHELL_ORDER: AutoClipKind[] = ['multiKill', 'steal', 'ace', 'firstBlood', 'teamfight', 'combo']
 
 /** The kinds with one turned on or off, in the shell's order. */
