@@ -6,6 +6,8 @@ import KitEditor from '../app/components/kit/KitEditor.vue'
 import KitPanel from '../app/components/kit/KitPanel.vue'
 import KitBuild from '../app/components/kit/KitBuild.vue'
 import KitItemSlots from '../app/components/kit/KitItemSlots.vue'
+import KitDetail from '../app/components/kit/KitDetail.vue'
+import { useKitAction } from '../app/composables/useKitAction'
 import { item, kit, PAGE, RUNE_TREE } from './kit-fixtures'
 
 // The editor, the champion page's panel and the kit's view outside Nuxt: the
@@ -21,10 +23,11 @@ const picker = {
 const tree = { props: ['tree', 'editable'], emits: ['pick', 'remove'], template: '<div class="tree" :data-roots="tree.map(n => n.itemId).join()"><button class="branch" @click="$emit(\'pick\', { at: [0], mode: \'child\' })" /><button class="replace" @click="$emit(\'pick\', { at: [0, 1], mode: \'replace\' })" /><button class="drop" @click="$emit(\'remove\', [0, 1])" /><button class="swap" @click="$emit(\'swap\', [0, 0], 1)" /></div>' }
 const global = {
   // The starter and boots rows are drawn for real: the test clicks through them.
-  components: { KitItemSlots },
+  components: { KitItemSlots, KitDetail },
   stubs: {
     GameTooltipItemIcon: true,
     KitSpells: true,
+    RolePicker: { props: ['positions'], emits: ['update:positions'], template: '<div class="roles" :data-positions="positions.join()"><button class="add-top" @click="$emit(\'update:positions\', [\'TOP\', ...positions])" /></div>' },
     KitRunePage: true,
     KitItemPicker: picker,
     KitTree: tree,
@@ -72,6 +75,7 @@ beforeEach(() => {
   vi.stubGlobal('useItemClasses', () => ({ classes: ref({}) }))
   vi.stubGlobal('useChampionStatics', () => ({ nameOf: () => 'Ahri' }))
   vi.stubGlobal('useKits', () => kitsApi)
+  vi.stubGlobal('useKitAction', useKitAction)
   vi.stubGlobal('useKitImport', () => kitImport)
   vi.stubGlobal('useToast', () => ({ add: (toast: { title: string }) => toasts.push(toast) }))
   vi.stubGlobal('useChampionBuilds', () => ({
@@ -116,11 +120,15 @@ describe('KitEditor', () => {
     // The two branches traded: the second becomes the default.
     await wrapper.get('.swap').trigger('click')
 
+    // Offered on the top lane too.
+    expect(wrapper.get('.roles').attributes('data-positions')).toBe('MIDDLE')
+    await wrapper.get('.add-top').trigger('click')
+
     await wrapper.get('input').setValue('Into mages')
     const save = wrapper.findAll('.u-button').find(button => button.text() === 'Save kit')!
     await save.trigger('click')
     const saved = wrapper.emitted('save')![0]![0] as Kit
-    expect(saved).toMatchObject({ name: 'Into mages', boots: [3111], starter: [3157, 2003, 3157] })
+    expect(saved).toMatchObject({ positions: ['TOP', 'MIDDLE'], name: 'Into mages', boots: [3111], starter: [3157, 2003, 3157] })
     expect(saved.tree[0]!.children.map(child => child.itemId)).toEqual([3157, 3100])
   })
 
@@ -142,19 +150,19 @@ describe('KitPanel', () => {
     expect(wrapper.get('.editor').attributes('data-name')).toBe('My Mid')
     await wrapper.get('.save').trigger('click')
     await flushPromises()
-    expect(kitsApi.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'My Mid', championId: 103, position: 'MIDDLE' }))
+    expect(kitsApi.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'My Mid', championId: 103, positions: ['MIDDLE'] }))
     expect(wrapper.find('.editor').exists()).toBe(false)
   })
 
-  it('marks, copies, renames and deletes the kit on screen', async () => {
+  it('copies, renames and deletes the kit on screen', async () => {
     const copy = kit({ id: 'k2', name: 'Into tanks copy' })
     kitsApi.kitsFor.mockReturnValue([kit(), copy])
     kitsApi.duplicate.mockResolvedValue(copy)
     const wrapper = mount(KitPanel, { props: { championId: 103, position: 'MIDDLE' }, global })
     expect(wrapper.get('.kit-build').text()).toBe('Into tanks')
 
-    await wrapper.findAll('.u-button').find(button => button.text() === 'Use in champion select')!.trigger('click')
-    expect(kitsApi.setActive).toHaveBeenCalledWith(103, 'MIDDLE', 'k1')
+    // Every kit is offered in champion select: nothing to switch on.
+    expect(wrapper.findAll('.u-button').some(button => button.text().includes('champion select'))).toBe(false)
 
     const menu = (label: string) => wrapper.findAll('.menu-item').find(entry => entry.text() === label)!
     await menu('Duplicate').trigger('click')
@@ -179,17 +187,16 @@ describe('KitPanel', () => {
     expect(wrapper.find('.editor').exists()).toBe(false)
   })
 
-  it('says when a write failed, and lets the active kit go', async () => {
-    kitsApi.kitsFor.mockReturnValue([kit()])
-    kitsApi.activeIdFor.mockReturnValue('k1')
-    kitsApi.setActive.mockRejectedValueOnce(new Error('disk full'))
+  it('says when a write failed', async () => {
+    kitsApi.save.mockRejectedValueOnce(new Error('disk full'))
     const wrapper = mount(KitPanel, { props: { championId: 103, position: 'MIDDLE' }, global })
-    expect(wrapper.find('.badge').text()).toBe('Active')
-    await wrapper.findAll('.u-button').find(button => button.text() === 'Used in champion select')!.trigger('click')
+    await wrapper.findAll('.u-button').find(button => button.text() === 'New kit')!.trigger('click')
+    await wrapper.get('.save').trigger('click')
     await flushPromises()
-    expect(kitsApi.setActive).toHaveBeenCalledWith(103, 'MIDDLE', null)
-    expect(toasts.map(toast => toast.title)).toEqual(['Could not change the active kit'])
+    expect(toasts.map(toast => toast.title)).toEqual(['Could not save the kit'])
+    expect(wrapper.find('.editor').exists()).toBe(true)
   })
+
 })
 
 describe('KitBuild', () => {

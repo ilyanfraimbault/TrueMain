@@ -26,7 +26,7 @@ export function newKitId(): string {
  */
 export function cloneKit(kit: Kit): Kit {
   const cloneNodes = (nodes: KitNode[]): KitNode[] => nodes.map(node => ({ itemId: node.itemId, children: cloneNodes(node.children) }))
-  return { ...kit, runes: { ...kit.runes }, spells: [kit.spells[0], kit.spells[1]], starter: [...kit.starter], boots: [...kit.boots], tree: cloneNodes(kit.tree) }
+  return { ...kit, positions: [...kit.positions], runes: { ...kit.runes }, spells: [kit.spells[0], kit.spells[1]], starter: [...kit.starter], boots: [...kit.boots], tree: cloneNodes(kit.tree) }
 }
 
 /** The rune page of a build, without its measured figures. */
@@ -52,7 +52,7 @@ export function kitRunesOf(page: KitRunePage): KitRunePage {
  * the build lacks comes from `fallbackRunes` and Flash + Ignite.
  */
 export function kitFromBuild(
-  base: { championId: number, position: string, name: string },
+  base: { championId: number, positions: string[], name: string },
   core: BuildCoreView | null,
   fallbackRunes: KitRunePage | null,
 ): Kit | null {
@@ -64,7 +64,7 @@ export function kitFromBuild(
     id: newKitId(),
     name: base.name.slice(0, KIT_NAME_MAX),
     championId: base.championId,
-    position: base.position,
+    positions: [...base.positions],
     runes,
     spells: spells ? [spells.spell1Id, spells.spell2Id] : [...DEFAULT_SPELLS],
     starter: [...(core?.starterItems?.itemIds ?? [])],
@@ -119,6 +119,7 @@ function repeats(path: number[]): boolean {
 export function kitIssues(kit: Kit, runeTree: RuneTreeResponse | null): string[] {
   const issues: string[] = []
   if (!kit.name.trim()) issues.push('Name the kit.')
+  if (kit.positions.length === 0) issues.push('Choose at least one position.')
   if (kit.tree.length === 0) issues.push('Add a first item.')
   const paths = kitPaths(kit.tree)
   const slots = kit.boots.length > 0 ? 1 : 0
@@ -142,8 +143,12 @@ function readNodes(value: unknown, depth: number): KitNode[] {
 
 /** One kit read leniently, or `null` when it is not one. */
 function readKit(value: unknown): Kit | null {
-  const kit = value as Partial<Kit> | null
-  if (!kit || typeof kit.id !== 'string' || typeof kit.name !== 'string' || !isNumber(kit.championId) || typeof kit.position !== 'string') return null
+  const kit = value as (Partial<Kit> & { position?: unknown }) | null
+  if (!kit || typeof kit.id !== 'string' || typeof kit.name !== 'string' || !isNumber(kit.championId)) return null
+  // One position before a kit could serve several.
+  const named: unknown[] = [...(typeof kit.position === 'string' ? [kit.position] : []), ...(Array.isArray(kit.positions) ? kit.positions : [])]
+  const positions = [...new Set(named.filter((p): p is string => typeof p === 'string' && p.length > 0))].slice(0, 5)
+  if (positions.length === 0) return null
   const runes = kit.runes as KitRunePage | undefined
   if (!runes || !Object.values(kitRunesOf(runes)).every(isNumber)) return null
   const spells = Array.isArray(kit.spells) && kit.spells.length === 2 && kit.spells.every(isNumber) ? kit.spells as [number, number] : [...DEFAULT_SPELLS] as [number, number]
@@ -154,7 +159,7 @@ function readKit(value: unknown): Kit | null {
     id: kit.id,
     name: kit.name.slice(0, KIT_NAME_MAX),
     championId: kit.championId,
-    position: kit.position,
+    positions,
     runes: kitRunesOf(runes),
     spells,
     starter: Array.isArray(kit.starter) ? kit.starter.filter(isNumber) : [],
@@ -176,7 +181,7 @@ export function readStore(value: unknown): KitStore {
   const active: Record<string, string> = {}
   for (const [key, id] of Object.entries(raw?.active ?? {})) {
     const kit = typeof id === 'string' ? byId.get(id) : undefined
-    if (kit && activeKey(kit.championId, kit.position) === key) active[key] = id
+    if (kit && kit.positions.some(position => activeKey(kit.championId, position) === key)) active[key] = id
   }
   return { kits: [...byId.values()], active }
 }

@@ -76,8 +76,9 @@ export function useKits() {
     }
   }
 
+  /** The kits offered on a champion's position. */
   const kitsFor = (championId: number, position: string) =>
-    store.value.kits.filter(kit => kit.championId === championId && kit.position === position)
+    store.value.kits.filter(kit => kit.championId === championId && kit.positions.includes(position))
 
   const activeIdFor = (championId: number, position: string) => store.value.active[activeKey(championId, position)] ?? null
 
@@ -86,12 +87,14 @@ export function useKits() {
     return id ? store.value.kits.find(kit => kit.id === id) ?? null : null
   }
 
-  /** Add the kit, or replace the one with its id. */
+  /** Add the kit, or replace the one with its id; a position it no longer serves forgets it as active there. */
   function save(kit: Kit) {
     const saved = { ...kit, updatedAt: new Date().toISOString() }
     const exists = store.value.kits.some(other => other.id === kit.id)
     const kits = exists ? store.value.kits.map(other => (other.id === kit.id ? saved : other)) : [...store.value.kits, saved]
-    return commit({ ...store.value, kits })
+    const served = new Set(kit.positions.map(position => activeKey(kit.championId, position)))
+    const active = Object.fromEntries(Object.entries(store.value.active).filter(([key, id]) => id !== kit.id || served.has(key)))
+    return commit({ kits, active })
   }
 
   function remove(id: string) {
@@ -103,7 +106,7 @@ export function useKits() {
   async function duplicate(id: string): Promise<Kit | null> {
     const kit = store.value.kits.find(other => other.id === id)
     if (!kit) return null
-    const taken = kitsFor(kit.championId, kit.position).map(other => other.name)
+    const taken = store.value.kits.filter(other => other.championId === kit.championId).map(other => other.name)
     const copy: Kit = { ...cloneKit(kit), id: newKitId(), name: freeName(`${kit.name} copy`, taken) }
     await save(copy)
     return copy
@@ -114,13 +117,17 @@ export function useKits() {
     return kit && name.trim() ? save({ ...kit, name: name.trim() }) : Promise.resolve()
   }
 
-  /** The kit champion select and the overlay use on its champion and position; `null` goes back to TrueMain's. */
-  function setActive(championId: number, position: string, id: string | null) {
-    const key = activeKey(championId, position)
-    const others = Object.entries(store.value.active).filter(([other]) => other !== key)
-    const active = Object.fromEntries(id ? [...others, [key, id]] : others)
+  /**
+   * The kit picked in champion select on a champion's position — the one the
+   * overlay then follows in game; `null` when a TrueMain build was picked instead.
+   */
+  function setActive(championId: number, positions: string | string[], id: string | null) {
+    const keys = new Set((Array.isArray(positions) ? positions : [positions]).map(position => activeKey(championId, position)))
+    const others = Object.entries(store.value.active).filter(([other]) => !keys.has(other))
+    const active = Object.fromEntries(id ? [...others, ...[...keys].map(key => [key, id])] : others)
     return commit({ ...store.value, active })
   }
+
 
   return { store, error, kitsFor, activeIdFor, activeKit, save, remove, duplicate, rename, setActive }
 }

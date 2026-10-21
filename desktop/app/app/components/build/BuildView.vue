@@ -17,20 +17,23 @@ import type { Kit } from '#shared/types/kit'
  * in a draft, their build against it, read from their games alone (#1987), or
  * their usual one when they have no game of it.
  *
- * In champion select, the player's active kit (#2185) takes the pane while
- * `onKit` holds; a row or a main clicked in the list goes back to the builds.
+ * In champion select, the player's kits on the champion and lane (#2185,
+ * #2205) are listed too, between the builds and the mains: one picked takes
+ * the pane (`kitId`), a build row or a main picked goes back to the builds.
+ * The default stays the first build — the draft's own.
  */
 const props = defineProps<{
   championId: number
   position: string
   /** The build computed for the draft, when there is one. */
   draft?: { build: DraftBuild | null, pending: boolean, error: string | null, opponentId?: number | null, label?: string, request?: CompositionBuildRequest | null } | null
-  /** The player's kit for this champion and lane, shown instead of a build while `onKit`. */
-  kit?: Kit | null
+  /** The player's kits on this champion and lane, offered beside the builds. */
+  kits?: Kit[]
 }>()
 
-const onKit = defineModel<boolean>('onKit', { default: false })
-const kitShown = computed(() => (onKit.value ? props.kit ?? null : null))
+/** The kit picked in the list, shown instead of a build; `null` while a build or a main is. */
+const kitId = defineModel<string | null>('kitId', { default: null })
+const kitShown = computed(() => props.kits?.find(kit => kit.id === kitId.value) ?? null)
 
 const { response, pending: lanePending } = useChampionBuilds(toRef(props, 'championId'), toRef(props, 'position'))
 const { items, summoners, runeTree, pending: staticPending, loadChampion, championStatic } = useStaticData()
@@ -126,9 +129,13 @@ const emptyMessage = computed(() => {
           :pending="lanePending || !!draft?.pending"
           :draft-label="draft?.label"
           :draft-opponent="draft?.opponentId ?? null"
-          @update:model-value="selected = $event; onKit = false"
+          @update:model-value="selected = $event; kitId = null"
         />
-        <BuildMains :champion-id="championId" :position="position" :selected-name-tag="onMain && !kitShown ? mainNameTag : null" @select="onKit = false; selectMain($event)" />
+        <section v-if="kits?.length">
+          <h3 class="px-2 pb-1 stat-label">Your kits</h3>
+          <KitList v-model="kitId" :kits="kits" />
+        </section>
+        <BuildMains :champion-id="championId" :position="position" :selected-name-tag="onMain && !kitShown ? mainNameTag : null" @select="kitId = null; selectMain($event)" />
       </div>
     </aside>
 

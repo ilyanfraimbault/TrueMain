@@ -37,7 +37,7 @@ export function kit(overrides: Partial<Kit> = {}): Kit {
     id: 'k1',
     name: 'Into tanks',
     championId: 103,
-    position: 'MIDDLE',
+    positions: ['MIDDLE'],
     runes: { ...PAGE },
     spells: [4, 14],
     starter: [1056, 2003, 2003],
