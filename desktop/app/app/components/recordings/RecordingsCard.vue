@@ -30,7 +30,10 @@ const publishing = ref(false)
 const freeing = ref(false)
 const clip = computed(() => (isClip.value ? library.value?.clips.find(entry => entry.id === props.item.id) ?? null : null))
 /** Marked with the mark key (#2079), clipped automatically (#1766) or cut by hand; a full game's film. */
-const origin = computed(() => (clip.value ? clipOrigin(clip.value) : isClip.value ? { icon: 'i-lucide-scissors', label: 'Clip' } : { icon: 'i-lucide-film', label: 'Full game' }))
+const origin = computed(() => {
+  if (clip.value) return clipOrigin(clip.value)
+  return isClip.value ? { icon: 'i-lucide-scissors', label: 'Clip' } : { icon: 'i-lucide-film', label: 'Full game' }
+})
 
 function togglePin() {
   if (isClip.value) void updateClip(props.item.id, { favorite: !props.item.pinned })
