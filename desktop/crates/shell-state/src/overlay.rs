@@ -102,6 +102,18 @@ impl OverlayPanel {
         }
     }
 
+    /// The panel's field in the settings file.
+    fn field(self) -> &'static str {
+        match self {
+            OverlayPanel::NextItem => "nextItem",
+            OverlayPanel::WinProbability => "winProbability",
+            OverlayPanel::ItemValue => "itemValue",
+            OverlayPanel::Stats => "stats",
+            OverlayPanel::Objectives => "objectives",
+            OverlayPanel::LaneGold => "laneGold",
+        }
+    }
+
     fn index(self) -> usize {
         match self {
             OverlayPanel::NextItem => 0,
@@ -203,6 +215,16 @@ pub enum OverlayAnchor {
     CenterRight,
 }
 
+impl OverlayAnchor {
+    pub const ALL: [OverlayAnchor; 5] = [
+        OverlayAnchor::TopLeft,
+        OverlayAnchor::TopCenter,
+        OverlayAnchor::TopRight,
+        OverlayAnchor::CenterLeft,
+        OverlayAnchor::CenterRight,
+    ];
+}
+
 /// Where the player dragged a panel, as a fraction of the room the screen
 /// leaves around it on each axis: 0 against the left (top) edge, 1 against
 /// the right (bottom) one. So it lands in the same place at any resolution,
@@ -266,9 +288,9 @@ impl Default for OverlaySettings {
             opacity: 0.95,
             next_item: at(OverlayPanel::NextItem, OverlayAnchor::TopRight),
             win_probability: at(OverlayPanel::WinProbability, OverlayAnchor::TopLeft),
-            item_value: at(OverlayPanel::ItemValue, OverlayAnchor::TopCenter),
+            item_value: at(OverlayPanel::ItemValue, OverlayAnchor::CenterRight),
             stats: at(OverlayPanel::Stats, OverlayAnchor::CenterLeft),
-            objectives: at(OverlayPanel::Objectives, OverlayAnchor::CenterRight),
+            objectives: at(OverlayPanel::Objectives, OverlayAnchor::TopCenter),
             lane_gold: at(OverlayPanel::LaneGold, OverlayAnchor::TopCenter),
             scoreboard_nudge: 0.0,
         }
@@ -552,7 +574,39 @@ impl OverlaySettings {
                 .filter(in_range(-MAX_NUDGE, MAX_NUDGE))
                 .unwrap_or(defaults.scoreboard_nudge),
         }
+        .with_new_panels_placed(|panel| fields.contains_key(panel.field()))
         .with_valid_triggers()
+    }
+
+    /// Each panel the file does not know — it predates the panel — on its
+    /// default spot, unless a panel the file places already holds that spot:
+    /// then on the first one no panel holds. The objectives' default is the
+    /// item value's former one (#2184), which a file from before the
+    /// objectives still gives the item value.
+    fn with_new_panels_placed(mut self, known: impl Fn(OverlayPanel) -> bool) -> Self {
+        // The lane gold sits on the scoreboard, never on an anchor: it holds no spot.
+        let anchored = |panel: OverlayPanel| panel != OverlayPanel::LaneGold;
+        for panel in OverlayPanel::ALL
+            .into_iter()
+            .filter(|panel| anchored(*panel) && !known(*panel))
+        {
+            let held = |anchor: OverlayAnchor| {
+                OverlayPanel::ALL
+                    .into_iter()
+                    .filter(|p| anchored(*p))
+                    .any(|other| {
+                        let settings = self.panel(other);
+                        other != panel && settings.custom.is_none() && settings.anchor == anchor
+                    })
+            };
+            if !held(self.panel(panel).anchor) {
+                continue;
+            }
+            if let Some(free) = OverlayAnchor::ALL.into_iter().find(|anchor| !held(*anchor)) {
+                self.panel_mut(panel).anchor = free;
+            }
+        }
+        self
     }
 
     /// Each refused trigger back to its panel's default, in panel order: of
@@ -1188,6 +1242,37 @@ mod tests {
     }
 
     #[test]
+    fn the_objectives_strip_sits_top_centre_by_default() {
+        let defaults = OverlaySettings::default();
+        assert_eq!(defaults.objectives.anchor, OverlayAnchor::TopCenter);
+        assert_eq!(defaults.item_value.anchor, OverlayAnchor::CenterRight);
+    }
+
+    #[test]
+    fn a_file_whose_item_value_holds_the_top_centre_puts_the_objectives_on_the_free_spot() {
+        let old = r#"{"version":3,"nextItem":{"enabled":true,"anchor":"top-right"},
+                      "winProbability":{"enabled":true,"anchor":"top-left"},
+                      "itemValue":{"enabled":true,"anchor":"top-center"},
+                      "stats":{"enabled":true,"anchor":"center-left"}}"#;
+        let settings = OverlaySettings::from_json(old);
+        assert_eq!(settings.item_value.anchor, OverlayAnchor::TopCenter);
+        assert_eq!(settings.objectives.anchor, OverlayAnchor::CenterRight);
+        assert!(settings.objectives.enabled);
+
+        // A panel dragged off its spot frees it.
+        let dragged = r#"{"version":3,"itemValue":{"enabled":true,"anchor":"top-center","custom":{"x":0.2,"y":0.3}}}"#;
+        let settings = OverlaySettings::from_json(dragged);
+        assert_eq!(settings.objectives.anchor, OverlayAnchor::TopCenter);
+
+        // A file that places the objectives keeps them where it says, even on a held spot.
+        let both = r#"{"version":3,"itemValue":{"anchor":"top-center"},"objectives":{"anchor":"top-center"}}"#;
+        assert_eq!(
+            OverlaySettings::from_json(both).objectives.anchor,
+            OverlayAnchor::TopCenter
+        );
+    }
+
+    #[test]
     fn a_file_from_before_the_objectives_panel_gets_it_on_the_free_spot() {
         let old = r#"{"version":3,"stats":{"enabled":false,"anchor":"top-left"}}"#;
         let settings = OverlaySettings::from_json(old);
@@ -1197,7 +1282,7 @@ mod tests {
         assert_eq!(settings.objectives.trigger, PanelTrigger::Always);
         let taken: Vec<_> = OverlayPanel::ALL
             .into_iter()
-            .filter(|panel| *panel != Objectives)
+            .filter(|panel| *panel != Objectives && *panel != OverlayPanel::LaneGold)
             .map(|panel| OverlaySettings::default().panel(panel).anchor)
             .collect();
         assert!(!taken.contains(&settings.objectives.anchor));

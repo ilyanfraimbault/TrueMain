@@ -20,7 +20,7 @@ export const PANEL_WIDTHS: Record<OverlayPanel, number> = {
   'win-probability': 160,
   'item-value': 300,
   'stats': 176,
-  'objectives': 212,
+  'objectives': 292,
   'lane-gold': 60,
 }
 
@@ -34,7 +34,7 @@ const HEIGHTS: Record<OverlayPanel, number> = {
   'win-probability': 48,
   'item-value': 200,
   'stats': 84,
-  'objectives': 96,
+  'objectives': 62,
   // Never read: the scoreboard's rows set it (`utils/scoreboard-geometry.ts`).
   'lane-gold': 384,
 }

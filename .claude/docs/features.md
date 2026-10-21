@@ -393,18 +393,22 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   tier is the last Solo/Duo standing this machine wrote down (`utils/lp-history`), picked locally so no rank is sent;
   unranked or Flex-only, or a tier/minute under the sample floor, shows the player's pace alone. Emerald →
   Challenger fill from the regular ingestion, Iron → Platinum from the capped `PaceSampling` process. **Objectives**
-  (212 pt, `OverlayObjectives.vue`, #2078), icons only — no names, no "Up": a row each for the dragon pit, the Voidgrubs,
-  the Rift Herald and Baron with the game's minimap icon (Community Dragon's `ux/minimap/icons`) on the left and, on the
-  right, a countdown until it spawns or a green dot while it stands; a camp taken for good (grubs, Herald) or gone from
-  the map leaves the panel. Once a drake has fallen, the dragon row instead sets the pit's icon in the middle, its
-  countdown under it so the icon sits on the row's centre (the icon alone while it stands) — every row as tall as that one — its next drake's element once the Rift has turned (`gameData.mapTerrain`, after the second
-  drake), the plain drake before, the Elder once a side holds the soul — between the drakes each side took as their
-  icons (each `DragonKill`'s `DragonType`): blue side's on the left ringed in blue, red side's on the right in red. The shell sends game times, not countdowns
+  (292 pt, `OverlayObjectives.vue`, #2078, one strip since #2184), icons only — no names, no "Up": one compact strip
+  of glass pills side by side, the dragon pit, the Voidgrubs, the Rift Herald and Baron, each the game's minimap icon
+  (Community Dragon's `ux/minimap/icons`) and an `m:ss` countdown until it spawns — rose-gold within a minute — or,
+  while it stands, the icon lit (rose-gold glow and ring) with a green dot. A pill that does not matter yet stays in
+  grey with its countdown (`pillStatus` in `utils/objective-timers.ts`): the Herald while the grubs are still to come
+  or stand, Baron while the Herald is. A camp taken for good (grubs, Herald) or gone from the map leaves the strip;
+  every pill is as wide as the widest countdown. Under the pills, the soul race, drawn from 0:00 so the strip's height
+  never changes in a game: blue side's drakes on the left ringed in blue, red side's on the right in red (each
+  `DragonKill`'s `DragonType`), meeting, once a drake has fallen, at the pit's next drake — its element once the Rift
+  has turned (`gameData.mapTerrain`, after the second drake), the plain drake before, the Elder once a side holds the
+  soul; two hairlines in the sides' colours before the first drake. The shell sends game times, not countdowns
   (`live_client::timers`, inside the objectives change): the season's spawn rules in one table (`RIFT`: drakes 5:00 and
   5:00 after each, the Elder 6:00 after the soul and after each Elder, one camp of three grubs 8:00–14:45, the Herald
   15:00–19:45, Baron 20:00 and 6:00 after each) applied to the `DragonKill`, `HordeKill`, `HeraldKill` and `BaronKill`
-  events; off Summoner's Rift's standard game (`CLASSIC` on map 11) it says it has no timers. Default spot centre
-  right, always shown. **Item value** (300 pt, `OverlayItemValue.vue`), only while TAB is held: each
+  events; off Summoner's Rift's standard game (`CLASSIC` on map 11) it says it has no timers. Default spot top
+  centre, always shown. **Item value** (300 pt, `OverlayItemValue.vue`, default spot centre right since #2184), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — the lanes only
   while the lane-gold plates are off — item gold being
   the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). **Lane gold**
