@@ -57,20 +57,21 @@ pub struct Highlight {
     pub victim_ids: Vec<i64>,
 }
 
-/// One champion kill, whoever was in it, from either source.
-struct ChampionKill {
-    time_ms: i64,
-    by_me: bool,
-    of_me: bool,
-    assisted_by_me: bool,
-    killer_id: Option<i64>,
-    victim_id: Option<i64>,
+/// One champion kill, whoever was in it, from either source — what the
+/// highlights and the teamfights (`teamfights`) are both read from.
+pub(crate) struct ChampionKill {
+    pub time_ms: i64,
+    pub by_me: bool,
+    pub of_me: bool,
+    pub assisted_by_me: bool,
+    pub killer_id: Option<i64>,
+    pub victim_id: Option<i64>,
 }
 
-/// The player's highlights from the game's timeline. `me` is the player's
+/// Every champion kill of the game's timeline. `me` is the player's
 /// participant id in that game.
-pub fn from_timeline(timeline: &GameTimeline, me: i64) -> Vec<Highlight> {
-    let kills = timeline
+pub(crate) fn timeline_kills(timeline: &GameTimeline, me: i64) -> Vec<ChampionKill> {
+    timeline
         .frames
         .iter()
         .flat_map(|frame| &frame.events)
@@ -82,13 +83,13 @@ pub fn from_timeline(timeline: &GameTimeline, me: i64) -> Vec<Highlight> {
             assisted_by_me: event.assisting_participant_ids.contains(&me),
             killer_id: Some(event.killer_id).filter(|id| *id > 0),
             victim_id: Some(event.victim_id).filter(|id| *id > 0),
-        });
-    group(kills)
+        })
+        .collect()
 }
 
-/// The player's highlights from the live feed noted during the game.
-pub fn from_live(events: &[LiveEvent], me: &ActivePlayer) -> Vec<Highlight> {
-    let kills = events
+/// Every champion kill of the live feed noted during the game.
+pub(crate) fn live_kills(events: &[LiveEvent], me: &ActivePlayer) -> Vec<ChampionKill> {
+    events
         .iter()
         .filter(|event| event.event_name == LiveEvent::CHAMPION_KILL)
         .map(|event| ChampionKill {
@@ -98,12 +99,22 @@ pub fn from_live(events: &[LiveEvent], me: &ActivePlayer) -> Vec<Highlight> {
             assisted_by_me: event.assisters.iter().any(|name| me.is_named(name)),
             killer_id: None,
             victim_id: None,
-        });
-    group(kills)
+        })
+        .collect()
 }
 
-fn group(kills: impl Iterator<Item = ChampionKill>) -> Vec<Highlight> {
-    let mut kills: Vec<ChampionKill> = kills.collect();
+/// The player's highlights from the game's timeline. `me` is the player's
+/// participant id in that game.
+pub fn from_timeline(timeline: &GameTimeline, me: i64) -> Vec<Highlight> {
+    group(timeline_kills(timeline, me))
+}
+
+/// The player's highlights from the live feed noted during the game.
+pub fn from_live(events: &[LiveEvent], me: &ActivePlayer) -> Vec<Highlight> {
+    group(live_kills(events, me))
+}
+
+fn group(mut kills: Vec<ChampionKill>) -> Vec<Highlight> {
     kills.sort_by_key(|kill| kill.time_ms);
 
     let mut highlights: Vec<Highlight> = Vec::new();
@@ -317,6 +328,7 @@ mod tests {
             killer_name: killer.into(),
             victim_name: victim.into(),
             assisters: assisters.iter().map(|name| name.to_string()).collect(),
+            ..LiveEvent::default()
         };
         let events = vec![
             LiveEvent {

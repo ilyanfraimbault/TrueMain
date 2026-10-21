@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use lcu::detail::GameTimeline;
-use lcu::live::{ActivePlayer, LiveEvent};
+use lcu::live::{ActivePlayer, LiveEvent, LivePlayer};
 use lcu::record::HistoryGame;
 use lcu::GameflowPhase;
 
@@ -18,8 +18,10 @@ use crate::anchor::{Anchor, ClockSample};
 use crate::highlights::{self, HighlightSource};
 use crate::marks::{self, Mark};
 use crate::moments;
+use crate::plays;
 use crate::settings::{Quality, RecordingSettings};
 use crate::store::{RecordingDir, RecordingMeta, RecordingStatus, Store, StoredRecording};
+use crate::teamfights;
 use crate::win_probability::RecordedWinProbability;
 
 /// The screen capture and encoder, whichever #1745 settles on.
@@ -81,9 +83,11 @@ struct Active {
     dir: RecordingDir,
     meta: RecordingMeta,
     samples: Vec<ClockSample>,
-    kills: Vec<LiveEvent>,
+    /// The champion kills and the plays the game announced (`plays`).
+    events: Vec<LiveEvent>,
     last_event_id: Option<i64>,
     player: Option<ActivePlayer>,
+    players: Vec<LivePlayer>,
 }
 
 enum State {
@@ -170,9 +174,10 @@ impl<C: Capture> Session<C> {
             dir,
             meta,
             samples: Vec::new(),
-            kills: Vec::new(),
+            events: Vec::new(),
             last_event_id: None,
             player: None,
+            players: Vec::new(),
         });
         Ok(Change::Started(path))
     }
@@ -187,12 +192,15 @@ impl<C: Capture> Session<C> {
         active.meta.anchor = Anchor::fit(&active.samples);
         // Written now, so a crash before the history has the game still
         // leaves the anchor and the live highlights.
-        active.meta.highlights = active
-            .player
-            .as_ref()
-            .map(|player| highlights::from_live(&active.kills, player))
-            .unwrap_or_default();
-        active.meta.highlights_source = active.player.as_ref().map(|_| HighlightSource::Live);
+        if let Some(player) = &active.player {
+            active.meta.highlights = highlights::from_live(&active.events, player);
+            active.meta.highlights_source = Some(HighlightSource::Live);
+            active.meta.plays = plays::from_live(&active.events, player, &active.players);
+            active.meta.teamfights = teamfights::from_live(&active.events, player);
+            active.meta.champion_name = plays::find_me(player, &active.players)
+                .map(|me| me.champion_name.trim().to_string())
+                .filter(|name| !name.is_empty());
+        }
         let written = active.dir.write_meta(&active.meta);
         let path = active.dir.path().to_path_buf();
         self.state = State::Stopped(active);
@@ -222,6 +230,14 @@ impl<C: Capture> Session<C> {
         }
     }
 
+    /// The game's player list, read once: the sides of the plays the feed
+    /// names players in, and the player's champion.
+    pub fn note_players(&mut self, players: Vec<LivePlayer>) {
+        if let State::Recording(active) = &mut self.state {
+            active.players = players;
+        }
+    }
+
     /// The player pressed the mark key: note this second of the video, and
     /// write it at once, so a crash before the game ends still keeps it. The
     /// second marked, or `None` when no game records or the press repeats the
@@ -241,7 +257,8 @@ impl<C: Capture> Session<C> {
         Ok(Some(video_ms))
     }
 
-    /// The live feed as read; only champion kills not seen yet are kept.
+    /// The live feed as read; only the champion kills and the plays the game
+    /// announces (`plays`) not seen yet are kept.
     pub fn note_events(&mut self, events: Vec<LiveEvent>) {
         let State::Recording(active) = &mut self.state else {
             return;
@@ -254,15 +271,24 @@ impl<C: Capture> Session<C> {
                 continue;
             }
             active.last_event_id = Some(event.event_id);
-            if event.event_name == LiveEvent::CHAMPION_KILL {
-                active.kills.push(event);
+            let name = event.event_name.as_str();
+            if [
+                LiveEvent::CHAMPION_KILL,
+                LiveEvent::FIRST_BLOOD,
+                LiveEvent::ACE,
+            ]
+            .contains(&name)
+                || LiveEvent::MONSTER_KILLS.contains(&name)
+            {
+                active.events.push(event);
             }
         }
     }
 
-    /// Resolve the stopped recording's highlights from the match history, mark
-    /// it ready and bring the folder within budget. Without a timeline the
-    /// live highlights written at the stop stay. `None` when no recording was
+    /// Resolve the stopped recording's highlights and teamfights from the
+    /// match history, mark it ready and bring the folder within budget.
+    /// Without a timeline the live ones written at the stop stay; the plays
+    /// are the feed's either way. `None` when no recording was
     /// waiting.
     pub fn finalise(
         &mut self,
@@ -284,6 +310,7 @@ impl<C: Capture> Session<C> {
         if let (Some(me), Some(timeline)) = (me, outcome.timeline) {
             active.meta.highlights = highlights::from_timeline(timeline, me.participant_id);
             active.meta.highlights_source = Some(HighlightSource::Timeline);
+            active.meta.teamfights = teamfights::from_timeline(timeline, me.participant_id);
             let my_team = match me.team_id {
                 100 | 200 => me.team_id,
                 _ if me.participant_id <= 5 => 100,
@@ -416,7 +443,7 @@ mod tests {
             event_time: time,
             killer_name: "Me".into(),
             victim_name: "Foe".into(),
-            assisters: Vec::new(),
+            ..LiveEvent::default()
         }
     }
 
@@ -755,6 +782,63 @@ mod tests {
             .map(|moment| moment.video_ms)
             .collect();
         assert_eq!(marked, vec![24_000, 33_000]);
+    }
+
+    #[test]
+    fn the_plays_of_the_feed_are_kept_and_the_teamfights_resolved_from_the_timeline() {
+        let root = tempfile::tempdir().unwrap();
+        let mut session = Session::new(FakeCapture::default());
+        session
+            .on_phase(
+                GameflowPhase::InProgress,
+                Some(GAME),
+                &settings(),
+                root.path(),
+                0,
+            )
+            .unwrap();
+        session.note_player(me());
+        session.note_players(crate::plays::tests::players());
+        let mut feed = crate::plays::tests::feed();
+        // A teamfight on the feed: four kills the player was in.
+        for (id, time) in [(80, 2200.0), (81, 2204.0), (82, 2208.0), (83, 2211.0)] {
+            feed.push(live_kill(id, time));
+        }
+        session.note_events(feed);
+        session.capture().set_clock(2_400_000);
+        let Change::Stopped(path) = session
+            .on_phase(GameflowPhase::EndOfGame, None, &settings(), root.path(), 0)
+            .unwrap()
+        else {
+            panic!("expected a stop");
+        };
+
+        let stopped = RecordingDir::new(path).read_meta().unwrap();
+        let kinds: Vec<_> = stopped.plays.iter().map(|play| play.kind).collect();
+        use crate::plays::PlayKind::{Ace, FirstBlood, Steal};
+        assert_eq!(kinds, vec![FirstBlood, Steal, Steal, Ace, Steal, Ace]);
+        assert_eq!(stopped.teamfights.len(), 1);
+        assert_eq!(stopped.teamfights[0].kills, 4);
+        assert_eq!(stopped.champion_name.as_deref(), Some("Ahri"));
+
+        // The timeline's kills hold no teamfight: the feed's goes, its plays stay.
+        let game = history_game();
+        let timeline = timeline();
+        let meta = session
+            .finalise(
+                GameOutcome {
+                    game: Some(&game),
+                    timeline: Some(&timeline),
+                    scoreboard: None,
+                },
+                u64::MAX,
+                root.path(),
+            )
+            .unwrap()
+            .unwrap()
+            .meta;
+        assert!(meta.teamfights.is_empty());
+        assert_eq!(meta.plays, stopped.plays);
     }
 
     #[test]
