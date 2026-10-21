@@ -37,10 +37,11 @@ const message = computed(() => {
 
 <template>
   <OverlayNextItemCard v-if="starter" label="Starter" :item="starterItem" :name="basketName(starter.itemIds, name)" :missing="Math.max(0, starterGold - game.gold)" />
-  <div v-else-if="state === 'ready' && top" class="space-y-2">
+  <div v-else-if="state === 'ready' && top" class="space-y-1.5">
     <OverlayNextItemCard :item="statics[top.itemId] ?? null" :name="name(top.itemId)" :missing="missing" />
-    <GameBuildPath v-if="path" :path="path" :statics="statics" :size="24" />
-    <GameBuildOrder :steps="order" :statics="statics" :size="22" class="border-t border-default pt-2" />
+    <GameBuildPath v-if="path" :path="path" :statics="statics" :size="20" />
+    <!-- The route needs no rule above it: the path's prices already end it. -->
+    <GameBuildOrder :steps="order" :statics="statics" :size="18" />
   </div>
   <div v-else class="flex items-center gap-2.5">
     <USkeleton v-if="!message" class="size-9 shrink-0 rounded-md" />
