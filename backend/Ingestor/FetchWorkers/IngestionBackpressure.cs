@@ -129,11 +129,15 @@ public sealed class IngestionBackpressure(
         // Once per process: a host that cannot report a resource applies no brake on it, and
         // that is worth one line, not one per claim.
         _reportedUnreadable = true;
+        var unreadable = (reading.AvailableMemoryPercent, reading.FreeDiskPercent) switch
+        {
+            (null, null) => "memory or disk",
+            (null, _) => "memory",
+            _ => "disk"
+        };
         logger.LogWarning(
             "Ingestion backpressure cannot read {Resources} on this host; no backpressure applies to it.",
-            reading.AvailableMemoryPercent is null && reading.FreeDiskPercent is null
-                ? "memory or disk"
-                : reading.AvailableMemoryPercent is null ? "memory" : "disk");
+            unreadable);
     }
 
     private static string Describe(string resource, double value, double threshold)
