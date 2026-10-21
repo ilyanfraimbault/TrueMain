@@ -10,6 +10,7 @@
     "beforeBuildCommand": "npm run generate --prefix ../app"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "TrueMain",

@@ -8,6 +8,7 @@
 pub mod keys;
 pub mod kits;
 pub mod overlay;
+pub mod scoreboard;
 pub mod screens;
 pub mod window;
 

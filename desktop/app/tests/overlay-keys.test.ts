@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { OVERLAY_PANELS } from '~/types/overlay'
 import { chordLabel, chordOf, isKnownKey, suggestedChord, TAB_CHORD } from '~/utils/overlay-keys'
 
 const press = (code: string, modifiers: { alt?: boolean, shift?: boolean, ctrl?: boolean, meta?: boolean } = {}) => ({
@@ -34,9 +35,11 @@ describe('overlay keys', () => {
     expect(chordLabel({ ...TAB_CHORD, key: 'Backquote' }, true)).toBe('Tab+`')
   })
 
-  it('offers a different chord to each panel, and TAB to the item value held', () => {
-    const keys = (['next-item', 'win-probability', 'stats', 'item-value', 'objectives'] as const).map(panel => suggestedChord(panel, 'toggle').key)
-    expect(new Set(keys).size).toBe(5)
+  it('offers a different chord to each panel, and TAB to the scoreboard\'s panels held', () => {
+    const keys = OVERLAY_PANELS.map(panel => suggestedChord(panel, 'toggle').key)
+    expect(new Set(keys).size).toBe(OVERLAY_PANELS.length)
     expect(suggestedChord('item-value', 'whileHeld')).toEqual(TAB_CHORD)
+    expect(suggestedChord('lane-gold', 'whileHeld')).toEqual(TAB_CHORD)
+    expect(suggestedChord('lane-gold', 'toggle').key).toBe('Digit6')
   })
 })

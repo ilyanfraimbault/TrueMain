@@ -7,10 +7,10 @@ import { itemGold, laneRows, leftTeam } from '~/utils/item-value'
  * The item value while the scoreboard is open (TAB, #1752): what each team's
  * items are worth, an arrow toward the side ahead with the gap, then the
  * same for each lane, ours against theirs. Arithmetic on what the scoreboard
- * itself shows; in its own panel rather than pinned to Riot's rows, which
- * move with the resolution and the HUD scale.
+ * itself shows. The lanes leave the panel while the lane-gold plates (#2186)
+ * are on: those pin each lane's gap to the scoreboard's own rows.
  */
-const props = defineProps<{ game: GameState }>()
+const props = withDefaults(defineProps<{ game: GameState, lanes?: boolean }>(), { lanes: true })
 
 const { items } = useStaticData()
 const { champions, portraitOf, patch } = useChampionStatics()
@@ -49,7 +49,7 @@ const number = formatCount
       <span class="stat-value text-lg leading-none tabular-nums text-enemy">{{ number(teams.theirs) }}</span>
     </div>
 
-    <ul class="flex flex-col gap-1 border-t border-default pt-2">
+    <ul v-if="lanes" class="flex flex-col gap-1 border-t border-default pt-2">
       <li v-for="row in rows" :key="row.key" class="grid grid-cols-[1.25rem_1fr_auto_1fr_1.25rem] items-center gap-2">
         <img v-if="portrait(row.ally)" :src="portrait(row.ally)!" :alt="row.ally?.championName" class="img-skeleton size-5 rounded">
         <span v-else />

@@ -234,7 +234,7 @@ A player's relation to the position they are playing: main role, secondary role,
 The game page's per-lane arrow and chance towards the favoured side.
 
 **Overlay**:
-The in-game panels drawn over League (next item, win probability, pace, item value); click-through.
+The in-game panels drawn over League (next item, win probability, pace, item value, objectives, lane gold — the per-row gap plates on the TAB scoreboard); click-through.
 
 **Kit**:
 A player's own build on one champion and position, kept by the desktop app: a branching item tree (the first
