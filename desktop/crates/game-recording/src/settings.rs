@@ -19,6 +19,7 @@ use serde_json::Value;
 use shell_state::keys::{Chord, KeyCode};
 
 use crate::auto_clips::AutoClipKind;
+use crate::marks::MarkLength;
 
 /// The settings file's format version, written into it so a later format can
 /// migrate rather than guess.
@@ -221,6 +222,9 @@ pub struct RecordingSettings {
     /// The chord that marks the moment while a game records (#2079); `None`
     /// turns marking off.
     pub mark_key: Option<Chord>,
+    /// How much of the game before a press of the mark key its clip keeps
+    /// (#1767).
+    pub mark_length: MarkLength,
     /// The plays cut as clips of their own once a game is finalised (#1766);
     /// empty turns automatic clips off. In [`AutoClipKind::ALL`]'s order.
     pub auto_clips: Vec<AutoClipKind>,
@@ -240,6 +244,7 @@ impl Default for RecordingSettings {
             budget_bytes: 50 * GB,
             folder: None,
             mark_key: Some(DEFAULT_MARK_KEY),
+            mark_length: MarkLength::default(),
             auto_clips: AutoClipKind::ALL.to_vec(),
         }
     }
@@ -291,6 +296,7 @@ impl RecordingSettings {
                     .filter(|chord| chord.refusal(false).is_none())
                     .or(defaults.mark_key),
             },
+            mark_length: parse(fields.get("markLength")).unwrap_or(defaults.mark_length),
             auto_clips: match fields.get("autoClips") {
                 Some(Value::Array(kinds)) => auto_clip_kinds(kinds),
                 _ => defaults.auto_clips,
@@ -394,6 +400,7 @@ mod tests {
             budget_bytes: 10 * GB,
             folder: Some(dir.path().join("videos")),
             mark_key: Some(Chord::with(false, true, false, KeyCode::F9)),
+            mark_length: MarkLength::Minute1,
             auto_clips: vec![AutoClipKind::Steal, AutoClipKind::Combo],
         };
         settings.save(&path).unwrap();
@@ -402,6 +409,7 @@ mod tests {
         assert!(body.contains("\"version\": 1"), "{body}");
         assert!(body.contains("\"frameRate\": 60"), "{body}");
         assert!(body.contains("\"resolution\": \"1440p\""), "{body}");
+        assert!(body.contains("\"markLength\": 60"), "{body}");
         assert_eq!(RecordingSettings::load(&path), settings);
     }
 
@@ -444,6 +452,22 @@ mod tests {
         assert_eq!(
             chosen.mark_key.map(|chord| chord.label(false)),
             Some("Ctrl+M".to_string())
+        );
+    }
+
+    #[test]
+    fn a_marks_length_is_thirty_seconds_unless_another_offered_one_is_chosen() {
+        assert_eq!(
+            RecordingSettings::from_json("{}").mark_length,
+            MarkLength::Seconds30
+        );
+        assert_eq!(
+            RecordingSettings::from_json(r#"{ "markLength": 120 }"#).mark_length,
+            MarkLength::Minutes2
+        );
+        assert_eq!(
+            RecordingSettings::from_json(r#"{ "markLength": 300 }"#).mark_length,
+            MarkLength::Seconds30
         );
     }
 

@@ -25,16 +25,18 @@ export function momentSide(moment: Moment): MomentSide {
 }
 
 /**
- * How much of the game before a press of the mark key its clip holds — the
- * shell's `MARK_WINDOW_MS` (`crates/game-recording/src/marks.rs`), #2079.
+ * How much of the game before a press of the mark key its clip holds unless
+ * the mark says otherwise — the shell's `MARK_WINDOW_MS`
+ * (`crates/game-recording/src/marks.rs`), #2079; a mark keeps its own
+ * length since #1767 (`Moment.windowMs`).
  */
 export const MARK_WINDOW_MS = 30_000
 
 export const isMarked = (moment: Pick<Moment, 'kind'>) => moment.kind === 'marked'
 
-/** Where the player lands on a moment: a few seconds before it, or at the start of a marked moment's 30 s. */
-export function momentStart(moment: Pick<Moment, 'videoMs'> & Partial<Pick<Moment, 'kind'>>, leadMs: number): number {
-  return moment.kind === 'marked' ? moment.videoMs - MARK_WINDOW_MS : moment.videoMs - leadMs
+/** Where the player lands on a moment: a few seconds before it, or at the start of a marked moment's clip. */
+export function momentStart(moment: Pick<Moment, 'videoMs'> & Partial<Pick<Moment, 'kind' | 'windowMs'>>, leadMs: number): number {
+  return moment.kind === 'marked' ? moment.videoMs - (moment.windowMs ?? MARK_WINDOW_MS) : moment.videoMs - leadMs
 }
 
 const OBJECTIVE_NAMES: Record<Exclude<MomentKind, 'kill' | 'death' | 'assist' | 'marked'>, string> = {

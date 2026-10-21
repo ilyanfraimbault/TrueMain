@@ -197,6 +197,10 @@ pub struct Moment {
     /// An elemental drake's element.
     #[serde(default)]
     pub dragon: Option<DragonKind>,
+    /// A marked moment's clip length, before the press (#1767); `None` for
+    /// every other moment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window_ms: Option<u64>,
 }
 
 impl Moment {
@@ -233,6 +237,7 @@ pub fn on_video(
             killer_id: None,
             victim_ids: Vec::new(),
             dragon: None,
+            window_ms: Some(mark.window_ms),
         }
     });
     let Some(anchor) = anchor else {
@@ -254,6 +259,7 @@ pub fn on_video(
             killer_id: highlight.killer_id,
             victim_ids: highlight.victim_ids.clone(),
             dragon: None,
+            window_ms: None,
         })
         .chain(objectives.iter().map(|objective| {
             let video_ms = place(objective.game_time_ms);
@@ -275,6 +281,7 @@ pub fn on_video(
                 killer_id: None,
                 victim_ids: Vec::new(),
                 dragon: objective.dragon,
+                window_ms: None,
             }
         }))
         .chain(marked)
@@ -382,10 +389,19 @@ mod tests {
     #[test]
     fn marks_land_on_the_video_with_or_without_an_anchor() {
         let marks = [
-            Mark { video_ms: 24_000 },
-            Mark { video_ms: 33_000 },
+            Mark {
+                video_ms: 24_000,
+                window_ms: crate::MARK_WINDOW_MS,
+            },
+            Mark {
+                video_ms: 33_000,
+                window_ms: crate::MARK_WINDOW_MS,
+            },
             // Read a moment after the video closed.
-            Mark { video_ms: 61_000 },
+            Mark {
+                video_ms: 61_000,
+                window_ms: crate::MARK_WINDOW_MS,
+            },
         ];
         let moments = on_video(None, &[], &[], &marks, Some(60_000));
         let at: Vec<(MomentKind, i64)> = moments.iter().map(|m| (m.kind, m.video_ms)).collect();
@@ -419,5 +435,6 @@ mod tests {
             vec![MomentKind::Marked, MomentKind::Dragon, MomentKind::Marked]
         );
         assert_eq!(serde_json::to_value(MomentKind::Marked).unwrap(), "marked");
+        assert_eq!(moments[0].window_ms, Some(crate::MARK_WINDOW_MS));
     }
 }

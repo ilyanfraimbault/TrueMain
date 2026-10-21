@@ -238,11 +238,12 @@ impl<C: Capture> Session<C> {
         }
     }
 
-    /// The player pressed the mark key: note this second of the video, and
-    /// write it at once, so a crash before the game ends still keeps it. The
-    /// second marked, or `None` when no game records or the press repeats the
-    /// last mark (`marks::is_new`).
-    pub fn mark(&mut self) -> Result<Option<u64>, SessionError> {
+    /// The player pressed the mark key: note this second of the video, with
+    /// the `window_ms` before it its clip keeps, and write it at once, so a
+    /// crash before the game ends still keeps it. The second marked, or
+    /// `None` when no game records or the press repeats the last mark
+    /// (`marks::is_new`).
+    pub fn mark(&mut self, window_ms: u64) -> Result<Option<u64>, SessionError> {
         let State::Recording(active) = &mut self.state else {
             return Ok(None);
         };
@@ -252,7 +253,10 @@ impl<C: Capture> Session<C> {
         if !marks::is_new(&active.meta.marks, video_ms) {
             return Ok(None);
         }
-        active.meta.marks.push(Mark { video_ms });
+        active.meta.marks.push(Mark {
+            video_ms,
+            window_ms,
+        });
         active.dir.write_meta(&active.meta)?;
         Ok(Some(video_ms))
     }
@@ -361,6 +365,7 @@ mod tests {
 
     use super::*;
     use crate::highlights::HighlightKind;
+    use crate::marks::MARK_WINDOW_MS;
     use crate::settings::{FrameRate, Queues, Resolution};
 
     /// Writes a placeholder video and keeps a clock the test sets by hand.
@@ -740,7 +745,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let mut session = Session::new(FakeCapture::default());
         // No game records: nothing to mark.
-        assert_eq!(session.mark().unwrap(), None);
+        assert_eq!(session.mark(MARK_WINDOW_MS).unwrap(), None);
         let change = session
             .on_phase(
                 GameflowPhase::InProgress,
@@ -755,21 +760,28 @@ mod tests {
         };
 
         session.capture().set_clock(24_000);
-        assert_eq!(session.mark().unwrap(), Some(24_000));
+        assert_eq!(session.mark(MARK_WINDOW_MS).unwrap(), Some(24_000));
         // Written at once: a crash now keeps it.
         let written = RecordingDir::new(path.clone()).read_meta().unwrap();
-        assert_eq!(written.marks, vec![Mark { video_ms: 24_000 }]);
+        assert_eq!(
+            written.marks,
+            vec![Mark {
+                video_ms: 24_000,
+                window_ms: MARK_WINDOW_MS
+            }]
+        );
         // The key held a moment too long is the same press.
         session.capture().set_clock(24_400);
-        assert_eq!(session.mark().unwrap(), None);
+        assert_eq!(session.mark(MARK_WINDOW_MS).unwrap(), None);
         session.capture().set_clock(33_000);
-        assert_eq!(session.mark().unwrap(), Some(33_000));
+        // The length chosen at the press is the mark's own.
+        assert_eq!(session.mark(120_000).unwrap(), Some(33_000));
 
         session.capture().set_clock(1_500_000);
         session
             .on_phase(GameflowPhase::EndOfGame, None, &settings(), root.path(), 0)
             .unwrap();
-        assert_eq!(session.mark().unwrap(), None);
+        assert_eq!(session.mark(MARK_WINDOW_MS).unwrap(), None);
         let meta = session
             .finalise(GameOutcome::default(), u64::MAX, root.path())
             .unwrap()
@@ -782,6 +794,8 @@ mod tests {
             .map(|moment| moment.video_ms)
             .collect();
         assert_eq!(marked, vec![24_000, 33_000]);
+        let windows: Vec<u64> = meta.marks.iter().map(|mark| mark.window_ms).collect();
+        assert_eq!(windows, vec![MARK_WINDOW_MS, 120_000]);
     }
 
     #[test]

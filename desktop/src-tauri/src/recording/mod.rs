@@ -9,7 +9,8 @@
 //! clock, waiting for the match history — on its own task. The commands
 //! (`commands.rs`) read and change what is on disk; `cut.rs` cuts clips, the
 //! recap's and those of the moments the player marked with the mark key
-//! (#2079), which the overlay's key watch reports through `mark`;
+//! (#2079), which the overlay's key watch reports through `mark` and the
+//! overlay confirms (#1767);
 //! `publish.rs` hands a clip to YouTube's upload page.
 //!
 //! Recording only happens against a real client: a tape or the simulator
@@ -28,7 +29,7 @@ use std::sync::{Arc, Mutex};
 
 use capture_helper::media::{self, AccessRequest};
 use capture_helper::HelperCapture;
-use game_recording::{ClipStore, RecordingSettings, Session, Store};
+use game_recording::{ClipStore, MarkLength, RecordingSettings, Session, Store};
 use lcu::GameflowPhase;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -166,17 +167,31 @@ impl Recorder {
     }
 
     /// The player pressed the mark key: mark this second of the game being
-    /// recorded. Its clip is cut once the video is closed (`cut::cut_marks`).
-    pub fn mark(&self) {
-        let session = self.session.lock().expect("session slot poisoned").clone();
-        let Some(session) = session else {
-            return;
-        };
-        let marked = session.lock().expect("session poisoned").mark();
+    /// recorded, keeping the length chosen in the settings before it. Its
+    /// clip is cut once the video is closed (`cut::cut_marks`). The length
+    /// kept, for the overlay's confirmation (#1767); `None` when nothing was
+    /// marked.
+    pub fn mark(&self) -> Option<MarkLength> {
+        let session = self
+            .session
+            .lock()
+            .expect("session slot poisoned")
+            .clone()?;
+        let length = self.settings().mark_length;
+        let marked = session
+            .lock()
+            .expect("session poisoned")
+            .mark(length.millis());
         match marked {
-            Ok(Some(video_ms)) => tracing::info!(video_ms, "moment marked"),
-            Ok(None) => {}
-            Err(error) => tracing::warn!(%error, "the marked moment could not be written"),
+            Ok(Some(video_ms)) => {
+                tracing::info!(video_ms, seconds = length.seconds(), "moment marked");
+                Some(length)
+            }
+            Ok(None) => None,
+            Err(error) => {
+                tracing::warn!(%error, "the marked moment could not be written");
+                None
+            }
         }
     }
 
