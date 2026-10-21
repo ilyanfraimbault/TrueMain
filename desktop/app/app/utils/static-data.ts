@@ -51,6 +51,7 @@ export interface ItemListResponse {
     description?: string
     tags?: string[]
     from?: string[]
+    maps?: Record<string, boolean>
   }>
 }
 
@@ -69,6 +70,7 @@ export function toItemsMap(items: ItemListResponse, patch: string): Record<numbe
         description: item.description,
         tags: item.tags,
         from: item.from?.map(Number),
+        maps: item.maps ? Object.entries(item.maps).filter(([, sold]) => sold).map(([map]) => Number(map)) : undefined,
       } satisfies StaticItemData,
     ]),
   )

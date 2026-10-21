@@ -1,7 +1,8 @@
 //! The in-game overlay: panels drawn over the game itself — the next item to
 //! buy, the win probability, and the item value while TAB is held (#1795) —
 //! configured from the app, each panel shown always, while a chord is held or
-//! toggled by one (#1915).
+//! toggled by one (#1915). The lane-gold plates (#2186) sit on the game's own
+//! scoreboard, placed from the client's HUD settings read at game start.
 //!
 //! One window per panel, driven the same way on both platforms
 //! (`panels.rs`): never focused, click-through outside the preview, shown
@@ -36,6 +37,7 @@ use shell_state::keys::{GameBinds, KeysDown};
 use shell_state::overlay::{
     OverlayInputs, OverlayPanel, OverlayPoint, OverlaySettings, PanelKeys, PanelTrigger,
 };
+use shell_state::scoreboard::HudSettings;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::game::SharedGame;
@@ -88,6 +90,9 @@ pub struct Overlay {
     keys: Mutex<PanelKeys>,
     /// The player's League keybindings, Riot's defaults until the client is read.
     binds: Mutex<GameBinds>,
+    /// The player's HUD scale and scoreboard layout, Riot's defaults until the
+    /// client is read: where the lane-gold plates go.
+    hud: Mutex<HudSettings>,
     /// Each page's measured size, in points, scale included.
     sizes: Mutex<HashMap<OverlayPanel, (f64, f64)>>,
 }
@@ -110,6 +115,8 @@ pub struct OverlayView {
     pub chords: BTreeMap<&'static str, ChordView>,
     /// The warnings come from the player's own keybindings, not Riot's defaults.
     pub own_binds: bool,
+    /// The HUD settings the lane-gold plates are placed by.
+    pub hud: HudSettings,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -146,6 +153,7 @@ impl Overlay {
             game_frontmost: AtomicBool::new(false),
             keys: Mutex::new(PanelKeys::default()),
             binds: Mutex::new(GameBinds::defaults()),
+            hud: Mutex::new(HudSettings::DEFAULTS),
             sizes: Mutex::new(HashMap::new()),
         })
     }
@@ -178,7 +186,12 @@ impl Overlay {
             notice: NOTICE,
             chords,
             own_binds: binds.own,
+            hud: self.hud(),
         }
+    }
+
+    pub fn hud(&self) -> HudSettings {
+        *self.hud.lock().expect("overlay hud poisoned")
     }
 
     /// How `chord` reads and what it also does in game, from the binds read.
@@ -302,6 +315,36 @@ pub fn follow(app: &AppHandle, running: bool) {
     let overlay = app.state::<SharedOverlay>();
     if overlay.game_running.swap(running, Ordering::SeqCst) != running {
         rebuild(app);
+        if running {
+            // The HUD as the game about to start was set up, for the plates.
+            let handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let overlay = handle.state::<SharedOverlay>().inner().clone();
+                let Some(client) = handle.try_state::<SharedClient>() else {
+                    return;
+                };
+                read_hud(&overlay, client.inner()).await;
+                let _ = handle.emit(VIEW_EVENT, overlay.view());
+                apply(&handle);
+            });
+        }
+    }
+}
+
+/// The player's HUD settings from the client, into `overlay`. Without a
+/// client, or with an answer this build cannot read, the last read stays —
+/// Riot's defaults before any.
+async fn read_hud(overlay: &Overlay, client: &SharedClient) {
+    let client = client.read().expect("client lock poisoned").clone();
+    let Some(client) = client else {
+        return;
+    };
+    match client.game_settings().await {
+        Ok(body) => match HudSettings::from_game_settings(&body) {
+            Some(hud) => *overlay.hud.lock().expect("overlay hud poisoned") = hud,
+            None => tracing::warn!("the client's game settings are not in a known shape"),
+        },
+        Err(error) => tracing::debug!(%error, "no game settings from the client"),
     }
 }
 
@@ -365,14 +408,16 @@ pub fn overlay_check_trigger(
 }
 
 /// Read the player's League keybindings from the client, for the chords'
-/// warnings. Without a client, or with an answer this build cannot read,
-/// Riot's defaults stay.
+/// warnings, and their HUD settings, for the plates the Overlay page draws.
+/// Without a client, or with an answer this build cannot read, Riot's defaults
+/// stay.
 #[tauri::command]
 pub async fn overlay_read_binds(
     app: AppHandle,
     overlay: State<'_, SharedOverlay>,
     client: State<'_, SharedClient>,
 ) -> Result<OverlayView, String> {
+    read_hud(&overlay, &client).await;
     let client = client.read().expect("client lock poisoned").clone();
     if let Some(client) = client {
         match client.input_settings().await {

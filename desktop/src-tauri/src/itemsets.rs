@@ -6,7 +6,7 @@
 //! read, nothing written after a failed read — live in `lcu::item_sets` and
 //! `LcuClient::import_item_set`; this is the command the button calls.
 
-use lcu::{BuildItems, Error, ItemSetDraft};
+use lcu::{BuildItems, Error, ItemSetDraft, NamedBlock};
 
 use crate::record::SharedClient;
 
@@ -32,13 +32,32 @@ pub async fn import_item_set(
 ) -> Result<(), String> {
     let draft = ItemSetDraft::from_build(&champion, champion_id, &build)
         .ok_or_else(|| EMPTY_BUILD.to_string())?;
+    write(&client, &draft).await
+}
+
+/// Write a kit's tree into the client as the same TrueMain item set, one
+/// block per path after the starter and the boots (#2185). Only ever called
+/// from the button, like `import_item_set`.
+#[tauri::command]
+pub async fn import_kit_item_set(
+    client: tauri::State<'_, SharedClient>,
+    champion_id: i64,
+    champion: String,
+    blocks: Vec<NamedBlock>,
+) -> Result<(), String> {
+    let draft = ItemSetDraft::from_blocks(&champion, champion_id, &blocks)
+        .ok_or_else(|| EMPTY_BUILD.to_string())?;
+    write(&client, &draft).await
+}
+
+async fn write(client: &SharedClient, draft: &ItemSetDraft) -> Result<(), String> {
     let client = client
         .read()
         .expect("client lock poisoned")
         .clone()
         .ok_or_else(|| "the League client is not running".to_string())?;
 
-    match client.import_item_set(&draft).await {
+    match client.import_item_set(draft).await {
         Ok(()) => Ok(()),
         Err(Error::ItemSetsUnreadable(error)) => {
             tracing::warn!(%error, "item set import aborted: the list could not be read");

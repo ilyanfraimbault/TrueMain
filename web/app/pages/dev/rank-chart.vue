@@ -113,6 +113,14 @@ const scenarios: Scenario[] = [
     (t, i) => ({ gm: 380 + 30 * Math.sin(t * 6) + wobble(i, 4), ch: 860 }),
   ),
   scenario(
+    'rising-gm',
+    'Challenger over a rising GM line',
+    'The Grandmaster cutoff climbs into view: Master\'s crest still reads under Grandmaster\'s, or is left out.',
+    60,
+    (t, i) => 2800 + 1100 + 500 * Math.cos(t * 6) + wobble(i, 20),
+    (t, i) => ({ gm: 200 + 900 * t + wobble(i, 6), ch: 1000 + 300 * t + wobble(i + 2, 12) }),
+  ),
+  scenario(
     'partial',
     'Cutoffs measured recently',
     'Master → Grandmaster, cutoffs only known for the last 40%: before that, each snapshot takes the nearest cutoff for its band.',

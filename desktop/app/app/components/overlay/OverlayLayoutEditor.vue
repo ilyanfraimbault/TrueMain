@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { OverlayPanel, OverlaySettings, OverlayView } from '~/types/overlay'
-import type { Point, Size } from '~/utils/overlay-layout'
-import { OVERLAY_PANEL_INFO, OVERLAY_PANELS, PANEL_KEY } from '~/types/overlay'
-import { currentScreen, customAt, panelBox, panelSize } from '~/utils/overlay-layout'
+import type { HudSettings, OverlayPanel, OverlaySettings, OverlayView } from '~/types/overlay'
+import type { Box, Point, Size } from '~/utils/overlay-layout'
+import { DEFAULT_HUD, OVERLAY_PANEL_INFO, OVERLAY_PANELS, PANEL_KEY, onScoreboard } from '~/types/overlay'
+import { PANEL_WIDTHS, currentScreen, customAt, panelBox, panelSize } from '~/utils/overlay-layout'
+import { platesBox } from '~/utils/scoreboard-geometry'
 
 /**
  * The overlay's layout (#1819): the screen, small, with each panel that is on
@@ -13,8 +14,12 @@ import { currentScreen, customAt, panelBox, panelSize } from '~/utils/overlay-la
  * come back where it last was. A panel dragged off the screen onto the side
  * goes off too. Arrow keys nudge a focused panel, Delete takes it off. Each
  * drop is one change for the page to save.
+ *
+ * The lane gold (#2186) is not dragged: it sits on the game's scoreboard,
+ * outlined on the screen at the player's HUD scale (`hud`), moved only by its
+ * nudge; dropped from the side, it comes back there.
  */
-const props = defineProps<{ settings: OverlaySettings, chords?: OverlayView['chords'] }>()
+const props = defineProps<{ settings: OverlaySettings, chords?: OverlayView['chords'], hud?: HudSettings }>()
 const emit = defineEmits<{ place: [panel: OverlayPanel, custom: Point], show: [panel: OverlayPanel], hide: [panel: OverlayPanel] }>()
 
 const screen = currentScreen()
@@ -40,17 +45,24 @@ function measure(panel: OverlayPanel, size: Size) {
   if (size.width > 0 && size.height > 0) measured[panel] = size
 }
 const sizeOf = (panel: OverlayPanel) => panelSize(panel, props.settings.scale, measured[panel])
+const hud = computed(() => props.hud ?? DEFAULT_HUD)
+
+/** A panel's box on the screen: the scoreboard's rows for the lane gold, its place for the others. */
+function boxOf(panel: OverlayPanel): Box {
+  if (onScoreboard(panel)) return platesBox(screen, hud.value, props.settings.scoreboardNudge, PANEL_WIDTHS[panel] * props.settings.scale)
+  return panelBox(props.settings[PANEL_KEY[panel]], sizeOf(panel), screen)
+}
 
 /** How much a panel is shrunk to be drawn on the canvas: the screen's ratio and the overlay's scale. */
 const zoom = computed(() => ratio.value * props.settings.scale)
 
 /** A panel's box on the canvas: its box on the screen, at the canvas's scale — nothing enlarged, so its edges are its edges. */
 function drawnSize(panel: OverlayPanel) {
-  const size = sizeOf(panel)
+  const size = onScoreboard(panel) ? boxOf(panel) : sizeOf(panel)
   return { width: size.width * ratio.value, height: size.height * ratio.value }
 }
 function boxStyle(panel: OverlayPanel) {
-  const box = panelBox(props.settings[PANEL_KEY[panel]], sizeOf(panel), screen)
+  const box = boxOf(panel)
   const r = ratio.value
   return { left: `${box.x * r}px`, top: `${box.y * r}px`, width: `${box.width * r}px`, height: `${box.height * r}px` }
 }
@@ -102,7 +114,10 @@ function end() {
     if (current.from === 'tray') emit('show', current.panel)
     return
   }
-  if (inside(canvas.value, current.pointer)) {
+  if (inside(canvas.value, current.pointer) && onScoreboard(current.panel)) {
+    if (current.from === 'tray') emit('show', current.panel)
+  }
+  else if (inside(canvas.value, current.pointer)) {
     // Where the drawn box's corner lands is where the panel's corner goes.
     const rect = canvas.value!.getBoundingClientRect()
     const origin = {
@@ -143,7 +158,7 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
   }
   const steps: Record<string, Point> = { ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 }, ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 } }
   const step = steps[event.key]
-  if (!step) return
+  if (!step || onScoreboard(panel)) return
   event.preventDefault()
   const size = sizeOf(panel)
   const box = panelBox(props.settings[PANEL_KEY[panel]], size, screen)
@@ -162,21 +177,30 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
         :style="{ aspectRatio: `${screen.width} / ${screen.height}` }"
         aria-label="Your screen"
       >
-        <OverlayScreenHud />
+        <OverlayScreenHud :screen="screen" :scoreboard="settings.laneGold.enabled ? hud : null" />
 
         <div
           v-for="panel in shown"
           :key="panel"
-          class="group absolute cursor-grab touch-none rounded-sm outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-primary"
-          :class="drag?.panel === panel && drag.moved ? 'opacity-25' : 'hover:ring-1 hover:ring-primary/60'"
+          class="group absolute touch-none rounded-sm outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-primary"
+          :class="[drag?.panel === panel && drag.moved ? 'opacity-25' : 'hover:ring-1 hover:ring-primary/60', onScoreboard(panel) ? 'cursor-default' : 'cursor-grab']"
           :style="boxStyle(panel)"
           tabindex="0"
           role="button"
-          :aria-label="`${OVERLAY_PANEL_INFO[panel].label}: drag to move, arrow keys to nudge, Delete to remove`"
-          @pointerdown="begin(panel, 'screen', $event)"
+          :aria-label="onScoreboard(panel) ? `${OVERLAY_PANEL_INFO[panel].label}: on the scoreboard, Delete to remove` : `${OVERLAY_PANEL_INFO[panel].label}: drag to move, arrow keys to nudge, Delete to remove`"
+          @pointerdown="!onScoreboard(panel) && begin(panel, 'screen', $event)"
           @keydown="nudge(panel, $event)"
         >
-          <OverlayPanelMock :panel="panel" :zoom="zoom" :chord="chords?.[panel]?.label" removable @remove="emit('hide', panel)" @measure="measure(panel, $event)" />
+          <OverlayPanelMock
+            :panel="panel"
+            :zoom="zoom"
+            :chord="chords?.[panel]?.label"
+            :height="onScoreboard(panel) ? boxOf(panel).height / settings.scale : undefined"
+            :lanes="panel === 'item-value' ? !settings.laneGold.enabled : undefined"
+            removable
+            @remove="emit('hide', panel)"
+            @measure="measure(panel, $event)"
+          />
         </div>
 
         <p v-if="!shown.length" class="absolute inset-0 flex items-center justify-center text-sm text-muted">
@@ -202,7 +226,12 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
 
     <Teleport to="body">
       <div v-if="ghost" class="pointer-events-none fixed z-50 rounded-sm shadow-lg ring-1 ring-primary" :class="ghost.dropping && 'opacity-60'" :style="ghost.style">
-        <OverlayPanelMock :panel="ghost.panel" :zoom="zoom" @measure="measure(ghost.panel, $event)" />
+        <OverlayPanelMock
+          :panel="ghost.panel"
+          :zoom="zoom"
+          :height="onScoreboard(ghost.panel) ? boxOf(ghost.panel).height / settings.scale : undefined"
+          @measure="measure(ghost.panel, $event)"
+        />
       </div>
     </Teleport>
   </div>

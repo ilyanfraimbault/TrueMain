@@ -72,7 +72,7 @@ export function useItemSetImport() {
       })
     }
     catch (error) {
-      toast.add(failureToast(error instanceof Error ? error.message : String(error)))
+      toast.add(itemSetFailureToast(error instanceof Error ? error.message : String(error)))
     }
     finally {
       pending.value = false
@@ -84,7 +84,8 @@ export function useItemSetImport() {
   return { available, pending, done, importItemSet }
 }
 
-function failureToast(message: string) {
+/** How a failed import is told, shared with a kit's (`useKitImport`). */
+export function itemSetFailureToast(message: string) {
   switch (message) {
     case READ_FAILED:
       return {

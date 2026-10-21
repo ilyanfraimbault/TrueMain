@@ -27,6 +27,23 @@ pub fn holding(monitors: &[Monitor], window: Rect) -> Option<Monitor> {
         .map(|(_, monitor)| *monitor)
 }
 
+/// `window`, measured in `monitor`'s `bounds` unit, in the points of its
+/// `area`: where the game's own window is, for a panel placed on it rather
+/// than on the screen (the lane-gold plates, #2186).
+pub fn in_points(monitor: &Monitor, window: Rect) -> Rect {
+    let scale = if monitor.bounds.width > 0.0 {
+        monitor.area.width / monitor.bounds.width
+    } else {
+        1.0
+    };
+    Rect {
+        x: monitor.area.x + (window.x - monitor.bounds.x) * scale,
+        y: monitor.area.y + (window.y - monitor.bounds.y) * scale,
+        width: window.width * scale,
+        height: window.height * scale,
+    }
+}
+
 /// The area two rectangles share.
 fn overlap(a: Rect, b: Rect) -> f64 {
     let width = (a.x + a.width).min(b.x + b.width) - a.x.max(b.x);
@@ -78,6 +95,25 @@ mod tests {
         let minimised = rect(-32000.0, -32000.0, 160.0, 28.0);
         assert_eq!(holding(&[PRIMARY, LEFT], minimised), None);
         assert_eq!(holding(&[], rect(0.0, 0.0, 10.0, 10.0)), None);
+    }
+
+    #[test]
+    fn a_game_window_is_measured_in_its_monitors_points() {
+        // Windowed on the 4K primary at 200%: pixels halved.
+        let windowed = rect(400.0, 200.0, 2560.0, 1440.0);
+        assert_eq!(
+            in_points(&PRIMARY, windowed),
+            rect(200.0, 100.0, 1280.0, 720.0)
+        );
+        // Already in points (macOS): unchanged.
+        let same = Monitor {
+            bounds: LEFT.area,
+            area: LEFT.area,
+        };
+        assert_eq!(
+            in_points(&same, rect(-1900.0, 10.0, 800.0, 600.0)),
+            rect(-1900.0, 10.0, 800.0, 600.0)
+        );
     }
 
     #[test]
