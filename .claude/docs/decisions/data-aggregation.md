@@ -194,6 +194,42 @@ against 54.9 %, a coin flip where they disagree (534 to 509). The draft composit
 their items — what the enemies have *built* (#1750) is the lever the in-game panel needs. Grouping correlated axes
 so each group spoke once was measured too and did no better than plain summing, so the model sums — #1749.
 
+**The next item reacts to what the enemies have built: seven in-game axes, measured when each decision opened (2026-10-21).**
+The draft axes read the enemies' *usual* profile; in game the board says more — a Kai'Sa gone ability power, a top
+laner on two armour items. A final inventory cannot measure that, because item *k* was chosen against the enemies'
+inventories at the time, so the item-context fold replays the five enemies' `ItemEvents` (stored for all ten) to the
+**completion of the parent item** — the instant the decision opened. The first component bought towards the child was
+the alternative; it leaks the decision into its own context (which component comes first is part of the choice), so
+the parent's completion is the last instant every sibling was still open. Only **completed** items count (the build
+path's own eligibility, completed boots, an inventory transform's source); components are replayed past and count from
+the event that completed them. Armour and magic resist are **Data Dragon's stats** (`item.json`, a new
+`IItemStatsProvider` beside the champion statics: CommunityDragon's catalogue has categories, not figures), summed over
+the enemy team and over the lane opponent; healing is life steal or omnivamp (Data Dragon's `SpellVamp` tag — omnivamp
+has no stat key), counted per enemy; the damage built is the magic share of the enemies' completed damage items (two
+at least); crit counts completed crit items. The whitelist extends under the same rule — penetration answers the
+resistances built, armour the crit built, either resistance the damage type built, Grievous Wounds the healing built —
+on the build slot only. The **root branch carries none**: at 0:00 nobody has built anything, so every game would share a
+bucket. A branch whose parent the timeline never shows completing is not guessed. The axes are marked `[InGame]` in the
+axis enum, so draft-time findings still outrank them. The bands are **provisional**, set in item units (an armour item
+is 40–80 armour): no distribution of "armour held when this decision opened" existed to put quantiles on, so every run's
+summary reports the quantiles it measured (`builtAxes`), and the bands move onto them after the preprod re-fold, as the
+gold lead's did. Counters stay additive per match, so a backfill is a re-fold of the retained window; no migration
+re-arms it — the axes fill from the matches folded after the deploy, both ends of a bucket from the same games, and the
+next patch has them whole (the #2101 / #2183 rule) — #1750.
+
+**The site does not show the in-game axes of what the enemies built; the overlay alone reads them (2026-10-05).**
+They are marked `OverlayOnly`: the fold counts them and the next-item model derives terms from them, but the verdict
+builder never judges them, so the champion page's hover cards and their vitest mirror stay as they are. The app words
+them itself, as game states ("once the enemies have built armor") — product owner's call on #1750.
+
+**The fold loads the enemies' timelines one query per side, and the batch size waits for a measurement (2026-10-21).**
+The item-context fold read the cohort member's timeline only; it now also needs the enemies'. They are asked for by
+team — every match of the batch that needs that side in one array — and only for untracked participants (a tracked
+one came with the builds), so a batch costs two more round trips and five more timelines per match with a member on
+one side, never a query per match: the bound the pattern fold lacked when it was OOM-killed (#600).
+`MatchBatchSize` stays at 300 until a preprod re-fold measures the batch; resizing it from an estimate is what the
+issue ruled out — #1750.
+
 **No pick+ban "presence" figure, despite it being standard elsewhere.**
 Pick rate's denominator is tracked mains' games at a lane; ban rate's is every observed match. The two are not
 addable, and a presence number computed from them would be arithmetic without meaning. Offering a meta-wide

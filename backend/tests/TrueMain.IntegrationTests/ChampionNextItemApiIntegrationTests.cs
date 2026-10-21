@@ -4,6 +4,7 @@ using AwesomeAssertions;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
+using Data.Statics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -163,6 +164,35 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task NextItem_PlacesTheGameOnWhatTheEnemiesHold_OnlyWhenTheyAreSent()
+    {
+        // #1750: the live game reports every enemy's inventory, and the read places it on the
+        // in-game axes through the fold's own catalogue — completed items only.
+        await SeedAsync();
+
+        var inGame = await PostAsync(new
+        {
+            position = Position,
+            items = new[] { Armor },
+            enemies = MagicEnemies.Select((id, i) => new { championId = id, position = Lanes[i], items = i < 2 ? new[] { Armor, Belt } : new[] { Belt } }),
+        });
+
+        inGame.Situation.Should().Contain(nameof(ItemContextAxis.EnemyArmorBuilt), nameof(ItemContextBucket.High));
+        inGame.Situation.Should().Contain(nameof(ItemContextAxis.OpponentArmorBuilt), nameof(ItemContextBucket.High));
+        inGame.Situation.Should().Contain(nameof(ItemContextAxis.EnemyCritBuilt), nameof(ItemContextBucket.Low));
+
+        var draft = await PostAsync(new
+        {
+            position = Position,
+            items = new[] { Armor },
+            enemies = MagicEnemies.Select((id, i) => new { championId = id, position = Lanes[i] }),
+        });
+
+        draft.Situation.Keys.Should().NotContain(axis => axis.EndsWith("Built", StringComparison.Ordinal),
+            "no inventory sent is not an empty inventory: champion select knows nothing built");
+    }
+
+    [Fact]
     public async Task NextItem_AnswersEmpty_ForAChampionWithNoModel()
     {
         var response = await PostAsync(new { position = Position });
@@ -214,6 +244,8 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
             {
                 services.RemoveAll<IItemMetadataProvider>();
                 services.AddSingleton<IItemMetadataProvider>(new RecipeMetadataProvider());
+                services.RemoveAll<IItemStatsProvider>();
+                services.AddSingleton<IItemStatsProvider>(new ArmourStatsProvider());
             });
         }
     }
@@ -231,6 +263,18 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
         };
 
         public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(Items);
+    }
+
+    private sealed class ArmourStatsProvider : IItemStatsProvider
+    {
+        private static readonly IReadOnlyDictionary<int, ItemStats> Items = new Dictionary<int, ItemStats>
+        {
+            [Armor] = new(Armor, 70, 0, 0, 0, 0, 0, 0, System.Collections.Frozen.FrozenSet<string>.Empty),
+            [Belt] = new(Belt, 0, 0, 0, 0, 0, 0, 0, System.Collections.Frozen.FrozenSet<string>.Empty),
+        };
+
+        public Task<IReadOnlyDictionary<int, ItemStats>> GetItemsAsync(string gameVersion, CancellationToken ct)
             => Task.FromResult(Items);
     }
 
