@@ -98,31 +98,38 @@ export interface CrestBand {
 // is unknown, its band is read back from the snapshot's own tier and spans
 // everything above Master, so Master and Grandmaster would centre on one spot.
 export function crestBands(zones: readonly TierZone[], frame: PlotFrame): CrestBand[] {
-  const onLines: CrestBand[] = []
-  const centred: CrestBand[] = []
-  for (const zone of zones) {
+  const onLines: RankedCrest[] = []
+  const centred: RankedCrest[] = []
+  zones.forEach((zone, rank) => {
     const line = floorLineY(zone, frame)
     if (line !== null) {
-      onLines.push({ tier: zone.tier, top: line })
-      continue
+      onLines.push({ tier: zone.tier, top: line, rank })
+      return
     }
     const top = widestStretch(zone, frame, i => (zone.lower?.measured[i] ?? true) && (zone.upper?.measured[i] ?? true))
       ?? widestStretch(zone, frame, () => true)
-    if (top !== null) centred.push({ tier: zone.tier, top })
-  }
-  // A centred crest makes way for the line crests: moved clear of the one it
-  // overlaps when the plot has room, left out when not.
-  const placed = centred.flatMap((crest) => {
+    if (top !== null) centred.push({ tier: zone.tier, top, rank })
+  })
+  // A centred crest makes way for the line crests, and the axis reads in climb
+  // order whatever x each spot was taken at: a crest is moved below every higher
+  // tier's crest and above every lower one's, left out when the plot has no room.
+  const placed = [...onLines]
+  for (const crest of centred) {
     let top = crest.top
-    for (const line of onLines) {
-      if (Math.abs(top - line.top) < CREST_PX) top = top > line.top ? line.top + CREST_PX : line.top - CREST_PX
+    for (const other of placed) {
+      if (other.rank > crest.rank) top = Math.max(top, other.top + CREST_PX)
+      else top = Math.min(top, other.top - CREST_PX)
     }
     const fits = top >= CREST_PX / 2 && top <= frame.height - CREST_PX / 2
-      && onLines.every(line => Math.abs(top - line.top) >= CREST_PX)
-    return fits ? [{ tier: crest.tier, top }] : []
-  })
+      && placed.every(other => other.rank > crest.rank ? top - other.top >= CREST_PX : other.top - top >= CREST_PX)
+    if (fits) placed.push({ ...crest, top })
+  }
   // Bottom to top, in climb order.
-  return [...placed, ...onLines].sort((a, b) => b.top - a.top)
+  return placed.sort((a, b) => b.top - a.top).map(({ tier, top }) => ({ tier, top }))
+}
+
+interface RankedCrest extends CrestBand {
+  rank: number
 }
 
 /** The crest's rendered size, the gap two crests need between their centres. */
