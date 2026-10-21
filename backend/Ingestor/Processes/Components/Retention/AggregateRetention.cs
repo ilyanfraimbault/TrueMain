@@ -44,6 +44,8 @@ public static class AggregateRetention
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionOpponentBaselineStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionScalingStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionBanStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.BanScopeTotals
@@ -123,6 +125,10 @@ public static class AggregateRetention
                         .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionOpponentBaselineStats
                         .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                // The game-length buckets of the scaling chart (#1368): one table, no
+                // denominator kept apart from it.
+                result.DeletedScalingStats + await db.ChampionScalingStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 // Same reasoning as the synergy pair: the ban counts and the match
                 // totals they are divided by must leave together, or the survivor
                 // would be read as a rate over a denominator that is gone.
@@ -178,6 +184,7 @@ public static class AggregateRetention
         int DeletedScopes,
         int DeletedMatchupStats,
         int DeletedSynergyStats,
+        int DeletedScalingStats,
         int DeletedBanStats,
         // The situational-context family (#1449, #1450): champion profiles, the item
         // context counters and the verdicts derived from them, summed — they are deleted
@@ -185,12 +192,13 @@ public static class AggregateRetention
         int DeletedContextStats,
         int DeletedBenchmarkStats)
     {
-        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0, 0);
+        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0, 0, 0);
 
         public int TotalDeleted
             => DeletedScopes
                 + DeletedMatchupStats
                 + DeletedSynergyStats
+                + DeletedScalingStats
                 + DeletedBanStats
                 + DeletedContextStats
                 + DeletedBenchmarkStats;

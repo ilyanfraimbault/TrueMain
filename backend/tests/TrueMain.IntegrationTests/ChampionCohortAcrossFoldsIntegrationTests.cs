@@ -111,10 +111,17 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
                 && row.Patch == Patch)
             .SumAsync(row => row.Games);
 
+        // The scaling chart (#1368): every duration bucket, summed back to the games.
+        var scalingGames = await db.ChampionScalingStats
+            .AsNoTracking()
+            .Where(row => row.ChampionId == Champion && row.TeamPosition == Position && row.Patch == Patch)
+            .SumAsync(row => row.Games);
+
         headerGames.Should().Be(MainGames, "the corpus holds exactly this many games by a main of the champion");
         matchupGames.Should().Be(MainGames);
         laneGames.Should().Be(MainGames);
         synergyGames.Should().Be(MainGames, "before #1365 this counted the tracked non-main's games too");
+        scalingGames.Should().Be(MainGames);
     }
 
     [Fact]
@@ -132,7 +139,8 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
             .Should().Be(RemakeGames);
         (await db.Matches.CountAsync(m => m.Id.StartsWith("KR_REMAKE")
             && m.SynergyAggregated
-            && m.MatchupLeadAggregated))
+            && m.MatchupLeadAggregated
+            && m.ScalingAggregated))
             .Should().Be(RemakeGames, "an unproductive match is still flagged, or it is re-read forever");
 
         // …and contributed nothing. MainGames alone would also hold if remakes were
@@ -140,6 +148,8 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
         (await db.ChampionSynergyBaselineStats.AsNoTracking()
             .Where(row => row.Side == SynergyBaselineSide.Self)
             .SumAsync(row => row.Games))
+            .Should().Be(MainGames);
+        (await db.ChampionScalingStats.AsNoTracking().SumAsync(row => row.Games))
             .Should().Be(MainGames);
     }
 
@@ -159,6 +169,13 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
             NullLogger<ChampionSynergyAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new SynergyAggregationOptions()),
+            factory,
+            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+
+        await new ChampionScalingAggregationProcess(
+            NullLogger<ChampionScalingAggregationProcess>.Instance,
+            Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
+            Microsoft.Extensions.Options.Options.Create(new ScalingAggregationOptions()),
             factory,
             TimeProvider.System).RunCoreAsync(CancellationToken.None);
 
