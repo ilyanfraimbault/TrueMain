@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("edf61a03-d8f7-4827-9d11-f1a4c1dcd914"), entityTypeCount: 40)
+            : base(skipDetectChanges: false, modelId: new Guid("a83b88b0-0f66-4345-a6bf-ffc91617c51e"), entityTypeCount: 41)
         {
         }
 
@@ -30,6 +30,7 @@ namespace Data.CompiledModels
             var championDimSpellPair = ChampionDimSpellPairEntityType.Create(this);
             var championDimStarterItems = ChampionDimStarterItemsEntityType.Create(this);
             var championGameCount = ChampionGameCountEntityType.Create(this);
+            var championItemComponentOrder = ChampionItemComponentOrderEntityType.Create(this);
             var championItemContextStat = ChampionItemContextStatEntityType.Create(this);
             var championItemContextTotal = ChampionItemContextTotalEntityType.Create(this);
             var championItemContextVerdict = ChampionItemContextVerdictEntityType.Create(this);
@@ -89,6 +90,7 @@ namespace Data.CompiledModels
             ChampionDimSpellPairEntityType.CreateAnnotations(championDimSpellPair);
             ChampionDimStarterItemsEntityType.CreateAnnotations(championDimStarterItems);
             ChampionGameCountEntityType.CreateAnnotations(championGameCount);
+            ChampionItemComponentOrderEntityType.CreateAnnotations(championItemComponentOrder);
             ChampionItemContextStatEntityType.CreateAnnotations(championItemContextStat);
             ChampionItemContextTotalEntityType.CreateAnnotations(championItemContextTotal);
             ChampionItemContextVerdictEntityType.CreateAnnotations(championItemContextVerdict);

@@ -493,6 +493,21 @@ past that step without boots has them as its next step, and they take the panel'
 what the row exists to say. Not backfilled — re-arming the fold would re-count every other slot — so it fills from the
 matches folded after the change and the next patch has it whole (2026-10-19) — #2101.
 
+**The next item's components come in the order the mains buy them, and the gold walks that order (2026-10-21).**
+The recipe sorted cheapest first was not how players buy: a main going for Archangel's Staff buys the Tear, then Lost
+Chapter, and a back with 800 gold has a right purchase the panel did not say. The item-context fold now also counts,
+per (champion, position, patch, item), the rank at which each recipe slot was first bought before the item completed
+(`champion_item_component_orders`), the timeline replayed as an inventory: a purchase goes to the item that consumed
+it, a sub-component bought towards an intermediate of the recipe starts that intermediate, a component never bought on
+its own ranks after the ones that were, an undo is honoured, and a game that bought the item outright counts nothing.
+Intermediates get their own order the same way. The read orders the slots by mean rank (ties to the one bought first
+more often, then the recipe), reaching back up to two patches until an item holds 20 games; under that, the recipe's
+order, marked unmeasured. On the panel the gold in hand covers the components **in that order** and stops at the first
+it cannot pay for — never the cheapest first — "≈" when the 50-gold step straddles the sum; an intermediate is one tile,
+opened into its parts when some are held or when the gold stops inside it and its first parts are buyable now. The
+overlay panel shows it too and is labelled "Build path" (its settings key stays `nextItem`). Not backfilled, like the
+boots step: it fills from the matches folded after the change — #2183.
+
 **Every app version is built twice, once per site, and each site serves only its own build (2026-10-01).** The product
 owner's call: the app downloaded from preprod is a test build and must read preprod — API, the pages it opens in the
 browser, its update feed — and the one downloaded from truemain.lol must read production. A build is tied to its site
@@ -543,20 +558,32 @@ where, by dragging it on a copy of the screen, taking it off with its ×, and dr
 hidden panels, or by dragging it in an on-screen preview, the only time the panels take the mouse — plus size and
 opacity for all. Five fixed spots stay each panel's default place, no longer a picker:
 
-- **Next item**: **one item** — the next one, and the gold still to earn for it or that it can be bought now — and
-  nothing else: no components (which one to buy first is not measured yet, so the overlay does not pretend to know),
-  no runners-up, no boots; the game page keeps the full panel, from the same `useNextItemPanel`. Whole game or only
-  while dead.
+- **Build path** (the next-item panel, renamed 2026-10-21, #2183): **one item** — the next one, and the gold still
+  to earn for it or that it can be bought now — its components in the order the mains buy them, owned / buy now /
+  later, and the build row; no runners-up, no boots column; the game page keeps the full panel, from the same
+  `useNextItemPanel`. Whole game or only while dead. (Until #2183 it showed no components: which one to buy first was
+  not measured.)
 - **Every panel waits for the game to start**: the Live Client API answers on the loading screen already, with the
   ten players and a zero clock; a reading counts as a game only once its feed holds `GameStart` (2026-10-04).
 - **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
-- **Objectives** (#2078, 2026-10-20): when the dragon pit (a drake, or the Elder once a side holds the soul), the
-  Voidgrubs, the Rift Herald and Baron are next up — icons only, the game's minimap ones, on the left, and on the
-  right a countdown until it spawns or a green dot while it stands; no names, no "Up", no counts like "2–1", no soul
-  badge (each read as noise, the product owner's calls); a camp taken for good or gone from the map leaves the panel.
-  Once a drake has fallen, the dragon row sets the pit's icon between the drakes each side took, blue side's on the
-  left, red side's on the right, as their icons, with its countdown under it (the icon on the row's centre) and nothing while it stands. The pit's icon is its next drake's element from the Rift's terrain
+- **Objectives** (#2078, 2026-10-20; one strip since #2184, 2026-10-20): when the dragon pit (a drake, or the Elder
+  once a side holds the soul), the Voidgrubs, the Rift Herald and Baron are next up — icons only, the game's minimap
+  ones; no names, no "Up", no counts like "2–1", no soul badge (each read as noise, the product owner's calls). **One
+  compact strip, not a row per objective** (#2184: four rows took a lot of height for four numbers; the competitor's
+  single strip was the benchmark, our look kept): a glass pill each, side by side, the icon and an `m:ss` countdown —
+  rose-gold within a minute — or, once it stands, the icon lit (a rose-gold glow and ring) with a green dot. A pill
+  that does not matter yet stays in grey with its countdown, so the strip keeps its landmarks: the Herald while the
+  grubs are still to come or stand, Baron while the Herald is (19:45 at the latest) — the camp the top side holds
+  before it, rather than a fixed clock. A camp taken for good or gone from the map leaves the strip. Every pill is as
+  wide as the widest countdown, and the soul race's line is drawn from 0:00, so nothing in a game changes the strip's
+  height (a ticking countdown or a camp leaving moves nothing vertically). Under the pills, **the soul race**: blue
+  side's drakes on the left, red side's on the right, ringed in their side's colour, meeting at the pit's next drake
+  once one has fallen (two hairlines in the sides' colours before). The pit's icon is its next drake's element from the Rift's terrain
   (`gameData.mapTerrain`, which turns after the second drake, the element of every drake after); the API names neither of the first two before they fall, so those read "Drake" with the plain icon rather than a guess.
+  The strip's default spot is **top centre** (a timer strip, under the game's own objective announcements), the
+  item value's former one: **the item value moved to centre right**, beside the TAB scoreboard rather than over its
+  top. A settings file from before the objectives keeps the item value where it put it, and the objectives then take
+  the spot no panel holds (`OverlaySettings::with_new_panels_placed`).
   Only the game clock, the terrain and the kills the event feed announces to every player, against the
   season's spawn rules held in one table in the shell (`live_client::timers::RIFT`, V26: Atakhan removed, Baron back at
   20:00, grubs and Herald once a game); nothing read from memory or the screen, no jungle camp, no summoner spell, no

@@ -37,6 +37,8 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
     private const int MagicResistItem = 3065;
     private const int ArmourItem = 3068;
     private const int CoreItem = 6632;
+    private const int Ruby = 1028;
+    private const int Kindlegem = 3067;
 
     // Two enemy rosters with opposite damage profiles, and one ally roster.
     private static readonly int[] MagicEnemies = [99, 103, 134, 143, 63];
@@ -145,6 +147,22 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
         finding.TotalOut.Should().Be(12);
         finding.Lift.Should().Be(1d);
         finding.PatchWindow.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RunAsync_CountsTheOrderTheComponentsWereBoughtIn()
+    {
+        await SeedAsync(magicGames: 12, physicalGames: 12);
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        var orders = await db.ChampionItemComponentOrders.AsNoTracking().ToListAsync();
+
+        orders.Should().OnlyContain(row => row.ChampionId == Champion && row.Position == Position && row.Patch == Patch);
+        orders.Select(row => (row.ItemId, row.ComponentId, row.Rank, row.Games)).Should().BeEquivalentTo(
+            [(CoreItem, Kindlegem, 1, 24), (CoreItem, Ruby, 2, 24)],
+            "every game bought the Kindlegem before the Ruby, whatever the recipe lists first");
     }
 
     [Fact]
@@ -333,7 +351,9 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             db.MatchParticipants.Add(Participant(
                 matchId, 1, Champion, 100, Position, win: i % 2 == 0,
                 riotAccountId: account.Id, puuid: account.Puuid,
-                items: [CoreItem, situationalItemId]));
+                items: [CoreItem, situationalItemId],
+                // The core item's components, the second of its recipe bought first (#2183).
+                components: [Kindlegem, Ruby]));
 
             for (var slot = 1; slot < 5; slot++)
             {
@@ -374,7 +394,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
 
     private static MatchParticipant Participant(
         string matchId, int participantId, int championId, int teamId, string position, bool win,
-        Guid? riotAccountId = null, string? puuid = null, int[]? items = null)
+        Guid? riotAccountId = null, string? puuid = null, int[]? items = null, int[]? components = null)
         => new()
         {
             MatchId = matchId,
@@ -399,7 +419,12 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             // the branch grain is read off (#1496). Without them `FinalBuildResolver` falls
             // back to sorting by item id, and the fixture's "first item" would be whichever
             // of the three has the smallest number.
-            ItemEvents = [.. (items ?? []).Select((itemId, order) => new ItemEvent
+            ItemEvents = [.. (components ?? []).Select((itemId, order) => new ItemEvent
+            {
+                TimestampMs = 100_000 * (order + 1),
+                EventType = ItemEventTypes.Purchased,
+                ItemId = itemId,
+            }), .. (items ?? []).Select((itemId, order) => new ItemEvent
             {
                 TimestampMs = 600_000 * (order + 1),
                 EventType = ItemEventTypes.Purchased,
@@ -414,7 +439,9 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
         {
             [MagicResistItem] = Final(MagicResistItem, "SpellBlock", "Health", "HealthRegen"),
             [ArmourItem] = Final(ArmourItem, "Armor", "Health", "AbilityHaste"),
-            [CoreItem] = Final(CoreItem, "Damage", "AbilityHaste"),
+            [CoreItem] = Final(CoreItem, "Damage", "AbilityHaste") with { Components = [Ruby, Kindlegem] },
+            [Ruby] = new(Ruby, 400, true, false, false, false, false, false),
+            [Kindlegem] = new(Kindlegem, 800, true, false, false, false, false, false),
         };
 
         public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)

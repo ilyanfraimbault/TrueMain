@@ -22,6 +22,7 @@ using TrueMain.Services.Champions.Matchups;
 using TrueMain.Services.Champions.Progression;
 using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Draft;
+using TrueMain.Services.Champions.ItemRoutes;
 using TrueMain.Services.Champions.NextItem;
 using TrueMain.Services.Champions.Profiles;
 using TrueMain.Services.Champions.Synergies;
@@ -312,6 +313,7 @@ builder.Services.AddScoped<IDraftBanQueryService, DraftBanQueryService>();
 // The in-game next-item panel (#1749): a lookup in the model the item-context fold
 // derives, combined with the game's situation; reuses the draft's lane priors.
 builder.Services.AddScoped<INextItemQueryService, NextItemQueryService>();
+builder.Services.AddScoped<IItemRouteQueryService, ItemRouteQueryService>();
 // The champion damage profiles (#1905) behind the desktop draft's team damage bars:
 // the item-context fold's profile snapshot, plus a Data Dragon class for the champions
 // it does not resolve. The statics provider caches per patch inside the instance, and
