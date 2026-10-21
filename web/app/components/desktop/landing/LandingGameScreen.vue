@@ -7,7 +7,8 @@ import type { LandingOverlayPanelKind } from './LandingOverlayPanel.vue'
  * 13:23 (`public/desktop/game.webp`) — with the overlay's panels drawn where
  * the app puts them by default (`shell-state::overlay`: win probability top
  * left, objectives top centre, next item top right, pace centre left, item value
- * centre right (#2184), 16 points
+ * centre right (#2184) — its lane rows left to the lane-gold plates on the
+ * scoreboard's rows (#2186) — 16 points
  * from the sides and 56 from the top on a 1920-point screen).
  *
  * Panels are drawn a little larger than life (a 1920-point screen shrunk to a page
@@ -55,7 +56,16 @@ const visible = (panel: LandingOverlayPanelKind) => props.shown.includes(panel) 
       :class="[anchor, { 'is-on': visible(panel) }]"
       :style="{ '--landing-scale': scale }"
     >
-      <DesktopLandingOverlayPanel :panel="panel" :patch="patch" :items="items" />
+      <DesktopLandingOverlayPanel :panel="panel" :patch="patch" :items="items" :lanes="false" />
+    </div>
+
+    <!-- The lane-gold plates on the scoreboard's rows, with the item value while TAB is held (#2186). -->
+    <div
+      class="landing-plates absolute left-1/5 top-[28.6%] h-[35.6%] w-3/5"
+      :class="{ 'is-on': visible('item-value') }"
+      :style="{ '--landing-scale': scale }"
+    >
+      <DesktopLandingLanePlates :patch="patch" :items="items" />
     </div>
 
     <kbd
@@ -74,6 +84,15 @@ const visible = (panel: LandingOverlayPanelKind) => props.shown.includes(panel) 
   transition: opacity 450ms cubic-bezier(0.2, 0, 0, 1), scale 450ms cubic-bezier(0.2, 0, 0, 1), filter 450ms cubic-bezier(0.2, 0, 0, 1);
 }
 
+.landing-plates {
+  opacity: 0;
+  transition: opacity 450ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.landing-plates.is-on {
+  opacity: 1;
+}
+
 .landing-panel.is-on {
   opacity: 1;
   scale: var(--landing-scale);
@@ -81,6 +100,6 @@ const visible = (panel: LandingOverlayPanelKind) => props.shown.includes(panel) 
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-panel { transition: none; }
+  .landing-panel, .landing-plates { transition: none; }
 }
 </style>

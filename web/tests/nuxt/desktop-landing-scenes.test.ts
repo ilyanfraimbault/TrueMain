@@ -5,11 +5,12 @@ import {
   DesktopLandingDraftDemo,
   DesktopLandingGameScreen,
   DesktopLandingInGame,
+  DesktopLandingLanePlates,
   DesktopLandingOverlayPanel,
   DesktopLandingRecapDemo,
 } from '#components'
 import type { StaticItemData } from '#shared/types/static-data'
-import { sampleWinProbability } from '~/utils/desktop-landing-sample'
+import { plateGold, sampleLaneGold, sampleWinProbability } from '~/utils/desktop-landing-sample'
 
 // `/download`'s drawn scenes (#2072). Each is server-rendered — and drawn for a
 // visitor who asked for less motion — in its final state, so these pin that
@@ -131,7 +132,38 @@ describe('LandingObjectives', () => {
   })
 })
 
+describe('LandingLanePlates', () => {
+  it('puts each lane\'s item-gold gap on its row, pointing at the side ahead', async () => {
+    const wrapper = await mountSuspended(DesktopLandingLanePlates, { props: { patch: PATCH, items: ITEMS } })
+
+    const rows = wrapper.findAll('[data-row]')
+    expect(rows).toHaveLength(5)
+    const lanes = sampleLaneGold(ITEMS)!
+    rows.forEach((row, index) => {
+      const lane = lanes[index]!
+      const expected = lane.ours === lane.theirs ? 'even' : lane.ours > lane.theirs ? 'left' : 'right'
+      expect(row.find('[data-ahead]').attributes('data-ahead')).toBe(expected)
+      if (expected !== 'even') expect(row.text()).toBe(plateGold(Math.abs(lane.ours - lane.theirs)))
+    })
+  })
+
+  it('draws no row before the item map is read', async () => {
+    const wrapper = await mountSuspended(DesktopLandingLanePlates, { props: { patch: PATCH, items: null } })
+
+    expect(wrapper.findAll('[data-row]')).toHaveLength(0)
+  })
+})
+
 describe('LandingGameScreen', () => {
+  it('draws the item value without its lane rows: the plates hold them', async () => {
+    const wrapper = await mountSuspended(DesktopLandingGameScreen, {
+      props: { shown: ['item-value'], tabHeld: true, patch: PATCH, items: ITEMS },
+    })
+
+    expect(wrapper.find('.landing-plates').classes()).toContain('is-on')
+    expect(wrapper.findAll('[data-row]')).toHaveLength(5)
+  })
+
   it('turns on the panels it is given, item value only while TAB is held', async () => {
     const wrapper = await mountSuspended(DesktopLandingGameScreen, {
       props: { shown: ['win-probability', 'item-value'], tabHeld: false, patch: PATCH, items: ITEMS },

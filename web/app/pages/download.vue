@@ -8,7 +8,7 @@ import type { DesktopRelease } from '~~/shared/types/desktop'
 useSeoMeta({
   title: 'TrueMain desktop app (beta)',
   description:
-    'The TrueMain companion for League of Legends: picks from your own pool in champion select, the rune page in one click, an overlay with win probability, your pace, your build path and the objective timers, and your games recorded to cut your best plays. For macOS and Windows.',
+    'The TrueMain companion for League of Legends: picks from your own pool in champion select, the rune page in one click, an overlay with win probability, your pace, your build path, the objective timers and every lane\'s gold gap on the scoreboard, and your games recorded to cut your best plays. For macOS and Windows.',
 })
 
 const { data: release, status, error } = await useFetch<DesktopRelease | null>('/api/desktop/release')
@@ -31,6 +31,7 @@ const stopReading = watch(staticPatch, (value) => {
 
 const DRAFT_POINTS = [
   { icon: 'i-lucide-list-ordered', title: 'Picks from your pool', body: 'Your ten most-mastered champions on your lane, ranked as the draft fills, each with its reason: the matchup, a synergy, a safe blind.' },
+  { icon: 'i-lucide-git-branch', title: 'Your own kit', body: 'Your build per champion and lane — a branching item tree, a rune page, two spells — imported on your click, then followed in game.' },
   { icon: 'i-lucide-hand', title: 'Hover, lock and ban from the app', body: 'On your click only. A ban always asks first, and nothing is ever locked, banned or accepted for you.' },
   { icon: 'i-lucide-download', title: 'Runes and item set in one click', body: 'The page and the build on screen go into the client as "TrueMain: <champion>", replaced in place — never one of your pages.' },
 ] as const
@@ -123,7 +124,7 @@ const MORE = [
       <DesktopLandingSection
         id="in-game"
         moment="In game"
-        title="Five small panels, right on the game."
+        title="Six small panels, right on the game."
         lead="Drawn from the game's own live data in windows of their own that never take your keyboard. Nothing is injected and nothing reads the game's memory. Move them, resize them, or hide them all with one shortcut."
       >
         <DesktopLandingInGame :patch="patch" :items="items ?? null" />

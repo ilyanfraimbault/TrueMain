@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import type { StaticItemData } from '#shared/types/static-data'
 import {
-  SAMPLE_ALLIES, SAMPLE_ENEMIES, SAMPLE_ITEMS, SAMPLE_PACE, SAMPLE_PACE_REFERENCE,
-  championIconUrl, sampleWinProbability,
+  SAMPLE_ALLIES, SAMPLE_ENEMIES, SAMPLE_PACE, SAMPLE_PACE_REFERENCE,
+  championIconUrl, sampleLaneGold, sampleWinProbability,
 } from '~/utils/desktop-landing-sample'
 
 /**
- * One of the in-game overlay's five panels, redrawn for `/download` (#2072) the
+ * One of the in-game overlay's panels, redrawn for `/download` (#2072) the
  * way the app draws it over its sample game (`desktop/app/app/components/overlay/*`):
  * same widths, type and colours, the sample's values. An illustration, so the
  * page labels it as a sample and hides it from assistive tech; the section's
@@ -14,11 +14,13 @@ import {
  */
 export type LandingOverlayPanelKind = 'next-item' | 'win-probability' | 'pace' | 'objectives' | 'item-value'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   panel: LandingOverlayPanelKind
   patch: string | null
   items: Record<number, StaticItemData> | null
-}>()
+  /** The item value's lane rows; the app drops them while the lane-gold plates are on (#2186). */
+  lanes?: boolean
+}>(), { lanes: true })
 
 /** The app's panel widths, in points (`PANEL_WIDTHS`). */
 const WIDTHS: Record<LandingOverlayPanelKind, number> = { 'next-item': 232, 'win-probability': 160, 'pace': 176, 'objectives': 292, 'item-value': 300 }
@@ -49,19 +51,8 @@ const curve = (() => {
 })()
 const gradient = `landing-pace-${useId()}`
 
-/** Item gold per lane, consumables and trinkets out (#1752's rule); null until the item map is read. */
-const lanes = computed(() => {
-  const items = props.items
-  if (!items) return null
-  const gold = (ids: number[]) => ids.reduce((total, id) => {
-    const item = items[id]
-    return !item || item.tags?.includes('Consumable') || item.tags?.includes('Trinket') ? total : total + item.totalGold
-  }, 0)
-  return SAMPLE_ALLIES.map((ally, index) => ({
-    ally, enemy: SAMPLE_ENEMIES[index]!, ours: gold(SAMPLE_ITEMS.ally[index]!), theirs: gold(SAMPLE_ITEMS.enemy[index]!),
-  }))
-})
-const teams = computed(() => lanes.value?.reduce((sum, lane) => ({ ours: sum.ours + lane.ours, theirs: sum.theirs + lane.theirs }), { ours: 0, theirs: 0 }) ?? null)
+const laneGold = computed(() => sampleLaneGold(props.items))
+const teams = computed(() => laneGold.value?.reduce((sum, lane) => ({ ours: sum.ours + lane.ours, theirs: sum.theirs + lane.theirs }), { ours: 0, theirs: 0 }) ?? null)
 const number = (value: number | undefined) => (value === undefined ? '–' : formatCount(value))
 </script>
 
@@ -124,13 +115,13 @@ const number = (value: number | undefined) => (value === undefined ? '–' : for
         <DesktopLandingGoldGap :gap="teams ? teams.ours - teams.theirs : 0" large />
         <span class="stat-value text-lg leading-none text-enemy">{{ number(teams?.theirs) }}</span>
       </div>
-      <ul class="flex flex-col gap-1 border-t border-default pt-2">
+      <ul v-if="lanes" class="flex flex-col gap-1 border-t border-default pt-2">
         <li v-for="(ally, index) in SAMPLE_ALLIES" :key="ally" class="grid grid-cols-[1.25rem_1fr_auto_1fr_1.25rem] items-center gap-2">
           <img v-if="patch" :src="canonicalIcon(championIconUrl(ally, patch))" alt="" width="20" height="20" class="size-5 rounded">
           <span v-else class="size-5 rounded bg-elevated" />
-          <span class="justify-self-end text-[11px] tabular-nums text-muted">{{ number(lanes?.[index]?.ours) }}</span>
-          <DesktopLandingGoldGap :gap="lanes ? lanes[index]!.ours - lanes[index]!.theirs : 0" />
-          <span class="text-[11px] tabular-nums text-muted">{{ number(lanes?.[index]?.theirs) }}</span>
+          <span class="justify-self-end text-[11px] tabular-nums text-muted">{{ number(laneGold?.[index]?.ours) }}</span>
+          <DesktopLandingGoldGap :gap="laneGold ? laneGold[index]!.ours - laneGold[index]!.theirs : 0" />
+          <span class="text-[11px] tabular-nums text-muted">{{ number(laneGold?.[index]?.theirs) }}</span>
           <img v-if="patch" :src="canonicalIcon(championIconUrl(SAMPLE_ENEMIES[index]!, patch))" alt="" width="20" height="20" class="size-5 rounded">
           <span v-else class="size-5 rounded bg-elevated" />
         </li>

@@ -1,3 +1,4 @@
+import type { StaticItemData } from '#shared/types/static-data'
 import { winProbability } from '#common/utils/win-probability'
 
 /**
@@ -95,4 +96,26 @@ export function sampleWinProbability(): number {
 /** A champion's square icon on Data Dragon, from its key (`Ahri`); null until the patch is known. */
 export function championIconUrl(key: string, patch: string | null | undefined): string | null {
   return patch ? `https://ddragon.leagueoflegends.com/cdn/${patch}/img/champion/${key}.png` : null
+}
+
+/** One lane's item gold in the sample, ours then theirs. */
+export interface SampleLaneGold { ally: string, enemy: string, ours: number, theirs: number }
+
+/** Item gold per lane, consumables and trinkets out (#1752's rule); null until the item map is read. */
+export function sampleLaneGold(items: Record<number, StaticItemData> | null): SampleLaneGold[] | null {
+  if (!items) return null
+  const gold = (ids: number[]) => ids.reduce((total, id) => {
+    const item = items[id]
+    return !item || item.tags?.includes('Consumable') || item.tags?.includes('Trinket') ? total : total + item.totalGold
+  }, 0)
+  return SAMPLE_ALLIES.map((ally, index) => ({
+    ally, enemy: SAMPLE_ENEMIES[index]!, ours: gold(SAMPLE_ITEMS.ally[index]!), theirs: gold(SAMPLE_ITEMS.enemy[index]!),
+  }))
+}
+
+/** A lane-gold plate's figure, as the app prints it (`plateGold`): 850, 1.4k, 12k. */
+export function plateGold(gold: number): string {
+  if (gold < 1000) return String(Math.round(gold))
+  const thousands = Math.round(gold / 100) / 10
+  return `${thousands >= 10 ? Math.round(thousands) : thousands}k`
 }
