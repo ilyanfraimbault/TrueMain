@@ -92,6 +92,15 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
             .Should().BeEquivalentTo(["16.5", "unknown"]);
         (await db.ChampionDamageProfileStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
             .Should().BeEquivalentTo(["16.5"]);
+
+        // The light per-patch level (#1467, #1956) is what is left of a purged patch: the
+        // record and the ban pair are never deleted.
+        (await db.ChampionPatchStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.4", "16.5"]);
+        (await db.ChampionBanStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.4", "16.5"]);
+        (await db.BanScopeTotals.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.4", "16.5"]);
     }
 
     [Fact]
@@ -201,6 +210,36 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
                 Patch = patch,
                 Archetype = Data.BuildFacts.ItemArchetype.Crit,
                 Games = 5,
+                AggregatedAtUtc = aggregatedAt
+            });
+
+            db.ChampionPatchStats.Add(new ChampionPatchStat
+            {
+                QueueId = 420,
+                Patch = patch,
+                ChampionId = 22,
+                Position = "BOTTOM",
+                EloBracket = "GOLD",
+                IsMain = true,
+                Games = 5,
+                Wins = 3,
+                AggregatedAtUtc = aggregatedAt
+            });
+            db.ChampionBanStats.Add(new ChampionBanStat
+            {
+                Id = Guid.NewGuid(),
+                ChampionId = 22,
+                Patch = patch,
+                EloBracket = "ALL",
+                Bans = 2,
+                AggregatedAtUtc = aggregatedAt
+            });
+            db.BanScopeTotals.Add(new BanScopeTotal
+            {
+                Id = Guid.NewGuid(),
+                Patch = patch,
+                EloBracket = "ALL",
+                Matches = 10,
                 AggregatedAtUtc = aggregatedAt
             });
         }

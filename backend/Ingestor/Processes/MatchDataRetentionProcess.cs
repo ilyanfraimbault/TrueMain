@@ -430,7 +430,6 @@ public sealed class MatchDataRetentionProcess(
             aggregateDeletion.DeletedScopes,
             aggregateDeletion.DeletedMatchupStats,
             aggregateDeletion.DeletedSynergyStats,
-            aggregateDeletion.DeletedBanStats,
             retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
                 .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))

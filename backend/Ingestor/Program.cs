@@ -1,4 +1,3 @@
-using Data.BuildFacts;
 using Data.Statics;
 using Data;
 using Data.Configuration;
@@ -107,7 +106,7 @@ builder.Services.AddScoped<IChampionCoverageProvider, ChampionCoverageProvider>(
 // CancellationToken.None (it caches the in-flight task per patch), so the pipeline's
 // total timeout — and the client timeout above it — are the only bounds on the call.
 builder.Services
-    .AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>(ConfigureCommunityDragonClient)
+    .AddCommunityDragonItemMetadata(ConfigureCommunityDragonClient)
     .AcceptCompressedResponses()
     .AddCommunityDragonResilienceHandler();
 // Data Dragon has the same profile as CommunityDragon for our purposes — a static-file

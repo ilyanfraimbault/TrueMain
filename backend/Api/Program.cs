@@ -317,19 +317,27 @@ builder.Services.AddScoped<INextItemQueryService, NextItemQueryService>();
 builder.Services.AddScoped<IItemRouteQueryService, ItemRouteQueryService>();
 // The champion damage profiles (#1905) behind the desktop draft's team damage bars:
 // the item-context fold's profile snapshot, plus a Data Dragon class for the champions
-// it does not resolve. The statics provider caches per patch inside the instance, and
-// the whole answer sits in the champion read cache, so Data Dragon is asked once per
-// aggregation cycle at most.
+// it does not resolve.
 builder.Services.AddScoped<IChampionDamageProfileQueryService, ChampionDamageProfileQueryService>();
+// The Data Dragon providers are typed clients, so their per-patch cache dies with the request:
+// Data Dragon is asked once per aggregation cycle only because every caller reads them inside
+// the champion read cache. Per request on purpose: they keep a patch-day fallback for good,
+// which a singleton would serve for the life of the Api (the item metadata re-probes, #1107).
 builder.Services.AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>();
 // The next item's in-game axes (#1750) place the live game with the fold's own item stats.
 builder.Services.AddHttpClient<IItemStatsProvider, DataDragonItemStatsProvider>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
-// identically. Patch-cached inside the provider, which clocks how long a
-// not-yet-published patch has been served from the fallback branch (#1107).
+// identically. A singleton, so its per-patch cache and the clock of how long a
+// not-yet-published patch has been served from the fallback branch (#1107)
+// outlive a request: the build paths read it outside the champion read cache on
+// every next-item call (#2212).
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
+builder.Services.AddHttpClient(nameof(CommunityDragonItemMetadataProvider));
+builder.Services.AddSingleton<IItemMetadataProvider>(services => new CommunityDragonItemMetadataProvider(
+    () => services.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(CommunityDragonItemMetadataProvider)),
+    services.GetRequiredService<ILogger<CommunityDragonItemMetadataProvider>>(),
+    services.GetRequiredService<TimeProvider>()));
 // The shop classes of the game's items, for the desktop kit editor's picker: read from
 // CommunityDragon's dump of the game data (about 16 MB), so a singleton whose per-patch
 // cache outlives a request.

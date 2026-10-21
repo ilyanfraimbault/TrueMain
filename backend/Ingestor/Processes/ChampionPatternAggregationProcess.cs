@@ -73,6 +73,17 @@ public sealed class ChampionPatternAggregationProcess(
                 requeued);
         }
 
+        // The light per-patch record (#1956) is folded with every slice replaced below, which
+        // is only exact over a record that already holds the scopes being replaced: the
+        // first run after it ships fills it from every scope present.
+        var backfilled = await aggregatePersister.BackfillPatchStatsIfEmptyAsync(
+            timeProvider.GetUtcNow().UtcDateTime, ct);
+        if (backfilled > 0)
+        {
+            logger.LogInformation(
+                "Light per-patch record backfilled from the existing scopes: {Rows} row(s).", backfilled);
+        }
+
         // Read once, before any slice is rebuilt. A slice is rebuilt at most once per run
         // and from every game present at that moment, which is complete for a match only if
         // the match was already there — true of every id in this list, not of a match the
@@ -114,7 +125,8 @@ public sealed class ChampionPatternAggregationProcess(
                 var slices = accounts.SelectMany(account => account).ToList();
                 var sourceRows = await sourceRowReader.LoadSourceRowsAsync(queueId, slices, includeNonMains, ct);
                 var result = await aggregateBuilder.BuildAggregatesAsync(sourceRows, aggregatedAtUtc, ct);
-                await aggregatePersister.ReplaceSlicesAsync(queueId, slices, result.Scopes, result.Patterns, ct);
+                await aggregatePersister.ReplaceSlicesAsync(
+                    queueId, slices, result.Scopes, result.Patterns, aggregatedAtUtc, ct);
 
                 totalSourceRows += result.SourceRowCount;
                 totalScopes += result.Scopes.Count;
