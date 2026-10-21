@@ -46,8 +46,9 @@ Since #1457 the fetch container runs `FetchWorkers`: match fetching is one perma
 value (`americas`, `europe`, `asia`), each claiming its own platforms' accounts, fetching and writing them, and
 claiming again; the fetch lane's other steps (`LadderSync`, `Discovery`, `ManualSeed`, `Harvest`, `Scoring`,
 `MainActivity`, `AccountRefresh`, `PaceSampling`) run beside them as a maintenance pass, one minute after the
-previous one ends. The workers are held to `INGESTOR_FETCH_TARGET_REQUESTS_PER_MINUTE` Riot calls a minute per
-regional host (default 30, production's average before the change), and the rate limiter reserves a share of every
+previous one ends. The workers are held to the target rate of the ramp stage `INGESTOR_FETCH_RAMP_STAGE` (stage 1 = 30 Riot calls a
+minute per regional host, production's average before the change; how to raise it: `docs/ingestion-ramp.md`), and
+stop claiming while the host's memory or free disk is below its backpressure threshold (#1459), and the rate limiter reserves a share of every
 regional window for `AccountRefresh` and `ManualSeed` while they are active (`RiotRateLimit__ReservedShares__*`).
 The container runs with `Job:RunOnce=false` (`INGESTOR_RUN_ONCE`): with `RunOnce`, a `FetchWorkers` process exits
 after one maintenance pass and one batch per worker, and Docker's restart would then cut the workers off every
@@ -330,7 +331,10 @@ in `backend/Ingestor/Options/*`:
 | `MatchDataRetention__AggregateRetainedPatchCount` | 2 | 0 (code default: kept forever) | patches of aggregates kept, so older champion pages are empty on preprod by choice |
 | `INGESTOR_AGGREGATE_INTERVAL_MINUTES` | 120 | 20 | minutes between two aggregate-lane passes |
 | `INGESTOR_MAINTENANCE_INTERVAL_MINUTES` | 1 | 1 | minutes between two maintenance passes of the fetch container (#1457) |
-| `INGESTOR_FETCH_TARGET_REQUESTS_PER_MINUTE` | 30 | 30 | Riot calls a minute each fetch worker may make on its regional host (#1457) |
+| `INGESTOR_FETCH_RAMP_STAGE` | 1 | 1 | ramp stage of the fetch workers' target rate (#1459, `docs/ingestion-ramp.md`) |
+| `INGESTOR_BACKPRESSURE_MIN_AVAILABLE_MEMORY_PERCENT` | 10 | 10 | available host memory below which the fetch workers stop claiming (#1459) |
+| `INGESTOR_BACKPRESSURE_MIN_FREE_DISK_PERCENT` | 15 | 15 | free disk below which the fetch workers stop claiming (#1459) |
+| `INGESTOR_BACKPRESSURE_DRILL_MINUTES` | 0 | 0 | backpressure drill length, for verification only (#1459) |
 | `MongoLogging__LogsRetention` | 30 days | 90 days (default) | diagnostic log TTL |
 | `MatchIngestion__MatchesPerAccount` | 10 | 20 (default) | matches fetched per account |
 | `MainAnalysis__MatchesToConsider` | 30 | 50 (default) | recent matches main analysis reads |
