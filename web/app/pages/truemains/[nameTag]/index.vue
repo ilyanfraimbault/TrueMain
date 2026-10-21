@@ -229,8 +229,8 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
           v-else
           :ranked="profile.ranked"
           :history="rankHistory?.entries ?? []"
-          :history-loading="rankHistoryLoading"
-          :cutoffs="apexCutoffs"
+          :history-loading="rankHistoryLoading || apexCutoffs.loading"
+          :cutoffs="apexCutoffs.cutoffs"
         />
 
         <!-- Under the ranked card: the LP curve says how the climb went, the
