@@ -566,13 +566,24 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
 - **Every panel waits for the game to start**: the Live Client API answers on the loading screen already, with the
   ten players and a zero clock; a reading counts as a game only once its feed holds `GameStart` (2026-10-04).
 - **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
-- **Objectives** (#2078, 2026-10-20): when the dragon pit (a drake, or the Elder once a side holds the soul), the
-  Voidgrubs, the Rift Herald and Baron are next up — icons only, the game's minimap ones, on the left, and on the
-  right a countdown until it spawns or a green dot while it stands; no names, no "Up", no counts like "2–1", no soul
-  badge (each read as noise, the product owner's calls); a camp taken for good or gone from the map leaves the panel.
-  Once a drake has fallen, the dragon row sets the pit's icon between the drakes each side took, blue side's on the
-  left, red side's on the right, as their icons, with its countdown under it (the icon on the row's centre) and nothing while it stands. The pit's icon is its next drake's element from the Rift's terrain
+- **Objectives** (#2078, 2026-10-20; one strip since #2184, 2026-10-20): when the dragon pit (a drake, or the Elder
+  once a side holds the soul), the Voidgrubs, the Rift Herald and Baron are next up — icons only, the game's minimap
+  ones; no names, no "Up", no counts like "2–1", no soul badge (each read as noise, the product owner's calls). **One
+  compact strip, not a row per objective** (#2184: four rows took a lot of height for four numbers; the competitor's
+  single strip was the benchmark, our look kept): a glass pill each, side by side, the icon and an `m:ss` countdown —
+  rose-gold within a minute — or, once it stands, the icon lit (a rose-gold glow and ring) with a green dot. A pill
+  that does not matter yet stays in grey with its countdown, so the strip keeps its landmarks: the Herald while the
+  grubs are still to come or stand, Baron while the Herald is (19:45 at the latest) — the camp the top side holds
+  before it, rather than a fixed clock. A camp taken for good or gone from the map leaves the strip. Every pill is as
+  wide as the widest countdown, and the soul race's line is drawn from 0:00, so nothing in a game changes the strip's
+  height (a ticking countdown or a camp leaving moves nothing vertically). Under the pills, **the soul race**: blue
+  side's drakes on the left, red side's on the right, ringed in their side's colour, meeting at the pit's next drake
+  once one has fallen (two hairlines in the sides' colours before). The pit's icon is its next drake's element from the Rift's terrain
   (`gameData.mapTerrain`, which turns after the second drake, the element of every drake after); the API names neither of the first two before they fall, so those read "Drake" with the plain icon rather than a guess.
+  The strip's default spot is **top centre** (a timer strip, under the game's own objective announcements), the
+  item value's former one: **the item value moved to centre right**, beside the TAB scoreboard rather than over its
+  top. A settings file from before the objectives keeps the item value where it put it, and the objectives then take
+  the spot no panel holds (`OverlaySettings::with_new_panels_placed`).
   Only the game clock, the terrain and the kills the event feed announces to every player, against the
   season's spawn rules held in one table in the shell (`live_client::timers::RIFT`, V26: Atakhan removed, Baron back at
   20:00, grubs and Herald once a game); nothing read from memory or the screen, no jungle camp, no summoner spell, no

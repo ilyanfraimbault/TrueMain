@@ -6,7 +6,8 @@ import type { LandingOverlayPanelKind } from './LandingOverlayPanel.vue'
  * A player's screen during a game — a real one, one of our own Yone games at
  * 13:23 (`public/desktop/game.webp`) — with the overlay's panels drawn where
  * the app puts them by default (`shell-state::overlay`: win probability top
- * left, item value top centre, next item top right, pace centre left, 16 points
+ * left, next item top right, pace centre left, item value centre right (#2184: the top
+ * centre is the objectives strip's, a panel this page does not draw), 16 points
  * from the sides and 56 from the top on a 1920-point screen).
  *
  * Panels are drawn a little larger than life (a 1920-point screen shrunk to a page
@@ -21,7 +22,7 @@ const props = defineProps<{
 
 const ANCHORS: Record<LandingOverlayPanelKind, string> = {
   'win-probability': 'left-[0.85%] top-[5.2%] origin-top-left',
-  'item-value': 'left-1/2 top-[5.2%] origin-top -translate-x-1/2',
+  'item-value': 'right-[0.85%] top-1/2 origin-right -translate-y-1/2',
   'next-item': 'right-[0.85%] top-[5.2%] origin-top-right',
   'pace': 'left-[0.85%] top-1/2 origin-left -translate-y-1/2',
 }
