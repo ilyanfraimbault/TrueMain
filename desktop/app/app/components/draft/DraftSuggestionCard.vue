@@ -15,8 +15,9 @@ import type { DamageNote } from '~/utils/draft-damage'
  *
  * The default slot covers the card (the click that previews its build); the
  * `action` slot sits over the art's corner, above it (the hover or ban control).
- * A pick that answers a one-sided team's damage mix carries a note (#1907) —
- * said, never scored.
+ * A pick that answers a one-sided team's damage mix carries a note (#1907), and
+ * the player's own recent games on it are said on hover (#1906) — both said,
+ * never scored.
  */
 const props = defineProps<{
   championId: number
@@ -32,6 +33,8 @@ const props = defineProps<{
   height: number
   /** What the pick does to our team's damage mix, when it answers it. */
   note?: DamageNote | null
+  /** The player's own recent games on the champion, from their client — said, never scored. */
+  comfort?: string | null
 }>()
 
 const { nameOf } = useChampionStatics()
@@ -48,11 +51,12 @@ const tone = computed(() => {
 /** Every reason, one per line — the hover says what the line under the name only starts. */
 const why = computed(() => {
   const note = props.note?.text ?? null
+  const comfort = props.comfort ?? null
   if (!texts.value.length) {
     const lane = props.entry ? `Win rate on this lane: ${formatPercentage(props.entry.winRate)} over ${formatCount(props.entry.games)} games` : null
-    return [lane, note].filter(Boolean).join('\n') || undefined
+    return [lane, note, comfort].filter(Boolean).join('\n') || undefined
   }
-  return [...texts.value.map(text => text.full), props.thin ? 'Few games behind these figures' : null, note].filter(Boolean).join('\n')
+  return [...texts.value.map(text => text.full), props.thin ? 'Few games behind these figures' : null, note, comfort].filter(Boolean).join('\n')
 })
 </script>
 

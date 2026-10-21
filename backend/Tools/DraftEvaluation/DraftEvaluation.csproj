@@ -10,6 +10,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\Core.csproj" />
+    <ProjectReference Include="..\..\Data\Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\NextItemEvaluation\CsvRows.cs" Link="CsvRows.cs" />
   </ItemGroup>
 
 </Project>
