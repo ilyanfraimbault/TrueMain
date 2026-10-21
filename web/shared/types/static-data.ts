@@ -39,6 +39,11 @@ export interface StaticItemData {
    * "Trinket", "Consumable", ...). Absent items are treated as tag-less.
    */
   tags?: string[]
+  /**
+   * The maps the item is sold on (DDragon `item.maps`, the ids whose flag is true; 11 = Summoner's Rift). Read by the
+   * desktop app's kit editor to list the Rift's shop only (#2185); the site's own static endpoint does not fill it.
+   */
+  maps?: number[]
 }
 
 export interface StaticSummonerSpellData {

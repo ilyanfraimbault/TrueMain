@@ -621,11 +621,36 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
   player while sending their names and puuids, which made the whole board anonymous (#1812's first cut); a player
   listed without `gameName`/`tagLine` has their name read by puuid (`/lol-summoner/v2/summoners/puuid/{puuid}`, #1869).
 - **Item value**: only while TAB is held — each team's item gold, a chevron toward the side ahead with the gap, then
-  each lane's — in its own panel rather than pinned to Riot's scoreboard rows, which move with resolution and HUD scale.
-  Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's rule).
+  each lane's. Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's
+  rule). The lanes were kept off Riot's scoreboard rows at first, "which move with resolution and HUD scale"; #2186
+  reversed that (below): with the lane-gold plates on, the panel keeps only the team totals.
 
 No interactive mode in game: nothing on the panels needs a click. macOS only until a Windows pass is measured
 (2026-10-02) — #1673, #1795, #1752.
+
+**Each lane's gold gap sits on the game's own scoreboard rows, placed from the HUD settings (2026-10-21).** Reverses
+#1752's "in its own panel rather than pinned to Riot's rows": the product owner found the second table beside the
+game's one too many, and a competitor shows the rows are reachable — the TAB scoreboard is drawn at a fixed place for a
+window size and a HUD scale, its rows in a known player order. A sixth panel, **lane gold** (#2186): a see-through,
+click-through window as tall as the scoreboard's five rows, down its middle, one small plate per row with the gap
+between that row's two players and a chevron toward the side ahead (ours blue, theirs red).
+- **Placed, never dragged.** The shell computes the window from the game's window frame (the monitor when it fills
+  it) and the client's `HUD.GlobalScale` (`/lol-game-settings/v1/game-settings`, read at game start; Riot's defaults
+  without a client). The player only has a vertical **nudge** (±60 px of a 1080p screen) for a setup the measure
+  misses. The geometry (`shell_state::scoreboard`, mirrored in `utils/scoreboard-geometry.ts`, same test values) is
+  sized by the window's height against 1080p, by its width below 16:9: centred across, five rows growing upwards from
+  a fixed bottom edge as the HUD scale grows. Its constants come from one real 1920 × 1080 TAB screenshot whose HUD
+  scale (~0.3) is read off its ability bar, and the ability bar's growth between League's HUD 0 and 100 (×1.52): to
+  be confirmed in real games at several HUD scales, which is why the nudge exists.
+- **Rows ↔ players**: blue side (ORDER) on the left, red (CHAOS) on the right whichever side we are on, each team in
+  lane order (TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY from the Live Client's `position`), the API's order in a queue
+  without lanes. "Mirror scoreboard layout" only turns the left team's rows to read inwards (Riot's description, the
+  2015 PBE screenshots): the teams keep their sides, so the plates do not move or flip with it. Rows a player swapped
+  by hand on the scoreboard are not followed.
+- **The window is transparent**, unlike every other panel's card: macOS needs Tauri's `macOSPrivateApi` for a
+  transparent webview — the app ships outside the Mac App Store, the only place that refuses it.
+- **TAB held is shared** by the two scoreboard panels; the item value keeps its team totals and drops its lane rows
+  while the plates are on. A settings file from before (v3) gets the plates only if its item value was on (v4).
 
 **On Windows the overlay is the same panels in topmost, non-activating layered windows, over Borderless only
 (2026-10-02).** The panels, their rule and their placement are the macOS ones: one driver (`overlay/panels.rs`) sizes,
@@ -655,7 +680,8 @@ held with TAB, the others always — so a settings file from before (v2) migrate
   cannot swallow it and does not try; it **warns** instead, naming what the key does in game, from the player's own
   League keybindings (`/lol-game-settings/v1/input-settings`) or Riot's defaults without a client — a warning, never
   a refusal.
-- **Refused**, with the reason shown: modifiers alone, TAB alone (except the item value's held default), Esc and Enter
+- **Refused**, with the reason shown: modifiers alone, TAB alone (except held, by the scoreboard's two panels — the
+  item value and the lane gold, the only chord two panels may share), Esc and Enter
   (menu, chat), the hide shortcut, the system's chords (⌘/Win, Alt+Tab, Alt+F4) and a chord another panel has. The
   rule is `shell-state`'s and is applied again to every file and save: a refused trigger falls back to the panel's default.
 - **Suggested** when a panel is first put on a chord: Alt+Shift and a digit per panel, away from Riot's default binds
@@ -863,3 +889,21 @@ intent on our future pick action (unverified on a live client at the time of wri
 hovered champion when the timer runs out is the client's rule; the app says so and never acts at expiry. Summoner
 spells, skins, swaps and trades are not written. Nothing about the enemy that champion select hides is read for
 this — #1909.
+
+**A player keeps their own builds as kits: an item tree, a rune page and two spells per champion and position, used
+in champion select and the overlay (2026-10-21).** Benchmarked on a competitor's "My builds" (a flat item route per
+role); ours is a loadout — the item path *and* the rune page *and* the spells — and the path is a tree like our
+champion build tree, so one kit covers the branch a main actually plays ("into tanks / into mages"). A path holds at
+most six items with the boots, no item twice on a path, a keystone of the primary tree, two different spells; the
+first child of a node is the default. Kits live on the player's machine only, in the shell's own versioned file
+(`shell_state::kits`), read leniently so one broken kit never costs the others; sharing is a follow-up. A new kit
+starts from TrueMain's build on the lane so the player swaps rather than fills. One kit per champion and position
+is active: in champion select it takes the build pane (the header names it and switches back to TrueMain's build),
+and the existing click-only imports write it — the same one `TrueMain: ` item set (Starter, Boots, then one block
+per path) and the same TrueMain rune page, so the ownership rules of #1678 and #1908 hold unchanged. **This revises
+#1678 and #1909's "summoner spells are not written"** for a kit only: the spells are the player's own choice, set on
+a click through `PATCH /lol-champ-select/v1/session/my-selection` after the session is read, never on a pick, a lock
+or a timer; a build's spells are still not imported. In game the next item follows the kit's branch the held items
+took (the earliest completed when two were, the first child where it splits), then its boots, with no share, reason
+or runner-up — those are the mains' figures — and falls back to the mains' answer, said as such, once the kit has
+nothing left — #2185.

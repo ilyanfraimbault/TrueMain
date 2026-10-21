@@ -9,6 +9,7 @@ mod api;
 mod champselect;
 mod game;
 mod itemsets;
+mod kits;
 mod loading;
 mod menu;
 mod overlay;
@@ -395,9 +396,13 @@ pub fn run() {
             loading::loading_players,
             runes::import_runes,
             itemsets::import_item_set,
+            itemsets::import_kit_item_set,
+            kits::kits_get,
+            kits::kits_set,
             champselect::champ_select_hover,
             champselect::champ_select_lock,
             champselect::champ_select_choices,
+            champselect::champ_select_spells,
             telemetry::telemetry_page
         ])
         // The overlay's panel is a window too: without this, closing the
@@ -417,6 +422,7 @@ pub fn run() {
             let (recorder, phases) = recording::Recorder::new(&handle);
             app.manage(recorder.clone());
             recording::start(&handle, recorder, phases);
+            app.manage(kits::Kits::new(&handle));
             overlay::setup(&handle)?;
             window_state::restore(&handle);
             tauri::async_runtime::spawn(supervisor::run(handle, shared, client));

@@ -59,10 +59,18 @@ fn set_styles(hwnd: HWND, add: u32, remove: u32) {
     }
 }
 
-/// One panel's window, hidden, its page on `url`. Never on the main thread,
-/// where a webview built inside a command's handler deadlocks (wry#583).
-pub fn build(app: &AppHandle, label: &str, url: &str, opacity: f64) -> Result<(), String> {
-    build_now(app, label, url, opacity).map_err(|error| error.to_string())
+/// One panel's window, hidden, its page on `url`; `see_through` leaves its
+/// background clear and its corners square, for the page to draw only what
+/// covers the game. Never on the main thread, where a webview built inside a
+/// command's handler deadlocks (wry#583).
+pub fn build(
+    app: &AppHandle,
+    label: &str,
+    url: &str,
+    opacity: f64,
+    see_through: bool,
+) -> Result<(), String> {
+    build_now(app, label, url, opacity, see_through).map_err(|error| error.to_string())
 }
 
 /// Close a panel's window for good.
@@ -77,11 +85,13 @@ fn build_now(
     label: &str,
     url: &str,
     opacity: f64,
+    see_through: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
         // Named after its panel, for the smoke test and any window inspector.
         .title(format!("TrueMain {label}"))
         .inner_size(super::INITIAL_SIZE.0, super::INITIAL_SIZE.1)
+        .transparent(see_through)
         .decorations(false)
         .resizable(false)
         .shadow(false)
@@ -102,14 +112,17 @@ fn build_now(
     unsafe {
         SetLayeredWindowAttributes(hwnd, COLORREF(0), alpha(opacity), LWA_ALPHA)?;
         // Windows 11 rounds a borderless window's corners only when asked;
-        // Windows 10 has no such attribute and keeps them square.
-        let corners: DWM_WINDOW_CORNER_PREFERENCE = DWMWCP_ROUND;
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_WINDOW_CORNER_PREFERENCE,
-            &corners as *const _ as *const _,
-            std::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
-        );
+        // Windows 10 has no such attribute and keeps them square. A
+        // see-through window has no edge to round.
+        if !see_through {
+            let corners: DWM_WINDOW_CORNER_PREFERENCE = DWMWCP_ROUND;
+            let _ = DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                &corners as *const _ as *const _,
+                std::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
+            );
+        }
     }
     Ok(())
 }

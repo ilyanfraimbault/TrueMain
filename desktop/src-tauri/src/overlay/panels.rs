@@ -17,6 +17,7 @@ use std::time::Duration;
 
 use shell_state::keys::KeysDown;
 use shell_state::overlay::{OverlayInputs, OverlayPanel, OverlaySettings, Rect};
+use shell_state::scoreboard;
 use shell_state::screens::{self, Monitor};
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, Position, Size,
@@ -54,6 +55,9 @@ struct Screen {
 static APPLIED: Mutex<Option<HashMap<OverlayPanel, Applied>>> = Mutex::new(None);
 /// The monitor the game was last seen on (#1914).
 static GAME_SCREEN: Mutex<Option<Screen>> = Mutex::new(None);
+/// The game's window as last seen, in points: the scoreboard is drawn in it,
+/// not across the monitor, when the game is windowed (#2186).
+static GAME_FRAME: Mutex<Option<Rect>> = Mutex::new(None);
 
 /// Serialises `rebuild`: two of them interleaved could build a panel twice.
 static REBUILDING: Mutex<()> = Mutex::new(());
@@ -105,9 +109,16 @@ pub fn rebuild(app: &AppHandle) {
 fn build(app: &AppHandle, panel: OverlayPanel, opacity: f64) {
     let label = label(panel);
     let started = std::time::Instant::now();
-    if let Err(error) =
-        platform::build(app, &label, &format!("#/overlay/{}", panel.slug()), opacity)
-    {
+    // The plates' window spans the scoreboard's rows: only the plates may
+    // cover it, the rest of the window shows the game through.
+    let see_through = panel.on_scoreboard();
+    if let Err(error) = platform::build(
+        app,
+        &label,
+        &format!("#/overlay/{}", panel.slug()),
+        opacity,
+        see_through,
+    ) {
         tracing::error!(panel = panel.slug(), %error, "cannot build an overlay window");
         return;
     }
@@ -203,6 +214,7 @@ fn locate_game(app: &AppHandle) {
     let Some(held) = screens::holding(&monitors, frame) else {
         return;
     };
+    *GAME_FRAME.lock().expect("overlay frame poisoned") = Some(screens::in_points(&held, frame));
     let Some(screen) = available
         .iter()
         .map(of)
@@ -219,6 +231,21 @@ fn locate_game(app: &AppHandle) {
     }
 }
 
+/// The game's window when it is on `screen`, else the whole screen: where the
+/// scoreboard is drawn.
+fn game_frame(screen: Screen) -> Rect {
+    let area = screen.area;
+    let on_screen = |frame: &Rect| {
+        let (x, y) = (frame.x + frame.width / 2.0, frame.y + frame.height / 2.0);
+        (area.x..area.x + area.width).contains(&x) && (area.y..area.y + area.height).contains(&y)
+    };
+    GAME_FRAME
+        .lock()
+        .expect("overlay frame poisoned")
+        .filter(on_screen)
+        .unwrap_or(area)
+}
+
 /// Where a panel's window should be and look, now.
 fn wanted(
     overlay: &SharedOverlay,
@@ -228,10 +255,23 @@ fn wanted(
     panel: OverlayPanel,
 ) -> Applied {
     let size = overlay.size(panel);
+    let (origin, size) = if panel.on_scoreboard() {
+        // Its page's width, the scoreboard's rows for the rest.
+        let rect = scoreboard::plates_rect(
+            game_frame(screen),
+            &overlay.hud(),
+            settings.scoreboard_nudge,
+            size.0,
+        );
+        ((rect.x, rect.y), (rect.width, rect.height))
+    } else {
+        (settings.origin(panel, screen.area, size), size)
+    };
     Applied {
         visible: settings.shows(panel, inputs),
-        interactive: inputs.preview,
-        origin: settings.origin(panel, screen.area, size),
+        // Never dragged: its place is the scoreboard's.
+        interactive: inputs.preview && !panel.on_scoreboard(),
+        origin,
         scale: screen.scale,
         size,
         opacity: settings.opacity,
@@ -327,7 +367,7 @@ fn dragged(app: &AppHandle, which: OverlayPanel, position: tauri::PhysicalPositi
     let Some(applied) = applied else {
         return;
     };
-    if !applied.interactive {
+    if !applied.interactive || which.on_scoreboard() {
         return;
     }
     let Some(window) = app.get_webview_window(&label(which)) else {

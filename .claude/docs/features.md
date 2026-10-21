@@ -307,6 +307,32 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   replaced in place, moved to the next champion imported. The player's own sets are written back exactly as read; a
   list that cannot be read writes nothing, and a player set missing after the write is reported. Every outcome is a
   toast. Nothing is written without the click.
+- **Kits** (#2185) — a player's own build on a champion and position: a branching item tree (a path at most six items
+  with the boots, any number of branches per item, the first child the default), a rune page and two summoner
+  spells, plus a starter basket and boots. The app's champion page has a "Builds / My kits" switch (`?view=kits`):
+  the lane's kits listed like build rows (name, keystone, spells, the default path's icons, "Active"), "New kit"
+  started from TrueMain's first build on the lane (starter, boots, core path, rune page, spells; each row's first
+  rune and Flash + Ignite where the build has none), Edit, Duplicate, Rename, Delete (asks first) and "Use in
+  champion select" — one active kit per champion and position (`components/kit/`). The editor
+  (`KitEditor.vue`) works on a draft saved whole: spells (Rift's nine, a pick of the other slot's spell swaps them),
+  starter (up to six), boots, the rune page with every tree, rune and shard a button (the client's rules: a tree
+  changed resets its rows, the secondary's two runes on two rows, `utils/kit-runes.ts`), and the tree drawn as the
+  build tree (`KitTree.vue`): a node clicked asks for another item, "+" branches after it while the path has room,
+  × drops it and what follows. The item picker searches the Rift's shop by name, grouped legendaries / boots /
+  components / starters, from Data Dragon (map 11 only, boot upgrades and duplicate names left out,
+  `utils/kit-items.ts`); an item already on the path is greyed. What keeps a kit from being saved is listed under
+  it (`kitIssues`). Kept by the shell in `kits.json` (`shell_state::kits`, versioned, read leniently — a kit that
+  breaks a rule is dropped alone; `kits_get` / `kits_set`, every change emitted to every window), in `localStorage`
+  under the dev server. In champion select, our pick's active kit takes the build pane: the header says "Your kit:
+  <name>" with a switch to TrueMain's build (a row or a main clicked goes back too), and its three imports, each on
+  its click: the item set (the same one `TrueMain: ` set — Starter, Boots, then one block per path, the default one
+  "Core", `import_kit_item_set`), the rune page (the rune import's own page), and the spells
+  (`champ_select_spells` → `PATCH /lol-champ-select/v1/session/my-selection`, read the session first, champion
+  select only, not in the simulator). In game, the next item (game page and overlay) follows the active kit: the
+  next node on the branch the held items took (the one completed first when two were, the first child where it
+  splits), then the kit's boots; the row is the kit's (boots after the first item), its starter replaces the
+  mains'; no share, reason or runner-up. Once the kit has nothing left the mains' answer comes back, the game page
+  saying "Your kit is complete" (`useKitStep`, `utils/kit-tree.ts`). No sharing yet.
 - **Hover, lock and ban from the app** (#1909) — the strip over the draft says whose turn it is ("Your ban", "Your
   pick", "Declare your pick" in ranked planning, "Your pick in N turns"). Each pick card carries a "Hover" control
   ("Ban" during our ban) in its corner, separate from the card's own click (which still previews the build); typing
@@ -370,7 +396,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   never recorded), its price against the gold in hand and its share of games. Its data comes from `useNextItemPanel`,
   shared with the overlay. A layers button by the clock (and a status line's "Customize" in the waiting state) opens the Overlay page.
 - **In-game overlay** (#1795 on macOS, window layer from the #1673 spike, `docs/desktop-overlay-spike.md`; #1798 on
-  Windows) — five panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
+  Windows) — six panels, each a window of its own — on macOS a non-activating `NSPanel` one level above
   `CGShieldingWindowLevel` (League's Full Screen captures the display), on Windows a topmost `WS_EX_NOACTIVATE` layered
   window over a Borderless or Windowed game (the settings say so: Windows draws nothing over exclusive Full Screen) —
   placed on the monitor the game runs on (#1914: the frontmost game window's frame, matched to the monitor holding
@@ -415,14 +441,29 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   15:00–19:45, Baron 20:00 and 6:00 after each) applied to the `DragonKill`, `HordeKill`, `HeraldKill` and `BaronKill`
   events; off Summoner's Rift's standard game (`CLASSIC` on map 11) it says it has no timers. Default spot top
   centre, always shown. **Item value** (300 pt, `OverlayItemValue.vue`, default spot centre right since #2184), only while TAB is held: each
-  team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — item gold being
-  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). Each panel shows **always**,
-  **while a chord is held** or **toggled** by one (#1915; defaults: item value held with TAB, the others always;
+  team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — the lanes only
+  while the lane-gold plates are off — item gold being
+  the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). **Lane gold**
+  (#2186, `OverlayLaneGold.vue`, `OverlayGoldPlate.vue`, `utils/lane-gold.ts`), held with TAB too: a small dark plate
+  per row of the game's own TAB scoreboard, down its middle — the item-gold gap of the row's two players (blue side
+  left, red side right, each team in lane order, the API's order without lanes), a chevron toward the side ahead,
+  ours blue / theirs red, `1.5k` past 1,000. Its window is see-through (transparent webview; on macOS through Tauri's
+  `macOSPrivateApi`), click-through, never dragged: the shell sizes and places it on the scoreboard's five rows from
+  the game's window and the client's HUD settings (`/lol-game-settings/v1/game-settings`: `HUD.GlobalScale`,
+  `HUD.MirroredScoreboard`, read at game start and on the Overlay page, Riot's defaults without a client;
+  `shell_state::scoreboard`, mirrored in `utils/scoreboard-geometry.ts`) — rows growing upwards from a fixed bottom edge
+  with the HUD scale, sized by the window's height against 1080p (its width below 16:9); constants measured on one
+  real 1080p TAB screenshot, still to be confirmed in games at several HUD scales; a mirrored scoreboard keeps the
+  teams on their sides, so it moves nothing. Each panel shows **always**,
+  **while a chord is held** or **toggled** by one (#1915; defaults: item value and lane gold held with TAB — the one
+  chord two panels may share — the others always;
   a toggle starts each game shown or hidden as set, ⌥⇧O still hides everything). The chords and ⌥⇧O are read
   from the keyboard's state, only over the game (no hotkey reaches the app over a captured display; no hook, no Input
   Monitoring needed). Set up on
   the **Overlay page** (`/overlay`, sidebar, any time — #1819): a copy of the screen at its aspect ratio (the window's
-  screen, 1920 × 1080 in a browser) with the game's minimap and ability bar outlined, each panel that is on drawn where
+  screen, 1920 × 1080 in a browser) with the game's minimap and ability bar outlined — and, while the lane gold is on,
+  the TAB scoreboard's five rows at the player's HUD scale with the plates on them (not draggable; a **Lane gold
+  nudge** slider moves them ±60 px of a 1080p screen, settings file v4) — each panel that is on drawn where
   it sits (its anchor spot, or where it was dragged — the shell's rule mirrored in `utils/overlay-layout.ts`) as itself:
   the real panel over a sample game (`OverlayPanelSample.vue`, `utils/overlay-sample.ts`), shrunk to the screen's scale
   and sized by measuring it, so its edges are where they will be in game (#1857). Drag a panel to move it (stored as a
@@ -444,6 +485,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   `desktop/fixtures/ranked-game.jsonl` (sixteen `allgamedata` readings) through the same relay, at a chosen pace or a
   reading at a time, with start/end of game; the same tape replays through `TRUEMAIN_LCU_REPLAY`, and two "In game"
   browser dev scenarios hold the feed's state at two of its readings (checked by `live-client/tests/scenarios.rs`).
+  Under its controls, a small 1920 × 1080 screen draws the lane-gold plates of the reading just sent on the
+  scoreboard's outline (`OverlayScoreboardPreview.vue`, `utils/sim-reading.ts`).
 - **Capture spike** (development only, #1745) — `truemain-capture-spike` records one League game through the
   platform capture helper (`desktop/capture/macos`: ScreenCaptureKit + VideoToolbox, a separate process speaking
   JSON lines) and `game-recording`'s session, then writes the video, its highlights, a `report.md` of what it measured
@@ -578,7 +621,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   failed send keeps its counts for the next. Nothing read from the League client is sent. "Share Anonymous Usage
   Data", checked by default, in the macOS app menu / Windows tray menu turns it off for good; a debug build never
   sends (`TRUEMAIN_TELEMETRY_DEV` overrides). Read back on the admin's `/desktop`.
-- **Not present**: win probability in the draft (by design), summoner spell import, the
+- **Not present**: win probability in the draft (by design), summoner spell import of a build (a kit's spells are
+  written, #2185), sharing a kit, the
   gold standing in the companion window (it is in the overlay, on TAB), a loading-screen panel in the overlay (dropped
   2026-10-04, #1869: the game page's loading state shows the board), TrueMain's
   participants' ranks in the dashboard's history, LP history from before the app was installed
