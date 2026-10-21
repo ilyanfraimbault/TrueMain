@@ -108,6 +108,25 @@ impl Refusal {
     }
 }
 
+/// A kit's two summoner spells as `my-selection` takes them (#2185). Built
+/// only from two distinct spells: the client would take a pair of the same
+/// spell and leave the player to find out at load.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpellSelection {
+    spell1_id: i64,
+    spell2_id: i64,
+}
+
+impl SpellSelection {
+    pub fn new(spell1_id: i64, spell2_id: i64) -> Option<Self> {
+        (spell1_id > 0 && spell2_id > 0 && spell1_id != spell2_id).then_some(Self {
+            spell1_id,
+            spell2_id,
+        })
+    }
+}
+
 fn is_turn(action: &ChampSelectAction) -> bool {
     ActionKind::parse(&action.kind).is_some()
 }
@@ -290,6 +309,17 @@ mod tests {
             },
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn a_spell_selection_needs_two_different_spells() {
+        let pair = SpellSelection::new(4, 14).expect("Flash and Ignite");
+        assert_eq!(
+            serde_json::to_value(pair).unwrap(),
+            serde_json::json!({ "spell1Id": 4, "spell2Id": 14 })
+        );
+        assert!(SpellSelection::new(4, 4).is_none());
+        assert!(SpellSelection::new(0, 14).is_none());
     }
 
     #[test]

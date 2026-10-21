@@ -889,3 +889,21 @@ intent on our future pick action (unverified on a live client at the time of wri
 hovered champion when the timer runs out is the client's rule; the app says so and never acts at expiry. Summoner
 spells, skins, swaps and trades are not written. Nothing about the enemy that champion select hides is read for
 this — #1909.
+
+**A player keeps their own builds as kits: an item tree, a rune page and two spells per champion and position, used
+in champion select and the overlay (2026-10-21).** Benchmarked on a competitor's "My builds" (a flat item route per
+role); ours is a loadout — the item path *and* the rune page *and* the spells — and the path is a tree like our
+champion build tree, so one kit covers the branch a main actually plays ("into tanks / into mages"). A path holds at
+most six items with the boots, no item twice on a path, a keystone of the primary tree, two different spells; the
+first child of a node is the default. Kits live on the player's machine only, in the shell's own versioned file
+(`shell_state::kits`), read leniently so one broken kit never costs the others; sharing is a follow-up. A new kit
+starts from TrueMain's build on the lane so the player swaps rather than fills. One kit per champion and position
+is active: in champion select it takes the build pane (the header names it and switches back to TrueMain's build),
+and the existing click-only imports write it — the same one `TrueMain: ` item set (Starter, Boots, then one block
+per path) and the same TrueMain rune page, so the ownership rules of #1678 and #1908 hold unchanged. **This revises
+#1678 and #1909's "summoner spells are not written"** for a kit only: the spells are the player's own choice, set on
+a click through `PATCH /lol-champ-select/v1/session/my-selection` after the session is read, never on a pick, a lock
+or a timer; a build's spells are still not imported. In game the next item follows the kit's branch the held items
+took (the earliest completed when two were, the first child where it splits), then its boots, with no share, reason
+or runner-up — those are the mains' figures — and falls back to the mains' answer, said as such, once the kit has
+nothing left — #2185.

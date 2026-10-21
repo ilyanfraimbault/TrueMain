@@ -27,14 +27,14 @@ pub mod tape;
 pub mod tls;
 pub mod win_probability;
 
-pub use champ_select::{ActionKind, DraftAction, Refusal};
+pub use champ_select::{ActionKind, DraftAction, Refusal, SpellSelection};
 pub use client::LcuClient;
 pub use credentials::Credentials;
 pub use detail::GameDetail;
 pub use error::{Error, Result};
 pub use events::{stream_events, LcuEvent};
 pub use form::{PlayerForm, PositionGames, RecentGame, FORM_GAMES, RECENT_GAMES};
-pub use item_sets::{plan_item_set_import, BuildItems, ItemSetDraft};
+pub use item_sets::{plan_item_set_import, BuildItems, ItemSetDraft, NamedBlock};
 pub use laning::{
     gaps_at_fifteen, laning_games, LaningForm, LaningGame, LANING_DEPTH, LANING_GAMES,
 };
