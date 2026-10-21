@@ -336,7 +336,6 @@ builder.Services.AddSingleton<IItemClassProvider>(services => new CommunityDrago
     services.GetRequiredService<ILogger<CommunityDragonItemClassProvider>>(),
     services.GetRequiredService<TimeProvider>()));
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
-builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
 builder.Services.AddTrueMainTruemains();

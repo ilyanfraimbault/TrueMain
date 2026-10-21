@@ -41,6 +41,10 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionOpponentStat> ChampionOpponentStats => Set<ChampionOpponentStat>();
     public DbSet<ChampionOpponentBaselineStat> ChampionOpponentBaselineStats => Set<ChampionOpponentBaselineStat>();
 
+    // Win rate by game length for the champion page's scaling panel (#1368), populated by
+    // ChampionScalingAggregationProcess over the same cohort as the matchup rows.
+    public DbSet<ChampionScalingStat> ChampionScalingStats => Set<ChampionScalingStat>();
+
     // Champion ban counts and the match totals they are divided by (#920), both
     // populated by ChampionBanAggregationProcess in one fold so a ban rate is
     // always numerator and denominator over the same cohort of matches.

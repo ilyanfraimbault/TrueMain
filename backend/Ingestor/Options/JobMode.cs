@@ -101,5 +101,11 @@ public enum JobMode
     /// lane's other steps run beside them as a maintenance pass on <c>Job:IntervalMinutes</c>.
     /// Composite, like <see cref="FetchLane"/>, and it owns the same steps.
     /// </summary>
-    FetchWorkers = 30
+    FetchWorkers = 30,
+
+    /// <summary>
+    /// Folds each match into the champion scaling aggregate the champion page's game-length
+    /// chart reads (#1368). Appended for the same reason as the values above.
+    /// </summary>
+    ScalingAggregationOnly = 31
 }
