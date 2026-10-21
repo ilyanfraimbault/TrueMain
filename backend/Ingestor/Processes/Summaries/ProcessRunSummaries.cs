@@ -261,6 +261,16 @@ public sealed record OpponentAggregationSummary(
     int BaselineRows) : IProcessRunSummary;
 
 /// <summary>
+/// Champion scaling aggregation outcome (#1368): matches and batches, the cohort members
+/// folded, and the (champion, lane, patch, band, bucket) rows they touched.
+/// </summary>
+public sealed record ScalingAggregationSummary(
+    int Matches,
+    int Batches,
+    int Participants,
+    int Rows) : IProcessRunSummary;
+
+/// <summary>
 /// Champion ban aggregation outcome (#920). <see cref="ScopeRows"/> counts the
 /// (patch, elo band) denominators touched and <see cref="BanRows"/> the champion
 /// counts, so a run whose matches all folded into the ALL band alone — every

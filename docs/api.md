@@ -707,30 +707,9 @@ games longues − winrate des games courtes ; positif = scale late).
 
 `scalingIndex` est `null` s'il n'y a pas assez de buckets qualifiés.
 
-## `GET /champions/{championId}/item-timings`
-
-Heure d'achat moyenne (premier achat) de chaque item, ordonnée du plus précoce
-au plus tardif.
-
-**Query** — `position` (**requis**, `400` sinon), `patch` (optionnel),
-`eloBracket` (optionnel)
-
-**Réponse `200`** — `ChampionItemTimingsResponse`
-
-```json
-{
-  "championId": 103,
-  "position": "MIDDLE",
-  "patch": "16.4",
-  "items": [
-    { "itemId": 1056, "games": 1800, "avgSeconds": 35.0 },
-    { "itemId": 6653, "games": 1500, "avgSeconds": 980.4 },
-    { "itemId": 3020, "games": 1400, "avgSeconds": 1120.7 }
-  ]
-}
-```
-
-`avgSeconds` = temps de jeu moyen du premier achat de l'item, en secondes.
+Lu depuis l'agrégat `champion_scaling_stats` (#1368), que l'ingestor alimente match
+par match : le patch omis somme donc tous les patchs de l'agrégat, y compris les
+patchs gelés dont les matchs ont été purgés.
 
 ## `GET /champions/{championId}/mains-comparison`
 

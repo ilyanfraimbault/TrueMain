@@ -39,6 +39,7 @@ public static class IngestorProcessServiceCollectionExtensions
         services.AddRecordedProcess<ChampionMatchupLeadAggregationProcess>(JobMode.MatchupLeadAggregationOnly);
         services.AddRecordedProcess<ChampionSynergyAggregationProcess>(JobMode.SynergyAggregationOnly);
         services.AddRecordedProcess<ChampionOpponentAggregationProcess>(JobMode.OpponentAggregationOnly);
+        services.AddRecordedProcess<ChampionScalingAggregationProcess>(JobMode.ScalingAggregationOnly);
         services.AddRecordedProcess<ChampionBanAggregationProcess>(JobMode.BanAggregationOnly);
         services.AddRecordedProcess<AccountRefreshProcess>(JobMode.AccountRefreshOnly);
         services.AddRecordedProcess<PaceSamplingProcess>(JobMode.PaceSamplingOnly);

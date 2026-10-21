@@ -116,6 +116,14 @@ public class Match
     public bool OpponentAggregated { get; set; }
 
     /// <summary>
+    /// Set once this match has been folded into <c>champion_scaling_stats</c> (#1368), the
+    /// same one-fold-per-match gate as <see cref="SynergyAggregated"/> and shipped
+    /// <c>false</c> for the same reason: the table is created empty, so the retained
+    /// history drains through the fold once, in its usual bounded batches.
+    /// </summary>
+    public bool ScalingAggregated { get; set; }
+
+    /// <summary>
     /// Set once this match has been folded into the champion ban aggregates (#920),
     /// the same one-fold-per-match gate as <see cref="SynergyAggregated"/>. Its
     /// migration backfills every existing row to <see langword="true"/> — and here
