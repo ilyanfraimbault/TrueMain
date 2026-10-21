@@ -470,6 +470,7 @@ Last verified against `develop` on 2026-09-02.
 - Every issue goes on GitHub Project #2
 - The frontends lint with ESLint (`@nuxt/eslint` + vue + a11y); already-broken rules and all a11y rules are warnings, the rest errors (2026-10-06) — #1440
 - Code quality is measured by SonarQube Cloud from its own workflow; its built-in quality gate is required on `develop` through the workflow's `Quality gate` job; Roslyn diagnostics are not re-imported; Vue components count toward coverage (2026-10-13) — #2051, #2052
+- Every PR workflow plans its jobs from the changed paths (Sonar coverage and backend tests, desktop jobs, image builds); the Claude review posts blocking points only (2026-10-21) — #2218
 - Third-party GitHub Actions are pinned by commit SHA, never a tag (2026-10-13) — #2052
 - CodeQL runs from a versioned workflow, per language and only on the paths a PR touches; full scans on `develop` and weekly; no Swift (2026-10-13) — #2057
 - Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
