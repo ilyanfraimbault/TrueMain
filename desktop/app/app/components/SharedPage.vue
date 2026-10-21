@@ -2,7 +2,8 @@
 /**
  * The frame of a page shared with the site (#1732): the app's scroll
  * container, a `<Suspense>` of the app's own (#1788), and Riot's legal notice
- * at the foot, which the site draws in its footer instead (#2090).
+ * at the very foot, pushed to the window's bottom on a short page, which the
+ * site draws in its footer instead (#2090).
  *
  * The shared pages await their first read in setup. On the site that keeps
  * the outgoing page under the header's loading bar (#1689); under the app's
@@ -23,35 +24,37 @@ onBeforeUnmount(() => suspended.end())
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto">
-    <Suspense
-      @pending="suspended.begin()"
-      @resolve="suspended.end()"
-    >
-      <slot />
+  <div class="flex h-full flex-col overflow-y-auto">
+    <div class="shrink-0">
+      <Suspense
+        @pending="suspended.begin()"
+        @resolve="suspended.end()"
+      >
+        <slot />
 
-      <template #fallback>
-        <div
-          aria-busy="true"
-          class="mx-auto max-w-6xl space-y-6 p-4 md:p-6"
-        >
-          <PageHeader
-            :eyebrow="eyebrow"
-            :title="title"
+        <template #fallback>
+          <div
+            aria-busy="true"
+            class="mx-auto max-w-6xl space-y-6 p-4 md:p-6"
           >
-            <USkeleton class="h-8 w-full max-w-md" />
-          </PageHeader>
-          <div class="space-y-2">
-            <USkeleton
-              v-for="row in 8"
-              :key="row"
-              class="h-12 w-full"
-            />
+            <PageHeader
+              :eyebrow="eyebrow"
+              :title="title"
+            >
+              <USkeleton class="h-8 w-full max-w-md" />
+            </PageHeader>
+            <div class="space-y-2">
+              <USkeleton
+                v-for="row in 8"
+                :key="row"
+                class="h-12 w-full"
+              />
+            </div>
           </div>
-        </div>
-      </template>
-    </Suspense>
+        </template>
+      </Suspense>
+    </div>
 
-    <RiotDisclaimer class="mx-auto max-w-6xl px-4 pb-6 md:px-6" />
+    <RiotDisclaimer compact class="mx-auto mt-auto w-full max-w-6xl shrink-0 px-4 pt-6 pb-2 text-center md:px-6" />
   </div>
 </template>
