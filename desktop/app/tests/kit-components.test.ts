@@ -102,11 +102,15 @@ describe('KitTree', () => {
 describe('KitList', () => {
   it('lists the kits with the active one marked, and picks one on a click', async () => {
     const kits = [kit(), kit({ id: 'k2', name: 'Into mages' })]
-    const wrapper = mount(KitList, { props: { kits, activeId: 'k2', modelValue: 'k1' }, global })
+    const wrapper = mount(KitList, { props: { kits, activeIds: ['k2'], modelValue: 'k1' }, global })
     expect(wrapper.findAll('li').map(li => li.text())).toEqual(['Into tanks', 'Into magesActive'])
     await wrapper.findAll('li button')[1]!.trigger('click')
     expect(wrapper.emitted('update:modelValue')).toEqual([['k2']])
     expect(wrapper.get('[aria-current="true"]').text()).toContain('Into mages')
+    // The positions each kit is offered on, on the My kits page only.
+    expect(wrapper.find('img[alt="Middle"]').exists()).toBe(false)
+    const listed = mount(KitList, { props: { kits: [kit({ positions: ['TOP', 'MIDDLE'] })], activeIds: [], modelValue: null, showPositions: true }, global })
+    expect(listed.findAll('img[title]').map(img => img.attributes('title'))).toEqual(['Top', 'Middle'])
   })
 })
 

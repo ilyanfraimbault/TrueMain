@@ -100,6 +100,24 @@ describe('useKits in a browser', () => {
   })
 })
 
+describe('useKits on several positions', () => {
+  it('lists a kit on each of its positions, marks it on several at once, and forgets a position it leaves', async () => {
+    const kits = await kitsStore()
+    const flex = kit({ id: 'f1', positions: ['TOP', 'MIDDLE'] })
+    await kits.save(flex)
+    expect(kits.kitsFor(103, 'TOP').map(k => k.id)).toEqual(['f1'])
+    expect(kits.kitsFor(103, 'MIDDLE').map(k => k.id)).toEqual(['f1'])
+    expect(kits.kitsFor(103, 'BOTTOM')).toEqual([])
+
+    await kits.setActive(103, ['TOP', 'MIDDLE'], 'f1')
+    expect(kits.activeOn(flex)).toEqual(['TOP', 'MIDDLE'])
+    await kits.save({ ...flex, positions: ['MIDDLE'] })
+    expect(kits.store.value.active).toEqual({ '103:MIDDLE': 'f1' })
+    await kits.setActive(103, 'MIDDLE', null)
+    expect(kits.store.value.active).toEqual({})
+  })
+})
+
 describe('useKits in the shell', () => {
   it('reads and writes through the shell, and follows its event', async () => {
     tauri = true

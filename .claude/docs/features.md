@@ -307,14 +307,19 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   replaced in place, moved to the next champion imported. The player's own sets are written back exactly as read; a
   list that cannot be read writes nothing, and a player set missing after the write is reported. Every outcome is a
   toast. Nothing is written without the click.
-- **Kits** (#2185) — a player's own build on a champion and position: a branching item tree (a path at most six items
+- **Kits** (#2185) — a player's own build on a champion, offered on one or several positions (#2205): a branching item tree (a path at most six items
   with the boots, any number of branches per item, the first child the default), a rune page and two summoner
   spells, plus a starter basket and up to four boots to pick between (the first the default, #2201). The app's champion page has a "Builds / My kits" switch (`?view=kits`):
   the lane's kits listed like build rows (name, keystone, spells, the default path's icons, "Active"), "New kit"
   started from TrueMain's first build on the lane (starter, boots, core path, rune page, spells; each row's first
   rune and Flash + Ignite where the build has none), Edit, Duplicate, Rename, Delete (asks first) and "Use in
-  champion select" — one active kit per champion and position (`components/kit/`). The editor
-  (`KitEditor.vue`) works on a draft saved whole: spells (Rift's nine, a pick of the other slot's spell swaps them),
+  champion select" — one active kit per champion and position (`components/kit/`). **My kits** (#2205,
+  `pages/kits.vue`, in the sidebar between Truemains and Favorites) lists every kit grouped by champion (each row
+  with its positions' icons), shows and edits them the same way (`KitDetail.vue`, shared with the champion page),
+  and makes new ones: "New kit" asks for the champion (the site's `ChampionPicker`) and its positions (the filters'
+  `RolePicker`, in its multiple mode), then starts from TrueMain's build on the first of them; there "Use in champion
+  select" marks the kit on all its positions ("Active on Top · Mid"). The editor
+  (`KitEditor.vue`) works on a draft saved whole — its name and positions first — spells (Rift's nine, a pick of the other slot's spell swaps them),
   starter (up to six), boots (up to four), the rune page with every tree, rune and shard a button (the client's rules: a tree
   changed resets its rows, the secondary's two runes on two rows, `utils/kit-runes.ts`), and the tree drawn as the
   build tree (`KitTree.vue`): a node clicked asks for another item, × drops it and what follows, and a dashed "+"

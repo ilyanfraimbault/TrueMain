@@ -1,6 +1,6 @@
 //! The player's kits (#2185): their own builds — a branching item tree, a rune
-//! page and two summoner spells per champion and position — and which one is
-//! used on each champion and position.
+//! page and two summoner spells for a champion on one or several positions —
+//! and which one is used on each champion and position.
 //!
 //! Kept by the shell in its own file next to the overlay's settings, read and
 //! written whole by the app (`kits_get` / `kits_set`), and read the same
@@ -35,6 +35,8 @@ const MAX_CHILDREN: usize = 12;
 const MAX_STARTER: usize = 6;
 /// Boots the player may pick between; the first is the kit's default.
 const MAX_BOOTS: usize = 4;
+/// The game's five positions: a kit serves at most all of them.
+const MAX_POSITIONS: usize = 5;
 
 /// A kit's rune page: every perk by id, as the build's page names them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,7 +92,13 @@ pub struct Kit {
     pub id: String,
     pub name: String,
     pub champion_id: i64,
-    pub position: String,
+    /// The positions it is offered on (`TOP`, `MIDDLE`, …), at least one.
+    #[serde(default)]
+    pub positions: Vec<String>,
+    /// The one position a file written before a kit could serve several holds;
+    /// read into `positions`, never written back.
+    #[serde(default, skip_serializing)]
+    position: Option<String>,
     pub runes: KitRunes,
     pub spells: [i64; 2],
     #[serde(default)]
@@ -111,11 +119,18 @@ impl Kit {
     /// anything could use.
     fn sanitized(mut self) -> Option<Self> {
         self.name = self.name.trim().chars().take(MAX_NAME_CHARS).collect();
+        if let Some(legacy) = self.position.take() {
+            self.positions.insert(0, legacy);
+        }
+        let mut seen_positions = HashSet::new();
+        self.positions
+            .retain(|position| !position.is_empty() && seen_positions.insert(position.clone()));
+        self.positions.truncate(MAX_POSITIONS);
         let [first, second] = self.spells;
         let usable = !self.id.is_empty()
             && !self.name.is_empty()
             && self.champion_id > 0
-            && !self.position.is_empty()
+            && !self.positions.is_empty()
             && self.runes.complete()
             && first > 0
             && second > 0
@@ -134,9 +149,11 @@ impl Kit {
         Some(self)
     }
 
-    /// The key this kit is active under.
-    pub fn key(&self) -> String {
-        key(self.champion_id, &self.position)
+    /// The keys this kit may be active under: its champion on each of its positions.
+    pub fn keys(&self) -> impl Iterator<Item = String> + '_ {
+        self.positions
+            .iter()
+            .map(|position| key(self.champion_id, position))
     }
 }
 
@@ -185,7 +202,7 @@ impl KitStore {
 
     /// Parse a store leniently, the file's or the app's: each kit that does
     /// not read, or breaks a rule, is dropped alone; a second kit under one id
-    /// is dropped; an active entry naming no kit of its own champion and
+    /// is dropped; an active entry naming no kit of its champion on that
     /// position is forgotten.
     pub fn from_json(body: &str) -> Self {
         let Ok(Value::Object(fields)) = serde_json::from_str::<Value>(body) else {
@@ -205,7 +222,10 @@ impl KitStore {
         let active = parse::<BTreeMap<String, String>>(fields.get("active"))
             .unwrap_or_default()
             .into_iter()
-            .filter(|(key, id)| kits.iter().any(|kit| &kit.id == id && &kit.key() == key))
+            .filter(|(key, id)| {
+                kits.iter()
+                    .any(|kit| &kit.id == id && kit.keys().any(|own| &own == key))
+            })
             .collect();
         Self { kits, active }
     }
@@ -297,6 +317,36 @@ mod tests {
             Some("a")
         );
         assert!(store.active_kit(103, "TOP").is_none());
+    }
+
+    #[test]
+    fn reads_one_or_several_positions_and_keeps_an_active_mark_on_each() {
+        let mut both = kit("b", chain(&[6655]));
+        both["positions"] = json!(["TOP", "MIDDLE", "TOP", ""]);
+        both.as_object_mut().unwrap().remove("position");
+        let mut none = kit("c", chain(&[6655]));
+        none.as_object_mut().unwrap().remove("position");
+        let body = json!({
+            "kits": [kit("a", chain(&[6655])), both, none],
+            "active": { "103:TOP": "b", "103:MIDDLE": "b", "103:BOTTOM": "b", "103:JUNGLE": "a" }
+        });
+        let store = KitStore::from_json(&body.to_string());
+        assert_eq!(store.kits.len(), 2, "a kit on no position is dropped");
+        assert_eq!(store.kits[0].positions, vec!["MIDDLE"]);
+        assert_eq!(store.kits[1].positions, vec!["TOP", "MIDDLE"]);
+        assert_eq!(
+            store.active_kit(103, "TOP").map(|k| k.id.as_str()),
+            Some("b")
+        );
+        assert_eq!(
+            store.active_kit(103, "MIDDLE").map(|k| k.id.as_str()),
+            Some("b")
+        );
+        assert!(store.active_kit(103, "BOTTOM").is_none());
+        assert!(store.active_kit(103, "JUNGLE").is_none());
+        let written = serde_json::to_value(&store).unwrap();
+        assert!(written["kits"][0].get("position").is_none());
+        assert_eq!(written["kits"][0]["positions"], json!(["MIDDLE"]));
     }
 
     #[test]

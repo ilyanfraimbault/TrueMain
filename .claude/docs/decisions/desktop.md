@@ -910,4 +910,6 @@ nothing left — #2185. The boots are a list to pick between, the first the defa
 any of them held counts as the boots done; the tree takes legendaries only, components being a build's steps, not
 its choices — #2201. The picker groups legendaries by the in-game shop's classes, read from the game data (the
 `mItemAttributes` bits — no other source carries them) by the API once per patch and served small, never by the app:
-the dump is ~16 MB — #2203.
+the dump is ~16 MB — #2203. A kit is offered on one or several positions (`positions`, a kit saved on one position reads
+as that one), listed on each of their champion pages and active on each separately; the My kits page lists them all
+and makes new ones for any champion — #2205.
