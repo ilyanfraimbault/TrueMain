@@ -5,8 +5,9 @@ use std::path::PathBuf;
 
 use game_recording::anchor::Segment;
 use game_recording::{
-    ClipStore, FrameRate, Moment, ParticipantChampion, Quality, RecordedWinProbability,
-    RecordingSettings, RecordingStatus, Resolution, StoredClip, StoredRecording,
+    AutoClipKind, ClipStore, FrameRate, Moment, ParticipantChampion, Quality,
+    RecordedWinProbability, RecordingSettings, RecordingStatus, Resolution, StoredClip,
+    StoredRecording,
 };
 use lcu::WinProbabilityTimeline;
 use serde::Serialize;
@@ -192,6 +193,8 @@ pub struct ClipView {
     youtube_url: Option<String>,
     /// Gone once a published clip's file was deleted to free space (#2005).
     video_on_disk: bool,
+    /// The plays an automatic clip holds (#1766); empty for the player's own.
+    automatic: Vec<AutoClipKind>,
 }
 
 impl ClipView {
@@ -227,6 +230,7 @@ impl ClipView {
             moments: meta.moments.clone(),
             youtube_url: meta.youtube_url.clone(),
             video_on_disk: clip.dir.video_path().is_file(),
+            automatic: meta.automatic.clone(),
         }
     }
 }
