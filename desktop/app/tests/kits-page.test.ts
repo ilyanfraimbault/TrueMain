@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, watch } from 'vue'
-import type { Kit, KitStore } from '#shared/types/kit'
+import type { KitStore } from '#shared/types/kit'
 import KitsPage from '../app/pages/kits.vue'
 import KitNew from '../app/components/kit/KitNew.vue'
 import KitDetail from '../app/components/kit/KitDetail.vue'
@@ -17,7 +17,7 @@ import { kit, RUNE_TREE } from './kit-fixtures'
 const global = {
   components: { KitNew, KitDetail },
   stubs: {
-    KitList: { props: ['kits', 'activeIds', 'modelValue', 'showPositions'], emits: ['update:modelValue'], template: '<ul class="list"><li v-for="k in kits" :key="k.id"><button class="pick" :data-active="activeIds.includes(k.id)" @click="$emit(\'update:modelValue\', k.id)">{{ k.name }}</button></li></ul>' },
+    KitList: { props: ['kits', 'modelValue', 'showPositions'], emits: ['update:modelValue'], template: '<ul class="list"><li v-for="k in kits" :key="k.id"><button class="pick" @click="$emit(\'update:modelValue\', k.id)">{{ k.name }}</button></li></ul>' },
     KitEditor: { props: ['kit'], emits: ['save', 'cancel'], template: '<div class="editor" :data-name="kit.name" :data-positions="kit.positions.join()"><button class="save" @click="$emit(\'save\', kit)" /><button class="cancel" @click="$emit(\'cancel\')" /></div>' },
     KitBuild: { props: ['kit'], template: '<div class="kit-build">{{ kit.name }}</div>' },
     ChampionPicker: { props: ['championId', 'champions'], emits: ['update:championId'], template: '<button class="champion" :data-count="champions.length" @click="$emit(\'update:championId\', 103)" />' },
@@ -36,7 +36,6 @@ const store = ref<KitStore>({ kits: [], active: {} })
 const kitsApi = {
   store,
   error: ref<string | null>(null),
-  activeOn: (k: Kit) => k.positions.filter(position => store.value.active[`${k.championId}:${position}`] === k.id),
   save: vi.fn(async () => {}),
   setActive: vi.fn(async () => {}),
   remove: vi.fn(async () => {}),
@@ -68,25 +67,18 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('My kits', () => {
-  it('lists every kit by champion, and marks the one shown on all its positions', async () => {
+  it('lists every kit by champion, and edits the one shown', async () => {
     store.value = {
       kits: [kit({ id: 'y1', championId: 777, name: 'Yone bruiser', positions: ['TOP', 'MIDDLE'] }), kit()],
-      active: { '777:TOP': 'y1' },
+      active: {},
     }
     const wrapper = mount(KitsPage, { global })
     expect(wrapper.findAll('h2 .stat-label').map(label => label.text())).toEqual(['Ahri', 'Yone'])
     expect(wrapper.get('.kit-build').text()).toBe('Into tanks')
 
     await wrapper.findAll('.pick').find(button => button.text() === 'Yone bruiser')!.trigger('click')
-    expect(wrapper.get('.badge').text()).toBe('Active on Top')
-    // Used on one of its two positions: "use" marks it on both.
-    await wrapper.findAll('.u-button').find(button => button.text() === 'Use in champion select')!.trigger('click')
-    expect(kitsApi.setActive).toHaveBeenCalledWith(777, ['TOP', 'MIDDLE'], 'y1')
-
-    store.value = { ...store.value, active: { '777:TOP': 'y1', '777:MIDDLE': 'y1' } }
-    await flushPromises()
-    await wrapper.findAll('.u-button').find(button => button.text() === 'Used in champion select')!.trigger('click')
-    expect(kitsApi.setActive).toHaveBeenLastCalledWith(777, ['TOP', 'MIDDLE'], null)
+    expect(wrapper.get('.kit-build').text()).toBe('Yone bruiser')
+    expect(wrapper.findAll('.u-button').some(button => button.text().includes('champion select'))).toBe(false)
 
     await wrapper.findAll('.u-button').find(button => button.text() === 'Edit')!.trigger('click')
     await wrapper.get('.save').trigger('click')

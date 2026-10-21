@@ -154,15 +154,15 @@ describe('KitPanel', () => {
     expect(wrapper.find('.editor').exists()).toBe(false)
   })
 
-  it('marks, copies, renames and deletes the kit on screen', async () => {
+  it('copies, renames and deletes the kit on screen', async () => {
     const copy = kit({ id: 'k2', name: 'Into tanks copy' })
     kitsApi.kitsFor.mockReturnValue([kit(), copy])
     kitsApi.duplicate.mockResolvedValue(copy)
     const wrapper = mount(KitPanel, { props: { championId: 103, position: 'MIDDLE' }, global })
     expect(wrapper.get('.kit-build').text()).toBe('Into tanks')
 
-    await wrapper.findAll('.u-button').find(button => button.text() === 'Use in champion select')!.trigger('click')
-    expect(kitsApi.setActive).toHaveBeenCalledWith(103, 'MIDDLE', 'k1')
+    // Every kit is offered in champion select: nothing to switch on.
+    expect(wrapper.findAll('.u-button').some(button => button.text().includes('champion select'))).toBe(false)
 
     const menu = (label: string) => wrapper.findAll('.menu-item').find(entry => entry.text() === label)!
     await menu('Duplicate').trigger('click')
@@ -187,17 +187,16 @@ describe('KitPanel', () => {
     expect(wrapper.find('.editor').exists()).toBe(false)
   })
 
-  it('says when a write failed, and lets the active kit go', async () => {
-    kitsApi.kitsFor.mockReturnValue([kit()])
-    kitsApi.activeIdFor.mockReturnValue('k1')
-    kitsApi.setActive.mockRejectedValueOnce(new Error('disk full'))
+  it('says when a write failed', async () => {
+    kitsApi.save.mockRejectedValueOnce(new Error('disk full'))
     const wrapper = mount(KitPanel, { props: { championId: 103, position: 'MIDDLE' }, global })
-    expect(wrapper.find('.badge').text()).toBe('Active')
-    await wrapper.findAll('.u-button').find(button => button.text() === 'Used in champion select')!.trigger('click')
+    await wrapper.findAll('.u-button').find(button => button.text() === 'New kit')!.trigger('click')
+    await wrapper.get('.save').trigger('click')
     await flushPromises()
-    expect(kitsApi.setActive).toHaveBeenCalledWith(103, 'MIDDLE', null)
-    expect(toasts.map(toast => toast.title)).toEqual(['Could not change the active kit'])
+    expect(toasts.map(toast => toast.title)).toEqual(['Could not save the kit'])
+    expect(wrapper.find('.editor').exists()).toBe(true)
   })
+
 })
 
 describe('KitBuild', () => {

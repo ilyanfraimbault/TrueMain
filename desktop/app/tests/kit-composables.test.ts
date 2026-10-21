@@ -101,7 +101,7 @@ describe('useKits in a browser', () => {
 })
 
 describe('useKits on several positions', () => {
-  it('lists a kit on each of its positions, marks it on several at once, and forgets a position it leaves', async () => {
+  it('lists a kit on each of its positions, keeps it picked on several, and forgets a position it leaves', async () => {
     const kits = await kitsStore()
     const flex = kit({ id: 'f1', positions: ['TOP', 'MIDDLE'] })
     await kits.save(flex)
@@ -110,7 +110,7 @@ describe('useKits on several positions', () => {
     expect(kits.kitsFor(103, 'BOTTOM')).toEqual([])
 
     await kits.setActive(103, ['TOP', 'MIDDLE'], 'f1')
-    expect(kits.activeOn(flex)).toEqual(['TOP', 'MIDDLE'])
+    expect([kits.activeIdFor(103, 'TOP'), kits.activeIdFor(103, 'MIDDLE')]).toEqual(['f1', 'f1'])
     await kits.save({ ...flex, positions: ['MIDDLE'] })
     expect(kits.store.value.active).toEqual({ '103:MIDDLE': 'f1' })
     await kits.setActive(103, 'MIDDLE', null)

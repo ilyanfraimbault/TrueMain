@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import type { Kit } from '#shared/types/kit'
-import { positionLabel } from '#common/utils/positions'
 import { cloneKit } from '~/utils/kit'
 
 /**
  * My kits (#2205): every kit of the player's, grouped by champion, read and
  * edited as on the champion page (`KitDetail`, `KitEditor`), and new ones made
- * here for any champion and one or several positions (`KitNew`). "Use in
- * champion select" here marks the kit on every position it is offered on.
+ * here for any champion and one or several positions (`KitNew`). Each is
+ * offered in champion select on its positions, beside TrueMain's builds.
  */
-const { store, activeOn, save, setActive } = useKits()
+const { store, save } = useKits()
 const { nameOf, portraitOf } = useChampionStatics()
 const run = useKitAction()
 
@@ -20,7 +19,6 @@ const groups = computed(() => {
     .map(([championId, kits]) => ({ championId, name: nameOf(championId) || `Champion ${championId}`, kits: [...kits].sort((a, b) => a.name.localeCompare(b.name)) }))
     .sort((a, b) => a.name.localeCompare(b.name))
 })
-const activeIds = computed(() => store.value.kits.filter(kit => activeOn(kit).length > 0).map(kit => kit.id))
 
 const selected = ref<string | null>(null)
 const editing = ref<Kit | null>(null)
@@ -33,13 +31,6 @@ watch(groups, (list) => {
 }, { immediate: true })
 
 const shown = computed(() => store.value.kits.find(kit => kit.id === selected.value) ?? null)
-/** On every one of its positions: what "Use in champion select" means here. */
-const usedEverywhere = (kit: Kit) => activeOn(kit).length === kit.positions.length
-function activeLabel(kit: Kit): string | null {
-  const on = activeOn(kit)
-  if (on.length === 0) return null
-  return `Active on ${on.map(position => positionLabel(position, { short: true })).join(' · ')}`
-}
 
 async function saveEdited(kit: Kit) {
   saving.value = true
@@ -50,7 +41,6 @@ async function saveEdited(kit: Kit) {
   saving.value = false
 }
 
-const toggle = (kit: Kit) => run(() => setActive(kit.championId, kit.positions, usedEverywhere(kit) ? null : kit.id), 'Could not change the active kit')
 </script>
 
 <template>
@@ -68,7 +58,7 @@ const toggle = (kit: Kit) => run(() => setActive(kit.championId, kit.positions, 
             <img :src="portraitOf(group.championId) ?? undefined" :alt="group.name" width="20" height="20" class="size-5 rounded img-skeleton">
             <span class="stat-label">{{ group.name }}</span>
           </h2>
-          <KitList v-model="selected" :kits="group.kits" :active-ids="activeIds" show-positions />
+          <KitList v-model="selected" :kits="group.kits" show-positions />
         </section>
       </aside>
 
@@ -77,9 +67,6 @@ const toggle = (kit: Kit) => run(() => setActive(kit.championId, kit.positions, 
         <KitDetail
           v-else-if="shown"
           :kit="shown"
-          :active="usedEverywhere(shown)"
-          :active-label="activeLabel(shown)"
-          @toggle="toggle(shown)"
           @edit="editing = cloneKit(shown)"
           @duplicated="id => (selected = id)"
         />
@@ -89,7 +76,7 @@ const toggle = (kit: Kit) => run(() => setActive(kit.championId, kit.positions, 
     <div v-else class="flex flex-1 flex-col items-center justify-center gap-2 text-center">
       <UIcon name="i-lucide-backpack" class="size-6 text-dimmed" />
       <p class="text-sm text-muted">Your own builds: an item tree, a rune page and two spells, for a champion on the positions you pick</p>
-      <p class="max-w-sm text-xs text-dimmed">Mark one as used and champion select imports it, and the overlay follows its items.</p>
+      <p class="max-w-sm text-xs text-dimmed">Champion select offers it beside TrueMain's builds; picked there, the overlay follows its items.</p>
       <UButton class="mt-2" label="New kit" icon="i-lucide-plus" size="sm" @click="creating = true" />
     </div>
 

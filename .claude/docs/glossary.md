@@ -238,8 +238,8 @@ The in-game panels drawn over League (next item, win probability, pace, item val
 
 **Kit**:
 A player's own build on one champion, offered on one or several positions, kept by the desktop app: a branching item tree (the first
-branch the default), a rune page, two summoner spells, a starter and boots (several to pick between). The **active kit** is the one champion
-select imports and the next item follows.
+branch the default), a rune page, two summoner spells, a starter and boots (several to pick between). Every kit is offered in champion select on its
+positions, beside TrueMain's builds; the one picked there is the one the next item follows in game.
 _Avoid_: build (TrueMain's measured one), my build, loadout
 
 **Highlight**:

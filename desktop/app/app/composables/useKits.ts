@@ -118,8 +118,8 @@ export function useKits() {
   }
 
   /**
-   * The kit champion select and the overlay use on a champion's positions — one or
-   * several at once; `null` goes back to TrueMain's build there.
+   * The kit picked in champion select on a champion's position — the one the
+   * overlay then follows in game; `null` when a TrueMain build was picked instead.
    */
   function setActive(championId: number, positions: string | string[], id: string | null) {
     const keys = new Set((Array.isArray(positions) ? positions : [positions]).map(position => activeKey(championId, position)))
@@ -128,8 +128,6 @@ export function useKits() {
     return commit({ ...store.value, active })
   }
 
-  /** Where a kit is the one used: its positions it is active on. */
-  const activeOn = (kit: Kit) => kit.positions.filter(position => activeIdFor(kit.championId, position) === kit.id)
 
-  return { store, error, kitsFor, activeIdFor, activeKit, activeOn, save, remove, duplicate, rename, setActive }
+  return { store, error, kitsFor, activeIdFor, activeKit, save, remove, duplicate, rename, setActive }
 }

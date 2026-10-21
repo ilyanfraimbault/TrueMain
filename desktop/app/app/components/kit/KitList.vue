@@ -5,11 +5,10 @@ import { kitPaths } from '~/utils/kit-tree'
 
 /**
  * The player's kits, as rows in the build list's style (`BuildList`): the
- * name, the keystone, the spells and the default path as icons, a kit used in
- * champion select marked "Active" — and, on the My kits page (#2205), the
- * positions each is offered on.
+ * name, the keystone, the spells and the default path as icons — and, on the
+ * My kits page (#2205), the positions each is offered on.
  */
-withDefaults(defineProps<{ kits: Kit[], activeIds: string[], showPositions?: boolean }>(), { showPositions: false })
+withDefaults(defineProps<{ kits: Kit[], showPositions?: boolean }>(), { showPositions: false })
 const selected = defineModel<string | null>({ required: true })
 
 const { items, summoners, runeTree } = useStaticData()
@@ -40,7 +39,6 @@ const firstPath = (kit: Kit) => kitPaths(kit.tree)[0] ?? []
             height="14"
             class="size-3.5 opacity-70"
           >
-          <UBadge v-if="activeIds.includes(kit.id)" label="Active" color="primary" variant="soft" size="sm" />
         </span>
         <span class="mt-1.5 flex items-center gap-1.5">
           <GameTooltipPerkIcon :perk="runeTree?.perks[kit.runes.primaryKeystoneId] ?? null" :width="22" :height="22" class="size-[22px] rounded-full" />

@@ -65,18 +65,15 @@ const previewed = ref<number | null>(null)
 const { subject, shownView, duel } = useDraftSubject(draft, enemyLanes, viewed, previewed)
 const { build, pending: buildPending, error: buildError } = useDraftBuild(subject)
 
-// ─── The player's own kit (#2185) ───────────────────────────────────────────
+// ─── The player's own kits (#2185, #2205) ───────────────────────────────────
 
-const { activeKit } = useKits()
-/** Our pick's active kit, while our own build is the one on screen. */
-const kit = computed(() => {
+/** Our pick and lane, while our own build is the one on screen. */
+const ownPick = computed(() => {
   const current = subject.value
   if (!current || shownView.value !== null || current.championId !== props.draft.myChampion) return null
-  return activeKit(current.championId, current.request.position)
+  return { championId: current.championId, position: current.request.position }
 })
-/** The kit is on screen by default; the header's switch goes back to TrueMain's build. */
-const onKit = ref(true)
-watch(() => kit.value?.id, () => (onKit.value = true))
+const { kits, kitId, pickKit } = useDraftKits(ownPick)
 
 /** A click reads that champion's build; a second click on it goes back. */
 function view(team: 'ally' | 'enemy', championId: number) {
@@ -204,22 +201,21 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
 
       <BuildView
         v-else-if="subject"
-        v-model:on-kit="onKit"
+        :kit-id="kitId"
         :champion-id="subject.championId"
         :position="subject.request.position"
         :draft="{ build, pending: buildPending, error: buildError, opponentId: duel.opponentId, label: 'This draft', request: subject.request }"
-        :kit="kit"
+        :kits="kits"
+        @update:kit-id="pickKit"
       >
         <template #advice>
           <DraftItemAdvice :subject="subject" />
         </template>
         <template #header>
           <DraftBuildHeader
-            v-model:on-kit="onKit"
             :champion-id="subject.championId"
             :position="subject.request.position"
             :can-go-back="canGoBack"
-            :kit-name="kit?.name ?? null"
             @back="back"
           />
         </template>

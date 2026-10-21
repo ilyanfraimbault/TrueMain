@@ -4,20 +4,14 @@ import type { Kit } from '#shared/types/kit'
 import { KIT_NAME_MAX } from '~/utils/kit'
 
 /**
- * One kit as the player reads it (#2185, #2205): its name and where it is the
- * one used, "Use in champion select", Edit, and Duplicate / Rename / Delete
- * (asks first) in a menu, over the kit drawn as a build (`KitBuild`). Shared by
- * the champion page and the My kits page, which each say what "used" means:
- * on the page's position, or on every position of the kit.
+ * One kit as the player reads it (#2185, #2205): its name, Edit, and
+ * Duplicate / Rename / Delete (asks first) in a menu, over the kit drawn as a
+ * build (`KitBuild`). Shared by the champion page and the My kits page. Every
+ * kit is offered in champion select on its positions; there is nothing to
+ * switch on.
  */
-const props = defineProps<{
-  kit: Kit
-  /** Whether it is the kit champion select uses — where this page asks. */
-  active: boolean
-  /** Where it is used, beside its name ("Active", "Active on Top · Mid"). */
-  activeLabel?: string | null
-}>()
-const emit = defineEmits<{ toggle: [], edit: [], duplicated: [id: string] }>()
+const props = defineProps<{ kit: Kit }>()
+const emit = defineEmits<{ edit: [], duplicated: [id: string] }>()
 
 const { remove, duplicate, rename } = useKits()
 const run = useKitAction()
@@ -55,17 +49,7 @@ async function confirmDelete() {
   <div class="space-y-4">
     <div class="flex items-center gap-2">
       <h2 class="min-w-0 truncate text-base font-semibold text-highlighted">{{ kit.name }}</h2>
-      <UBadge v-if="activeLabel" :label="activeLabel" color="primary" variant="soft" size="sm" />
       <span class="flex-1" />
-      <UButton
-        :label="active ? 'Used in champion select' : 'Use in champion select'"
-        :icon="active ? 'i-lucide-check' : 'i-lucide-swords'"
-        size="xs"
-        :color="active ? 'primary' : 'neutral'"
-        :variant="active ? 'soft' : 'outline'"
-        :title="active ? 'Click to go back to TrueMain\'s build' : 'Champion select and the overlay follow this kit'"
-        @click="emit('toggle')"
-      />
       <UButton label="Edit" icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" @click="emit('edit')" />
       <UDropdownMenu :items="menu" :content="{ align: 'end' }">
         <UButton icon="i-lucide-ellipsis" size="xs" color="neutral" variant="ghost" aria-label="More actions" />
