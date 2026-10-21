@@ -359,7 +359,7 @@ Last verified against `develop` on 2026-09-02.
 - Logs and metrics live in MongoDB, not Postgres, with two different guarantees — #416
 - Ops logs are signal-only: Polly retry noise is not persisted, domain events are — #444, #93
 - Riot API caller attribution uses an `AsyncLocal` ambient context, mirroring `IterationContext` — #1035
-- The budget-headroom estimate (#1035) requires 24h of rollup history before it will extrapolate, and picks the app rate-limit window with the smallest daily ceiling as "binding"
+- The budget-headroom estimate (#1035) requires 24h of rollup history before it will extrapolate, and picks the app rate-limit window with the smallest daily ceiling as "binding"; it is computed per routing host and the tightest host binds — #1894
 - The configuration viewer is an allow-list, and each host reports itself (2026-08-08) — #1034, #1033, #924
 - The pipeline chain is drawn per lane, not as one flat list (2026-09-02) — #1399, #1362
 - An admin number is either actionable or it is not printed: primary-lane below-floor lines, no `Ext. samples` column (2026-09-03) — #1442

@@ -15,6 +15,14 @@ public interface IRiotQuotaQuery
     /// endpoint-filtered: a host's budget is shared by every endpoint it serves.
     /// </summary>
     Task<RiotQuotaUsage> GetAsync(RiotUsageWindow window, CancellationToken ct);
+
+    /// <summary>
+    /// Raw inputs for the budget-headroom estimate (#1035, #1894): each host's calls and
+    /// freshest advertised limit over the last 7 days, whatever window the operator selected,
+    /// and never endpoint-filtered — "how many more accounts fit" must not depend on what the
+    /// page is looking at. Route-keyed rollups only, like <see cref="GetAsync"/>.
+    /// </summary>
+    Task<RiotHeadroomInputs> GetHeadroomInputsAsync(CancellationToken ct);
 }
 
 /// <summary>
@@ -30,6 +38,24 @@ public sealed record RiotQuotaUsage(
     DateTime? OldestRetainedBucketUtc,
     DateTime? OldestRouteKeyedBucketUtc,
     IReadOnlyList<RiotRouteUsage> Routes);
+
+/// <summary>
+/// The last 7 days of per-host volume behind the budget-headroom estimate (#1894).
+/// <see cref="OldestRouteKeyedBucketUtc"/> is the oldest route-keyed rollup in the collection
+/// (null when there is none): later than <see cref="SinceUtc"/>, it means the per-host history
+/// is shorter than the window and a daily rate must be measured over the shorter span.
+/// </summary>
+public sealed record RiotHeadroomInputs(
+    DateTime SinceUtc,
+    DateTime? OldestRouteKeyedBucketUtc,
+    IReadOnlyList<RiotRouteVolume> Routes);
+
+/// <summary>
+/// One routing host's calls over the headroom window, every attempt counted (429s included),
+/// with the freshest <c>X-App-Rate-Limit</c> header it returned — null when none carried one.
+/// <see cref="Route"/> is <c>"unknown"</c> for calls whose host could not be read.
+/// </summary>
+public sealed record RiotRouteVolume(string Route, long Calls, string? AppRateLimit);
 
 /// <summary>
 /// One routing host's consumption, ordered by <see cref="Calls"/> descending.

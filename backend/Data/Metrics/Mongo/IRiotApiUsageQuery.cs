@@ -50,14 +50,6 @@ public interface IRiotApiUsageQuery
     /// <param name="endpoint">Optional exact endpoint key to restrict the breakdowns to.</param>
     /// <param name="ct">Cancellation token.</param>
     Task<RiotApiUsage> GetAsync(RiotUsageWindow window, string? endpoint, CancellationToken ct);
-
-    /// <summary>
-    /// Raw inputs for the budget-headroom estimate (#1035): always the last 7 days
-    /// regardless of the caller's selected window, and never endpoint-filtered —
-    /// the estimate answers a question ("how many more accounts fit") that must
-    /// not depend on what the operator happens to be looking at.
-    /// </summary>
-    Task<RiotApiSaturationInputs> GetSaturationInputsAsync(CancellationToken ct);
 }
 
 /// <summary>
@@ -128,14 +120,3 @@ public sealed record RiotApiRateLimitSnapshot(
 /// outside a tracked pipeline pass, or recorded before caller attribution shipped.
 /// </summary>
 public sealed record RiotApiCallerUsage(string Caller, long Calls, long Errors);
-
-/// <summary>
-/// Raw 7-day inputs for the Api layer's budget-headroom arithmetic (#1035).
-/// <see cref="EarliestBucketUtc"/> is null when there were no calls at all in the
-/// last 7 days, which the caller treats as "insufficient data" alongside a too-short
-/// observed span.
-/// </summary>
-public sealed record RiotApiSaturationInputs(
-    long TotalCalls,
-    DateTime? EarliestBucketUtc,
-    RiotApiRateLimitSnapshot? RateLimit);
