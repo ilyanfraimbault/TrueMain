@@ -392,7 +392,4 @@ public sealed record MatchDataRetentionSummary(
     // Pair rows and the baselines they are read against, summed (#922) — they are
     // deleted together in one transaction, so one counter describes both.
     int DeletedSynergyStats,
-    // Ban counts and the match totals they are divided by, summed (#920) — deleted
-    // together in one transaction, so one counter describes both.
-    int DeletedBanStats,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

@@ -1013,6 +1013,46 @@ namespace Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionPatchStat", b =>
+                {
+                    b.Property<int>("QueueId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Position")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("EloBracket")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("IsMain")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("QueueId", "Patch", "Position", "EloBracket", "IsMain", "ChampionId");
+
+                    b.ToTable("champion_patch_stats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_champion_patch_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
+                        });
+                });
+
             modelBuilder.Entity("Data.Entities.ChampionProfileStat", b =>
                 {
                     b.Property<Guid>("Id")

@@ -121,6 +121,11 @@ Refreshing champion aggregates by rebuilding the scopes of live patches only; fr
 A live patch still has its raw matches retained and can be re-folded; a frozen patch has lost them, and its
 aggregates are permanent history.
 
+**Light per-patch record**:
+What a patch keeps once its full aggregates are dropped: games and wins per champion × position × elo bracket
+(`champion_patch_stats`) and the ban pair — enough for the win, pick and ban rates of "Trend by patch".
+_Avoid_: patch summary, light aggregate
+
 **Served patch**:
 The patch the site shows by default: the newest with enough data to fill the champion directory.
 _Avoid_: current patch, latest patch (when this is meant)

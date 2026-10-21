@@ -9,16 +9,29 @@ public sealed class ChampionPatternAggregatePersister(
     IChampionDimensionResolver dimensionResolver)
 {
     /// <summary>
+    /// Fills the light per-patch record from the scopes if it is still empty — once, before
+    /// the first <see cref="ReplaceSlicesAsync"/> folds into it (<see cref="ChampionPatchStatFold"/>).
+    /// Returns the rows written, 0 when the record was already there.
+    /// </summary>
+    public async Task<int> BackfillPatchStatsIfEmptyAsync(DateTime aggregatedAtUtc, CancellationToken ct)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        return await ChampionPatchStatFold.BackfillIfEmptyAsync(db, aggregatedAtUtc, ct);
+    }
+
+    /// <summary>
     /// Replaces every scope of <paramref name="slices"/> — and, through the cascade, its
     /// patterns — with <paramref name="scopes"/>, in one transaction. A slice that built
     /// nothing (its player was demoted on a mains-only run, its games no longer qualify)
-    /// is simply emptied.
+    /// is simply emptied. The light per-patch record follows in the same transaction: the
+    /// old scopes are subtracted from it and the new ones added.
     /// </summary>
     internal async Task ReplaceSlicesAsync(
         int queueId,
         IReadOnlyCollection<AggregateSliceKey> slices,
         IReadOnlyCollection<ChampionAggregateScope> scopes,
         IReadOnlyCollection<PatternIntent> patterns,
+        DateTime aggregatedAtUtc,
         CancellationToken ct)
     {
         // Guard against a drift between the builder's GroupBy key and the
@@ -51,12 +64,24 @@ public sealed class ChampionPatternAggregatePersister(
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
+        var sliceColumns = SliceKeyColumns.From(slices);
+
         // The FK cascade from champion_aggregate_patterns drops the scopes' pattern rows
         // in the same statement. New scopes + patterns then take their place.
-        await DeleteSlicesAsync(db, queueId, slices, ct);
+        if (slices.Count > 0)
+        {
+            await ChampionPatchStatFold.SubtractSlicesAsync(db, queueId, sliceColumns, aggregatedAtUtc, ct);
+            await DeleteSlicesAsync(db, queueId, sliceColumns, ct);
+        }
 
         db.ChampionAggregateScopes.AddRange(dedupedScopes);
         await db.SaveChangesAsync(ct);
+
+        if (slices.Count > 0)
+        {
+            await ChampionPatchStatFold.AddSlicesAsync(db, queueId, sliceColumns, aggregatedAtUtc, ct);
+            await ChampionPatchStatFold.PruneEmptiedAsync(db, queueId, sliceColumns, ct);
+        }
 
         if (keptPatterns.Count > 0)
         {
@@ -92,25 +117,15 @@ public sealed class ChampionPatternAggregatePersister(
     private static async Task DeleteSlicesAsync(
         TrueMainDbContext db,
         int queueId,
-        IReadOnlyCollection<AggregateSliceKey> slices,
+        SliceKeyColumns slices,
         CancellationToken ct)
     {
-        if (slices.Count == 0)
-        {
-            return;
-        }
-
-        var accountIds = slices.Select(slice => slice.RiotAccountId).ToArray();
-        var championIds = slices.Select(slice => slice.ChampionId).ToArray();
-        var gameVersions = slices.Select(slice => slice.GameVersion).ToArray();
-        var platformIds = slices.Select(slice => slice.PlatformId).ToArray();
-
         // One statement for the whole batch, on the (account, champion, patch, platform,
         // position) index — the slice key is its prefix.
         await db.Database.ExecuteSqlAsync(
             $"""
             DELETE FROM "champion_aggregate_scopes" AS s
-            USING unnest({accountIds}, {championIds}, {gameVersions}, {platformIds})
+            USING unnest({slices.RiotAccountIds}, {slices.ChampionIds}, {slices.GameVersions}, {slices.PlatformIds})
                 AS k("RiotAccountId", "ChampionId", "GameVersion", "PlatformId")
             WHERE s."RiotAccountId" = k."RiotAccountId"
                 AND s."ChampionId" = k."ChampionId"
