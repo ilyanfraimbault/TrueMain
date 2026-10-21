@@ -8,7 +8,7 @@ import type { DesktopRelease } from '~~/shared/types/desktop'
 useSeoMeta({
   title: 'TrueMain desktop app (beta)',
   description:
-    'The TrueMain companion for League of Legends: picks from your own pool in champion select, the rune page in one click, an overlay with win probability, your pace, your next item and the objective timers, and your games recorded to cut your best plays. For macOS and Windows.',
+    'The TrueMain companion for League of Legends: picks from your own pool in champion select, the rune page in one click, an overlay with win probability, your pace, your build path and the objective timers, and your games recorded to cut your best plays. For macOS and Windows.',
 })
 
 const { data: release, status, error } = await useFetch<DesktopRelease | null>('/api/desktop/release')

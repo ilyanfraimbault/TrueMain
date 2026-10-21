@@ -22,8 +22,22 @@ export const SAMPLE_ITEMS: Record<'ally' | 'enemy', number[][]> = {
   enemy: [[3068, 3047, 3075], [3153, 3006, 6610], [3118, 3020, 3089], [3042, 3078, 3158, 6694], [3870, 3047, 3190, 3109]],
 }
 
-/** The next item the sample shows, and the gold it still needs. */
-export const SAMPLE_NEXT_ITEM = { itemId: 3031, missing: 650 } as const
+/**
+ * The next item the sample shows, the gold in hand, and what it still needs:
+ * Infinity Edge (3500) less the Cloak of Agility held (600) less 1500 in hand.
+ */
+export const SAMPLE_NEXT_ITEM = { itemId: 3031, gold: 1500, missing: 1400 } as const
+
+/**
+ * Its build path (#2183): the components in the order the mains buy them, each
+ * owned, bought now with the gold in hand, or later — the Cloak held, the B. F.
+ * Sword (1300) within the 1500, the Pickaxe (875) past it. Prices are the shop's.
+ */
+export const SAMPLE_BUILD_PATH: readonly { itemId: number, cost: number, state: 'owned' | 'buy' | 'later' }[] = [
+  { itemId: 1018, cost: 600, state: 'owned' },
+  { itemId: 1038, cost: 1300, state: 'buy' },
+  { itemId: 1037, cost: 875, state: 'later' },
+]
 
 /**
  * The build row under it (#2101), as the app's sample draws it: an item and the boots

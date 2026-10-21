@@ -42,9 +42,20 @@ describe('LandingOverlayPanel', () => {
     const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'next-item', patch: PATCH, items: ITEMS } })
 
     expect(wrapper.text()).toContain('Infinity Edge')
-    expect(wrapper.text()).toContain('650 gold to go')
+    expect(wrapper.text()).toMatch(/1[,\u202F\u00A0 ]?400 to go/)
     expect(wrapper.find('img').attributes('src')).toContain('3031.png')
     expect(wrapper.attributes('style')).toContain('width: 232px')
+  })
+
+  it('walks the build path: the held part checked, the one the gold buys ringed with its price, the rest later', async () => {
+    const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'next-item', patch: PATCH, items: ITEMS } })
+
+    const tiles = wrapper.findAll('[data-build-path] li')
+    expect(tiles.map(tile => tile.attributes('data-state'))).toEqual(['owned', 'buy', 'later'])
+    expect(tiles[0]!.find('img').classes()).toContain('grayscale')
+    expect(tiles[1]!.find('img').classes()).toContain('ring-primary')
+    expect(tiles[1]!.text()).toBe('1300')
+    expect(tiles[2]!.text()).toBe('875')
   })
 
   it('draws the build row under it: done dimmed, the next one ringed, the rest to come', async () => {
