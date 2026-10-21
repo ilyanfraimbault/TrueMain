@@ -1949,6 +1949,9 @@ namespace Data.Migrations
                     b.HasIndex(new[] { "Id" }, "IX_match_participants_role_bound_pending")
                         .HasFilter("\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
 
+                    b.HasIndex(new[] { "MatchId", "TeamId" }, "IX_match_participants_team_position_pending")
+                        .HasFilter("\"TeamPosition\" = ''");
+
                     b.ToTable("match_participants", (string)null);
                 });
 
