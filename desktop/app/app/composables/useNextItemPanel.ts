@@ -5,6 +5,7 @@ import type { NextItemCandidate, NextItemReason } from '~/utils/next-item'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { itemContextAxisPhrase } from '#shared/utils/item-context'
 import { buildPath } from '~/utils/build-path'
+import { builtAxisPhrase } from '~/utils/built-reasons'
 import { goldToComplete, starterCost } from '~/utils/next-item'
 
 /**
@@ -53,11 +54,16 @@ export function useNextItemPanel(game: Ref<GameState>) {
   const name = (itemId: number) => statics.value[itemId]?.name ?? `Item ${itemId}`
   const percent = (share: number) => formatPercentage(share, 0)
 
-  /** The strongest situation behind an item, in the site's own wording; nothing when no situation moved it. */
+  /**
+   * The strongest situation behind an item, in the site's own wording — or,
+   * for what the enemies have built (#1750), the app's; nothing when no
+   * situation moved it.
+   */
   function reason(candidate: NextItemCandidate | null) {
     const strongest: NextItemReason | undefined = candidate?.reasons[0]
     if (!strongest) return null
     return itemContextAxisPhrase({ axis: strongest.axis, bucket: strongest.bucket } as ChampionItemContextAxis)
+      ?? builtAxisPhrase(strongest.axis, strongest.bucket)
   }
   const why = computed(() => reason(top.value))
 

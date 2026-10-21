@@ -15,6 +15,8 @@ import {
 // (`ItemContextAxis`, minus the synthetic `Overall` the API never serialises). Kept as a
 // hand-maintained mirror on purpose: it is what makes the test below fail when an axis is
 // added to the fold without copy for it, instead of that axis silently rendering nothing.
+// The in-game axes of what the enemies built (#1750, `[InGame(OverlayOnly = true)]`) are not
+// here on purpose: the API never sends them to the site, and the desktop app words them itself.
 const BACKEND_AXES = [
   'EnemyMagicDamage',
   'EnemyPhysicalDamage',

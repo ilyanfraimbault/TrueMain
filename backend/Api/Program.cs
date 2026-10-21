@@ -321,6 +321,8 @@ builder.Services.AddScoped<IItemRouteQueryService, ItemRouteQueryService>();
 // aggregation cycle at most.
 builder.Services.AddScoped<IChampionDamageProfileQueryService, ChampionDamageProfileQueryService>();
 builder.Services.AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>();
+// The next item's in-game axes (#1750) place the live game with the fold's own item stats.
+builder.Services.AddHttpClient<IItemStatsProvider, DataDragonItemStatsProvider>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
 // identically. Patch-cached inside the provider, which clocks how long a

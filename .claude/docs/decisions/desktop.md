@@ -516,6 +516,16 @@ past that step without boots has them as its next step, and they take the panel'
 what the row exists to say. Not backfilled — re-arming the fold would re-count every other slot — so it fills from the
 matches folded after the change and the next patch has it whole (2026-10-19) — #2101.
 
+**In game, the next item reads what the enemies have built (2026-10-21).** The app sends each enemy's inventory with
+the request (`enemies[].items`, the live game's slots); the API keeps the completed items through the fold's own
+catalogue and places the game on the in-game axes (#1750) with the fold's own evaluator, so a bucket here means what it
+meant in the counters. Champion select sends no inventory, and none is not an empty one: the draft advice gets no
+in-game axis, and `isDraftReason` refuses them besides. The live reading is the board as it stands now, not at the
+instant the branch opened: the panel is asked again on every purchase of anyone, so it starts at that instant and then
+follows the enemies as they build. When one of those axes is the strongest reason, it reads in the app's own words, as
+a game state — "once the enemies have built armor" (`utils/built-reasons.ts`) — because the site words none of them
+(product decision, 2026-10-05) — #1750.
+
 **The next item's components come in the order the mains buy them, and the gold walks that order (2026-10-21).**
 The recipe sorted cheapest first was not how players buy: a main going for Archangel's Staff buys the Tear, then Lost
 Chapter, and a back with 800 gold has a right purchase the panel did not say. The item-context fold now also counts,

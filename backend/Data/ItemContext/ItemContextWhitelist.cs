@@ -20,7 +20,9 @@ namespace Data.ItemContext;
 /// from a list of items somebody maintains. Magic resistance may answer magic damage.
 /// Armour may answer physical damage, crit carriers, lethality and melee. Tenacity may
 /// answer crowd control. Grievous Wounds may answer sustain. Penetration may answer a
-/// frontline. Nothing else is offered, however significant the lift.
+/// frontline. Nothing else is offered, however significant the lift. The in-game axes of
+/// what the enemies have built (#1750) follow the same rule — penetration against the
+/// resistances built, armour against the crit built, anti-heal against the life steal built.
 /// </para>
 ///
 /// <para>
@@ -147,6 +149,7 @@ public static class ItemContextWhitelist
                 // Gold state changes what a completed item costs you to reach, for every
                 // item alike — the one axis whose mechanism is universal.
                 axes.Add(ItemContextAxis.OwnGoldLeadAt15);
+                AddBuiltAxes(axes, item, categories);
                 break;
 
             case ItemContextSlot.Boots:
@@ -155,5 +158,43 @@ public static class ItemContextWhitelist
         }
 
         return axes;
+    }
+
+    /// <summary>
+    /// The in-game axes of what the enemies have built (#1750), under the same rule: an item
+    /// answers only what its own stats answer. Penetration answers resistances built, armour
+    /// answers crit built, either resistance answers the damage type built (the two ends of one
+    /// share), and Grievous Wounds answers life steal and omnivamp built. Build slot only: the
+    /// boots and the starter are root decisions, taken before anybody has built anything.
+    /// </summary>
+    private static void AddBuiltAxes(HashSet<ItemContextAxis> axes, ItemMetadata item, IReadOnlySet<string> categories)
+    {
+        if (categories.Contains(ArmorPenetration))
+        {
+            axes.Add(ItemContextAxis.EnemyArmorBuilt);
+            axes.Add(ItemContextAxis.OpponentArmorBuilt);
+        }
+
+        if (categories.Contains(MagicPenetration))
+        {
+            axes.Add(ItemContextAxis.EnemyMagicResistBuilt);
+            axes.Add(ItemContextAxis.OpponentMagicResistBuilt);
+        }
+
+        if (categories.Contains(Armor))
+        {
+            axes.Add(ItemContextAxis.EnemyCritBuilt);
+            axes.Add(ItemContextAxis.EnemyMagicDamageBuilt);
+        }
+
+        if (categories.Contains(SpellBlock) || categories.Contains(MagicResist))
+        {
+            axes.Add(ItemContextAxis.EnemyMagicDamageBuilt);
+        }
+
+        if (item.GrantsGrievousWounds)
+        {
+            axes.Add(ItemContextAxis.EnemyHealingBuilt);
+        }
     }
 }

@@ -159,6 +159,8 @@ leads), measured from games, never hand-labelled. Its **damage profile** is the 
 **Item context**:
 Why an item is built: each build step is **Core** (nearly always), **Situational** (a measurable situation — a
 **draft axis** such as enemy magic damage — moves its pick rate) or **Preference** (taste, shown as nothing).
+An **in-game axis** is a situation only the game reveals — our gold lead at 15, or what the enemies have **built**
+(completed items, never components) when a decision opens; draft-time findings outrank it.
 
 **Next item**:
 The completed item true mains build next from where the player stands — what mains choose, not the best win rate.

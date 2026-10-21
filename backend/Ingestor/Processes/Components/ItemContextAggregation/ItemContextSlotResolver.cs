@@ -11,10 +11,16 @@ namespace Ingestor.Processes.Components.ItemContextAggregation;
 /// <param name="ParentItemId">The completed item this decision followed, 0 on the branch every game starts on.</param>
 /// <param name="ItemId">The item the game went on to complete.</param>
 /// <param name="EligibleAxes">The axes this item could mechanically answer (<see cref="ItemContextWhitelist"/>).</param>
+/// <param name="DecisionAtMs">
+/// When the decision opened, in game milliseconds: the completion of the parent item, 0 on the
+/// root branch, null when the timeline does not say when the parent was completed. The
+/// instant the in-game axes (#1750) are measured at.
+/// </param>
 public readonly record struct ItemContextEdge(
     int ParentItemId,
     int ItemId,
-    IReadOnlySet<ItemContextAxis> EligibleAxes);
+    IReadOnlySet<ItemContextAxis> EligibleAxes,
+    int? DecisionAtMs = 0);
 
 /// <summary>
 /// Reads one participant's build decisions and turns each into the steps the fold
@@ -48,7 +54,8 @@ public static class ItemContextSlotResolver
         ArgumentNullException.ThrowIfNull(metadata);
 
         var starters = StarterItemAnalyzer.Analyze(itemEvents, finalItems, metadata);
-        var buildItems = FinalBuildResolver.Resolve(itemEvents, finalItems, starters.Items, metadata);
+        var timedBuild = FinalBuildResolver.ResolveTimed(itemEvents, finalItems, starters.Items, metadata);
+        var buildItems = timedBuild.Select(step => step.ItemId).ToList();
         var bootsItemId = BootsResolver.Resolve(itemEvents, finalItems, starters.Items, metadata);
 
         var resolved = new Dictionary<ItemContextSlot, IReadOnlyList<ItemContextEdge>>();
@@ -58,7 +65,7 @@ public static class ItemContextSlotResolver
         // empty starter basket — which means "no early purchase was recorded", not "this
         // player started with nothing" — would divide every starter's pick rate by games in
         // which the question was never asked.
-        Add(resolved, ItemContextSlot.Build, Chain(buildItems, metadata));
+        Add(resolved, ItemContextSlot.Build, Chain(timedBuild, metadata));
         Add(resolved, ItemContextSlot.Starter, Root(starters.Items, ItemContextSlot.Starter, metadata));
         Add(resolved, ItemContextSlot.Boots, Root(bootsItemId > 0 ? [bootsItemId] : [], ItemContextSlot.Boots, metadata));
 
@@ -103,22 +110,33 @@ public static class ItemContextSlotResolver
     /// after it followed the item before it would invent a step the game never took, and
     /// the branch it would land on is one a reader could not see on the tree either.
     /// </summary>
+    /// <remarks>
+    /// <b>A decision opens when its parent is completed</b> — that is the instant the in-game
+    /// axes (#1750) read the enemies' inventories at. The alternative was the first component
+    /// bought towards the child, closer to the moment the player actually commits; but which
+    /// component comes first is itself part of the choice being explained, so measuring there
+    /// would leak the decision into its own context — an enemy's armour read at the moment the
+    /// player is already buying a Last Whisper. The parent's completion is the last instant at
+    /// which every sibling was still equally open.
+    /// </remarks>
     private static List<ItemContextEdge> Chain(
-        IReadOnlyList<int> itemIds,
+        IReadOnlyList<(int ItemId, int? CompletedAtMs)> steps,
         IReadOnlyDictionary<int, ItemMetadata> metadata)
     {
         var edges = new List<ItemContextEdge>();
         var parentItemId = 0;
+        int? decisionAtMs = 0;
 
-        foreach (var itemId in itemIds)
+        foreach (var (itemId, completedAtMs) in steps)
         {
             if (itemId <= 0 || !metadata.TryGetValue(itemId, out var item))
             {
                 break;
             }
 
-            edges.Add(new ItemContextEdge(parentItemId, itemId, ItemContextWhitelist.For(item, ItemContextSlot.Build)));
+            edges.Add(new ItemContextEdge(parentItemId, itemId, ItemContextWhitelist.For(item, ItemContextSlot.Build), decisionAtMs));
             parentItemId = itemId;
+            decisionAtMs = completedAtMs;
         }
 
         return edges;
