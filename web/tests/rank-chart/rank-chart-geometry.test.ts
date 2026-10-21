@@ -87,6 +87,27 @@ describe('crestBands', () => {
     expect(crestBands(zones, frame).map(band => band.tier)).toEqual(['MASTER', 'GRANDMASTER'])
   })
 
+  it('never lifts a centred crest above a higher tier\'s crest taken at another snapshot', () => {
+    // Master's floor is under the plot. Grandmaster's crest sits on its cutoff at the
+    // first snapshot (y 90); Master's band is widest later, once the cutoff rose to y 40,
+    // and centring it there (y 70) would put it above Grandmaster's crest.
+    const high = { ...frame, domain: [2900, 3400] as [number, number] }
+    const risingGm = boundary('GRANDMASTER', [2950, 3200, 3200], [true, true, true])
+    const apex: TierZone[] = [
+      { tier: 'MASTER', lower: master, upper: risingGm },
+      { tier: 'GRANDMASTER', lower: risingGm, upper: null },
+    ]
+    expect(crestBands(apex, high).map(band => band.tier)).toEqual(['GRANDMASTER'])
+
+    // With room under Grandmaster's crest, Master moves below it instead.
+    const lowerGm = boundary('GRANDMASTER', [3050, 3200, 3200], [true, true, true])
+    const roomy: TierZone[] = [
+      { tier: 'MASTER', lower: master, upper: lowerGm },
+      { tier: 'GRANDMASTER', lower: lowerGm, upper: null },
+    ]
+    expect(crestBands(roomy, high).map(band => [band.tier, Math.round(band.top)])).toEqual([['MASTER', 90], ['GRANDMASTER', 70]])
+  })
+
   it('leaves out a band too thin to hold a crest', () => {
     const thin = [{ tier: 'DIAMOND', lower: null, upper: boundary('MASTER', [2705, 2705, 2705], [true, true, true]) }]
     expect(crestBands(thin, frame)).toEqual([])
