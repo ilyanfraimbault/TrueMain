@@ -17,7 +17,7 @@ import { maxDepth } from '~/utils/kit-tree'
 const props = withDefaults(defineProps<{
   tree: KitNode[]
   items: Record<number, StaticItemData>
-  boots: number | null
+  boots: number[]
   editable?: boolean
   size?: number
 }>(), { editable: false, size: 32 })

@@ -13,9 +13,9 @@ import type { NextItemOrderStep } from '~/utils/next-item'
 /** The most items a path holds, the boots counted: a full build. */
 export const MAX_PATH_ITEMS = 6
 
-/** How deep the tree may go: a full build, less the boots' slot when the kit has them. */
-export function maxDepth(boots: number | null): number {
-  return boots ? MAX_PATH_ITEMS - 1 : MAX_PATH_ITEMS
+/** How deep the tree may go: a full build, less the boots' slot when the kit has any. */
+export function maxDepth(boots: number[]): number {
+  return boots.length > 0 ? MAX_PATH_ITEMS - 1 : MAX_PATH_ITEMS
 }
 
 /** Every path from a root to a leaf, in the tree's order: the first is the default path. */
@@ -135,7 +135,7 @@ export function heldPath(tree: KitNode[], order: number[], held: number[]): KitN
   }
 }
 
-/** The next step of a kit in game: a node of its tree, else its boots, else nothing — the kit is done. */
+/** The next step of a kit in game: a node of its tree, else boots, else nothing — the kit is done. */
 export interface KitStep {
   itemId: number
   isBoots: boolean
@@ -144,25 +144,28 @@ export interface KitStep {
 /**
  * What the kit says to complete next from what is held: the next node on the
  * branch the held items follow — its first child when it has several, the
- * kit's own order — then, once the branch is complete, the boots if they are
+ * kit's own order — then, once the branch is complete, the kit's first boots
+ * if none of its boots are
  * not held yet. `null` when nothing is left: the caller falls back to
  * TrueMain's answer.
  */
-export function nextKitStep(tree: KitNode[], boots: number | null, order: number[], held: number[]): KitStep | null {
+export function nextKitStep(tree: KitNode[], boots: number[], order: number[], held: number[]): KitStep | null {
   const path = heldPath(tree, order, held)
   const level = path.at(-1)?.children ?? tree
   const next = level[0]
   if (next) return { itemId: next.itemId, isBoots: false }
-  if (boots && !held.includes(boots)) return { itemId: boots, isBoots: true }
+  const firstBoots = boots[0]
+  if (firstBoots && !boots.some(id => held.includes(id))) return { itemId: firstBoots, isBoots: true }
   return null
 }
 
 /**
  * The kit as the build row draws it (#2101's row): the branch held so far,
- * then its default continuation, with the boots after the first item — where
+ * then its default continuation, with the boots after the first item — the
+ * ones held, else the kit's first — where
  * the item set puts them too, ahead of the rest.
  */
-export function kitOrder(tree: KitNode[], boots: number | null, order: number[], held: number[]): NextItemOrderStep[] {
+export function kitOrder(tree: KitNode[], boots: number[], order: number[], held: number[]): NextItemOrderStep[] {
   const path = heldPath(tree, order, held).map(node => node.itemId)
   let level = path.length === 0 ? tree : nodeAtItems(tree, path)
   const rest: number[] = []
@@ -176,7 +179,8 @@ export function kitOrder(tree: KitNode[], boots: number | null, order: number[],
     return next?.itemId === itemId ? 'Next' : 'Upcoming'
   }
   const steps: NextItemOrderStep[] = [...path, ...rest].map(itemId => ({ itemId, isBoots: false, state: stateOf(itemId, path.includes(itemId)) }))
-  if (boots) steps.splice(Math.min(1, steps.length), 0, { itemId: boots, isBoots: true, state: stateOf(boots, held.includes(boots)) })
+  const shownBoots = boots.find(id => held.includes(id)) ?? boots[0]
+  if (shownBoots) steps.splice(Math.min(1, steps.length), 0, { itemId: shownBoots, isBoots: true, state: stateOf(shownBoots, held.includes(shownBoots)) })
   return steps
 }
 

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { Kit } from '#shared/types/kit'
 import type { KitItemGroup } from '~/utils/kit-items'
-import { cloneKit, KIT_NAME_MAX, kitIssues, withBoots } from '~/utils/kit'
+import { cloneKit, KIT_BOOTS_MAX, KIT_NAME_MAX, kitIssues, withBoots } from '~/utils/kit'
 import { addChild, blockedItems, removeSubtree, replaceItem } from '~/utils/kit-tree'
 
 /**
  * The kit editor (#2185): a draft of the kit, saved as a whole or dropped.
  * Spells, starter and boots in their own slots over the rune page, then the
- * item tree, every node editable. What keeps the kit from being saved is
+ * item tree, every node editable — legendaries only: what a build completes.
+ * Several boots are the player's choice between them, the first the default. What keeps the kit from being saved is
  * listed under it, in the player's words (`kitIssues`).
  */
 const props = defineProps<{ kit: Kit, saving?: boolean }>()
@@ -24,7 +25,7 @@ const issues = computed(() => kitIssues(draft.value, runeTree.value))
 type Target
   = | { kind: 'tree', at: number[], mode: 'replace' | 'child' }
     | { kind: 'starter', index: number | null }
-    | { kind: 'boots' }
+    | { kind: 'boots', index: number | null }
 const target = ref<Target | null>(null)
 const pickerOpen = computed({
   get: () => target.value !== null,
@@ -38,7 +39,7 @@ const pickerGroups = computed<KitItemGroup[]>(() => {
   switch (target.value?.kind) {
     case 'starter': return ['starter', 'component']
     case 'boots': return ['boots']
-    default: return ['legendary', 'component']
+    default: return ['legendary']
   }
 })
 const pickerTitle = computed(() => {
@@ -50,21 +51,21 @@ const pickerTitle = computed(() => {
 })
 const blocked = computed(() => {
   const at = target.value
+  if (at?.kind === 'boots') return draft.value.boots.filter((_, i) => i !== at.index)
   if (at?.kind !== 'tree') return []
-  return [...blockedItems(draft.value.tree, at.at, at.mode), ...(draft.value.boots ? [draft.value.boots] : [])]
+  return [...blockedItems(draft.value.tree, at.at, at.mode), ...draft.value.boots]
 })
+
+/** `list` with `itemId` at `index`, or added for `null`. */
+const placed = (list: number[], index: number | null, itemId: number) =>
+  index === null ? [...list, itemId] : list.map((id, i) => (i === index ? itemId : id))
 
 function picked(itemId: number) {
   const at = target.value
   if (!at) return
   const kit = draft.value
-  if (at.kind === 'boots') draft.value = withBoots(kit, itemId)
-  else if (at.kind === 'starter') {
-    const starter = [...kit.starter]
-    if (at.index === null) starter.push(itemId)
-    else starter[at.index] = itemId
-    draft.value = { ...kit, starter }
-  }
+  if (at.kind === 'boots') draft.value = withBoots(kit, placed(kit.boots, at.index, itemId))
+  else if (at.kind === 'starter') draft.value = { ...kit, starter: placed(kit.starter, at.index, itemId) }
   else {
     draft.value = { ...kit, tree: at.mode === 'replace' ? replaceItem(kit.tree, at.at, itemId) : addChild(kit.tree, at.at, itemId) }
   }
@@ -72,7 +73,7 @@ function picked(itemId: number) {
 
 const removeNode = (at: number[]) => (draft.value = { ...draft.value, tree: removeSubtree(draft.value.tree, at) })
 const removeStarter = (index: number) => (draft.value = { ...draft.value, starter: draft.value.starter.filter((_, i) => i !== index) })
-const name = (itemId: number) => items.value[itemId]?.name ?? `Item ${itemId}`
+const removeBoots = (index: number) => (draft.value = withBoots(draft.value, draft.value.boots.filter((_, i) => i !== index)))
 </script>
 
 <template>
@@ -89,34 +90,12 @@ const name = (itemId: number) => items.value[itemId]?.name ?? `Item ${itemId}`
 
       <div>
         <p class="stat-label mb-2">Starter</p>
-        <div class="flex gap-1.5">
-          <div v-for="(itemId, index) in draft.starter" :key="`${itemId}-${index}`" class="group relative">
-            <button type="button" class="block rounded transition hover:brightness-125 focus-visible:outline-2 focus-visible:outline-primary" :aria-label="`Replace ${name(itemId)}`" @click="target = { kind: 'starter', index }">
-              <GameTooltipItemIcon :item="items[itemId] ?? null" :width="36" :height="36" class="size-9 rounded" />
-            </button>
-            <button type="button" class="absolute -right-1.5 -top-1.5 hidden size-4 items-center justify-center rounded-full bg-elevated text-dimmed ring-1 ring-default hover:text-error group-hover:flex group-focus-within:flex" :aria-label="`Remove ${name(itemId)}`" @click="removeStarter(index)">
-              <UIcon name="i-lucide-x" class="size-3" />
-            </button>
-          </div>
-          <button v-if="draft.starter.length < STARTER_MAX" type="button" class="flex size-9 items-center justify-center rounded border border-dashed border-default text-dimmed hover:border-primary/60 hover:text-primary" aria-label="Add a starter item" @click="target = { kind: 'starter', index: null }">
-            <UIcon name="i-lucide-plus" class="size-4" />
-          </button>
-        </div>
+        <KitItemSlots :item-ids="draft.starter" :items="items" :max="STARTER_MAX" add-label="Add a starter item" @pick="index => (target = { kind: 'starter', index })" @remove="removeStarter" />
       </div>
 
       <div>
         <p class="stat-label mb-2">Boots</p>
-        <div class="group relative">
-          <button v-if="draft.boots" type="button" class="block rounded transition hover:brightness-125 focus-visible:outline-2 focus-visible:outline-primary" :aria-label="`Replace ${name(draft.boots)}`" @click="target = { kind: 'boots' }">
-            <GameTooltipItemIcon :item="items[draft.boots] ?? null" :width="36" :height="36" class="size-9 rounded" />
-          </button>
-          <button v-else type="button" class="flex size-9 items-center justify-center rounded border border-dashed border-default text-dimmed hover:border-primary/60 hover:text-primary" aria-label="Choose boots" @click="target = { kind: 'boots' }">
-            <UIcon name="i-lucide-plus" class="size-4" />
-          </button>
-          <button v-if="draft.boots" type="button" class="absolute -right-1.5 -top-1.5 hidden size-4 items-center justify-center rounded-full bg-elevated text-dimmed ring-1 ring-default hover:text-error group-hover:flex group-focus-within:flex" aria-label="No boots" @click="draft = withBoots(draft, null)">
-            <UIcon name="i-lucide-x" class="size-3" />
-          </button>
-        </div>
+        <KitItemSlots :item-ids="draft.boots" :items="items" :max="KIT_BOOTS_MAX" add-label="Add boots" @pick="index => (target = { kind: 'boots', index })" @remove="removeBoots" />
       </div>
     </div>
 
@@ -143,6 +122,6 @@ const name = (itemId: number) => items.value[itemId]?.name ?? `Item ${itemId}`
       <UButton label="Save kit" icon="i-lucide-check" :disabled="issues.length > 0" :loading="saving" @click="emit('save', draft)" />
     </div>
 
-    <KitItemPicker v-model:open="pickerOpen" :items="items" :groups="pickerGroups" :blocked="blocked" :title="pickerTitle" @pick="picked" />
+    <KitItemPicker v-model:open="pickerOpen" :items="items" :groups="pickerGroups" :blocked="blocked" :blocked-note="target?.kind === 'boots' ? 'already chosen' : 'already on this path'" :title="pickerTitle" @pick="picked" />
   </div>
 </template>

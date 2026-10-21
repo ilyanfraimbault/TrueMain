@@ -28,11 +28,12 @@ const items = computed(() => itemSlots(props.boots?.itemIds, props.itemsMap))
     <h2 class="text-sm font-medium text-muted">
       Boots
     </h2>
-    <!-- Fixed from sm: 2 items × 36 px + 1 gap × 4 px = 76 px wide, 36 px tall.
-         Boots rarely have more than 1 item, but 2 is the realistic max.
-         Height is pinned so the "no data" state occupies the same box.
-         Mobile stays fluid (w-full). -->
-    <div class="mt-2 flex h-9 w-full shrink-0 items-center gap-1 overflow-hidden sm:w-[76px]">
+    <!-- At least 2 items × 36 px + 1 gap × 4 px = 76 px wide from sm, 36 px tall.
+         A build's boots rarely have more than 1 item, but 2 is its realistic
+         max; a desktop kit lists up to 4 boots to pick between (#2185), and
+         the box grows for them. Height is pinned so the "no data" state
+         occupies the same box. Mobile stays fluid (w-full). -->
+    <div class="mt-2 flex h-9 w-full shrink-0 items-center gap-1 overflow-hidden sm:w-auto sm:min-w-[76px]">
       <GameTooltipItemIcon
         v-for="(slot, index) in items"
         :key="`boots-${slot.id}-${index}`"

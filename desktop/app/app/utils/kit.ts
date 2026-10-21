@@ -26,7 +26,7 @@ export function newKitId(): string {
  */
 export function cloneKit(kit: Kit): Kit {
   const cloneNodes = (nodes: KitNode[]): KitNode[] => nodes.map(node => ({ itemId: node.itemId, children: cloneNodes(node.children) }))
-  return { ...kit, runes: { ...kit.runes }, spells: [kit.spells[0], kit.spells[1]], starter: [...kit.starter], tree: cloneNodes(kit.tree) }
+  return { ...kit, runes: { ...kit.runes }, spells: [kit.spells[0], kit.spells[1]], starter: [...kit.starter], boots: [...kit.boots], tree: cloneNodes(kit.tree) }
 }
 
 /** The rune page of a build, without its measured figures. */
@@ -58,7 +58,7 @@ export function kitFromBuild(
 ): Kit | null {
   const runes = core?.runePage ? kitRunesOf(core.runePage) : fallbackRunes
   if (!runes) return null
-  const boots = core?.boots?.itemIds[0] ?? null
+  const boots = core?.boots?.itemIds.slice(0, 1) ?? []
   const spells = core?.summonerSpells
   return {
     id: newKitId(),
@@ -69,7 +69,7 @@ export function kitFromBuild(
     spells: spells ? [spells.spell1Id, spells.spell2Id] : [...DEFAULT_SPELLS],
     starter: [...(core?.starterItems?.itemIds ?? [])],
     boots,
-    tree: chainOf((core?.itemPath?.itemIds ?? []).filter(id => id !== boots).slice(0, maxDepth(boots))),
+    tree: chainOf((core?.itemPath?.itemIds ?? []).filter(id => !boots.includes(id)).slice(0, maxDepth(boots))),
     updatedAt: new Date().toISOString(),
   }
 }
@@ -81,7 +81,7 @@ const UNMEASURED = { games: 0, pickRate: 0, winRate: 0 }
 export function kitCoreView(kit: Kit): BuildCoreView {
   return {
     itemPath: null,
-    boots: kit.boots ? { itemIds: [kit.boots], ...UNMEASURED } : null,
+    boots: kit.boots.length ? { itemIds: kit.boots, ...UNMEASURED } : null,
     starterItems: kit.starter.length ? { itemIds: kit.starter, ...UNMEASURED } : null,
     summonerSpells: { spell1Id: kit.spells[0], spell2Id: kit.spells[1], ...UNMEASURED },
     skillOrder: null,
@@ -89,8 +89,11 @@ export function kitCoreView(kit: Kit): BuildCoreView {
   }
 }
 
+/** The most boots a kit picks between; the shell keeps the same cap (`shell_state::kits`). */
+export const KIT_BOOTS_MAX = 4
+
 /** The kit with other boots, every path cut to keep within a full build. */
-export function withBoots(kit: Kit, boots: number | null): Kit {
+export function withBoots(kit: Kit, boots: number[]): Kit {
   return { ...kit, boots, tree: cutAt(kit.tree, maxDepth(boots)) }
 }
 
@@ -118,10 +121,10 @@ export function kitIssues(kit: Kit, runeTree: RuneTreeResponse | null): string[]
   if (!kit.name.trim()) issues.push('Name the kit.')
   if (kit.tree.length === 0) issues.push('Add a first item.')
   const paths = kitPaths(kit.tree)
-  const slots = kit.boots ? 1 : 0
+  const slots = kit.boots.length > 0 ? 1 : 0
   if (paths.some(path => path.length + slots > MAX_PATH_ITEMS)) issues.push(`A path holds at most ${MAX_PATH_ITEMS} items, boots included.`)
   if (paths.some(repeats)) issues.push('An item appears twice on one path.')
-  if (kit.boots && paths.some(path => path.includes(kit.boots!))) issues.push('The boots go in their own slot, not on a path.')
+  if (paths.some(path => path.some(id => kit.boots.includes(id)))) issues.push('The boots go in their own slot, not on a path.')
   const [first, second] = kit.spells
   if (!first || !second || first === second) issues.push('Choose two different summoner spells.')
   if (runeTree) issues.push(...runeIssues(kit.runes, runeTree))
@@ -144,7 +147,9 @@ function readKit(value: unknown): Kit | null {
   const runes = kit.runes as KitRunePage | undefined
   if (!runes || !Object.values(kitRunesOf(runes)).every(isNumber)) return null
   const spells = Array.isArray(kit.spells) && kit.spells.length === 2 && kit.spells.every(isNumber) ? kit.spells as [number, number] : [...DEFAULT_SPELLS] as [number, number]
-  const boots = isNumber(kit.boots) ? kit.boots : null
+  // One id or none before a kit could hold several boots.
+  const listed: unknown[] = Array.isArray(kit.boots) ? kit.boots : [kit.boots]
+  const boots = [...new Set(listed.filter(isNumber))].slice(0, KIT_BOOTS_MAX)
   return {
     id: kit.id,
     name: kit.name.slice(0, KIT_NAME_MAX),
