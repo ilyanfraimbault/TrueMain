@@ -251,9 +251,10 @@ A recorded game's kill, death or assist of the player, placed on its video from 
 Found by the app, never chosen by the player.
 
 **Marked moment**:
-A moment the player kept by pressing the **mark key** while the game recorded; it becomes a clip of the 30 seconds
-before the press.
-_Avoid_: highlight (the app's own kills, deaths and assists), instant replay (#1767's saved last minutes)
+A moment the player kept by pressing the **mark key** while the game recorded; it becomes a clip of the 30 seconds,
+the minute or the two minutes before the press, as chosen in the settings — the app's instant replay (#1767).
+_Avoid_: highlight (the app's own kills, deaths and assists), replay buffer (recording without keeping the full game,
+not offered)
 
 **Automatic clip**:
 A clip the app cut on its own once a game was finalised, of a play the player picked in the settings (a multi-kill, a

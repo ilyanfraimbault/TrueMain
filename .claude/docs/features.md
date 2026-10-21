@@ -520,8 +520,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   player's League binds, refused on a panel's chord or a reserved one) marks the moment while a game records: read from
   the keyboard's state in the overlay's key watch, only while League is frontmost and a game records, each press notes
   the second of the video (`recording.json`'s `marks`, written at once; a press within a second of the last is the same
-  mark). Once the video is closed each mark is cut into a clip of the 30 s before it, titled with the game clock at the
-  press ("Marked at 12:34"), a saved clip like any other — never deleted by the budget. **Automatic clips** (#1766):
+  mark) and the length it keeps — **instant replay** (#1767): 30 s, 1 min or 2 min, chosen beside the key — and a
+  note over the game confirms it for 2.5 s ("Last 1 min saved", its own overlay window a fifth of the way down the
+  game's screen, hidden by the overlay's hide shortcut). Once the video is closed each mark is cut into a clip of that
+  length before it, titled with the champion and the game clock at the press ("Ahri at 12:34"; "Marked at 12:34"
+  when the game named no champion), a saved clip like any other — never deleted by the budget. **Automatic clips** (#1766):
   once the game is finalised, the plays picked in the recording settings ("Automatic clips": multi-kills from a
   triple, kills into an objective, steals, aces, teamfights, first blood — all on by default, none = off) are cut as
   saved clips, each 10 s (20 s for a steal or an ace) before the play to 5 s after, overlapping ones merged and
@@ -647,7 +650,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   gold standing in the companion window (it is in the overlay, on TAB), a loading-screen panel in the overlay (dropped
   2026-10-04, #1869: the game page's loading state shows the board), TrueMain's
   participants' ranks in the dashboard's history, LP history from before the app was installed
-  (#1682), instant replay (#1767), steals / aces / teamfights on the recap's timeline, changing the recordings
+  (#1682), a replay buffer recording without keeping the full game, steals / aces / teamfights on the recap's timeline, changing the recordings
   folder from the app.
 
 ---

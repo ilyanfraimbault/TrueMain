@@ -419,7 +419,8 @@ only over `/` or `/game` — the pages the game's own navigation would have take
 they opened by hand, the game page's rule. The Recordings page follows DPM's layout (the product owner's reference) in
 the site's materials; its settings are the short list of #1744 — no OBS (2026-10-01) — #1755, #1777.
 
-**A mark key keeps the 30 seconds before a press as a clip, cut as soon as the game ends (2026-10-20).** The product
+**A mark key keeps the 30 seconds before a press as a clip, cut as soon as the game ends (2026-10-20; the length
+became a setting with #1767).** The product
 owner's pick from the Invade benchmark: a moment the timeline cannot flag — an outplay, a funny moment — had to be found
 again by scrubbing the full game. A chord, ⌥⇧0 / Alt+Shift+0 by default (the overlay's Alt+Shift and digit family, at the
 far end of the digits it suggests for its panels — counted up from 1, one per panel —, on no default League bind), set in the recording settings, marks the moment
@@ -435,10 +436,15 @@ while a game records.
   — keeping the whole game for it would spend a full game's disk on 30 seconds. The recap shows the mark with the
   automatic moments and lets the player move the clip's ends; saving an adjusted range replaces the clip, keeping its
   favourite (never one published on YouTube, whose link is the old cut's).
-- **Not instant replay (#1767).** The mark key acts on the full game being recorded and cuts after the game; #1767's
-  last-N-minutes save with an in-game confirmation, and the rolling buffer that would record without keeping the
-  game, stay deferred under its own call. It can reuse this key and window when it comes. No usage counter yet — the
-  desktop telemetry catalogue is the API's (#1952) — #2079.
+- **Instant replay is this key (2026-10-21, #1767).** No second shortcut: the mark key keeps the 30 s, the minute or
+  the two minutes before a press — a setting beside the key, kept on each mark as it is pressed — and the overlay says
+  so over the game ("Last 1 min saved") in a window of its own, shown 2.5 s a fifth of the way down the game's screen,
+  over the game only, gone with the overlay's hide shortcut but not with the panels' switch (it answers a key the
+  player pressed). The clip is titled with the champion the game's player list names and the game clock ("Ahri at
+  12:34", "Marked at 12:34" without the champion), and is still cut once the game ends, from the full recording. The
+  rolling buffer that would record *without* keeping the full game (OBS's replay buffer) stays deferred: undecided
+  until recording's cost in game is measured. No usage counter yet — the desktop telemetry catalogue is the API's
+  (#1952) — #2079, #1767.
 
 **Automatic clips cut the plays the player picks once a game is finalised, titled only from what the events show
 (2026-10-21).** The product owner's reference is DPM's "Recording & clips": the plays worth keeping cut out on their

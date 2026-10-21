@@ -297,6 +297,30 @@ impl Default for OverlaySettings {
     }
 }
 
+/// How far down the game's screen the confirmation of a kept mark sits: below
+/// the panels anchored to the top, above the champion.
+const CONFIRMATION_DOWN: f64 = 0.2;
+
+/// Where the confirmation of a kept mark goes (#1767): centred across the
+/// game's screen, a fifth of the way down, in whole points.
+pub fn confirmation_origin(screen: Rect, size: (f64, f64)) -> (f64, f64) {
+    let (width, height) = size;
+    let x = screen.x + (screen.width - width) / 2.0;
+    let y = screen.y + screen.height * CONFIRMATION_DOWN;
+    (
+        clamp_into(x, screen.x, screen.width, width).round(),
+        clamp_into(y, screen.y, screen.height, height).round(),
+    )
+}
+
+/// Whether the confirmation of a kept mark may show now: over the game itself
+/// only, never in the settings' preview, and not once the player hid the
+/// overlay with its shortcut. The panels' own switch does not hide it: it
+/// answers a key the player pressed.
+pub fn shows_confirmation(inputs: &OverlayInputs) -> bool {
+    !inputs.preview && inputs.game_frontmost && !inputs.hidden_by_player
+}
+
 /// What the panels' visibility depends on besides the settings, measured by
 /// the shell.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -707,6 +731,38 @@ fn clamp_into(at: f64, start: f64, length: f64, extent: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_confirmation_of_a_mark_shows_centred_over_the_game_alone() {
+        let screen = Rect {
+            x: 1920.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        };
+        assert_eq!(confirmation_origin(screen, (200.5, 40.0)), (2780.0, 216.0));
+        // Wider than the screen: held against its left edge.
+        assert_eq!(confirmation_origin(screen, (2500.0, 40.0)).0, 1920.0);
+
+        let over_the_game = OverlayInputs {
+            game_frontmost: true,
+            ..OverlayInputs::default()
+        };
+        assert!(shows_confirmation(&over_the_game));
+        for inputs in [
+            OverlayInputs::default(),
+            OverlayInputs {
+                hidden_by_player: true,
+                ..over_the_game
+            },
+            OverlayInputs {
+                preview: true,
+                ..over_the_game
+            },
+        ] {
+            assert!(!shows_confirmation(&inputs), "{inputs:?}");
+        }
+    }
     use crate::keys::KeyCode;
     use OverlayPanel::*;
 

@@ -1,7 +1,8 @@
 //! Cutting a range of a recording into a clip of its own: the recap's
 //! "Save" (`clip_save`); once a game's video is closed, the moments the
-//! player marked with the mark key (#2079) — each the 30 seconds before the
-//! press, saved like a clip cut by hand, so the disk budget never deletes it;
+//! player marked with the mark key (#2079) — each the length chosen before
+//! the press (#1767), saved like a clip cut by hand, so the disk budget never
+//! deletes it;
 //! and once the game is finalised, the plays the player chose to clip
 //! automatically (#1766, `game_recording::auto_clips`).
 
@@ -110,7 +111,7 @@ fn cut(
 
 /// The clips of the moments the player marked in the game recorded in `dir`,
 /// once its video is closed: each mark's window (`Mark::window`), titled with
-/// the game clock at the press. A cut that fails costs that mark alone. The
+/// the champion and the game clock at the press. A cut that fails costs that mark alone. The
 /// number of clips saved. Blocking.
 pub(super) fn cut_marks(recorder: &Recorder, helper: &Path, dir: &Path) -> usize {
     let dir = RecordingDir::new(dir.to_path_buf());
@@ -122,7 +123,7 @@ pub(super) fn cut_marks(recorder: &Recorder, helper: &Path, dir: &Path) -> usize
         let Some(range) = mark.window(meta.duration_ms) else {
             continue;
         };
-        let title = mark.title(meta.anchor.as_ref());
+        let title = mark.title(meta.anchor.as_ref(), meta.champion_name.as_deref());
         match cut_clip(recorder, helper, &dir, &meta, range, &title) {
             Ok(_) => saved += 1,
             Err(error) => {

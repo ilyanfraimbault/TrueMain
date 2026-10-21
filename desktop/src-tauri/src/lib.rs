@@ -395,6 +395,7 @@ pub fn run() {
             overlay::overlay_read_binds,
             overlay::overlay_preview,
             overlay::overlay_fit,
+            overlay::overlay_confirmation,
             loading::loading_players,
             runes::import_runes,
             itemsets::import_item_set,
