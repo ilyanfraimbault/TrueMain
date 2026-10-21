@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
@@ -213,6 +214,26 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task NextItem_ReadsCommunityDragonOncePerPatch_AcrossRequests()
+    {
+        // #2212: the build paths read the item metadata outside the champion read cache, on
+        // every next-item call — the desktop app asks one on each item change of the game.
+        await SeedAsync();
+        using var communityDragon = new CountingCommunityDragonHandler();
+        await using var factory = new CountingCommunityDragonFactory(_fixture, communityDragon);
+        using var client = CreateClient(factory);
+
+        foreach (var items in new[] { Array.Empty<int>(), new[] { Armor } })
+        {
+            var response = await client.PostAsJsonAsync($"/champions/{Champion}/next-item", new { position = Position, items });
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        communityDragon.RequestedUrls.Should().ContainSingle()
+            .Which.Should().Contain($"/{Patch}/", "the second request is served from the provider's per-patch cache");
+    }
+
     private async Task<ChampionNextItemResponse> PostAsync(object body)
     {
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -222,7 +243,7 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
         return (await response.Content.ReadFromJsonAsync<ChampionNextItemResponse>())!;
     }
 
-    private static HttpClient CreateClient(ApiWebApplicationFactory factory)
+    private static HttpClient CreateClient(WebApplicationFactory<Program> factory)
         => factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -246,6 +267,45 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
                 services.AddSingleton<IItemMetadataProvider>(new RecipeMetadataProvider());
                 services.RemoveAll<IItemStatsProvider>();
                 services.AddSingleton<IItemStatsProvider>(new ArmourStatsProvider());
+            });
+        }
+    }
+
+    /// <summary>
+    /// API factory that keeps the real item-metadata provider and only swaps CommunityDragon
+    /// itself for <paramref name="communityDragon"/>.
+    /// </summary>
+    private sealed class CountingCommunityDragonFactory(PostgresFixture fixture, HttpMessageHandler communityDragon)
+        : TrueMainWebApplicationFactory<Program>(
+            fixture,
+            [new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420")])
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddHttpClient(nameof(CommunityDragonItemMetadataProvider))
+                    .ConfigurePrimaryHttpMessageHandler(() => communityDragon);
+                services.RemoveAll<IItemStatsProvider>();
+                services.AddSingleton<IItemStatsProvider>(new ArmourStatsProvider());
+            });
+        }
+    }
+
+    /// <summary>Answers every request with a one-item <c>items.json</c>, and counts them.</summary>
+    private sealed class CountingCommunityDragonHandler : HttpMessageHandler
+    {
+        private const string Payload = """[{ "id": 3143, "inStore": true, "priceTotal": 2700, "from": [3082, 1011], "to": [] }]""";
+
+        public ConcurrentQueue<string> RequestedUrls { get; } = new();
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            RequestedUrls.Enqueue(request.RequestUri!.ToString());
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(Payload, System.Text.Encoding.UTF8, "application/json"),
             });
         }
     }

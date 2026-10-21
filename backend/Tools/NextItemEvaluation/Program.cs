@@ -50,9 +50,9 @@ var leads = CsvRows.Records(File("leads.csv")).Skip(1)
         record => int.Parse(record[2], CultureInfo.InvariantCulture));
 
 var testRecords = CsvRows.Records(File("tp.csv")).Skip(1).ToList();
-using var http = new HttpClient();
+using var http = new HttpClientHandler();
 var metadataProvider = new CommunityDragonItemMetadataProvider(
-    http, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+    () => new HttpClient(http, disposeHandler: false), NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
 var metadata = await metadataProvider.GetItemsAsync(testRecords[0][13], CancellationToken.None);
 var thresholds = new DraftAxisThresholds();
 
