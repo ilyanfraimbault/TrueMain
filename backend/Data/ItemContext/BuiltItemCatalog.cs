@@ -96,18 +96,22 @@ public sealed class BuiltItemCatalog
     /// attack damage, crit or attack speed otherwise — the stats a physical carrier builds.
     /// </summary>
     private static BuiltItemFacts Facts(ItemStats stats)
-    {
-        var damage = stats.AbilityPower > 0 && stats.AbilityPower >= stats.AttackDamage
-            ? BuiltDamage.Magic
-            : stats.AttackDamage > 0 || stats.CritChance > 0 || stats.AttackSpeed > 0
-                ? BuiltDamage.Physical
-                : BuiltDamage.None;
-
-        return new BuiltItemFacts(
+        => new(
             stats.Armor,
             stats.MagicResist,
-            damage,
+            DamageOf(stats),
             stats.CritChance > 0,
             stats.LifeSteal > 0 || stats.Tags.Contains(LifeSteal) || stats.Tags.Contains(SpellVamp));
+
+    private static BuiltDamage DamageOf(ItemStats stats)
+    {
+        if (stats.AbilityPower > 0 && stats.AbilityPower >= stats.AttackDamage)
+        {
+            return BuiltDamage.Magic;
+        }
+
+        return stats.AttackDamage > 0 || stats.CritChance > 0 || stats.AttackSpeed > 0
+            ? BuiltDamage.Physical
+            : BuiltDamage.None;
     }
 }

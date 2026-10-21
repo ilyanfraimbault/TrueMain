@@ -240,10 +240,11 @@ public sealed class ChampionItemContextAggregationProcess(
             var roster = byMatch[matchId];
 
             IReadOnlyList<ItemEvent>? Timeline(SlimParticipant participant)
-                => (builds.TryGetValue((matchId, participant.ParticipantId), out var tracked) ? tracked.ItemEvents
-                    : enemyTimelines.GetValueOrDefault((matchId, participant.ParticipantId))) is { Count: > 0 } events
-                        ? events
-                        : null;
+            {
+                var key = (matchId, participant.ParticipantId);
+                var events = builds.TryGetValue(key, out var tracked) ? tracked.ItemEvents : enemyTimelines.GetValueOrDefault(key);
+                return events is { Count: > 0 } ? events : null;
+            }
 
             foreach (var self in roster)
             {

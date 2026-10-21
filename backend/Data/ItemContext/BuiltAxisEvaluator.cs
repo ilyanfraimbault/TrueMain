@@ -122,16 +122,22 @@ public static class BuiltAxisEvaluator
         };
 
     private static ItemContextBucket Edges(double value, double lowEdge, double highEdge)
-        => value < lowEdge
-            ? ItemContextBucket.Low
-            : value >= highEdge
-                ? ItemContextBucket.High
-                : ItemContextBucket.Mid;
+    {
+        if (value < lowEdge)
+        {
+            return ItemContextBucket.Low;
+        }
+
+        return value >= highEdge ? ItemContextBucket.High : ItemContextBucket.Mid;
+    }
 
     private static ItemContextBucket Count(double count, int lowAtMost, int highAtLeast)
-        => count <= lowAtMost
-            ? ItemContextBucket.Low
-            : count >= highAtLeast
-                ? ItemContextBucket.High
-                : ItemContextBucket.Mid;
+    {
+        if (count <= lowAtMost)
+        {
+            return ItemContextBucket.Low;
+        }
+
+        return count >= highAtLeast ? ItemContextBucket.High : ItemContextBucket.Mid;
+    }
 }

@@ -50,10 +50,11 @@ public static class BuiltBranchAxes
             return None;
         }
 
+        // One reading per branch: a build is a chain, so a parent opens one decision.
         var branches = buildEdges
             .Where(edge => edge.ParentItemId > 0 && edge.DecisionAtMs is > 0)
+            .DistinctBy(edge => edge.ParentItemId)
             .Select(edge => (edge.ParentItemId, AtMs: edge.DecisionAtMs!.Value))
-            .Distinct()
             .ToList();
         if (branches.Count == 0)
         {
