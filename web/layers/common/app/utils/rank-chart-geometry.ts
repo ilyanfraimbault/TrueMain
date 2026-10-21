@@ -125,7 +125,8 @@ export function crestBands(zones: readonly TierZone[], frame: PlotFrame): CrestB
     if (fits) placed.push({ ...crest, top })
   }
   // Bottom to top, in climb order.
-  return placed.sort((a, b) => b.top - a.top).map(({ tier, top }) => ({ tier, top }))
+  placed.sort((a, b) => b.top - a.top)
+  return placed.map(({ tier, top }) => ({ tier, top }))
 }
 
 interface RankedCrest extends CrestBand {
