@@ -1,3 +1,5 @@
+using Ingestor.Processes.Components.ItemContextAggregation;
+
 namespace Ingestor.Processes.Summaries;
 
 // Persisted shapes — DO NOT rename a property without a migration plan.
@@ -284,14 +286,16 @@ public sealed record ChampionProfileAggregationSummary(
 /// <summary>
 /// Outcome of one <c>ChampionItemContextAggregationProcess</c> run (#1450): matches
 /// flagged, participants whose build was folded, champion slices touched, and verdicts
-/// rebuilt from them.
+/// rebuilt from them — plus where the run's decisions sat on each in-game axis of what the
+/// enemies had built (#1750), the measurement those axes' bands are calibrated from.
 /// </summary>
 public sealed record ChampionItemContextAggregationSummary(
     int Matches,
     int Batches,
     int Participants,
     int Scopes,
-    int Verdicts) : IProcessRunSummary;
+    int Verdicts,
+    IReadOnlyDictionary<string, BuiltAxisQuantiles>? BuiltAxes = null) : IProcessRunSummary;
 
 /// <summary>
 /// Daily storage snapshot outcome (#925). <see cref="Written"/> is 0 rather than
