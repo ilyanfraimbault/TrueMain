@@ -104,9 +104,21 @@ public static class IngestorEffectiveConfigurationCatalog
         OptionsType = typeof(MatchFetchWorkersOptions),
         Title = "Match-fetch workers",
         Description =
-            "The permanent per-region match-fetch workers of the FetchWorkers mode: the target "
-            + "rate each holds its Riot calls to, the accounts it claims at a time, and how long "
-            + "it waits after a claim that found nothing or a batch that failed."
+            "The permanent per-region match-fetch workers of the FetchWorkers mode: the staged "
+            + "target rates each holds its Riot calls to and the stage it runs at, the accounts it "
+            + "claims at a time, and how long it waits after a claim that found nothing or a batch "
+            + "that failed."
+    };
+
+    private static EffectiveConfigurationSectionDescriptor IngestionBackpressure { get; } = new()
+    {
+        SectionName = IngestionBackpressureOptions.SectionName,
+        OptionsType = typeof(IngestionBackpressureOptions),
+        Title = "Ingestion backpressure",
+        Description =
+            "The host memory and free-disk thresholds below which the match-fetch workers stop "
+            + "claiming until the resource recovers, the margin it must recover by, the disk "
+            + "watched and how often a held-back worker reads them again."
     };
 
     private static EffectiveConfigurationSectionDescriptor LaneOutcomeAggregation { get; } = new()
@@ -183,6 +195,7 @@ public static class IngestorEffectiveConfigurationCatalog
             MainActivity,
             MatchIngestion,
             MatchFetchWorkers,
+            IngestionBackpressure,
             Coverage,
             Intake,
             LaneOutcomeAggregation,

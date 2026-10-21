@@ -180,7 +180,7 @@ function markClips(game: GameRecording): Clip[] {
     // The fixture's game clock runs a minute behind its video, as after a loading screen.
     const gameClock = formatClockOf(moment.videoMs - MINUTE)
     const createdAtMs = game.startedAtMs + (game.durationMs ?? 0) + MINUTE
-    return cutClip(game, game.id, Math.max(0, moment.videoMs - MARK_WINDOW_MS), moment.videoMs, `Marked at ${gameClock}`, createdAtMs)
+    return cutClip(game, game.id, Math.max(0, moment.videoMs - MARK_WINDOW_MS), moment.videoMs, `Ahri at ${gameClock}`, createdAtMs)
   })
 }
 
@@ -237,6 +237,7 @@ export function devSettings(): RecordingSettingsView {
       budgetBytes: 20_000_000_000,
       folder: null,
       markKey: DEV_MARK_KEY,
+      markLength: 30,
       autoClips: ['multiKill', 'steal', 'ace', 'firstBlood', 'teamfight', 'combo'],
     },
     markKey: devChordView(DEV_MARK_KEY),

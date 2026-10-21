@@ -18,7 +18,7 @@ describe('the dev recordings and the mark key', () => {
     for (const { game, moment } of marked) {
       const clip = clips.find(entry => entry.recordingId === game.id && entry.endMs === moment.videoMs)
       expect(clip?.startMs).toBe(moment.videoMs - 30_000)
-      expect(clip?.title).toMatch(/^Marked at \d+:\d\d$/)
+      expect(clip?.title).toMatch(/^Ahri at \d+:\d\d$/)
     }
   })
 
@@ -57,7 +57,7 @@ describe('the dev recordings and the mark key', () => {
 
   it('replace a clip with its adjusted range, keeping its favourite', async () => {
     const before = await devRecordingCall('recording_library') as RecordingLibrary
-    const target = before.clips.find(clip => clip.title.startsWith('Marked at') && clip.recordingId)!
+    const target = before.clips.find(clip => clip.title.startsWith('Ahri at') && clip.recordingId)!
     await devRecordingCall('clip_update', { id: target.id, favorite: true })
 
     const saved = await devRecordingCall('clip_save', {

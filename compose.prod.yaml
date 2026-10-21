@@ -264,7 +264,10 @@ services:
       Job__Mode: ${INGESTOR_JOB_MODE:-FetchWorkers}
       Job__RunOnce: "${INGESTOR_RUN_ONCE:-false}"
       Job__IntervalMinutes: "${INGESTOR_MAINTENANCE_INTERVAL_MINUTES:-1}"
-      MatchFetchWorkers__TargetRequestsPerMinute: "${INGESTOR_FETCH_TARGET_REQUESTS_PER_MINUTE:-30}"
+      MatchFetchWorkers__RampStage: "${INGESTOR_FETCH_RAMP_STAGE:-1}"
+      IngestionBackpressure__MinAvailableMemoryPercent: "${INGESTOR_BACKPRESSURE_MIN_AVAILABLE_MEMORY_PERCENT:-10}"
+      IngestionBackpressure__MinFreeDiskPercent: "${INGESTOR_BACKPRESSURE_MIN_FREE_DISK_PERCENT:-15}"
+      IngestionBackpressure__DrillMinutes: "${INGESTOR_BACKPRESSURE_DRILL_MINUTES:-0}"
     volumes:
       - truemain_ingestor_crashes:/home/app/crashes
     depends_on:

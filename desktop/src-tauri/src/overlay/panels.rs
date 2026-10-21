@@ -3,7 +3,8 @@
 //! sized to its page and placed by the settings, shown or hidden by
 //! `shell_state::overlay`'s rule, dragged into place in the preview — and the
 //! watch that feeds the rule the game's frontmost state and the keys held,
-//! and reports a press of the mark key while a game records (#2079).
+//! and reports a press of the mark key while a game records (#2079) — whose
+//! confirmation (#1767) is one more window, shown a moment, the same way.
 //!
 //! The platform module (`macos.rs`, `windows.rs`) builds the windows and
 //! owns what differs: how a window stays above the game without taking its
@@ -13,10 +14,12 @@
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use shell_state::keys::KeysDown;
-use shell_state::overlay::{OverlayInputs, OverlayPanel, OverlaySettings, Rect};
+use shell_state::overlay::{
+    confirmation_origin, shows_confirmation, OverlayInputs, OverlayPanel, OverlaySettings, Rect,
+};
 use shell_state::scoreboard;
 use shell_state::screens::{self, Monitor};
 use tauri::{
@@ -25,7 +28,7 @@ use tauri::{
 };
 
 use super::platform;
-use super::{label, SharedOverlay, VIEW_EVENT};
+use super::{label, SharedOverlay, CONFIRMATION_EVENT, CONFIRMATION_LABEL, VIEW_EVENT};
 use crate::recording::SharedRecorder;
 
 const KEYS_EVERY: Duration = Duration::from_millis(30);
@@ -33,7 +36,30 @@ const KEYS_EVERY: Duration = Duration::from_millis(30);
 /// often enough that the panels follow a switch away without a visible lag.
 const FRONTMOST_EVERY: u32 = 8;
 
-/// What was last applied to a panel's window, so `apply` touches it only on change.
+/// One of the overlay's windows: a panel's, or the confirmation of a kept mark.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Slot {
+    Panel(OverlayPanel),
+    Confirmation,
+}
+
+impl Slot {
+    fn label(self) -> String {
+        match self {
+            Slot::Panel(panel) => label(panel),
+            Slot::Confirmation => CONFIRMATION_LABEL.to_string(),
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Slot::Panel(panel) => panel.slug(),
+            Slot::Confirmation => "confirmation",
+        }
+    }
+}
+
+/// What was last applied to a window, so `apply` touches it only on change.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Applied {
     visible: bool,
@@ -52,7 +78,7 @@ struct Screen {
     scale: f64,
 }
 
-static APPLIED: Mutex<Option<HashMap<OverlayPanel, Applied>>> = Mutex::new(None);
+static APPLIED: Mutex<Option<HashMap<Slot, Applied>>> = Mutex::new(None);
 /// The monitor the game was last seen on (#1914).
 static GAME_SCREEN: Mutex<Option<Screen>> = Mutex::new(None);
 /// The game's window as last seen, in points: the scoreboard is drawn in it,
@@ -85,22 +111,58 @@ pub fn rebuild(app: &AppHandle) {
             let exists = handle.get_webview_window(&label).is_some();
             match (settings.needs_window(panel, &inputs), exists) {
                 (true, false) => build(&handle, panel, settings.opacity),
-                (false, true) => {
-                    platform::destroy(&handle, &label);
-                    // Gone from the app once its event loop has closed it:
-                    // the next rebuild must not find it still there.
-                    for _ in 0..50 {
-                        if handle.get_webview_window(&label).is_none() {
-                            break;
-                        }
-                        std::thread::sleep(Duration::from_millis(20));
-                    }
-                    forget(panel);
-                    tracing::info!(panel = panel.slug(), "overlay window closed");
-                }
+                (false, true) => close(&handle, Slot::Panel(panel)),
                 _ => {}
             }
         }
+        // The confirmation lasts the game it was built in.
+        if !inputs.game_running && handle.get_webview_window(CONFIRMATION_LABEL).is_some() {
+            close(&handle, Slot::Confirmation);
+        }
+        apply(&handle);
+    });
+}
+
+/// Close a window. Not on the main thread (`rebuild`).
+fn close(app: &AppHandle, slot: Slot) {
+    let label = slot.label();
+    platform::destroy(app, &label);
+    // Gone from the app once its event loop has closed it: the next rebuild
+    // must not find it still there.
+    for _ in 0..50 {
+        if app.get_webview_window(&label).is_none() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    forget(slot);
+    tracing::info!(window = slot.name(), "overlay window closed");
+}
+
+/// Show `text` over the game a moment (`super::confirm`, which set it and its
+/// moment), building the confirmation's window the first time.
+pub fn confirm(app: &AppHandle, text: String) {
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        {
+            let _rebuilding = REBUILDING.lock().expect("overlay rebuild poisoned");
+            if handle.get_webview_window(CONFIRMATION_LABEL).is_none() {
+                let opacity = handle.state::<SharedOverlay>().settings().opacity;
+                if let Err(error) = platform::build(
+                    &handle,
+                    CONFIRMATION_LABEL,
+                    "#/overlay/confirmation",
+                    opacity,
+                    false,
+                ) {
+                    tracing::error!(%error, "cannot build the overlay's confirmation");
+                    return;
+                }
+                forget(Slot::Confirmation);
+            }
+        }
+        // A page just built reads it itself (`overlay_confirmation`).
+        let _ = handle.emit_to(CONFIRMATION_LABEL, CONFIRMATION_EVENT, &text);
         apply(&handle);
     });
 }
@@ -123,7 +185,7 @@ fn build(app: &AppHandle, panel: OverlayPanel, opacity: f64) {
         return;
     }
     // A new window starts from nothing: `apply` sets all of it.
-    forget(panel);
+    forget(Slot::Panel(panel));
     if let Some(window) = app.get_webview_window(&label) {
         let handle = app.clone();
         window.on_window_event(move |event| {
@@ -139,9 +201,9 @@ fn build(app: &AppHandle, panel: OverlayPanel, opacity: f64) {
     );
 }
 
-fn forget(panel: OverlayPanel) {
+fn forget(slot: Slot) {
     if let Some(applied) = APPLIED.lock().expect("overlay state poisoned").as_mut() {
-        applied.remove(&panel);
+        applied.remove(&slot);
     }
 }
 
@@ -293,13 +355,23 @@ fn apply_now(app: &AppHandle) {
     };
     for panel in OverlayPanel::ALL {
         let next = wanted(&overlay, &settings, &inputs, screen, panel);
-        apply_panel(app, panel, next);
+        apply_window(app, Slot::Panel(panel), next);
     }
+    let size = overlay.confirmation_size();
+    let confirmation = Applied {
+        visible: overlay.confirmation(Instant::now()).is_some() && shows_confirmation(&inputs),
+        interactive: false,
+        origin: confirmation_origin(screen.area, size),
+        scale: screen.scale,
+        size,
+        opacity: settings.opacity,
+    };
+    apply_window(app, Slot::Confirmation, confirmation);
 }
 
 /// Main thread only.
-fn apply_panel(app: &AppHandle, which: OverlayPanel, next: Applied) {
-    let label = label(which);
+fn apply_window(app: &AppHandle, which: Slot, next: Applied) {
+    let label = which.label();
     let mut state = APPLIED.lock().expect("overlay state poisoned");
     let applied = state.get_or_insert_with(HashMap::new);
     let previous = applied.get(&which).copied();
@@ -331,11 +403,11 @@ fn apply_panel(app: &AppHandle, which: OverlayPanel, next: Applied) {
     }
     if previous.map(|p| p.visible) != Some(next.visible) {
         platform::show(app, &label, next.visible);
-        // Over a game, not in the settings' preview (#1805).
-        if next.visible && !next.interactive {
+        // A panel over a game, not in the settings' preview (#1805).
+        if next.visible && !next.interactive && matches!(which, Slot::Panel(_)) {
             crate::telemetry::feature(app, crate::telemetry::Feature::OverlayShown);
         }
-        tracing::info!(panel = which.slug(), visible = next.visible, "overlay");
+        tracing::info!(window = which.name(), visible = next.visible, "overlay");
     }
 }
 
@@ -363,7 +435,7 @@ fn dragged(app: &AppHandle, which: OverlayPanel, position: tauri::PhysicalPositi
         .lock()
         .expect("overlay state poisoned")
         .as_ref()
-        .and_then(|applied| applied.get(&which).copied());
+        .and_then(|applied| applied.get(&Slot::Panel(which)).copied());
     let Some(applied) = applied else {
         return;
     };
@@ -439,8 +511,13 @@ fn watch(app: &AppHandle) {
         }
         let down = mark_key.is_some_and(|chord| chord.is_down(&keys));
         if let (true, false, Some(recorder)) = (down, marking, recorder) {
-            // Off this loop: the mark is written to disk.
-            std::thread::spawn(move || recorder.mark());
+            // Off this loop: the mark is written to disk, then confirmed.
+            let handle = app.clone();
+            std::thread::spawn(move || {
+                if let Some(length) = recorder.mark() {
+                    super::confirm(&handle, length.saved());
+                }
+            });
         }
         marking = down;
         std::thread::sleep(KEYS_EVERY);

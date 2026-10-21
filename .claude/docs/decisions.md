@@ -209,7 +209,7 @@ Last verified against `develop` on 2026-09-02.
 - Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid — #772, #694, #1599
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back, and the bracket is the participant's stamp (2026-10-19) — #1367, #1365
-- The operator champion game counts are a per-slice recompute of the raw rows, not a fold (2026-10-19) — #2132, #811
+- The operator champion game counts are a whole-table recompute of the raw rows in one statement, not a fold (2026-10-19, 2026-10-21) — #2132, #2217, #811
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
 - Champion profiles (`champion_profile_stats`) are measured from the champion's own games over the full pool, never labelled by hand; the ranged flag is the one static attribute — #1449
 - Damage profiles are served through the fold's own snapshot rule; the per-build split is a sibling table filled forward (no backfill); an unprofiled champion gets a Data Dragon class, never a share (2026-10-05) — #1905
@@ -261,6 +261,7 @@ Last verified against `develop` on 2026-09-02.
 - The lane is derived from the process name; the mode it ran under is recorded (2026-09-02) — #1362
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
 - Match fetching runs as permanent per-region workers beside a 1-minute maintenance pass, held to a target rate (default 30 calls/min per regional host, prod's prior average) beside reserved shares for AccountRefresh/ManualSeed (2026-10-21) — #1457, #1460
+- Throughput is raised in held stages (30 → 36 → 40 → 44 calls/min per regional host), behind a memory and free-disk brake that stops claims — never a batch in flight — with an ops event per activation and release; CPU out of scope (2026-10-21) — #1459, #1460
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
 - Every outbound client asks for compressed responses (2026-09-16) — #1601
 - Riot quota is read per routing host, from route-keyed rollups only, kept 30 days (2026-10-05) — #1458, #1457, #1460
@@ -443,7 +444,7 @@ Last verified against `develop` on 2026-09-02.
 - The Windows helper is Rust (Windows.Graphics.Capture + D3D11 video processor + Media Foundation hardware encoders, WASAPI process loopback for the game's sound only), same protocol, added to the installer as a sidecar at release time only (2026-10-02) — #1797
 - The app records only against a real client, into the system's videos folder; objectives from the match timeline only; Screen Recording asked from the Recordings page (2026-10-01) — #1744
 - Clips are cut by hand from the post-game recap in v1 (reverses #1744's "no trimming by hand"); saved clips are never pruned by the budget; the recap opens on its own only over the game page or the dashboard; Recordings page in DPM's layout (2026-10-01) — #1755, #1777
-- The mark key (⌥⇧0 by default, read like an overlay chord, only while a game records) notes the video's second; each mark becomes a saved clip of the 30 s before it, cut once the game ends, adjustable in the recap (an adjusted range replaces the clip); instant replay stays #1767's (2026-10-20) — #2079
+- The mark key (⌥⇧0 by default, read like an overlay chord, only while a game records) notes the video's second; each mark becomes a saved clip of the 30 s before it, cut once the game ends, adjustable in the recap (an adjusted range replaces the clip); it is #1767's instant replay too: 30 s / 1 min / 2 min kept per mark, a 2.5 s confirmation over the game in an overlay window of its own, titled "Ahri at 12:34"; the replay buffer without the full game stays deferred (2026-10-20, 2026-10-21) — #2079, #1767
 - Automatic clips: once a game is finalised, the plays the player picks (multi-kills from a triple, a multi-kill into an objective, steals, aces, first blood, teamfights; all on by default) are cut as saved clips, titled only from the events (timeline + the live feed's Stolen/Ace/FirstBlood, sided by the player list, never guessed); overlapping windows merge (2026-10-21) — #1766
 - A clip is published through YouTube's upload page in the player's browser (file dragged from the app, prepared text, link given back), never the YouTube Data API: shared per-project quota, sensitive-scope verification, forced private uploads (2026-10-12) — #1815
 - A published clip may delete its video and play from YouTube's embed, framed through a page the shell serves on 127.0.0.1 (YouTube refuses `tauri://` pages, error 153); only a linked clip can drop its file; a link is kept only once oEmbed confirms an Unlisted/Public video titled as the clip (2026-10-12) — #2005

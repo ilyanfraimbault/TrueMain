@@ -9,6 +9,8 @@ import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 export type RecordingResolution = 'native' | '1440p' | '1080p' | '720p'
 export type RecordingFrameRate = 30 | 60
 export type RecordingQueues = 'ranked' | 'all'
+/** The lengths a mark's clip can keep, in seconds (`MarkLength`, `crates/game-recording/src/marks.rs`). */
+export type MarkLength = 30 | 60 | 120
 
 /** What the player chooses. `folder: null` = the default folder. */
 export interface RecordingSettings {
@@ -19,6 +21,8 @@ export interface RecordingSettings {
   folder: string | null
   /** The chord that marks a moment while a game records (#2079); `null` = marking off. */
   markKey: Chord | null
+  /** How much of the game before a press its clip keeps, in seconds (#1767). */
+  markLength: MarkLength
   /** The plays cut as clips of their own once a game is finalised (#1766); empty = automatic clips off. */
   autoClips: AutoClipKind[]
 }
@@ -64,7 +68,7 @@ export interface RecordingStatus {
 export type MomentKind =
   | 'kill' | 'death' | 'assist'
   | 'dragon' | 'elder' | 'baron' | 'herald' | 'grubs' | 'atakhan' | 'tower' | 'inhibitor'
-  /** The player pressed the mark key: its clip is the 30 s before (`MARK_WINDOW_MS`). */
+  /** The player pressed the mark key: its clip is the `windowMs` before. */
   | 'marked'
 
 /** One moment on a video's timeline, already mapped onto the video. */
@@ -88,6 +92,8 @@ export interface Moment {
   victimIds: number[]
   /** An elemental drake's element; `null` for anything else, and for drakes an older build kept. */
   dragon: DragonKind | null
+  /** A marked moment's clip length before the press (#1767); absent for every other moment, and for marks an older build kept (30 s). */
+  windowMs?: number
 }
 
 export type DragonKind = 'infernal' | 'mountain' | 'ocean' | 'cloud' | 'hextech' | 'chemtech'
