@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { dragonLabel, formatCountdown, objectiveIcon, objectiveStatus } from '../app/utils/objective-timers'
+import type { NeutralTimers } from '../app/types/game'
+import { dragonLabel, formatCountdown, objectiveIcon, objectiveStatus, pillStatus } from '../app/utils/objective-timers'
 
 describe('objectiveStatus', () => {
   it('counts down to the spawn, then stands up', () => {
@@ -40,5 +41,38 @@ describe('the dragon pit', () => {
   it('takes the game\'s minimap icons for the other camps', () => {
     const timers = { elder: false, drake: null }
     expect(['grubs', 'herald', 'baron'].map(key => objectiveIcon(key as 'grubs', timers).split('/').pop())).toEqual(['grub.png', 'riftherald.png', 'baron.png'])
+  })
+})
+
+describe('pillStatus', () => {
+  const fresh: NeutralTimers = {
+    dragon: { at: 300, until: null },
+    elder: false,
+    drake: null,
+    grubs: { at: 480, until: 885 },
+    herald: { at: 900, until: 1185 },
+    baron: { at: 1200, until: null },
+  }
+  const GONE = { at: null, until: null }
+
+  it('waits the Herald on the grubs and Baron on the Herald, never the pit or the grubs', () => {
+    expect(pillStatus('dragon', fresh, 60)).toEqual({ kind: 'countdown', seconds: 240 })
+    expect(pillStatus('grubs', fresh, 60)).toEqual({ kind: 'countdown', seconds: 420 })
+    expect(pillStatus('herald', fresh, 60)).toEqual({ kind: 'waiting', seconds: 840 })
+    expect(pillStatus('baron', fresh, 60)).toEqual({ kind: 'waiting', seconds: 1140 })
+    // The grubs still standing hold the Herald back.
+    expect(pillStatus('herald', fresh, 860)).toEqual({ kind: 'waiting', seconds: 40 })
+  })
+
+  it('counts down in earnest once the camp before is gone, taken or left', () => {
+    expect(pillStatus('herald', { ...fresh, grubs: GONE }, 600)).toEqual({ kind: 'countdown', seconds: 300 })
+    expect(pillStatus('herald', fresh, 890)).toEqual({ kind: 'countdown', seconds: 10 })
+    expect(pillStatus('baron', { ...fresh, grubs: GONE, herald: GONE }, 1000)).toEqual({ kind: 'countdown', seconds: 200 })
+    expect(pillStatus('baron', fresh, 1190)).toEqual({ kind: 'countdown', seconds: 10 })
+  })
+
+  it('leaves what stands or is gone as it is', () => {
+    expect(pillStatus('baron', fresh, 1300)).toEqual({ kind: 'up' })
+    expect(pillStatus('herald', fresh, 1185)).toEqual({ kind: 'done' })
   })
 })
