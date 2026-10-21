@@ -503,6 +503,52 @@ namespace Data.Migrations
                     b.ToTable("champion_game_counts", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionItemComponentOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ComponentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Occurrence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "Position", "Patch", "ItemId", "ComponentId", "Occurrence", "Rank")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_item_component_orders_grain");
+
+                    b.ToTable("champion_item_component_orders", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.ChampionItemContextStat", b =>
                 {
                     b.Property<Guid>("Id")

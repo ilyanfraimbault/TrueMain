@@ -54,6 +54,8 @@ public static class AggregateRetention
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionItemContextStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionItemComponentOrders
+            .AsNoTracking().Select(order => order.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.PaceBenchmarkStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.FormBenchmarkStats
@@ -143,7 +145,9 @@ public static class AggregateRetention
                     + await db.ChampionItemContextVerdicts
                         .Where(verdict => verdict.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionNextItemTerms
-                        .Where(term => term.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                        .Where(term => term.Patch == stalePatch).ExecuteDeleteAsync(ct)
+                    + await db.ChampionItemComponentOrders
+                        .Where(order => order.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 // The desktop app's benchmarks: the overlay's pace (#1912) and the dashboard's
                 // form (#2076). Their reads already pool only the most recent patches, so an
                 // aged-out patch is dead weight either way.

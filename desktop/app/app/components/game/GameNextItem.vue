@@ -7,15 +7,16 @@ import { ITEM_CONTEXT_TONE_CLASS } from '#shared/utils/item-context'
  * where this build stands, in a game like this one (#1749), and what of it
  * can be bought with the gold in hand. Read in two seconds while dead or on
  * the walk out of base, so it carries the decision and nothing else: the
- * item, why when a situation moved it, the next purchase, the two runners-up,
+ * item, why when a situation moved it, its build path — the components in the
+ * order the mains buy them, what the gold buys now (#2183) — the two runners-up,
  * and the boots while they are still open — over it, until one is bought, the
  * starter; under it, the build as a row with the boots at their step (#2101),
- * which also makes the boots the main item when they are due. The overlay draws only the item and the gold it still needs
- * (`OverlayNextItem`), from the same `useNextItemPanel`.
+ * which also makes the boots the main item when they are due. The overlay draws the item, the gold it still needs and the same
+ * build path (`OverlayNextItem`), from the same `useNextItemPanel`.
  */
 const props = defineProps<{ game: GameState }>()
 
-const { answer, pending, statics, build, order, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold, kit, fromKit, kitDone } = useNextItemPanel(toRef(props, 'game'))
+const { answer, pending, statics, build, order, top, runnersUp, boots, why, remaining, path, state, name, percent, reason, affordable, starter, starterGold, kit, fromKit, kitDone } = useNextItemPanel(toRef(props, 'game'))
 </script>
 
 <template>
@@ -67,17 +68,9 @@ const { answer, pending, statics, build, order, top, runnersUp, boots, why, rema
                 <span class="text-stat-gold">{{ remaining }}</span> gold to complete
               </span>
               <span v-else class="text-xs text-stat-gold">Ready to complete</span>
-              <span
-                v-for="step in steps"
-                :key="step.itemId"
-                class="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs tabular-nums ring-1"
-                :class="affordable(step.cost) ? 'bg-primary/10 text-highlighted ring-primary/40' : 'text-dimmed ring-default'"
-                :title="affordable(step.cost) ? 'You can buy this now' : `${step.cost - game.gold} gold short`"
-              >
-                <GameTooltipItemIcon :item="statics[step.itemId] ?? null" :width="18" :height="18" class="size-[18px] rounded-sm" />
-                {{ step.cost }}
-              </span>
+              <span v-if="path && path.entries.length && !path.measured" class="text-xs text-dimmed" title="Too few of the mains' games show which component they buy first: these follow the recipe.">in recipe order</span>
             </div>
+            <GameBuildPath v-if="path" :path="path" :statics="statics" class="pt-1" />
           </div>
 
           <div v-if="runnersUp.length" class="flex shrink-0 flex-col items-end gap-1.5 border-l border-default pl-3">

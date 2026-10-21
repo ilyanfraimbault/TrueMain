@@ -3,18 +3,17 @@ import type { GameState } from '~/types/game'
 import { basketName } from '~/utils/next-item'
 
 /**
- * The overlay's next item: one item and whether the gold in hand buys it —
- * nothing a glance over the game cannot take in — and under it the build as a
- * row (#2101), to see where the game stands and when the boots come. No components and no
- * runners-up: which component to buy first is not measured yet, so the
- * overlay does not pretend to know. Until a starter is bought, the starter
- * stands in for it: it is what the shop is open for at the start. The game
- * page's panel (`GameNextItem`) keeps the full answer; both read
- * `useNextItemPanel`.
+ * The overlay's build path (#2183): the next item and whether the gold in
+ * hand buys it, its components in the order the mains buy them — owned,
+ * bought now, later — and under it the build as a row (#2101), to see where
+ * the game stands and when the boots come. No runners-up: a glance over the
+ * game takes in one decision. Until a starter is bought, the starter stands
+ * in for it: it is what the shop is open for at the start. The game page's
+ * panel (`GameNextItem`) keeps the full answer; both read `useNextItemPanel`.
  */
 const props = defineProps<{ game: GameState }>()
 
-const { statics, order, top, remaining, state, name, starter, starterGold, fromKit } = useNextItemPanel(toRef(props, 'game'))
+const { statics, order, top, remaining, path, state, name, starter, starterGold, fromKit } = useNextItemPanel(toRef(props, 'game'))
 
 /** The gold still to earn before it can be bought; 0 once the gold in hand covers it. */
 const missing = computed(() => Math.max(0, remaining.value - props.game.gold))
@@ -38,10 +37,12 @@ const message = computed(() => {
 
 <template>
   <OverlayNextItemCard v-if="starter" label="Starter" :item="starterItem" :name="basketName(starter.itemIds, name)" :missing="Math.max(0, starterGold - game.gold)" />
-  <div v-else-if="state === 'ready' && top" class="space-y-2">
+  <div v-else-if="state === 'ready' && top" class="space-y-1.5">
     <!-- The player's active kit (#2185) answers under its own label: its next step, not the mains'. -->
     <OverlayNextItemCard :item="statics[top.itemId] ?? null" :name="name(top.itemId)" :missing="missing" :label="fromKit ? 'Your kit' : 'Next item'" />
-    <GameBuildOrder :steps="order" :statics="statics" :size="22" />
+    <GameBuildPath v-if="path" :path="path" :statics="statics" :size="20" />
+    <!-- The route needs no rule above it: the path's prices already end it. -->
+    <GameBuildOrder :steps="order" :statics="statics" :size="18" />
   </div>
   <div v-else class="flex items-center gap-2.5">
     <USkeleton v-if="!message" class="size-9 shrink-0 rounded-md" />

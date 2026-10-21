@@ -4,13 +4,15 @@ import type { GameState } from '~/types/game'
 import type { NextItemCandidate, NextItemReason } from '~/utils/next-item'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { itemContextAxisPhrase } from '#shared/utils/item-context'
-import { goldToComplete, starterCost, stepsToward } from '~/utils/next-item'
+import { buildPath } from '~/utils/build-path'
+import { goldToComplete, starterCost } from '~/utils/next-item'
 
 /**
  * What the next-item panel shows (#1751), shared by the game page's panel and
  * the overlay's (#1747) so the two can never disagree: the item the
  * champion's mains complete next from where this build stands, why when a
- * situation moved it, the purchases toward it, the runners-up and the boots —
+ * situation moved it, its build path — the components in the order the mains
+ * buy them, and which the gold in hand buys now (#2183) — the runners-up and the boots —
  * and, until one is bought, the starter. When the build order (#2101) says the
  * boots are due, they are that item.
  *
@@ -60,7 +62,7 @@ export function useNextItemPanel(game: Ref<GameState>) {
   const why = computed(() => reason(top.value))
 
   const remaining = computed(() => (top.value ? goldToComplete(top.value.itemId, held.value, statics.value) : 0))
-  const steps = computed(() => (top.value ? stepsToward(top.value.itemId, held.value, statics.value) : []))
+  const path = computed(() => (top.value ? buildPath(top.value.itemId, top.value.route, held.value, game.value.gold, statics.value) : null))
   const affordable = (cost: number) => cost <= game.value.gold
   const starterGold = computed(() => (starter.value ? starterCost(starter.value.itemIds, statics.value) : 0))
 
@@ -73,5 +75,5 @@ export function useNextItemPanel(game: Ref<GameState>) {
     return 'loading'
   })
 
-  return { answer, pending, statics, build, order, bootsDue, top, runnersUp, boots, why, remaining, steps, state, name, percent, reason, affordable, starter, starterGold, kit, fromKit, kitDone }
+  return { answer, pending, statics, build, order, bootsDue, top, runnersUp, boots, why, remaining, path, state, name, percent, reason, affordable, starter, starterGold, kit, fromKit, kitDone }
 }
