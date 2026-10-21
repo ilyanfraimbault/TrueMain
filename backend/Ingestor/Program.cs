@@ -94,6 +94,9 @@ builder.Services.AddScoped<IAccountValidationService, AccountValidationService>(
 // unrestricted everywhere else; the pool itself only holds singletons and the scope factory.
 builder.Services.AddScoped<MatchIngestionScope>();
 builder.Services.AddSingleton<MatchFetchWorkerPool>();
+// One brake for every worker, so a backpressure transition is announced once (#1459).
+builder.Services.AddSingleton<IHostResourceProbe, HostResourceProbe>();
+builder.Services.AddSingleton<IngestionBackpressure>();
 
 builder.Services.AddScoped<IMainStatsCalculator, MainStatsCalculator>();
 builder.Services.AddScoped<IMainDemotionPolicy, MainDemotionPolicy>();

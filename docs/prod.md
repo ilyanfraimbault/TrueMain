@@ -375,9 +375,10 @@ because their unit is easy to misread:
 - **`MatchIngestion__BatchSize`** sizes each fetch worker's claim (split across
   the three regional routes, 25 accounts each) rather than a per-cycle quota:
   the workers claim again as soon as a batch is written, so match throughput is
-  set by `INGESTOR_FETCH_TARGET_REQUESTS_PER_MINUTE` (Riot calls a minute per
-  regional host, default 30 — production's average before #1457). Raising it is
-  the throughput ramp of #1459, not a tuning to do in passing.
+  set by the ramp stage `INGESTOR_FETCH_RAMP_STAGE` (stage 1 = 30 Riot calls a
+  minute per regional host, production's average before #1457). Raising it
+  follows `docs/ingestion-ramp.md` — one held and measured stage at a time,
+  preprod first — not a tuning to do in passing.
 
 `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
 projects against (#925); unset means no forecast, which the panel says rather

@@ -261,6 +261,7 @@ Last verified against `develop` on 2026-09-02.
 - The lane is derived from the process name; the mode it ran under is recorded (2026-09-02) — #1362
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
 - Match fetching runs as permanent per-region workers beside a 1-minute maintenance pass, held to a target rate (default 30 calls/min per regional host, prod's prior average) beside reserved shares for AccountRefresh/ManualSeed (2026-10-21) — #1457, #1460
+- Throughput is raised in held stages (30 → 36 → 40 → 44 calls/min per regional host), behind a memory and free-disk brake that stops claims — never a batch in flight — with an ops event per activation and release; CPU out of scope (2026-10-21) — #1459, #1460
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
 - Every outbound client asks for compressed responses (2026-09-16) — #1601
 - Riot quota is read per routing host, from route-keyed rollups only, kept 30 days (2026-10-05) — #1458, #1457, #1460

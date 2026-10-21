@@ -61,6 +61,25 @@ public static class OptionsConfigurationExtensions
 
         services.AddOptionsWithValidator<MatchFetchWorkersOptions, MatchFetchWorkersOptionsValidator>(
                 configuration, MatchFetchWorkersOptions.SectionName)
+            .PostConfigure(options =>
+            {
+                if (options.RampStages.Count == 0)
+                {
+                    options.RampStages = [.. MatchFetchWorkersOptions.DefaultRampStages];
+                }
+            })
+            .Validate(
+                options => options.RampStages.Count > 0
+                           && options.RampStages.All(stage => stage > 0)
+                           && options.RampStages.Zip(options.RampStages.Skip(1)).All(pair => pair.First < pair.Second),
+                "MatchFetchWorkers:RampStages must list at least one target rate, each above 0, in strictly ascending order.")
+            .Validate(
+                options => options.RampStage <= options.RampStages.Count,
+                "MatchFetchWorkers:RampStage must name one of MatchFetchWorkers:RampStages (counted from 1).")
+            .ValidateOnStart();
+
+        services.AddOptionsWithValidator<IngestionBackpressureOptions, IngestionBackpressureOptionsValidator>(
+                configuration, IngestionBackpressureOptions.SectionName)
             .ValidateOnStart();
 
         services.AddOptionsWithValidator<CommunityDragonOptions, CommunityDragonOptionsValidator>(

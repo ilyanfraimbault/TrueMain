@@ -159,7 +159,8 @@ claims again, while the maintenance pass runs on `Job:IntervalMinutes`.
   claims are live — and the "release everything" orphan sweep stays boot-only. A batch whose every account
   failed backs off like a failed batch, or the reverted accounts would be re-claimed and re-failed in a loop.
 - **The target rate is a ceiling the limiter enforces on the `MatchIngestion` caller**
-  (`MatchFetchWorkers:TargetRequestsPerMinute`, a sliding minute per routing value), set by the pool while the
+  (`MatchFetchWorkers:TargetRequestsPerMinute` at first, the stages of `RampStages` since #1459; a sliding
+  minute per routing value), set by the pool while the
   workers run and lifted when they stop, so the sequential `FetchLane` keeps its unpaced step. **The default is
   30 calls a minute per regional host: production's measured `MatchIngestion` average over the week before the
   change** (per-minute rollups, wall clock, roughly 25–32 per host), so the topology change alone does not move
@@ -185,6 +186,42 @@ workers' load, that the 429 rate holds and that the maintenance processes run at
 preprod observations, made after the merge — CI cannot see pacing (#1371→#1376).
 
 Source: #1457 (follows #1374, #1371, #1376, #1474; epic #1460).
+
+## Throughput is raised in held stages, behind a memory and disk brake on the claim (2026-10-21)
+
+**The fetch workers' target rate is a stage of a list (`MatchFetchWorkers:RampStages`, `RampStage`), raised one
+step at a time and held long enough to measure; before every claim, a backpressure check on the host's memory and
+free disk stops the claims while either is below its threshold.** Once #1457 removed the wall-clock ceiling, the
+database became the binding constraint, and this project's history says that constraint fails without warning:
+#600 (OOM), #589 (`/dev/shm`), #680 (full disk). The ramp needs guard rails before speed (product decision on
+#1459: land before the first step up).
+
+- **Stages, not a free number.** 30 → 36 → 40 → 44 calls a minute per regional host: the first is the pre-workers
+  production average, the last the personal-key ceiling (47.5 after headroom, less the reservations). A stage is
+  raised in the env file (`INGESTOR_FETCH_RAMP_STAGE`), preprod before prod, never skipping one; the list must
+  climb strictly or the boot fails. A production key gets a new list, not a longer one. Runbook and per-stage
+  exit criteria (throughput, 429 rate, maintenance cadence, storage growth against retention): `docs/ingestion-ramp.md`.
+- **Memory and disk only.** The two resources behind the past outages (`/dev/shm` counts as memory); CPU stays
+  out until a real CPU problem is observed (product decision, 2026-10-05). Memory is `MemAvailable / MemTotal`
+  from `/proc/meminfo`, which a container reads for the whole host — the machine the database shares; disk is the
+  free share of the container's root, on the host's Docker data root. A resource the host cannot report applies
+  no brake, said once.
+- **In front of the claim and nowhere else.** A batch already claimed is fetched and written to the end, so the
+  brake degrades throughput and never correctness: no fetched match is dropped, no claim is stranded. It
+  *stops* claims rather than slowing them to a fraction, because a fraction keeps filling what tripped it.
+- **Hysteresis.** A resource releases only `ReleaseMarginPercent` (3 points) above its threshold, so a reading
+  at the line does not flap the workers.
+- **Visible through the existing ops events**, not a new channel: `IngestionBackpressureActivated` (resource,
+  reading, threshold) and `IngestionBackpressureReleased` (duration), registered in `OpsEvents`, logged once per
+  transition by the one brake every worker shares, and filterable in the admin Logs page.
+- **A drill to verify it live.** `IngestionBackpressure:DrillMinutes` holds the brake for a set time from the
+  first claim, then reads the real resources — the only way to observe an activation *and* its release on a live
+  environment without filling a disk, since a threshold change needs a restart that resets the state.
+
+What this does **not** do: measure the stages. That each stage holds (throughput, 429 rate, storage growth within
+the retention window) and that the brake engages on preprod are owner observations after the merge.
+
+Source: #1459 (follows #1457; epic #1460).
 
 ## A Riot call that stores nothing is a bug, not a cost (2026-09-02)
 

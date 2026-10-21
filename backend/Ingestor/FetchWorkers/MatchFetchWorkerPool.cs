@@ -25,9 +25,11 @@ namespace Ingestor.FetchWorkers;
 /// maintenance pass.
 /// </para>
 /// <para>
-/// Throughput is set by <c>MatchFetchWorkers:TargetRequestsPerMinute</c>, enforced by the
-/// rate limiter as a ceiling on the <c>MatchIngestion</c> caller, and the shares the limiter
-/// reserves for the other regional callers keep the workers from starving them.
+/// Throughput is set by the stage of <c>MatchFetchWorkers:RampStages</c> the workers run at
+/// (#1459), enforced by the rate limiter as a ceiling on the <c>MatchIngestion</c> caller, and
+/// the shares the limiter reserves for the other regional callers keep the workers from
+/// starving them. Before each claim, <see cref="IngestionBackpressure"/> holds them back while
+/// the host's memory or disk is below its threshold.
 /// </para>
 /// <para>
 /// A worker owns its platforms and nothing else: it reaps only their expired claims, and
@@ -40,6 +42,7 @@ public sealed class MatchFetchWorkerPool(
     IIterationContext iterationContext,
     ICallerContext callerContext,
     IRiotRateLimiter rateLimiter,
+    IngestionBackpressure backpressure,
     IOptions<MatchIngestionOptions> matchOptions,
     IOptions<MatchFetchWorkersOptions> workerOptions,
     IngestorMetrics metrics,
@@ -101,13 +104,16 @@ public sealed class MatchFetchWorkerPool(
         var batchSize = options.BatchSize
             ?? Math.Max(1, (int)Math.Ceiling(matchOptions.Value.BatchSize / (double)routes.Count));
 
-        rateLimiter.SetCallerCeiling(MatchIngestionCaller, options.TargetRequestsPerMinute);
+        var target = options.TargetRequestsPerMinute();
+        rateLimiter.SetCallerCeiling(MatchIngestionCaller, target);
         logger.LogInformation(
-            "Starting {WorkerCount} match-fetch worker(s) ({Routes}): {BatchSize} accounts per claim, at most {TargetRequestsPerMinute} Riot calls a minute per route.",
+            "Starting {WorkerCount} match-fetch worker(s) ({Routes}): {BatchSize} accounts per claim, ramp stage {RampStage} of {RampStageCount}, at most {TargetRequestsPerMinute} Riot calls a minute per route.",
             routes.Count,
             string.Join(", ", routes.Select(route => $"{route.RoutingValue}={string.Join('+', route.Platforms)}")),
             batchSize,
-            options.TargetRequestsPerMinute);
+            options.RampStage,
+            options.RampStages.Count,
+            target);
 
         try
         {
@@ -132,6 +138,10 @@ public sealed class MatchFetchWorkerPool(
 
         while (!ct.IsCancellationRequested)
         {
+            // In front of the claim and nowhere else: a batch already claimed always runs to
+            // its end, so the brake slows the claim rate and never strands a claim (#1459).
+            await backpressure.WaitUntilClearAsync(ct);
+
             var outcome = await RunBatchAsync(route, batchSize, ct);
             if (runOnce)
             {
