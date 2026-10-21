@@ -41,7 +41,7 @@ export function kit(overrides: Partial<Kit> = {}): Kit {
     runes: { ...PAGE },
     spells: [4, 14],
     starter: [1056, 2003, 2003],
-    boots: 3020,
+    boots: [3020],
     tree: [{ itemId: 6655, children: [{ itemId: 3100, children: [{ itemId: 3089, children: [] }] }, { itemId: 4645, children: [] }] }],
     updatedAt: '2026-10-20T10:00:00.000Z',
     ...overrides,

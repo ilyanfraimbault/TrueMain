@@ -26,7 +26,8 @@ export interface Kit {
   spells: [number, number]
   /** The starter basket, in buying order; an item twice is two of it. */
   starter: number[]
-  boots: number | null
+  /** The boots to pick between, the first the default; empty for none. They take one slot of a full build. */
+  boots: number[]
   /** The first items, each the root of its branches; a path counts at most six items with the boots. */
   tree: KitNode[]
   /** ISO 8601, set on every save. */

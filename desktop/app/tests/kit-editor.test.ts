@@ -5,6 +5,7 @@ import type { Kit } from '#shared/types/kit'
 import KitEditor from '../app/components/kit/KitEditor.vue'
 import KitPanel from '../app/components/kit/KitPanel.vue'
 import KitBuild from '../app/components/kit/KitBuild.vue'
+import KitItemSlots from '../app/components/kit/KitItemSlots.vue'
 import { item, kit, PAGE, RUNE_TREE } from './kit-fixtures'
 
 // The editor, the champion page's panel and the kit's view outside Nuxt: the
@@ -17,8 +18,10 @@ const picker = {
   methods: { next: () => nextPick },
   template: '<div v-if="open" class="picker" :data-title="title" :data-blocked="blocked.join()" :data-groups="groups.join()"><button class="pick" @click="$emit(\'pick\', next())" /></div>',
 }
-const tree = { props: ['tree', 'editable'], emits: ['pick', 'remove'], template: '<div class="tree" :data-roots="tree.map(n => n.itemId).join()"><button class="branch" @click="$emit(\'pick\', { at: [0], mode: \'child\' })" /><button class="replace" @click="$emit(\'pick\', { at: [0, 1], mode: \'replace\' })" /><button class="drop" @click="$emit(\'remove\', [0, 1])" /></div>' }
+const tree = { props: ['tree', 'editable'], emits: ['pick', 'remove'], template: '<div class="tree" :data-roots="tree.map(n => n.itemId).join()"><button class="branch" @click="$emit(\'pick\', { at: [0], mode: \'child\' })" /><button class="replace" @click="$emit(\'pick\', { at: [0, 1], mode: \'replace\' })" /><button class="drop" @click="$emit(\'remove\', [0, 1])" /><button class="swap" @click="$emit(\'swap\', [0, 0], 1)" /></div>' }
 const global = {
+  // The starter and boots rows are drawn for real: the test clicks through them.
+  components: { KitItemSlots },
   stubs: {
     GameTooltipItemIcon: true,
     KitSpells: true,
@@ -85,7 +88,7 @@ describe('KitEditor', () => {
 
     // A branch after the first item: the picker lists items, the path above is blocked.
     await wrapper.get('.branch').trigger('click')
-    expect(wrapper.get('.picker').attributes()).toMatchObject({ 'data-title': 'Add an item', 'data-groups': 'legendary,component', 'data-blocked': '6655,3020' })
+    expect(wrapper.get('.picker').attributes()).toMatchObject({ 'data-title': 'Add an item', 'data-groups': 'legendary', 'data-blocked': '6655,3020' })
     await wrapper.get('.pick').trigger('click')
     await wrapper.get('.drop').trigger('click')
 
@@ -101,19 +104,23 @@ describe('KitEditor', () => {
     await wrapper.get('.pick').trigger('click')
     await wrapper.get('[aria-label="Remove Item 2003"]').trigger('click')
 
-    // The boots: dropped, then chosen again.
-    await wrapper.get('[aria-label="No boots"]').trigger('click')
-    await wrapper.get('[aria-label="Choose boots"]').trigger('click')
+    // The boots: a second pair added (the first blocked), then the first dropped.
+    await wrapper.get('[aria-label="Add boots"]').trigger('click')
     expect(wrapper.get('.picker').attributes('data-groups')).toBe('boots')
+    expect(wrapper.get('.picker').attributes('data-blocked')).toBe('3020')
     nextPick = 3111
     await wrapper.get('.pick').trigger('click')
+    await wrapper.get('[aria-label="Remove Item 3020"]').trigger('click')
+
+    // The two branches traded: the second becomes the default.
+    await wrapper.get('.swap').trigger('click')
 
     await wrapper.get('input').setValue('Into mages')
     const save = wrapper.findAll('.u-button').find(button => button.text() === 'Save kit')!
     await save.trigger('click')
     const saved = wrapper.emitted('save')![0]![0] as Kit
-    expect(saved).toMatchObject({ name: 'Into mages', boots: 3111, starter: [3157, 2003, 3157] })
-    expect(saved.tree[0]!.children.map(child => child.itemId)).toEqual([3100, 3157])
+    expect(saved).toMatchObject({ name: 'Into mages', boots: [3111], starter: [3157, 2003, 3157] })
+    expect(saved.tree[0]!.children.map(child => child.itemId)).toEqual([3157, 3100])
   })
 
   it('lists what keeps it from being saved', async () => {

@@ -92,7 +92,7 @@ export function kitItemSetBlocks(kit: Kit, name: (itemId: number) => string, kno
   }
   return [
     { title: 'Starter', items: keep(kit.starter) },
-    { title: 'Boots', items: keep(kit.boots ? [kit.boots] : []) },
+    { title: 'Boots', items: keep(kit.boots) },
     ...paths.map((path, index) => ({ title: titleOf(path, index), items: path })),
   ].filter(block => block.items.length > 0)
 }

@@ -13,10 +13,11 @@ import {
   nextKitStep,
   nodeAt,
   removeSubtree,
+  swapSiblings,
   replaceItem,
   treeDepth,
 } from '~/utils/kit-tree'
-import { layoutKitTree } from '~/utils/kit-tree-layout'
+import { layoutKitTree, siblingAt } from '~/utils/kit-tree-layout'
 
 const n = (itemId: number, ...children: KitNode[]): KitNode => ({ itemId, children })
 
@@ -30,6 +31,13 @@ const SORC = 3020
 const tree = [n(LUDENS, n(LICH, n(RABADON)), n(SHADOWFLAME, n(ZHONYA)))]
 
 describe('the tree', () => {
+  it('trades two siblings, each with what follows it', () => {
+    const swapped = swapSiblings(tree, [0, 1], 0)
+    expect(kitPaths(swapped)).toEqual([[LUDENS, SHADOWFLAME, ZHONYA], [LUDENS, LICH, RABADON]])
+    expect(swapSiblings(tree, [0, 1], 1)).toBe(tree)
+    expect(swapSiblings(tree, [0, 1], 5)).toEqual(tree)
+  })
+
   it('lists every path, the default first', () => {
     expect(kitPaths(tree)).toEqual([[LUDENS, LICH, RABADON], [LUDENS, SHADOWFLAME, ZHONYA]])
     expect(kitPaths([])).toEqual([])
@@ -37,8 +45,8 @@ describe('the tree', () => {
 
   it('measures its depth and leaves the boots their slot', () => {
     expect(treeDepth(tree)).toBe(3)
-    expect(maxDepth(SORC)).toBe(5)
-    expect(maxDepth(null)).toBe(6)
+    expect(maxDepth([SORC])).toBe(5)
+    expect(maxDepth([])).toBe(6)
   })
 
   it('finds a node and the items on the way to it', () => {
@@ -78,43 +86,51 @@ describe('the tree', () => {
 
 describe('the walk from the held items', () => {
   it('starts on the first item, then follows the first child', () => {
-    expect(nextKitStep(tree, SORC, [], [])).toEqual({ itemId: LUDENS, isBoots: false })
-    expect(nextKitStep(tree, SORC, [LUDENS], [LUDENS])).toEqual({ itemId: LICH, isBoots: false })
+    expect(nextKitStep(tree, [SORC], [], [])).toEqual({ itemId: LUDENS, isBoots: false })
+    expect(nextKitStep(tree, [SORC], [LUDENS], [LUDENS])).toEqual({ itemId: LICH, isBoots: false })
   })
 
   it('follows the branch the held items took', () => {
     const held = [LUDENS, SORC, SHADOWFLAME]
     expect(heldPath(tree, held, held).map(node => node.itemId)).toEqual([LUDENS, SHADOWFLAME])
-    expect(nextKitStep(tree, SORC, held, held)).toEqual({ itemId: ZHONYA, isBoots: false })
+    expect(nextKitStep(tree, [SORC], held, held)).toEqual({ itemId: ZHONYA, isBoots: false })
   })
 
   it('takes the branch completed first when both were built', () => {
-    expect(nextKitStep(tree, SORC, [LUDENS, SHADOWFLAME, LICH], [LUDENS, LICH, SHADOWFLAME])).toEqual({ itemId: ZHONYA, isBoots: false })
+    expect(nextKitStep(tree, [SORC], [LUDENS, SHADOWFLAME, LICH], [LUDENS, LICH, SHADOWFLAME])).toEqual({ itemId: ZHONYA, isBoots: false })
     // An item held but never noted in the order counts after the noted ones.
     expect(heldPath(tree, [LUDENS, LICH], [LUDENS, SHADOWFLAME, LICH]).map(node => node.itemId)).toEqual([LUDENS, LICH])
   })
 
   it('asks for the boots once the branch is done, then has nothing left', () => {
     const done = [LUDENS, LICH, RABADON]
-    expect(nextKitStep(tree, SORC, done, done)).toEqual({ itemId: SORC, isBoots: true })
-    expect(nextKitStep(tree, SORC, done, [...done, SORC])).toBeNull()
-    expect(nextKitStep(tree, null, done, done)).toBeNull()
+    expect(nextKitStep(tree, [SORC], done, done)).toEqual({ itemId: SORC, isBoots: true })
+    expect(nextKitStep(tree, [SORC], done, [...done, SORC])).toBeNull()
+    expect(nextKitStep(tree, [], done, done)).toBeNull()
+  })
+
+  it('takes any of its boots as done, and shows the ones held', () => {
+    const MERCS = 3111
+    const done = [LUDENS, LICH, RABADON]
+    expect(nextKitStep(tree, [SORC, MERCS], done, [...done, MERCS])).toBeNull()
+    expect(nextKitStep(tree, [SORC, MERCS], done, done)).toEqual({ itemId: SORC, isBoots: true })
+    expect(kitOrder(tree, [SORC, MERCS], [LUDENS], [LUDENS, MERCS])[1]).toEqual({ itemId: MERCS, isBoots: true, state: 'Completed' })
   })
 
   it('lays the kit out as a row, the boots after the first item', () => {
     const held = [LUDENS, SHADOWFLAME]
-    expect(kitOrder(tree, SORC, held, held)).toEqual([
+    expect(kitOrder(tree, [SORC], held, held)).toEqual([
       { itemId: LUDENS, isBoots: false, state: 'Completed' },
       { itemId: SORC, isBoots: true, state: 'Upcoming' },
       { itemId: SHADOWFLAME, isBoots: false, state: 'Completed' },
       { itemId: ZHONYA, isBoots: false, state: 'Next' },
     ])
-    expect(kitOrder(tree, null, [], [])).toEqual([
+    expect(kitOrder(tree, [], [], [])).toEqual([
       { itemId: LUDENS, isBoots: false, state: 'Next' },
       { itemId: LICH, isBoots: false, state: 'Upcoming' },
       { itemId: RABADON, isBoots: false, state: 'Upcoming' },
     ])
-    expect(kitOrder([], SORC, [], [])).toEqual([{ itemId: SORC, isBoots: true, state: 'Next' }])
+    expect(kitOrder([], [SORC], [], [])).toEqual([{ itemId: SORC, isBoots: true, state: 'Next' }])
   })
 })
 
@@ -131,6 +147,15 @@ describe('the layout', () => {
     // The default path's edges are drawn last.
     expect(layout.edges.at(-1)!.child.main).toBe(true)
     expect(layoutKitTree([], { size: 10, hGap: 2, vGap: 4 })).toEqual({ nodes: [], edges: [], slots: [], width: 0, height: 0 })
+  })
+
+  it('finds the sibling a dragged node is over, and nothing else', () => {
+    const layout = layoutKitTree(tree, { size: 10, hGap: 2, vGap: 4 })
+    // Lich at x 5, Shadowflame at x 17, on the row at y 19.
+    expect(siblingAt(layout, [0, 0], 18, 20, 10)).toBe(1)
+    expect(siblingAt(layout, [0, 0], 5, 19, 10)).toBeNull()
+    expect(siblingAt(layout, [0, 0], 17, 33, 10)).toBeNull()
+    expect(siblingAt(layout, [0, 0, 0], 17, 33, 10)).toBeNull()
   })
 
   it('ends every row with room on a slot, the default path kept straight', () => {

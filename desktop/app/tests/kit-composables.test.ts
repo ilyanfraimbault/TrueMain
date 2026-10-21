@@ -163,7 +163,7 @@ describe('useKitImport', () => {
     await kitImport.importSpells(kit())
     await kitImport.importSpells(kit())
     await kitImport.importItems(kit(), 'Ahri')
-    await kitImport.importItems(kit({ starter: [], boots: null, tree: [] }), 'Ahri')
+    await kitImport.importItems(kit({ starter: [], boots: [], tree: [] }), 'Ahri')
     expect(toasts.map(toast => toast.title)).toEqual(['Not in champion select', 'Could not set the spells', 'Could not read your item sets', 'Nothing to import'])
   })
 

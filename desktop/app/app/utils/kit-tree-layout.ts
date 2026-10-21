@@ -35,6 +35,23 @@ export interface KitTreeLayout {
 }
 
 /**
+ * The sibling of the node at `at` whose box holds the point (`x`, `y`): where
+ * a node dragged along its row would trade places, or `null` off every
+ * sibling and on the node itself.
+ */
+export function siblingAt(layout: KitTreeLayout, at: number[], x: number, y: number, size: number): number | null {
+  const parent = at.slice(0, -1).join('.')
+  const half = size / 2
+  const hit = layout.nodes.find(node =>
+    node.at.length === at.length
+    && node.at.slice(0, -1).join('.') === parent
+    && Math.abs(node.x - x) <= half
+    && Math.abs(node.y - y) <= half)
+  const index = hit?.at.at(-1)
+  return index === undefined || index === at.at(-1) ? null : index
+}
+
+/**
  * The kit's tree laid out the way the build tree is (`layoutBuildTree`): each
  * node centred over its branches, rows `size + vGap` apart, siblings `hGap`
  * apart — but in the kit's own order and uncapped, since the first child is

@@ -5,17 +5,19 @@ import { kitItemGroups, searchKitItems } from '~/utils/kit-items'
 
 /**
  * The item picker of the kit editor: the patch's Rift shop, searched by name,
- * grouped — legendaries, boots, components, starters — as Data Dragon icons.
- * An item that would repeat one on the path is shown but cannot be taken.
+ * grouped — legendaries, boots, components, starters — each icon with the
+ * site's item card on hover (`GameTooltipItemIcon`). An item that would repeat
+ * one already taken is shown, with its card, but cannot be taken.
  */
 const props = withDefaults(defineProps<{
   items: Record<number, StaticItemData>
   /** The groups this slot takes, in picker order. */
   groups: KitItemGroup[]
-  /** Items that cannot go here: they are already on the path. */
+  /** Items that cannot go here, and why, after the item's name. */
   blocked?: number[]
+  blockedNote?: string
   title: string
-}>(), { blocked: () => [] })
+}>(), { blocked: () => [], blockedNote: 'already on this path' })
 
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ pick: [itemId: number] }>()
@@ -49,13 +51,12 @@ function pick(itemId: number) {
               v-for="item in section.items"
               :key="item.id"
               type="button"
-              class="rounded ring-1 ring-transparent transition hover:ring-primary/60 focus-visible:ring-primary focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-30"
-              :disabled="blocked.includes(item.id)"
-              :aria-label="item.name"
-              :title="blocked.includes(item.id) ? `${item.name} — already on this path` : `${item.name} · ${item.totalGold} gold`"
+              class="rounded transition hover:brightness-125 focus-visible:outline-2 focus-visible:outline-primary aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:brightness-100"
+              :aria-disabled="blocked.includes(item.id)"
+              :aria-label="blocked.includes(item.id) ? `${item.name}, ${blockedNote}` : item.name"
               @click="pick(item.id)"
             >
-              <img :src="item.iconUrl" :alt="item.name" width="36" height="36" class="size-9 rounded img-skeleton">
+              <GameTooltipItemIcon :item="item" :width="36" :height="36" loading="lazy" class="size-9 rounded" />
             </button>
           </div>
         </section>

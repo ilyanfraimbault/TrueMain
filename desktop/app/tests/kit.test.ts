@@ -19,7 +19,7 @@ describe('a kit made out of a build', () => {
 
   it('takes the starter, boots, core path, rune page and spells', () => {
     const made = kitFromBuild({ championId: 103, position: 'MIDDLE', name: 'Mine' }, core, null)!
-    expect(made).toMatchObject({ name: 'Mine', championId: 103, position: 'MIDDLE', spells: [4, 12], starter: [1056, 2003], boots: 3020, runes: PAGE })
+    expect(made).toMatchObject({ name: 'Mine', championId: 103, position: 'MIDDLE', spells: [4, 12], starter: [1056, 2003], boots: [3020], runes: PAGE })
     expect(made.runes).not.toHaveProperty('games')
     // The boots leave the path, which keeps five items beside them.
     expect(made.tree[0]!.itemId).toBe(6655)
@@ -28,7 +28,7 @@ describe('a kit made out of a build', () => {
 
   it('fills what the build lacks', () => {
     const made = kitFromBuild({ championId: 103, position: 'MIDDLE', name: 'x'.repeat(60) }, null, PAGE)!
-    expect(made).toMatchObject({ spells: [4, 14], starter: [], boots: null, tree: [] })
+    expect(made).toMatchObject({ spells: [4, 14], starter: [], boots: [], tree: [] })
     expect(made.name).toHaveLength(40)
     expect(kitFromBuild({ championId: 103, position: 'MIDDLE', name: 'x' }, null, null)).toBeNull()
   })
@@ -36,12 +36,12 @@ describe('a kit made out of a build', () => {
 
 describe('a kit', () => {
   it('cuts its paths when it takes boots', () => {
-    const deep = kit({ boots: null, tree: [{ itemId: 1, children: [{ itemId: 2, children: [{ itemId: 3, children: [{ itemId: 4, children: [{ itemId: 5, children: [{ itemId: 6, children: [] }] }] }] }] }] }] })
+    const deep = kit({ boots: [], tree: [{ itemId: 1, children: [{ itemId: 2, children: [{ itemId: 3, children: [{ itemId: 4, children: [{ itemId: 5, children: [{ itemId: 6, children: [] }] }] }] }] }] }] })
     expect(kitIssues(deep, null)).toEqual([])
-    const booted = withBoots(deep, 3020)
-    expect(booted.boots).toBe(3020)
+    const booted = withBoots(deep, [3020, 3111])
+    expect(booted.boots).toEqual([3020, 3111])
     expect(kitIssues(booted, null)).toEqual([])
-    expect(kitIssues({ ...deep, boots: 3020 }, null)).toEqual(['A path holds at most 6 items, boots included.'])
+    expect(kitIssues({ ...deep, boots: [3020] }, null)).toEqual(['A path holds at most 6 items, boots included.'])
   })
 
   it('says why it cannot be saved', () => {
@@ -62,7 +62,7 @@ describe('a kit', () => {
     expect(core.boots?.itemIds).toEqual([3020])
     expect(core.starterItems?.itemIds).toEqual([1056, 2003, 2003])
     expect(core.runePage?.primaryKeystoneId).toBe(8112)
-    expect(kitCoreView(kit({ boots: null, starter: [] }))).toMatchObject({ boots: null, starterItems: null })
+    expect(kitCoreView(kit({ boots: [], starter: [] }))).toMatchObject({ boots: null, starterItems: null })
   })
 
   it('names a copy after the free name', () => {
@@ -85,8 +85,11 @@ describe('a stored list of kits', () => {
 
   it('reads a kit leniently', () => {
     const [read] = readStore({ kits: [{ ...kit(), spells: [4], starter: [1056, 'x'], boots: 'no', updatedAt: 3, name: 'y'.repeat(50) }] }).kits
-    expect(read).toMatchObject({ spells: [4, 14], starter: [1056], boots: null, updatedAt: new Date(0).toISOString() })
+    expect(read).toMatchObject({ spells: [4, 14], starter: [1056], boots: [], updatedAt: new Date(0).toISOString() })
     expect(read!.name).toHaveLength(40)
+    // A kit saved with one boots id still reads; a list keeps its order, without repeats, capped.
+    expect(readStore({ kits: [{ ...kit(), boots: 3020 }] }).kits[0]!.boots).toEqual([3020])
+    expect(readStore({ kits: [{ ...kit(), boots: [3047, 3020, 3047, 3111, 3158, 3006] }] }).kits[0]!.boots).toEqual([3047, 3020, 3111, 3158])
     expect(readStore(null)).toEqual({ kits: [], active: {} })
     expect(readStore({ kits: 'no' })).toEqual({ kits: [], active: {} })
   })
