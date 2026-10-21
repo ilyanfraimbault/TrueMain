@@ -100,13 +100,17 @@ describe('KitTree', () => {
 })
 
 describe('KitList', () => {
-  it('lists the kits with the active one marked, and picks one on a click', async () => {
+  it('lists the kits and picks one on a click', async () => {
     const kits = [kit(), kit({ id: 'k2', name: 'Into mages' })]
-    const wrapper = mount(KitList, { props: { kits, activeId: 'k2', modelValue: 'k1' }, global })
-    expect(wrapper.findAll('li').map(li => li.text())).toEqual(['Into tanks', 'Into magesActive'])
+    const wrapper = mount(KitList, { props: { kits, modelValue: 'k1' }, global })
+    expect(wrapper.findAll('li').map(li => li.text())).toEqual(['Into tanks', 'Into mages'])
     await wrapper.findAll('li button')[1]!.trigger('click')
     expect(wrapper.emitted('update:modelValue')).toEqual([['k2']])
     expect(wrapper.get('[aria-current="true"]').text()).toContain('Into mages')
+    // The positions each kit is offered on, on the My kits page only.
+    expect(wrapper.find('img[alt="Middle"]').exists()).toBe(false)
+    const listed = mount(KitList, { props: { kits: [kit({ positions: ['TOP', 'MIDDLE'] })], modelValue: null, showPositions: true }, global })
+    expect(listed.findAll('img[title]').map(img => img.attributes('title'))).toEqual(['Top', 'Middle'])
   })
 })
 
@@ -190,12 +194,9 @@ describe('KitItemPicker by shop class', () => {
 })
 
 describe('DraftBuildHeader', () => {
-  it('names the active kit and switches back to TrueMain\'s build', async () => {
-    const wrapper = mount(DraftBuildHeader, { props: { championId: 103, position: 'MIDDLE', canGoBack: false, kitName: 'Into tanks', onKit: true }, global })
-    expect(wrapper.text()).toContain('Your kit: Into tanks')
-    await wrapper.get('.u-button').trigger('click')
-    expect(wrapper.emitted('update:onKit')).toEqual([[false]])
+  it('names the pick and goes back to ours', async () => {
     const plain = mount(DraftBuildHeader, { props: { championId: 103, position: 'MIDDLE', canGoBack: true }, global })
+    expect(plain.text()).toContain('Ahri')
     expect(plain.text()).not.toContain('Your kit')
     await plain.get('.u-button').trigger('click')
     expect(plain.emitted('back')).toHaveLength(1)

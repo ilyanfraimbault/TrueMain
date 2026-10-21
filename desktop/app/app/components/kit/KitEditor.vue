@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { Kit } from '#shared/types/kit'
+import type { ChampionPosition } from '#common/utils/positions'
 import type { KitItemGroup } from '~/utils/kit-items'
 import { cloneKit, KIT_BOOTS_MAX, KIT_NAME_MAX, kitIssues, withBoots } from '~/utils/kit'
 import { addChild, blockedItems, removeSubtree, replaceItem, swapSiblings } from '~/utils/kit-tree'
 
 /**
- * The kit editor (#2185): a draft of the kit, saved as a whole or dropped.
+ * The kit editor (#2185): a draft of the kit, saved as a whole or dropped —
+ * its name and the positions it is offered on (#2205) first.
  * Spells, starter and boots in their own slots over the rune page, then the
  * item tree, every node editable — legendaries only: what a build completes.
  * Several boots are the player's choice between them, the first the default. What keeps the kit from being saved is
@@ -80,9 +82,14 @@ const removeBoots = (index: number) => (draft.value = withBoots(draft.value, dra
 
 <template>
   <div class="space-y-5">
-    <UFormField label="Name">
-      <UInput v-model="draft.name" :maxlength="KIT_NAME_MAX" placeholder="Into tanks" class="w-full max-w-xs" />
-    </UFormField>
+    <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
+      <UFormField label="Name">
+        <UInput v-model="draft.name" :maxlength="KIT_NAME_MAX" placeholder="Into tanks" class="w-72" />
+      </UFormField>
+      <UFormField label="Positions" description="Offered on each of them.">
+        <RolePicker :positions="draft.positions as ChampionPosition[]" @update:positions="draft.positions = $event" />
+      </UFormField>
+    </div>
 
     <div class="flex flex-wrap items-start gap-x-8 gap-y-4">
       <div>

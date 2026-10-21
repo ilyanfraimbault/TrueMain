@@ -307,14 +307,18 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   replaced in place, moved to the next champion imported. The player's own sets are written back exactly as read; a
   list that cannot be read writes nothing, and a player set missing after the write is reported. Every outcome is a
   toast. Nothing is written without the click.
-- **Kits** (#2185) — a player's own build on a champion and position: a branching item tree (a path at most six items
+- **Kits** (#2185) — a player's own build on a champion, offered on one or several positions (#2205): a branching item tree (a path at most six items
   with the boots, any number of branches per item, the first child the default), a rune page and two summoner
   spells, plus a starter basket and up to four boots to pick between (the first the default, #2201). The app's champion page has a "Builds / My kits" switch (`?view=kits`):
-  the lane's kits listed like build rows (name, keystone, spells, the default path's icons, "Active"), "New kit"
+  the lane's kits listed like build rows (name, keystone, spells, the default path's icons), "New kit"
   started from TrueMain's first build on the lane (starter, boots, core path, rune page, spells; each row's first
-  rune and Flash + Ignite where the build has none), Edit, Duplicate, Rename, Delete (asks first) and "Use in
-  champion select" — one active kit per champion and position (`components/kit/`). The editor
-  (`KitEditor.vue`) works on a draft saved whole: spells (Rift's nine, a pick of the other slot's spell swaps them),
+  rune and Flash + Ignite where the build has none), Edit, Duplicate, Rename, Delete (asks first)
+  (`components/kit/`). There is nothing to switch on: every kit is offered in champion select on its positions (#2205). **My kits** (#2205,
+  `pages/kits.vue`, in the sidebar between Truemains and Favorites) lists every kit grouped by champion (each row
+  with its positions' icons), shows and edits them the same way (`KitDetail.vue`, shared with the champion page),
+  and makes new ones: "New kit" asks for the champion (the site's `ChampionPicker`) and its positions (the filters'
+  `RolePicker`, in its multiple mode), then starts from TrueMain's build on the first of them. The editor
+  (`KitEditor.vue`) works on a draft saved whole — its name and positions first — spells (Rift's nine, a pick of the other slot's spell swaps them),
   starter (up to six), boots (up to four), the rune page with every tree, rune and shard a button (the client's rules: a tree
   changed resets its rows, the secondary's two runes on two rows, `utils/kit-runes.ts`), and the tree drawn as the
   build tree (`KitTree.vue`): a node clicked asks for another item, × drops it and what follows, and a dashed "+"
@@ -329,12 +333,14 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   the path (or a boots already chosen) is greyed, its card still shown. What keeps a kit from being saved is listed under
   it (`kitIssues`). Kept by the shell in `kits.json` (`shell_state::kits`, versioned, read leniently — a kit that
   breaks a rule is dropped alone; `kits_get` / `kits_set`, every change emitted to every window), in `localStorage`
-  under the dev server. In champion select, our pick's active kit takes the build pane: the header says "Your kit:
-  <name>" with a switch to TrueMain's build (a row or a main clicked goes back too), and its three imports, each on
-  its click: the item set (the same one `TrueMain: ` set — Starter, Boots, then one block per path, the default one
+  under the dev server. In champion select, our pick's kits on its lane are a "Your kits" section of the build pane's
+  list, between the builds and the truemains (#2205, `useDraftKits`): the draft's build stays the default, a kit
+  picked takes the pane and is kept for the game (a build or a main picked, or a new pick or lane, clears it), with its
+  three imports, each on its click: the item set (the same one `TrueMain: ` set — Starter, Boots, then one block per path, the default one
   "Core", `import_kit_item_set`), the rune page (the rune import's own page), and the spells
   (`champ_select_spells` → `PATCH /lol-champ-select/v1/session/my-selection`, read the session first, champion
-  select only, not in the simulator). In game, the next item (game page and overlay) follows the active kit: the
+  select only, not in the simulator). In game, the next item (game page and overlay) follows the kit picked in champion
+  select: the
   next node on the branch the held items took (the one completed first when two were, the first child where it
   splits), then the kit's first boots unless one of its boots is held; the row is the kit's (boots after the first
   item, the pair held if any), its starter replaces the

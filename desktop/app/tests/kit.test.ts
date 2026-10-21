@@ -18,8 +18,8 @@ describe('a kit made out of a build', () => {
   }
 
   it('takes the starter, boots, core path, rune page and spells', () => {
-    const made = kitFromBuild({ championId: 103, position: 'MIDDLE', name: 'Mine' }, core, null)!
-    expect(made).toMatchObject({ name: 'Mine', championId: 103, position: 'MIDDLE', spells: [4, 12], starter: [1056, 2003], boots: [3020], runes: PAGE })
+    const made = kitFromBuild({ championId: 103, positions: ['MIDDLE'], name: 'Mine' }, core, null)!
+    expect(made).toMatchObject({ name: 'Mine', championId: 103, positions: ['MIDDLE'], spells: [4, 12], starter: [1056, 2003], boots: [3020], runes: PAGE })
     expect(made.runes).not.toHaveProperty('games')
     // The boots leave the path, which keeps five items beside them.
     expect(made.tree[0]!.itemId).toBe(6655)
@@ -27,10 +27,10 @@ describe('a kit made out of a build', () => {
   })
 
   it('fills what the build lacks', () => {
-    const made = kitFromBuild({ championId: 103, position: 'MIDDLE', name: 'x'.repeat(60) }, null, PAGE)!
+    const made = kitFromBuild({ championId: 103, positions: ['MIDDLE'], name: 'x'.repeat(60) }, null, PAGE)!
     expect(made).toMatchObject({ spells: [4, 14], starter: [], boots: [], tree: [] })
     expect(made.name).toHaveLength(40)
-    expect(kitFromBuild({ championId: 103, position: 'MIDDLE', name: 'x' }, null, null)).toBeNull()
+    expect(kitFromBuild({ championId: 103, positions: ['MIDDLE'], name: 'x' }, null, null)).toBeNull()
   })
 })
 
@@ -46,8 +46,9 @@ describe('a kit', () => {
 
   it('says why it cannot be saved', () => {
     expect(kitIssues(kit(), RUNE_TREE)).toEqual([])
-    expect(kitIssues(kit({ name: ' ', tree: [], spells: [4, 4] }), RUNE_TREE)).toEqual([
+    expect(kitIssues(kit({ name: ' ', positions: [], tree: [], spells: [4, 4] }), RUNE_TREE)).toEqual([
       'Name the kit.',
+      'Choose at least one position.',
       'Add a first item.',
       'Choose two different summoner spells.',
     ])
@@ -76,17 +77,20 @@ describe('a kit', () => {
 describe('a stored list of kits', () => {
   it('keeps the kits that read and the marks that name them', () => {
     const store = readStore({
-      kits: [kit(), kit({ id: 'k2', position: 'TOP' }), { id: 'bad' }, kit({ id: 'k3', runes: { ...PAGE, statFlex: 0 } }), null],
-      active: { '103:MIDDLE': 'k1', '103:TOP': 'k1', '103:BOTTOM': 'gone', '103:JUNGLE': 3 },
+      kits: [kit(), kit({ id: 'k2', positions: ['TOP', 'MIDDLE'] }), { id: 'bad' }, kit({ id: 'k3', runes: { ...PAGE, statFlex: 0 } }), kit({ id: 'k4', positions: [] }), null],
+      active: { '103:MIDDLE': 'k1', '103:TOP': 'k2', '103:BOTTOM': 'k2', '103:UTILITY': 'gone', '103:JUNGLE': 3 },
     })
     expect(store.kits.map(k => k.id)).toEqual(['k1', 'k2'])
-    expect(store.active).toEqual({ '103:MIDDLE': 'k1' })
+    expect(store.active).toEqual({ '103:MIDDLE': 'k1', '103:TOP': 'k2' })
   })
 
   it('reads a kit leniently', () => {
     const [read] = readStore({ kits: [{ ...kit(), spells: [4], starter: [1056, 'x'], boots: 'no', updatedAt: 3, name: 'y'.repeat(50) }] }).kits
     expect(read).toMatchObject({ spells: [4, 14], starter: [1056], boots: [], updatedAt: new Date(0).toISOString() })
     expect(read!.name).toHaveLength(40)
+    // A kit saved on one position, before several were allowed, reads as that position.
+    const { positions: _, ...legacy } = kit()
+    expect(readStore({ kits: [{ ...legacy, position: 'TOP' }] }).kits[0]!.positions).toEqual(['TOP'])
     // A kit saved with one boots id still reads; a list keeps its order, without repeats, capped.
     expect(readStore({ kits: [{ ...kit(), boots: 3020 }] }).kits[0]!.boots).toEqual([3020])
     expect(readStore({ kits: [{ ...kit(), boots: [3047, 3020, 3047, 3111, 3158, 3006] }] }).kits[0]!.boots).toEqual([3047, 3020, 3111, 3158])

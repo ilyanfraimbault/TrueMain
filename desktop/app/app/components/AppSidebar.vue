@@ -38,6 +38,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
     { label: 'Tier list', icon: 'i-lucide-trending-up', to: '/tierlist', active: isActive('/tierlist') },
     { label: 'Matchup', icon: 'i-lucide-wand-sparkles', to: '/matchup', active: isActive('/matchup') },
     { label: 'Truemains', icon: 'i-lucide-trophy', to: '/truemains', active: isActive('/truemains') },
+    { label: 'My kits', icon: 'i-lucide-backpack', to: '/kits', active: isActive('/kits') },
     { label: 'Favorites', icon: 'i-lucide-star', to: '/favorites', active: isActive('/favorites') },
   ],
   [
