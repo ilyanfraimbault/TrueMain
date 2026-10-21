@@ -20,10 +20,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Match",
                 typeof(Match),
                 baseEntityType,
-                propertyCount: 25,
+                propertyCount: 26,
                 navigationCount: 1,
                 unnamedIndexCount: 4,
-                namedIndexCount: 8,
+                namedIndexCount: 9,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -228,6 +228,16 @@ namespace Data.CompiledModels
                 sentinel: 0);
             queueId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var scalingAggregated = runtimeEntityType.AddProperty(
+                "ScalingAggregated",
+                typeof(bool),
+                propertyInfo: typeof(Match).GetProperty("ScalingAggregated", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Match).GetField("<ScalingAggregated>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAdd,
+                sentinel: false);
+            scalingAggregated.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            scalingAggregated.AddAnnotation("Relational:DefaultValue", false);
+
             var synergyAggregated = runtimeEntityType.AddProperty(
                 "SynergyAggregated",
                 typeof(bool),
@@ -307,6 +317,11 @@ namespace Data.CompiledModels
                 new[] { queueId },
                 name: "IX_matches_profile_pending");
             iX_matches_profile_pending.AddAnnotation("Relational:Filter", "\"ProfileAggregated\" = false");
+
+            var iX_matches_scaling_pending = runtimeEntityType.AddIndex(
+                new[] { queueId },
+                name: "IX_matches_scaling_pending");
+            iX_matches_scaling_pending.AddAnnotation("Relational:Filter", "\"ScalingAggregated\" = false");
 
             var iX_matches_snapshot_prune_pending = runtimeEntityType.AddIndex(
                 new[] { queueId },

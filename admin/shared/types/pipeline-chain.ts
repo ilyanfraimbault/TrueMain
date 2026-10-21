@@ -35,6 +35,7 @@ export const PIPELINE_CHAIN: readonly string[] = [
   'ChampionMatchupLeadAggregation',
   'ChampionSynergyAggregation',
   'ChampionOpponentAggregation',
+  'ChampionScalingAggregation',
   'ChampionBanAggregation',
   'AccountRefresh',
   'PaceSampling',
@@ -106,6 +107,7 @@ export const PIPELINE_LANES: readonly PipelineLane[] = [
       'ChampionMatchupLeadAggregation',
       'ChampionSynergyAggregation',
       'ChampionOpponentAggregation',
+      'ChampionScalingAggregation',
       'ChampionBanAggregation',
       'MatchDataRetention',
       'ChampionGameCountRefresh',
@@ -219,6 +221,11 @@ export const PROCESS_META: Record<string, ProcessMeta> = {
     label: 'Opponents',
     description:
       'Folds each match into the champion-versus-enemy pair stats behind the draft\'s enemy-team component.',
+  },
+  ChampionScalingAggregation: {
+    label: 'Scaling',
+    description:
+      'Folds each match into the champion win-rate-by-game-length stats behind the scaling chart, counting only games where the champion side is one of its mains.',
   },
   ChampionBanAggregation: {
     label: 'Bans',

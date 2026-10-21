@@ -2,7 +2,6 @@ using AwesomeAssertions;
 using Data;
 using Data.Aggregation;
 using Microsoft.EntityFrameworkCore;
-using TrueMain.Services.Champions.Builds;
 
 namespace TrueMain.UnitTests;
 
@@ -56,23 +55,5 @@ public sealed class ChampionCohortSqlTests
         sql.Should().Contain("\"EndedInEarlySurrender\"", "Riot's remake flag is the other half of the rule (#1364)");
         sql.Should().Contain("\"QueueId\"");
         sql.Should().NotContain("main_champion_stats");
-    }
-
-    [Fact]
-    public void ItemTimingsComposeTheRawUnnestUnderTheCohortInOneStatement()
-    {
-        using var db = CreateContext();
-
-        var sql = ChampionItemTimingsQueryService
-            .TimingsQuery(db, 1, "MIDDLE", 420, "16.4", ["GOLD"], 5)
-            .ToQueryString();
-
-        sql.Should().Contain("jsonb_array_elements", "the purchase unnest stays in SQL");
-        sql.Should().Contain("\"IsMain\"", "the cohort is composed into the same statement");
-        sql.Should().Contain("\"GameDurationSeconds\" >= 300");
-        sql.Should().Contain("\"EndedInEarlySurrender\"", "Riot's remake flag is the other half of the rule (#1364)");
-        sql.Should().Contain("GROUP BY");
-        sql.Should().Contain("HAVING", "the sample floor is applied before rows cross the wire");
-        sql.Should().Contain("ORDER BY");
     }
 }

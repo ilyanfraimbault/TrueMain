@@ -70,16 +70,17 @@ public interface IChampionReadCache
 /// entries survive until the ingestor actually publishes new numbers.
 /// </para>
 /// <para>
-/// <b>The live folds are a weaker case, deliberately.</b> Scaling, item timings,
-/// synergies, the live branch of matchups, mains-comparison and the
-/// composition selection read <c>match_participants</c> directly, so their answers also
+/// <b>The live folds are a weaker case, deliberately.</b> The trio synergies, the live
+/// branch of matchups, mains-comparison and the composition selection read
+/// <c>match_participants</c> directly, so their answers also
 /// move with match ingestion — which since #1374 runs in a lane of its own, not with the
 /// aggregation. The version token does not track that, so for these
 /// <see cref="AbsoluteBackstop"/> is the real freshness bound: up to half an hour, where
 /// it used to be a minute. That is the trade this exists to make — these are exactly the
 /// reads that measured 2–5 s cold — and it is bounded staleness, never a wrong answer.
-/// Part B of #1368 moves them onto aggregate tables of their own, at which point the
-/// token covers them too.
+/// Scaling was one of them until part B of #1368 moved it onto an aggregate table of
+/// its own, which the token now covers like the others; item timings was dropped
+/// instead, having had no caller since #628.
 /// </para>
 /// </remarks>
 public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCache cache) : IChampionReadCache

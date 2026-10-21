@@ -168,6 +168,10 @@ public static class OptionsConfigurationExtensions
                 configuration, OpponentAggregationOptions.SectionName)
             .ValidateOnStart();
 
+        services.AddOptionsWithValidator<ScalingAggregationOptions, ScalingAggregationOptionsValidator>(
+                configuration, ScalingAggregationOptions.SectionName)
+            .ValidateOnStart();
+
         services.AddOptionsWithValidator<LaneOutcomeAggregationOptions, LaneOutcomeAggregationOptionsValidator>(
                 configuration, LaneOutcomeAggregationOptions.SectionName)
             .ValidateOnStart();

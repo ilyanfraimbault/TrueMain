@@ -302,6 +302,7 @@ Last verified against `develop` on 2026-09-02.
 - The payload is inlined on first load and extracted for client navigation only (`payloadExtraction: 'client'`; it only reaches the `swr` text pages) (2026-10-04) — #1618
 - Paginated reads stay on offset paging; keyset waits for a preprod `EXPLAIN` showing a real cost at a page actually reached (2026-10-06) — #1635
 - No ops read counts `match_participants` on request: champion stats read a rollup, the cockpit's corpus totals are planner estimates that degrade alone, and a failed cold pass backs off (2026-10-19) — #2132, #1427
+- The scaling chart reads a per-match fold (`champion_scaling_stats`), proven equal to the live SQL it replaced; the uncalled `item-timings` endpoint is gone rather than pre-aggregated (2026-10-21) — #1368, #628
 
 ## Infrastructure and deploy — [`decisions/infrastructure-and-deploy.md`](decisions/infrastructure-and-deploy.md)
 - The rate-limit partition is the visitor (last `X-Forwarded-For` hop, trusted proxies only), not the connection — this reverses "100 req/min per IP" — #1546

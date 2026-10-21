@@ -297,6 +297,12 @@ public sealed class ProcessRunSummaryJsonTests
             new OpponentAggregationSummary(4000, 4, 18000, 1100),
             new { matches = 4000, batches = 4, pairRows = 18000, baselineRows = 1100 });
 
+        // ChampionScalingAggregationProcess (#1368) — matches and batches, the cohort
+        // members folded and the bucket rows they touched.
+        yield return (
+            new ScalingAggregationSummary(4000, 4, 9000, 2500),
+            new { matches = 4000, batches = 4, participants = 9000, rows = 2500 });
+
         // ChampionMatchupLeadAggregationProcess (#919, one fold since #1445).
         yield return (
             new MatchupAggregationSummary(4000, 4, 3600, 900, 300),

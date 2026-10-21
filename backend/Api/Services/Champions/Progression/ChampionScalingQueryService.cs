@@ -1,5 +1,4 @@
 using Core.Lol.Ranking;
-using Core.Options;
 using Data;
 using Data.Aggregation;
 using Microsoft.EntityFrameworkCore;
@@ -24,12 +23,14 @@ public interface IChampionScalingQueryService
 /// Win rate bucketed by game duration for a champion at a position, plus a single
 /// scaling index (win rate of the longest qualifying bucket minus the shortest).
 /// Counts the champion's cohort (<see cref="ChampionCohort"/>) — the population of the
-/// header and of every other panel on the page — computed live from match participants,
-/// no timeline or aggregation table.
+/// header and of every other panel on the page — read from <c>champion_scaling_stats</c>,
+/// which <c>ChampionScalingAggregationProcess</c> folds match by match (#1368). It used to
+/// fold <c>match_participants</c> live on every request, 30–45 s cold for a popular
+/// champion; the aggregate holds the same games and wins per bucket, so the read only sums
+/// the rows of the requested patch and bands and floors each bucket on the total.
 /// </summary>
 public sealed class ChampionScalingQueryService(
     TrueMainDbContext db,
-    IOptions<MainAnalysisOptions> options,
     IOptions<ChampionsListOptions> championsOptions,
     IChampionReadCache cache)
     : IChampionScalingQueryService
@@ -63,38 +64,31 @@ public sealed class ChampionScalingQueryService(
         string? eloBracket,
         CancellationToken ct)
     {
-        // Resolve the elo filter to its bands (null = ALL, no clause).
+        // Resolve the elo filter to its bands (null = ALL, every stored band summed).
         var bands = EloBracket.ResolveFilterOrEmpty(eloBracket);
-
-        var queueId = (int)options.Value.QueueId;
 
         // Shares the matchup sample floor: a scaling bucket needs enough games for
         // its win rate to mean anything, same threshold the sibling reads use.
         var minGames = championsOptions.Value.MinMatchupGames;
 
-        // The champion side: the cohort's rows for this champion + lane, optionally
-        // narrowed to the requested elo bands.
-        var participants = ChampionCohort.Members(db, queueId, normalizedPatch)
-            .Where(p => p.ChampionId == championId && p.TeamPosition == position);
-        if (bands is not null)
+        var stats = db.ChampionScalingStats
+            .AsNoTracking()
+            .Where(stat => stat.ChampionId == championId && stat.TeamPosition == position);
+        if (normalizedPatch is not null)
         {
-            participants = participants.Where(p => bands.Contains(p.EloBracket));
+            stats = stats.Where(stat => stat.Patch == normalizedPatch);
         }
 
-        // Bucket each game by duration (CASE in GROUP BY), count games and wins per
-        // bucket, drop thin buckets — one SQL round-trip.
-        var rows = await participants
-            .Join(
-                ChampionCohort.Games(db, queueId, normalizedPatch),
-                participant => participant.MatchId,
-                match => match.Id,
-                (participant, match) => new { participant.Win, match.GameDurationSeconds })
-            .GroupBy(x => x.GameDurationSeconds < 1200 ? 0
-                : x.GameDurationSeconds < 1500 ? 1
-                : x.GameDurationSeconds < 1800 ? 2
-                : x.GameDurationSeconds < 2100 ? 3
-                : 4)
-            .Select(g => new { Bucket = g.Key, Games = g.Count(), Wins = g.Sum(x => x.Win ? 1 : 0) })
+        if (bands is not null)
+        {
+            stats = stats.Where(stat => bands.Contains(stat.EloBracket));
+        }
+
+        // Sum the stored rows per bucket and drop thin buckets on the merged total —
+        // one SQL round-trip over a handful of rows.
+        var rows = await stats
+            .GroupBy(stat => stat.Bucket)
+            .Select(g => new { Bucket = g.Key, Games = g.Sum(x => x.Games), Wins = g.Sum(x => x.Wins) })
             .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
