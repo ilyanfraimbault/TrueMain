@@ -18,6 +18,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use shell_state::keys::{Chord, KeyCode};
 
+use crate::auto_clips::AutoClipKind;
+
 /// The settings file's format version, written into it so a later format can
 /// migrate rather than guess.
 pub const SETTINGS_VERSION: u32 = 1;
@@ -184,6 +186,16 @@ fn parse<T: DeserializeOwned>(value: Option<&Value>) -> Option<T> {
     serde_json::from_value(value?.clone()).ok()
 }
 
+/// The kinds a settings file lists, in [`AutoClipKind::ALL`]'s order: one
+/// this build does not know is dropped alone, a repeated one kept once.
+fn auto_clip_kinds(listed: &[Value]) -> Vec<AutoClipKind> {
+    let listed: Vec<AutoClipKind> = listed.iter().filter_map(|kind| parse(Some(kind))).collect();
+    AutoClipKind::ALL
+        .into_iter()
+        .filter(|kind| listed.contains(kind))
+        .collect()
+}
+
 fn even(value: u32) -> u32 {
     value & !1
 }
@@ -209,6 +221,9 @@ pub struct RecordingSettings {
     /// The chord that marks the moment while a game records (#2079); `None`
     /// turns marking off.
     pub mark_key: Option<Chord>,
+    /// The plays cut as clips of their own once a game is finalised (#1766);
+    /// empty turns automatic clips off. In [`AutoClipKind::ALL`]'s order.
+    pub auto_clips: Vec<AutoClipKind>,
 }
 
 impl Default for RecordingSettings {
@@ -225,6 +240,7 @@ impl Default for RecordingSettings {
             budget_bytes: 50 * GB,
             folder: None,
             mark_key: Some(DEFAULT_MARK_KEY),
+            auto_clips: AutoClipKind::ALL.to_vec(),
         }
     }
 }
@@ -274,6 +290,10 @@ impl RecordingSettings {
                 key => parse::<Chord>(key)
                     .filter(|chord| chord.refusal(false).is_none())
                     .or(defaults.mark_key),
+            },
+            auto_clips: match fields.get("autoClips") {
+                Some(Value::Array(kinds)) => auto_clip_kinds(kinds),
+                _ => defaults.auto_clips,
             },
         }
     }
@@ -374,6 +394,7 @@ mod tests {
             budget_bytes: 10 * GB,
             folder: Some(dir.path().join("videos")),
             mark_key: Some(Chord::with(false, true, false, KeyCode::F9)),
+            auto_clips: vec![AutoClipKind::Steal, AutoClipKind::Combo],
         };
         settings.save(&path).unwrap();
 
@@ -443,6 +464,29 @@ mod tests {
                 "{refused}"
             );
         }
+    }
+
+    #[test]
+    fn every_play_is_clipped_by_default_and_each_can_be_turned_off() {
+        assert_eq!(
+            RecordingSettings::from_json("{}").auto_clips,
+            AutoClipKind::ALL.to_vec()
+        );
+        assert!(RecordingSettings::from_json(r#"{ "autoClips": [] }"#)
+            .auto_clips
+            .is_empty());
+        // Unknown kinds dropped alone, repeats kept once, in the settings' order.
+        assert_eq!(
+            RecordingSettings::from_json(
+                r#"{ "autoClips": ["combo", "flashCharm", "steal", 3, "combo"] }"#
+            )
+            .auto_clips,
+            vec![AutoClipKind::Steal, AutoClipKind::Combo]
+        );
+        assert_eq!(
+            RecordingSettings::from_json(r#"{ "autoClips": "all" }"#).auto_clips,
+            AutoClipKind::ALL.to_vec()
+        );
     }
 
     #[test]

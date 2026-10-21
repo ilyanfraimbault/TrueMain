@@ -2,7 +2,8 @@
 import type { DraftClip } from '~/composables/useRecapDrafts'
 import type { Clip, Moment } from '~/types/recordings'
 import type { RecapTurningPoint } from '~/utils/recording-win-probability'
-import { formatClock, isMarked } from '~/utils/recording-moments'
+import { formatClock } from '~/utils/recording-moments'
+import { clipOrigin } from '~/utils/auto-clips'
 
 /**
  * Beside the recap's video: the clips — those being cut, each named and saved
@@ -82,7 +83,7 @@ const savingAny = computed(() => props.drafts.some(draft => draft.saving))
             :to="`/recordings/clips/${encodeURIComponent(clip.id)}`"
             class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accented"
           >
-            <UIcon :name="clip.moments.some(isMarked) ? 'i-lucide-bookmark' : 'i-lucide-scissors'" class="size-3.5 shrink-0 text-primary" />
+            <UIcon :name="clipOrigin(clip).icon" class="size-3.5 shrink-0 text-primary" :title="clipOrigin(clip).label" />
             <span class="truncate text-default">{{ clip.title }}</span>
             <UIcon v-if="clip.favorite" name="i-lucide-star" class="size-3 shrink-0 text-gold" />
             <span class="ml-auto shrink-0 tabular-nums text-dimmed">{{ formatClock(clip.durationMs) }}</span>

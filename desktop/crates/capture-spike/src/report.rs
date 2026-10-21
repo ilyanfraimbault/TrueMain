@@ -10,7 +10,9 @@
 use std::fmt::Write as _;
 
 use game_recording::anchor::ClockSample;
-use game_recording::{Anchor, Highlight, HighlightKind, OutputSpec, RecordingMeta};
+use game_recording::{
+    auto_clips, Anchor, AutoClipKind, Highlight, HighlightKind, OutputSpec, RecordingMeta,
+};
 use serde_json::{json, Value};
 
 use capture_helper::{Progress, Stopped};
@@ -254,14 +256,23 @@ pub fn render_player(meta: &RecordingMeta) -> String {
                 .collect()
         })
         .unwrap_or_default();
-    let data = serde_json::to_string(&moments)
-        .unwrap_or_else(|_| "[]".into())
-        .replace("</", "<\\/");
+    // Every kind the app can clip automatically (#1766), played from the full
+    // video rather than cut.
+    let clips: Vec<Value> = auto_clips(meta, &AutoClipKind::ALL)
+        .into_iter()
+        .map(|clip| json!({ "title": clip.title, "startMs": clip.start_ms, "endMs": clip.end_ms }))
+        .collect();
+    let script_json = |value: &Vec<Value>| {
+        serde_json::to_string(value)
+            .unwrap_or_else(|_| "[]".into())
+            .replace("</", "<\\/")
+    };
 
     PLAYER_TEMPLATE
         .replace("{{GAME_ID}}", &meta.game_id.to_string())
         .replace("{{LEAD_IN_MS}}", &LEAD_IN_MS.to_string())
-        .replace("{{MOMENTS}}", &data)
+        .replace("{{MOMENTS}}", &script_json(&moments))
+        .replace("{{CLIPS}}", &script_json(&clips))
 }
 
 const PLAYER_TEMPLATE: &str = r#"<!doctype html>
@@ -288,6 +299,7 @@ const PLAYER_TEMPLATE: &str = r#"<!doctype html>
   ol button { display: flex; align-items: center; gap: 6px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; }
   .empty { color: var(--muted); }
+  h1.clips { margin-top: 20px; }
 </style>
 </head>
 <body>
@@ -300,16 +312,20 @@ const PLAYER_TEMPLATE: &str = r#"<!doctype html>
     <button id="next">Next moment →</button>
   </div>
   <ol id="moments"></ol>
+  <h1 class="clips">Automatic clips</h1>
+  <ol id="clips"></ol>
 </main>
 <script>
   const LEAD_IN_MS = {{LEAD_IN_MS}};
+  let clipEnd = null;
   const moments = {{MOMENTS}};
+  const clips = {{CLIPS}};
   const video = document.getElementById("video");
   const bar = document.getElementById("bar");
   const list = document.getElementById("moments");
   const clock = (ms) => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
   const label = (m) => m.kind === "kill" ? (["", "Kill", "Double kill", "Triple kill", "Quadra kill", "Penta kill"][m.kills] || "Kill") : m.kind === "death" ? "Death" : "Assist";
-  const jump = (m) => { video.currentTime = Math.max(0, m.videoMs - LEAD_IN_MS) / 1000; video.play(); };
+  const jump = (m) => { clipEnd = null; video.currentTime = Math.max(0, m.videoMs - LEAD_IN_MS) / 1000; video.play(); };
 
   if (moments.length === 0) {
     list.innerHTML = '<li class="empty">No highlight to show.</li>';
@@ -321,6 +337,23 @@ const PLAYER_TEMPLATE: &str = r#"<!doctype html>
     button.addEventListener("click", () => jump(m));
     item.appendChild(button);
     list.appendChild(item);
+  }
+  // A clip plays its range of the full video, then pauses.
+  const playClip = (c) => { clipEnd = c.endMs; video.currentTime = c.startMs / 1000; video.play(); };
+  video.addEventListener("timeupdate", () => {
+    if (clipEnd !== null && video.currentTime * 1000 >= clipEnd) { video.pause(); clipEnd = null; }
+  });
+  const clipList = document.getElementById("clips");
+  if (clips.length === 0) {
+    clipList.innerHTML = '<li class="empty">No play to clip.</li>';
+  }
+  for (const c of clips) {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.textContent = clock(c.startMs) + "–" + clock(c.endMs) + " · " + c.title;
+    button.addEventListener("click", () => playClip(c));
+    item.appendChild(button);
+    clipList.appendChild(item);
   }
   video.addEventListener("loadedmetadata", () => {
     for (const m of moments) {
@@ -483,5 +516,21 @@ mod tests {
         let mut meta = meta();
         meta.anchor = None;
         assert!(render_player(&meta).contains("const moments = [];"));
+        assert!(render_player(&meta).contains("const clips = [];"));
+    }
+
+    #[test]
+    fn the_player_lists_the_automatic_clips() {
+        let mut meta = meta();
+        meta.highlights.push(Highlight {
+            kills: 3,
+            end_game_time_ms: 108_000,
+            ..highlight(HighlightKind::Kill, 100_000)
+        });
+        let player = render_player(&meta);
+        assert!(
+            player.contains(r#"{"endMs":133000,"startMs":110000,"title":"Triple kill"}"#),
+            "{player}"
+        );
     }
 }
