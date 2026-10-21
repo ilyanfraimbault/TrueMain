@@ -32,6 +32,13 @@ public sealed record ChampionItemContextResponse
     public bool AllRanks { get; init; } = true;
 
     public IReadOnlyList<ChampionItemContextItemReadModel> Items { get; init; } = [];
+
+    /// <summary>
+    /// The build path of every build item and boots above (#2183): its components in the order
+    /// the mains buy them. Served for the site to show later; the desktop app reads the same
+    /// order on the next-item answer.
+    /// </summary>
+    public IReadOnlyList<ChampionItemRouteReadModel> Routes { get; init; } = [];
 }
 
 /// <summary>One step's verdict — one edge of the build tree (#1496).</summary>

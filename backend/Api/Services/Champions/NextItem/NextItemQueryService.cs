@@ -4,6 +4,7 @@ using Data.ItemContext;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions.Draft;
+using TrueMain.Services.Champions.ItemRoutes;
 using TrueMain.Services.Champions.Scopes;
 
 namespace TrueMain.Services.Champions.NextItem;
@@ -36,6 +37,7 @@ public interface INextItemQueryService
 public sealed class NextItemQueryService(
     TrueMainDbContext db,
     ILanePriorQueryService lanePriors,
+    IItemRouteQueryService routes,
     IChampionReadCache cache) : INextItemQueryService
 {
     /// <summary>Reasons returned per candidate — what a panel line can carry.</summary>
@@ -79,8 +81,9 @@ public sealed class NextItemQueryService(
             Thresholds);
 
         var owned = criteria.Items.Where(item => item > 0).ToHashSet();
-        var build = BuildSlot(model, criteria.Items, owned, situation);
-        var boots = owned.Any(model.IsBoots) ? null : Slot(model.Branch(ItemContextSlot.Boots, 0), owned, situation, onTree: true);
+        var paths = await routes.GetAsync(championId, position, patch, ct);
+        var build = WithRoutes(BuildSlot(model, criteria.Items, owned, situation), paths);
+        var boots = owned.Any(model.IsBoots) ? null : WithRoutes(Slot(model.Branch(ItemContextSlot.Boots, 0), owned, situation, onTree: true), paths);
 
         return new ChampionNextItemResponse
         {
@@ -94,6 +97,19 @@ public sealed class NextItemQueryService(
             EnemyLanes = enemyLanes,
         };
     }
+
+    /// <summary>Each candidate with its build path (#2183), so the app needs no second call.</summary>
+    private static NextItemSlotReadModel? WithRoutes(NextItemSlotReadModel? slot, ItemRouteBook paths)
+        => slot is null
+            ? null
+            : slot with
+            {
+                Candidates = [.. slot.Candidates.Select(candidate => candidate with
+                {
+                    Route = paths.Route(candidate.ItemId),
+                    RouteGames = paths.Games(candidate.ItemId),
+                })],
+            };
 
     /// <summary>
     /// The build decision: the branch the completed items lead to, or — when everything that
