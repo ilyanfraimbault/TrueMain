@@ -221,7 +221,7 @@ export function devMarkKeyRefusal(chord: Chord): string | null {
   if (chord.key === 'Escape' || chord.key === 'Enter') return 'Esc and Enter open the game\'s menu and chat.'
   if (chord.meta) return '⌘ and the Windows key belong to the system.'
   if (chord.alt && chord.shift && !chord.ctrl && !chord.tab && chord.key === 'KeyO') return 'This is the shortcut that hides the whole overlay.'
-  if (chord.alt && chord.shift && !chord.ctrl && !chord.tab && chord.key === 'Digit1') return 'Already the shortcut of Next item.'
+  if (chord.alt && chord.shift && !chord.ctrl && !chord.tab && chord.key === 'Digit1') return 'Already the shortcut of Build path.'
   return null
 }
 

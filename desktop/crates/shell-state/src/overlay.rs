@@ -93,7 +93,7 @@ impl OverlayPanel {
     /// The panel's name for the player, as the Overlay page shows it.
     pub fn name(self) -> &'static str {
         match self {
-            OverlayPanel::NextItem => "Next item",
+            OverlayPanel::NextItem => "Build path",
             OverlayPanel::WinProbability => "Win probability",
             OverlayPanel::ItemValue => "Item value",
             OverlayPanel::Stats => "Your pace",
@@ -910,7 +910,7 @@ mod tests {
         };
         assert_eq!(
             settings.refusal(Stats, &toggle).as_deref(),
-            Some("Already the shortcut of Next item.")
+            Some("Already the shortcut of Build path.")
         );
         assert_eq!(settings.refusal(NextItem, &toggle), None);
         // TAB alone is the item value's own, held.

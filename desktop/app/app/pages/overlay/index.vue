@@ -123,7 +123,7 @@ onBeforeUnmount(() => void preview(false))
       </section>
 
       <section v-if="current.nextItem.enabled" class="flex flex-col gap-2">
-        <h3 class="stat-label">Next item shows</h3>
+        <h3 class="stat-label">Build path shows</h3>
         <RecordingsSegmented :model-value="current.show" :items="SHOWS" @update:model-value="apply({ show: $event })" />
       </section>
 
