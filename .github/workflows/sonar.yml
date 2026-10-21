@@ -230,7 +230,7 @@ jobs:
           /d:sonar.cs.roslyn.ignoreIssues=true
           /d:sonar.exclusions="**/Migrations/**,**/CompiledModels/**,**/tests/**,**/*.test.ts,web/server/utils/dev-api-mock.ts,.claude/**,**/node_modules/**,**/.nuxt/**,**/.output/**,**/coverage/**"
           /d:sonar.cs.vscoveragexml.reportsPaths="$RUNNER_TEMP/coverage/*.xml"
-          /d:sonar.javascript.lcov.reportPaths="$RUNNER_TEMP/lcov/lcov-web/lcov.info,$RUNNER_TEMP/lcov/lcov-admin/lcov.info,$RUNNER_TEMP/lcov/lcov-desktop-app/lcov.info"
+          /d:sonar.javascript.lcov.reportPaths="$RUNNER_TEMP/lcov/lcov.info,$RUNNER_TEMP/lcov/lcov-web/lcov.info,$RUNNER_TEMP/lcov/lcov-admin/lcov.info,$RUNNER_TEMP/lcov/lcov-desktop-app/lcov.info"
 
       - name: Restore solution
         run: dotnet restore TrueMain.sln
