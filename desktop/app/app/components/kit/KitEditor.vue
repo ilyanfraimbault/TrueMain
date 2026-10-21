@@ -91,7 +91,7 @@ const name = (itemId: number) => items.value[itemId]?.name ?? `Item ${itemId}`
         <p class="stat-label mb-2">Starter</p>
         <div class="flex gap-1.5">
           <div v-for="(itemId, index) in draft.starter" :key="`${itemId}-${index}`" class="group relative">
-            <button type="button" class="block rounded ring-1 ring-transparent hover:ring-primary/60" :aria-label="`Replace ${name(itemId)}`" @click="target = { kind: 'starter', index }">
+            <button type="button" class="block rounded transition hover:brightness-125 focus-visible:outline-2 focus-visible:outline-primary" :aria-label="`Replace ${name(itemId)}`" @click="target = { kind: 'starter', index }">
               <GameTooltipItemIcon :item="items[itemId] ?? null" :width="36" :height="36" class="size-9 rounded" />
             </button>
             <button type="button" class="absolute -right-1.5 -top-1.5 hidden size-4 items-center justify-center rounded-full bg-elevated text-dimmed ring-1 ring-default hover:text-error group-hover:flex group-focus-within:flex" :aria-label="`Remove ${name(itemId)}`" @click="removeStarter(index)">
@@ -107,7 +107,7 @@ const name = (itemId: number) => items.value[itemId]?.name ?? `Item ${itemId}`
       <div>
         <p class="stat-label mb-2">Boots</p>
         <div class="group relative">
-          <button v-if="draft.boots" type="button" class="block rounded ring-1 ring-transparent hover:ring-primary/60" :aria-label="`Replace ${name(draft.boots)}`" @click="target = { kind: 'boots' }">
+          <button v-if="draft.boots" type="button" class="block rounded transition hover:brightness-125 focus-visible:outline-2 focus-visible:outline-primary" :aria-label="`Replace ${name(draft.boots)}`" @click="target = { kind: 'boots' }">
             <GameTooltipItemIcon :item="items[draft.boots] ?? null" :width="36" :height="36" class="size-9 rounded" />
           </button>
           <button v-else type="button" class="flex size-9 items-center justify-center rounded border border-dashed border-default text-dimmed hover:border-primary/60 hover:text-primary" aria-label="Choose boots" @click="target = { kind: 'boots' }">
@@ -128,7 +128,7 @@ const name = (itemId: number) => items.value[itemId]?.name ?? `Item ${itemId}`
 
     <div>
       <p class="stat-label mb-1">Items</p>
-      <p class="mb-3 text-xs text-dimmed">Click an item to change it, + to branch after it. The first branch is the one followed in game.</p>
+      <p class="mb-3 text-xs text-dimmed">Click an item to change it, a + to add one: under an item, the one that follows it; beside items, another branch. The leftmost branch is the one followed in game.</p>
       <KitTree :tree="draft.tree" :items="items" :boots="draft.boots" editable @pick="target = { kind: 'tree', ...$event }" @remove="removeNode" />
     </div>
 

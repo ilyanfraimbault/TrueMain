@@ -317,8 +317,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`KitEditor.vue`) works on a draft saved whole: spells (Rift's nine, a pick of the other slot's spell swaps them),
   starter (up to six), boots, the rune page with every tree, rune and shard a button (the client's rules: a tree
   changed resets its rows, the secondary's two runes on two rows, `utils/kit-runes.ts`), and the tree drawn as the
-  build tree (`KitTree.vue`): a node clicked asks for another item, "+" branches after it while the path has room,
-  × drops it and what follows. The item picker searches the Rift's shop by name, grouped legendaries / boots /
+  build tree (`KitTree.vue`): a node clicked asks for another item, × drops it and what follows, and every row ends
+  on a dashed "+" slot while the path has room — under a leaf the next item, beside items another branch, on the
+  first row another first item (#2197). The item picker searches the Rift's shop by name, grouped legendaries / boots /
   components / starters, from Data Dragon (map 11 only, boot upgrades and duplicate names left out,
   `utils/kit-items.ts`); an item already on the path is greyed. What keeps a kit from being saved is listed under
   it (`kitIssues`). Kept by the shell in `kits.json` (`shell_state::kits`, versioned, read leniently — a kit that

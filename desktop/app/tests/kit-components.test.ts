@@ -44,12 +44,14 @@ describe('KitTree', () => {
   it('asks for an item to replace a node, to branch after it, or as a new first item', async () => {
     const wrapper = mount(KitTree, { props: { tree: kit().tree, items, boots: 3020, editable: true }, global })
     await wrapper.get('[aria-label="Replace Shadowflame"]').trigger('click')
-    await wrapper.get('[aria-label="Add an item after Lich Bane"]').trigger('click')
+    await wrapper.get('[aria-label="Add another branch after Lich Bane"]').trigger('click')
+    await wrapper.get('[aria-label="Add an item after Rabadon\'s Deathcap"]').trigger('click')
     await wrapper.get('[aria-label="Add another first item"]').trigger('click')
     await wrapper.get('[aria-label="Remove Lich Bane and what follows"]').trigger('click')
     expect(wrapper.emitted('pick')).toEqual([
       [{ at: [0, 1], mode: 'replace' }],
       [{ at: [0, 0], mode: 'child' }],
+      [{ at: [0, 0, 0], mode: 'child' }],
       [{ at: [], mode: 'child' }],
     ])
     expect(wrapper.emitted('remove')).toEqual([[[0, 0]]])
@@ -58,7 +60,8 @@ describe('KitTree', () => {
   it('offers no branch past a full path, and only the first item on an empty tree', () => {
     const chain = (ids: number[]) => ids.reduceRight<{ itemId: number, children: never[] }[]>((children, itemId) => [{ itemId, children: children as never[] }], [])
     const full = mount(KitTree, { props: { tree: chain([1, 2, 3, 4, 5]), items, boots: 3020, editable: true }, global })
-    expect(full.findAll('[aria-label^="Add an item after"]')).toHaveLength(4)
+    expect(full.findAll('[aria-label^="Add an item after"]')).toHaveLength(0)
+    expect(full.findAll('[aria-label^="Add another branch after"]')).toHaveLength(4)
     const empty = mount(KitTree, { props: { tree: [], items, boots: null, editable: true }, global })
     expect(empty.find('[aria-label="Add the first item"]').exists()).toBe(true)
   })

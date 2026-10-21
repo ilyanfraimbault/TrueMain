@@ -78,9 +78,6 @@ onBeforeUnmount(() => void preview(false))
         @update:model-value="apply({ enabled: $event })"
       />
     </div>
-    <p class="-mt-2 text-sm text-muted">
-      Over the game only — never over the client or another app. Click-through: the game keeps every click and every key.
-    </p>
 
     <UAlert
       v-if="view && !view.supported"
@@ -137,10 +134,6 @@ onBeforeUnmount(() => void preview(false))
           :chord="view?.chords[panel] ?? null"
           @change="setTrigger(panel, $event)"
         />
-        <p class="text-xs text-dimmed">
-          The game gets the keys too: a shortcut never stops what they do in game.
-          {{ view?.ownBinds ? 'Checked against your League keybindings.' : 'Checked against League\'s default keybindings.' }}
-        </p>
       </section>
 
       <section v-if="current.laneGold.enabled" class="flex flex-col gap-2">
@@ -156,11 +149,6 @@ onBeforeUnmount(() => void preview(false))
           size="sm"
           @update:model-value="(value) => { nudge = value ?? nudge; settle({ scoreboardNudge: nudge }) }"
         />
-        <p class="text-xs text-dimmed">
-          The plates sit on the scoreboard's rows, following
-          {{ view?.hud.own ? `your HUD scale (${formatPercentage(view.hud.globalScale, 0)})` : 'League\'s default HUD scale until the client is read' }}.
-          Move them if they miss the rows on your screen.
-        </p>
       </section>
 
       <section class="flex flex-col gap-2">

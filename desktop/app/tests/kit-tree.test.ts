@@ -130,6 +130,24 @@ describe('the layout', () => {
     expect(layout.nodes.filter(node => node.main).map(node => node.itemId)).toEqual([LUDENS, LICH, RABADON])
     // The default path's edges are drawn last.
     expect(layout.edges.at(-1)!.child.main).toBe(true)
-    expect(layoutKitTree([], { size: 10, hGap: 2, vGap: 4 })).toEqual({ nodes: [], edges: [], width: 0, height: 0 })
+    expect(layoutKitTree([], { size: 10, hGap: 2, vGap: 4 })).toEqual({ nodes: [], edges: [], slots: [], width: 0, height: 0 })
+  })
+
+  it('ends every row with room on a slot, the default path kept straight', () => {
+    const layout = layoutKitTree(tree, { size: 10, hGap: 2, vGap: 4, slotDepth: 3 })
+    expect(layout.width).toBe(70)
+    expect(layout.height).toBe(38)
+    const at = (path: number[]) => layout.nodes.find(node => node.at.join() === path.join())!
+    expect([at([0]).x, at([0, 0]).x, at([0, 0, 0]).x]).toEqual([23, 5, 5])
+    expect(layout.slots.map(({ parentAt, after, branch, x, y }) => ({ parentAt, after, branch, x, y }))).toEqual([
+      { parentAt: [0, 0], after: LICH, branch: true, x: 17, y: 33 },
+      { parentAt: [0, 1], after: SHADOWFLAME, branch: true, x: 41, y: 33 },
+      { parentAt: [0], after: LUDENS, branch: true, x: 53, y: 19 },
+      { parentAt: [], after: null, branch: true, x: 65, y: 5 },
+    ])
+    // Under a leaf, the slot sits right below it; an empty tree is its first slot alone.
+    const leaf = layoutKitTree([n(LUDENS)], { size: 10, hGap: 2, vGap: 4, slotDepth: 2 })
+    expect(leaf.slots[0]).toMatchObject({ parentAt: [0], branch: false, x: 5, y: 19 })
+    expect(layoutKitTree([], { size: 10, hGap: 2, vGap: 4, slotDepth: 6 })).toMatchObject({ slots: [{ parentAt: [], branch: false, x: 5, y: 5 }], width: 10, height: 10 })
   })
 })

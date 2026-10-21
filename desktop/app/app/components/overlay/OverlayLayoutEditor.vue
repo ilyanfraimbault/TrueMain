@@ -207,9 +207,6 @@ function nudge(panel: OverlayPanel, event: KeyboardEvent) {
           Drag a panel here from the right.
         </p>
       </div>
-      <p class="text-xs text-dimmed">
-        Your screen, {{ screen.width }} × {{ screen.height }}. Each panel is drawn as it shows in game, with sample values, at the size it takes on this screen.
-      </p>
     </div>
 
     <aside class="flex w-60 shrink-0 flex-col gap-6">

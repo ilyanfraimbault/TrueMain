@@ -10,10 +10,26 @@ export interface PlacedKitNode {
   main: boolean
 }
 
+/**
+ * Where a new item goes in the editor, centre in px: at the end of the
+ * children of the node at `parentAt` (the roots for `[]`) — under a leaf the
+ * item that follows it, beside its children another branch.
+ */
+export interface KitTreeSlot {
+  parentAt: number[]
+  /** The item the new one follows, `null` for a root. */
+  after: number | null
+  /** Beside items already there: a new branch rather than the next item. */
+  branch: boolean
+  x: number
+  y: number
+}
+
 export interface KitTreeLayout {
   nodes: PlacedKitNode[]
   /** Dashed branches first, the default path's edges last, so its line stays on top. */
   edges: { parent: PlacedKitNode, child: PlacedKitNode }[]
+  slots: KitTreeSlot[]
   width: number
   height: number
 }
@@ -24,39 +40,62 @@ export interface KitTreeLayout {
  * apart — but in the kit's own order and uncapped, since the first child is
  * the player's default and every branch is theirs. Several roots sit side by
  * side as one forest.
+ *
+ * With `slotDepth`, every row of `slotDepth` items or fewer ends on a slot
+ * for a new item, kept off the centring so the default path stays straight.
  */
-export function layoutKitTree(tree: KitNode[], { size, hGap, vGap }: { size: number, hGap: number, vGap: number }): KitTreeLayout {
-  const widthOf = (node: KitNode): number => {
-    if (node.children.length === 0) return size
-    return Math.max(size, node.children.reduce((sum, child, i) => sum + widthOf(child) + (i > 0 ? hGap : 0), 0))
+export function layoutKitTree(
+  tree: KitNode[],
+  { size, hGap, vGap, slotDepth = 0 }: { size: number, hGap: number, vGap: number, slotDepth?: number },
+): KitTreeLayout {
+  /** A row at `depth` (0 for the roots) ends on a slot. */
+  const slotted = (depth: number) => depth < slotDepth
+  /** The row's nodes, side by side, without its slot. */
+  const nodesWidth = (level: KitNode[], depth: number) =>
+    level.reduce((sum, node, i) => sum + widthOf(node, depth) + (i > 0 ? hGap : 0), 0)
+  /** The whole row: its nodes, then its slot. */
+  const rowWidth = (level: KitNode[], depth: number) => {
+    const width = nodesWidth(level, depth)
+    if (!slotted(depth)) return width
+    return width + (level.length > 0 ? hGap : 0) + size
   }
-  const levelWidth = (nodes: KitNode[]) => nodes.reduce((sum, node, i) => sum + widthOf(node) + (i > 0 ? hGap : 0), 0)
+  function widthOf(node: KitNode, depth: number): number {
+    return Math.max(size, rowWidth(node.children, depth + 1))
+  }
 
   const nodes: PlacedKitNode[] = []
   const edges: KitTreeLayout['edges'] = []
+  const slots: KitTreeSlot[] = []
+  const rowY = (depth: number) => depth * (size + vGap) + size / 2
 
-  function place(level: KitNode[], left: number, depth: number, parent: PlacedKitNode | null, parentAt: number[], onMain: boolean) {
+  function place(level: KitNode[], left: number, depth: number, parent: PlacedKitNode | null, onMain: boolean) {
     let cursor = left
     level.forEach((node, index) => {
-      const width = widthOf(node)
+      const width = widthOf(node, depth)
+      const row = rowWidth(node.children, depth + 1)
+      const start = cursor + (width - row) / 2
       const placed: PlacedKitNode = {
-        at: [...parentAt, index],
+        at: [...(parent?.at ?? []), index],
         itemId: node.itemId,
-        x: cursor + width / 2,
-        y: depth * (size + vGap) + size / 2,
+        // Over its children, the slot left out; over its slot when it has none.
+        x: node.children.length > 0 ? start + nodesWidth(node.children, depth + 1) / 2 : cursor + width / 2,
+        y: rowY(depth),
         main: onMain && index === 0,
       }
       nodes.push(placed)
       if (parent) edges.push({ parent, child: placed })
-      const childrenWidth = levelWidth(node.children)
-      place(node.children, cursor + (width - childrenWidth) / 2, depth + 1, placed, placed.at, placed.main)
+      place(node.children, start, depth + 1, placed, placed.main)
       cursor += width + hGap
     })
+    if (slotted(depth)) {
+      slots.push({ parentAt: parent?.at ?? [], after: parent?.itemId ?? null, branch: level.length > 0, x: cursor + size / 2, y: rowY(depth) })
+    }
   }
 
-  place(tree, 0, 0, null, [], true)
+  place(tree, 0, 0, null, true)
   edges.sort((a, b) => Number(a.child.main) - Number(b.child.main))
 
-  const height = nodes.length ? Math.max(...nodes.map(node => node.y)) + size / 2 : 0
-  return { nodes, edges, width: levelWidth(tree), height }
+  const ys = [...nodes, ...slots].map(point => point.y)
+  const height = ys.length ? Math.max(...ys) + size / 2 : 0
+  return { nodes, edges, slots, width: rowWidth(tree, 0), height }
 }
