@@ -8,6 +8,7 @@ using Data.Repositories;
 using Ingestor;
 using Ingestor.BuildFacts;
 using Ingestor.Configuration;
+using Ingestor.FetchWorkers;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Coverage;
@@ -89,6 +90,10 @@ builder.Services.AddScoped<IMatchClaimService, MatchClaimService>();
 builder.Services.AddScoped<IMatchSnapshotWriter, MatchSnapshotWriter>();
 builder.Services.AddScoped<ITimelineIngestionService, TimelineIngestionService>();
 builder.Services.AddScoped<IAccountValidationService, AccountValidationService>();
+// Narrowed by a permanent match-fetch worker in the scope it runs a batch from (#1457), left
+// unrestricted everywhere else; the pool itself only holds singletons and the scope factory.
+builder.Services.AddScoped<MatchIngestionScope>();
+builder.Services.AddSingleton<MatchFetchWorkerPool>();
 
 builder.Services.AddScoped<IMainStatsCalculator, MainStatsCalculator>();
 builder.Services.AddScoped<IMainDemotionPolicy, MainDemotionPolicy>();

@@ -233,7 +233,10 @@ services:
     stop_grace_period: 120s
     environment:
       <<: *ingestor-environment
-      Job__Mode: ${INGESTOR_JOB_MODE:-FetchLane}
+      Job__Mode: ${INGESTOR_JOB_MODE:-FetchWorkers}
+      Job__RunOnce: "${INGESTOR_RUN_ONCE:-false}"
+      Job__IntervalMinutes: "${INGESTOR_MAINTENANCE_INTERVAL_MINUTES:-1}"
+      MatchFetchWorkers__TargetRequestsPerMinute: "${INGESTOR_FETCH_TARGET_REQUESTS_PER_MINUTE:-30}"
     volumes:
       - truemain_preprod_ingestor_crashes:/home/app/crashes
     depends_on:

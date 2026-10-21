@@ -31,7 +31,7 @@ Preprod runs the ingestion pipeline as **two containers** (#1362), as prod does 
 
 | container | `Job:Mode` | cadence |
 | --- | --- | --- |
-| `truemain-preprod-ingestor` | `FetchLane` | back-to-back (`RunOnce`, restarted by Docker) |
+| `truemain-preprod-ingestor` | `FetchWorkers` | permanent match-fetch workers, plus a maintenance pass every `INGESTOR_MAINTENANCE_INTERVAL_MINUTES` (default 1) |
 | `truemain-preprod-ingestor-aggregate` | `AggregateLane` | every `INGESTOR_AGGREGATE_INTERVAL_MINUTES` (default 120 here, 20 on prod) |
 
 The two halves have opposite bottlenecks — the fetch lane waits on Riot, the aggregate lane on Postgres — so
@@ -42,8 +42,16 @@ Both lanes share one environment block in `compose.preprod.yaml` (the `x-ingesto
 the mode, the cadence, the `Application Name` on the connection string and the crash volume differ. To collapse
 preprod back to one lane, set `INGESTOR_JOB_MODE=Full` and stop the aggregate container.
 
-The fetch lane stays on the default `RunOnce` loop: its passes are back-to-back, paced by the per-routing-value
-rate limiter rather than by a timer. The aggregate lane runs on a timer (`INGESTOR_AGGREGATE_INTERVAL_MINUTES`,
+Since #1457 the fetch container runs `FetchWorkers`: match fetching is one permanent worker per regional routing
+value (`americas`, `europe`, `asia`), each claiming its own platforms' accounts, fetching and writing them, and
+claiming again; the fetch lane's other steps (`LadderSync`, `Discovery`, `ManualSeed`, `Harvest`, `Scoring`,
+`MainActivity`, `AccountRefresh`, `PaceSampling`) run beside them as a maintenance pass, one minute after the
+previous one ends. The workers are held to `INGESTOR_FETCH_TARGET_REQUESTS_PER_MINUTE` Riot calls a minute per
+regional host (default 30, production's average before the change), and the rate limiter reserves a share of every
+regional window for `AccountRefresh` and `ManualSeed` while they are active (`RiotRateLimit__ReservedShares__*`).
+The container runs with `Job:RunOnce=false` (`INGESTOR_RUN_ONCE`): with `RunOnce`, a `FetchWorkers` process exits
+after one maintenance pass and one batch per worker, and Docker's restart would then cut the workers off every
+pass. `INGESTOR_JOB_MODE=FetchLane` puts the sequential lane back (rollback), on the same one-minute loop. The aggregate lane runs on a timer (`INGESTOR_AGGREGATE_INTERVAL_MINUTES`,
 default 120 here, 20 on prod): there is nothing to gain from re-folding the same rows the moment a pass ends, and
 a fixed cadence is what makes "how stale can an aggregate be?" answerable. Preprod waits longer between passes
 (#2122): the pattern aggregation rebuilt the whole live patch each pass until #1367, so a 20-minute gap kept
@@ -53,6 +61,15 @@ file the crash reporter writes before it reaches Mongo. `MainAnalysis__Aggregate
 the widened fold multiplies the aggregation's source rows and that process once OOM-killed a VPS (#601);
 measured on 2026-09-01 it ran at ~250 MB RSS with no restart and produced 16.6k non-main scopes on the live
 patch alongside 20.9k main ones. Postgres runs the prod tuning at roughly half the values, see `docs/prod.md`.
+
+What to watch after a change to the fetch workers (#1457) — none of it is visible to CI:
+
+- `process_runs` — `Discovery`, `LadderSync`, `MainActivity` and `AccountRefresh` keep running at least as
+  often as before; the worker batches (`MatchIngestion`, iteration mode `FetchWorkers`) follow one another
+  without gaps longer than the idle delay while there is work.
+- The Riot API tab — `MatchIngestion` near the target rate on each regional host, `AccountRefresh` and
+  `ManualSeed` still completing their regional calls over several hours, the 429 rate flat.
+- `matches ingested` on the overview — the daily throughput unchanged at the default target rate.
 
 What to watch while the split is on trial:
 
@@ -307,11 +324,13 @@ in `backend/Ingestor/Options/*`:
 | `Discovery__NewAccountsTarget` | 15 | 75 | new accounts per run |
 | `Scoring__TopNPerPlatform` | 50 | 300 | candidates queued per platform |
 | `Harvest__MaxCandidatesPerRun` | 500 | 7500 | harvest candidate generation cap |
-| `MatchIngestion__BatchSize` | 25 | 75 | accounts fetched per cycle |
+| `MatchIngestion__BatchSize` | 25 | 75 | accounts claimed per batch, split across the three fetch workers |
 | `ManualSeed__BatchSize` | 250 | 750 | manual seeds resolved per cycle |
 | `MatchDataRetention__RetainedPatchCount` | 1 | 2 (code default) | patches of match data kept |
 | `MatchDataRetention__AggregateRetainedPatchCount` | 2 | 0 (code default: kept forever) | patches of aggregates kept, so older champion pages are empty on preprod by choice |
 | `INGESTOR_AGGREGATE_INTERVAL_MINUTES` | 120 | 20 | minutes between two aggregate-lane passes |
+| `INGESTOR_MAINTENANCE_INTERVAL_MINUTES` | 1 | 1 | minutes between two maintenance passes of the fetch container (#1457) |
+| `INGESTOR_FETCH_TARGET_REQUESTS_PER_MINUTE` | 30 | 30 | Riot calls a minute each fetch worker may make on its regional host (#1457) |
 | `MongoLogging__LogsRetention` | 30 days | 90 days (default) | diagnostic log TTL |
 | `MatchIngestion__MatchesPerAccount` | 10 | 20 (default) | matches fetched per account |
 | `MainAnalysis__MatchesToConsider` | 30 | 50 (default) | recent matches main analysis reads |

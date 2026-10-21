@@ -26,7 +26,9 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IPro
 
     // The Job:Mode values a lane's passes are recorded under (#1362). A Full pass runs both lanes,
     // so it belongs to either list; a single-process pass belongs to neither and only shows unfiltered.
-    private static readonly string[] FetchLaneModes = ["FetchLane", "Full"];
+    // FetchWorkers (#1457) is the fetch lane run as permanent workers: its maintenance passes and
+    // its workers' batches are both fetch-lane iterations.
+    private static readonly string[] FetchLaneModes = ["FetchLane", "FetchWorkers", "Full"];
     private static readonly string[] AggregateLaneModes = ["AggregateLane", "Full"];
 
     public async Task<ProcessIterationsReadModel> GetAsync(

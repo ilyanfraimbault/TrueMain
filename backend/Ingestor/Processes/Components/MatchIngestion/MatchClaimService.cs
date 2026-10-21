@@ -15,6 +15,12 @@ public sealed class MatchClaimService(
     ILogger<MatchClaimService> logger) : IMatchClaimService
 {
     public Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct)
+        => ReleaseExpiredClaimsAsync(lease, null, ct);
+
+    public Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(
+        TimeSpan lease,
+        IReadOnlyCollection<string>? platforms,
+        CancellationToken ct)
     {
         // The cutoff is derived here, from the same lease ClaimAsync hands to the claim
         // query, so the reaper and the claim cannot end up with two different ideas of when
@@ -22,7 +28,7 @@ public sealed class MatchClaimService(
         // it has already given up on.
         var leaseCutoffUtc = timeProvider.GetUtcNow().UtcDateTime - (lease > TimeSpan.Zero ? lease : TimeSpan.FromMinutes(30));
 
-        return ReleaseClaimsHeldBeforeAsync(leaseCutoffUtc, ct);
+        return ReleaseClaimsHeldBeforeAsync(leaseCutoffUtc, platforms, ct);
     }
 
     public Task<ExpiredClaimRelease> ReleaseOrphanedClaimsAsync(CancellationToken ct)
@@ -31,9 +37,17 @@ public sealed class MatchClaimService(
         // that could have been holding a live claim is the one that just died, and this
         // one has not claimed anything yet. Anywhere else this would free rows another
         // pass is still working on, which is why the lease-based reap above exists.
-        => ReleaseClaimsHeldBeforeAsync(timeProvider.GetUtcNow().UtcDateTime, ct);
+        => ReleaseClaimsHeldBeforeAsync(timeProvider.GetUtcNow().UtcDateTime, null, ct);
 
-    private async Task<ExpiredClaimRelease> ReleaseClaimsHeldBeforeAsync(DateTime cutoffUtc, CancellationToken ct)
+    public Task<ExpiredClaimRelease> ReleaseOrphanedClaimsAsync(IReadOnlyCollection<string> platforms, CancellationToken ct)
+        // The same "now" cutoff, sound for the same reason narrowed to one worker: it calls
+        // this between batches, when it holds nothing, and nobody else claims its platforms.
+        => ReleaseClaimsHeldBeforeAsync(timeProvider.GetUtcNow().UtcDateTime, platforms, ct);
+
+    private async Task<ExpiredClaimRelease> ReleaseClaimsHeldBeforeAsync(
+        DateTime cutoffUtc,
+        IReadOnlyCollection<string>? platforms,
+        CancellationToken ct)
     {
         await using var session = await sessionFactory.CreateAsync(ct);
 
@@ -41,8 +55,12 @@ public sealed class MatchClaimService(
         // predicate reads them to decide what counts as live. Doing it the other way round
         // reaches the same set — an Idle account has no live claim either — but only by
         // accident of the negation, and the order would then be load-bearing without saying so.
-        var candidates = await session.MainCandidates.ReleaseExpiredClaimsAsync(cutoffUtc, ct);
-        var accounts = await session.RiotAccounts.ReleaseExpiredMatchIngestClaimsAsync(cutoffUtc, ct);
+        var candidates = platforms is null
+            ? await session.MainCandidates.ReleaseExpiredClaimsAsync(cutoffUtc, ct)
+            : await session.MainCandidates.ReleaseExpiredClaimsAsync(cutoffUtc, platforms, ct);
+        var accounts = platforms is null
+            ? await session.RiotAccounts.ReleaseExpiredMatchIngestClaimsAsync(cutoffUtc, ct)
+            : await session.RiotAccounts.ReleaseExpiredMatchIngestClaimsAsync(cutoffUtc, platforms, ct);
 
         var released = new ExpiredClaimRelease(candidates, accounts);
         if (!released.IsEmpty)

@@ -54,6 +54,13 @@ public static class OptionsConfigurationExtensions
             .Validate(
                 options => !options.Enabled || RiotRateLimitOptionsValidation.HasParsableWindow(options.AppLimits),
                 "RiotRateLimit:AppLimits must contain at least one \"requests:seconds\" window, e.g. \"20:1,100:120\".")
+            .Validate(
+                options => RiotRateLimitOptionsValidation.HasBoundedReservations(options.ReservedShares),
+                "RiotRateLimit:ReservedShares must each be between 0 and 0.5, and sum to at most 0.5.")
+            .ValidateOnStart();
+
+        services.AddOptionsWithValidator<MatchFetchWorkersOptions, MatchFetchWorkersOptionsValidator>(
+                configuration, MatchFetchWorkersOptions.SectionName)
             .ValidateOnStart();
 
         services.AddOptionsWithValidator<CommunityDragonOptions, CommunityDragonOptionsValidator>(

@@ -258,3 +258,37 @@ describe('a deliberate single-process run', () => {
     expect(branches[0]!.links.length).toBeGreaterThan(1)
   })
 })
+
+// FetchWorkers (#1457) records two kinds of pass under one mode: the fetch lane's
+// maintenance pass, which no longer sequences match fetching, and every batch of the
+// permanent match-fetch workers running beside it.
+describe('a FetchWorkers host', () => {
+  it('draws a worker batch as its own branch, not as the fetch lane', () => {
+    const branches = buildLaneBranches([run('MatchIngestion', { jobMode: 'FetchWorkers' })])
+
+    expect(branches).toHaveLength(1)
+    expect(branches[0]!.id).toBe('workers')
+    expect(branches[0]!.links.map(link => link.processName)).toEqual(['MatchIngestion'])
+  })
+
+  it('draws its maintenance pass as the fetch lane without match fetching', () => {
+    const branches = buildLaneBranches([run('LadderSync', { jobMode: 'FetchWorkers' })])
+
+    expect(branches).toHaveLength(1)
+    expect(branches[0]!.id).toBe('fetch')
+    expect(branches[0]!.links.map(link => link.processName))
+      .toEqual(FETCH_STEPS.filter(step => step !== 'MatchIngestion'))
+  })
+
+  it('keeps the maintenance pass in the live tree however many batches ran since', () => {
+    const lanes = pickCurrentLanes([
+      { runs: [run('MatchIngestion', { jobMode: 'FetchWorkers', id: 'batch-2' })] },
+      { runs: [run('MatchIngestion', { jobMode: 'FetchWorkers', id: 'batch-1' })] },
+      { runs: [run('Scoring', { jobMode: 'FetchWorkers' })] },
+    ])
+
+    expect(lanes.map(lane => lane.branch.id)).toEqual(['fetch', 'aggregate', 'workers'])
+    expect(lanes.find(lane => lane.branch.id === 'workers')!.branch.links[0]!.run!.id).toBe('batch-2')
+    expect(lanes.find(lane => lane.branch.id === 'fetch')!.branch.ran).toBe(true)
+  })
+})

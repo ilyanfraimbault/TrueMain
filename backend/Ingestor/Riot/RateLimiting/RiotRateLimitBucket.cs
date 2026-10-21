@@ -95,7 +95,15 @@ internal sealed class RiotRateLimitBucket
     /// <param name="now">The instant the decision is taken at.</param>
     /// <param name="safetyHeadroom">Fraction of each advertised limit held back.</param>
     /// <returns>How long to wait before issuing, or zero.</returns>
-    public TimeSpan TimeUntilPermitAvailable(DateTimeOffset now, double safetyHeadroom)
+    /// <param name="holdBack">
+    /// Permits of each window the caller may not take, given the window's duration and its
+    /// effective limit — the unused reservations of the other callers (#1457). Null holds
+    /// nothing back.
+    /// </param>
+    public TimeSpan TimeUntilPermitAvailable(
+        DateTimeOffset now,
+        double safetyHeadroom,
+        Func<TimeSpan, int, int>? holdBack = null)
     {
         lock (_gate)
         {
@@ -104,8 +112,14 @@ internal sealed class RiotRateLimitBucket
             foreach (var window in _windows.Values)
             {
                 // Headroom is applied to the advertised limit, never below one permit:
-                // a bucket that can never issue would deadlock the pipeline.
-                var effectiveLimit = Math.Max(1, (int)Math.Floor(window.PermitLimit * (1 - safetyHeadroom)));
+                // a bucket that can never issue would deadlock the pipeline. The same floor
+                // holds after a reservation is held back, for the same reason.
+                var effectiveLimit = EffectiveLimit(window.PermitLimit, safetyHeadroom);
+                if (holdBack is not null)
+                {
+                    effectiveLimit = Math.Max(1, effectiveLimit - holdBack(window.Duration, effectiveLimit));
+                }
+
                 var windowWait = window.TimeUntilPermitAvailable(now, effectiveLimit);
                 if (windowWait > wait)
                 {
@@ -116,6 +130,10 @@ internal sealed class RiotRateLimitBucket
             return wait;
         }
     }
+
+    /// <summary>The limit a window enforces once the safety headroom is held back.</summary>
+    public static int EffectiveLimit(int permitLimit, double safetyHeadroom)
+        => Math.Max(1, (int)Math.Floor(permitLimit * (1 - safetyHeadroom)));
 
     /// <summary>Records that a request was issued against every window of this bucket.</summary>
     /// <param name="now">The instant the request was issued at.</param>
@@ -161,6 +179,18 @@ internal sealed class RiotRateLimitBucket
             lock (_gate)
             {
                 return _penaltyUntil;
+            }
+        }
+    }
+
+    /// <summary>The duration of the longest window this bucket enforces, or zero when it has none.</summary>
+    public TimeSpan LongestWindow
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _windows.Count == 0 ? TimeSpan.Zero : _windows.Keys.Max();
             }
         }
     }

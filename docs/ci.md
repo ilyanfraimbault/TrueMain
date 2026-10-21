@@ -262,7 +262,7 @@ every run.
 
 The same job then checks the one setting the env file can silently turn
 against the compose file: `INGESTOR_JOB_MODE`. Both deployed compose files run
-the ingestor as two lanes, `ingestor` on `${INGESTOR_JOB_MODE:-FetchLane}` and
+the ingestor as two lanes, `ingestor` on `${INGESTOR_JOB_MODE:-FetchWorkers}` and
 `ingestor-aggregate` on `AggregateLane`, and the env file wins over that
 default. Release `1.20.5` deployed green with a leftover `full` from a key
 freeze: `ingestor` kept running the whole pipeline next to the new aggregate
