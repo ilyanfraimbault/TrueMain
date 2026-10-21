@@ -96,8 +96,16 @@ public enum JobMode
     ChampionGameCountRefreshOnly = 29,
 
     /// <summary>
+    /// The fetch lane with match fetching taken out of its sequence (#1457): one permanent
+    /// worker per regional routing value claims, fetches and writes continuously, while the
+    /// lane's other steps run beside them as a maintenance pass on <c>Job:IntervalMinutes</c>.
+    /// Composite, like <see cref="FetchLane"/>, and it owns the same steps.
+    /// </summary>
+    FetchWorkers = 30,
+
+    /// <summary>
     /// Folds each match into the champion scaling aggregate the champion page's game-length
     /// chart reads (#1368). Appended for the same reason as the values above.
     /// </summary>
-    ScalingAggregationOnly = 30
+    ScalingAggregationOnly = 31
 }

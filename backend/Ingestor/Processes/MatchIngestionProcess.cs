@@ -17,14 +17,17 @@ public sealed class MatchIngestionProcess(
     IMatchSnapshotWriter matchSnapshotWriter,
     ITimelineIngestionService timelineIngestionService,
     IAccountValidationService accountValidationService,
-    IOptions<MatchIngestionOptions> matchOptions) : IIngestorProcess
+    IOptions<MatchIngestionOptions> matchOptions,
+    MatchIngestionScope? scope = null) : IIngestorProcess
 {
     public string Name => "MatchIngestion";
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = matchOptions.Value;
-        var platforms = PlatformNormalizer.Normalize(options.Platforms);
+        var platforms = scope?.Platforms is { } restricted
+            ? PlatformNormalizer.Normalize(restricted)
+            : PlatformNormalizer.Normalize(options.Platforms);
 
         if (platforms.Count == 0)
         {
@@ -36,9 +39,15 @@ public sealed class MatchIngestionProcess(
 
         // Before claiming, not after: what a dead run left behind becomes claimable in this
         // same pass instead of waiting a full cycle (#1344).
-        var released = await matchClaimService.ReleaseExpiredClaimsAsync(lease, ct);
+        //
+        // A run narrowed to some platforms — a permanent worker's batch (#1457) — reaps only
+        // those: the other platforms belong to workers whose claims are live right now.
+        var released = scope?.Platforms is null
+            ? await matchClaimService.ReleaseExpiredClaimsAsync(lease, ct)
+            : await matchClaimService.ReleaseExpiredClaimsAsync(lease, platforms, ct);
 
-        var claimedAccounts = await ClaimAccountsAsync(platforms, options, lease, ct);
+        var batchSize = scope?.BatchSize ?? options.BatchSize;
+        var claimedAccounts = await ClaimAccountsAsync(platforms, batchSize, options, lease, ct);
         var summary = await IngestClaimedAccountsAsync(claimedAccounts, platforms, options, ct);
         LogPlatformSummaries(summary.ByPlatform);
         return BuildSuccessPayload(summary, released);
@@ -46,13 +55,14 @@ public sealed class MatchIngestionProcess(
 
     private async Task<IReadOnlyList<AccountKey>> ClaimAccountsAsync(
         IReadOnlyCollection<string> platforms,
+        int batchSize,
         MatchIngestionOptions options,
         TimeSpan lease,
         CancellationToken ct)
     {
         var claimedAccounts = await matchClaimService.ClaimAsync(
             platforms,
-            options.BatchSize,
+            batchSize,
             options.EstablishedMainShare,
             lease,
             ct);

@@ -157,7 +157,25 @@ public static class JobModeSequence
     /// their own. Nothing may be registered in DI under these keys.
     /// </summary>
     public static IReadOnlyCollection<JobMode> CompositeModes { get; } =
-        Array.AsReadOnly<JobMode>([JobMode.Full, JobMode.FetchLane, JobMode.AggregateLane]);
+        Array.AsReadOnly<JobMode>([JobMode.Full, JobMode.FetchLane, JobMode.AggregateLane, JobMode.FetchWorkers]);
+
+    // FetchLanePipeline without the step the permanent workers took over (#1457), in the same
+    // order: the maintenance pass of FetchWorkers.
+    private static readonly ReadOnlyCollection<JobMode> FetchMaintenancePipeline = Array.AsReadOnly(
+        FetchLanePipeline.Where(step => step != JobMode.MatchIngestionOnly).ToArray());
+
+    /// <summary>
+    /// Whether <paramref name="mode"/> runs match fetching as permanent per-routing-value
+    /// workers rather than as a step of its sequence (#1457).
+    /// </summary>
+    public static bool RunsPermanentFetchWorkers(JobMode mode) => mode == JobMode.FetchWorkers;
+
+    /// <summary>
+    /// The steps the worker runs as a sequenced pass for <paramref name="mode"/>: what
+    /// <see cref="For"/> returns, less the steps permanent workers run on their own.
+    /// </summary>
+    public static IReadOnlyList<JobMode> SequencedStepsFor(JobMode mode)
+        => RunsPermanentFetchWorkers(mode) ? FetchMaintenancePipeline : For(mode);
 
     /// <summary>
     /// Returns the ordered steps to run for <paramref name="mode"/>.
@@ -175,7 +193,9 @@ public static class JobModeSequence
             return FullPipeline;
         }
 
-        if (mode == JobMode.FetchLane)
+        // FetchWorkers owns exactly the fetch lane's steps — it only runs one of them
+        // differently — so what reconciles and releases at boot is the same for both.
+        if (mode is JobMode.FetchLane or JobMode.FetchWorkers)
         {
             return FetchLanePipeline;
         }
