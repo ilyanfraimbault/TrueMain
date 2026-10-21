@@ -396,7 +396,9 @@ try {
         $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
         $middle = ($plates.rect[0] + $plates.rect[2]) / 2
         Expect ([Math]::Abs($middle - $screen.Width / 2) -le 2 -and $plates.rect[3] -lt $screen.Height * 0.7) "lane-gold sits down the scoreboard's middle ($($plates.rect -join ','))"
-        Expect ($plates.gameShare -gt 0.5) "lane-gold shows the game through (game colour $([Math]::Round($plates.gameShare * 100))%)"
+        # An opaque panel reads 0 %; on the runner's small screen the five plates
+        # cover about half of their narrow window, so a quarter is the bar.
+        Expect ($plates.gameShare -gt 0.25 -and $plates.colors -ge 6) "lane-gold shows the game through around its plates (game colour $([Math]::Round($plates.gameShare * 100))%, $($plates.colors) colours)"
         Expect ($plates.hit -eq "RiotWindowClass") "a click on lane-gold reaches the game ($($plates.hit))"
     }
     Start-Sleep -Milliseconds 800
