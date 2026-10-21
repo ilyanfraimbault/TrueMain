@@ -20,9 +20,18 @@ namespace Ingestor.Processes;
 /// <c>matches</c> would keep both, and would need a decrement path in retention and in
 /// every participant rewriter to stay right. What made the self-join recomputes of #811
 /// unaffordable does not apply either: this is one grouped pass over the retained window
-/// with no join beyond the match's own row, done one <c>(queue, patch, platform)</c> slice
-/// per statement — the grain of <c>IX_matches_queue_patch_platform</c> — so no statement
-/// spans the corpus and each slice is swapped atomically under the readers.
+/// with no join beyond the match's own row.
+/// </para>
+///
+/// <para>
+/// <b>One statement for the whole rollup</b> (#2217). Slicing it by
+/// <c>(queue, patch, platform)</c> bounded nothing: those columns live on <c>matches</c>
+/// only, so every large slice hash-joined against a full scan of the participant index,
+/// and a run read <c>match_participants</c> once per large slice — each pass long enough
+/// on its own to hit the 300 s command timeout under load. The whole table is now
+/// replaced in one transaction, which a reader sees either before or after, under
+/// <see cref="CommandTimeout"/> instead of the connection's default; slices no stored
+/// match belongs to any more vanish with the delete.
 /// </para>
 ///
 /// <para>
@@ -45,6 +54,14 @@ public sealed class ChampionGameCountRefreshProcess(
     /// </summary>
     internal static readonly TimeSpan MinRunInterval = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// The bound on the single pass. Its duration swings with concurrent load — ingestion
+    /// writes and autovacuum compete for the same participant pages — so it gets more room
+    /// than the connection's 300 s; a pass that still overruns fails the run, and the
+    /// previous rollup stays in place until the next one.
+    /// </summary>
+    internal static readonly TimeSpan CommandTimeout = TimeSpan.FromMinutes(15);
+
     public string Name => "ChampionGameCountRefresh";
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
@@ -62,99 +79,49 @@ public sealed class ChampionGameCountRefreshProcess(
         }
 
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
+        db.Database.SetCommandTimeout(CommandTimeout);
 
-        // An index-only scan of IX_matches_queue_patch_platform. A null Patch (an
-        // unparseable GameVersion) is its own slice, stored under the empty string.
-        var sourceSlices = await db.Database
-            .SqlQuery<GameCountSlice>($"""
-                SELECT DISTINCT "QueueId", COALESCE("Patch", '') AS "Patch", "PlatformId"
-                FROM matches
-                """)
-            .ToListAsync(ct);
+        var previousSlices = await LoadSlicesAsync(db, ct);
 
-        var storedSlices = await db.ChampionGameCounts
-            .AsNoTracking()
-            .Select(row => new GameCountSlice(row.QueueId, row.Patch, row.PlatformId))
-            .Distinct()
-            .ToListAsync(ct);
-
-        var rows = 0;
-        foreach (var slice in sourceSlices)
+        int rows;
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
-            rows += await RefreshSliceAsync(db, slice, nowUtc, ct);
+            await db.ChampionGameCounts.ExecuteDeleteAsync(ct);
+
+            // A null Patch (an unparseable GameVersion) is its own slice, stored under the
+            // empty string.
+            rows = await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO champion_game_counts
+                    ("QueueId", "Patch", "PlatformId", "TeamPosition", "ChampionId", "Games", "RefreshedAtUtc")
+                SELECT m."QueueId", COALESCE(m."Patch", ''), m."PlatformId", p."TeamPosition", p."ChampionId", COUNT(*), {nowUtc}
+                FROM matches m
+                INNER JOIN match_participants p ON p."MatchId" = m."Id"
+                GROUP BY m."QueueId", COALESCE(m."Patch", ''), m."PlatformId", p."TeamPosition", p."ChampionId"
+                """, ct);
+
+            await transaction.CommitAsync(ct);
         }
 
-        // Slices no stored match belongs to any more: retention dropped their patch, or
-        // drained their queue. Left in place they would keep counting deleted games.
-        var removed = storedSlices.Except(sourceSlices).ToList();
-        foreach (var slice in removed)
-        {
-            await db.ChampionGameCounts
-                .Where(row => row.QueueId == slice.QueueId
-                    && row.Patch == slice.Patch
-                    && row.PlatformId == slice.PlatformId)
-                .ExecuteDeleteAsync(ct);
-        }
-
+        var slices = await LoadSlicesAsync(db, ct);
+        var removed = previousSlices.Except(slices).Count();
         var games = await db.ChampionGameCounts.AsNoTracking().SumAsync(row => row.Games, ct);
 
         logger.LogInformation(
             "Champion game count refresh summary: slices={Slices}, removed={Removed}, rows={Rows}, games={Games}.",
-            sourceSlices.Count,
-            removed.Count,
+            slices.Count,
+            removed,
             rows,
             games);
 
-        return new ChampionGameCountRefreshSummary(sourceSlices.Count, removed.Count, rows, games);
+        return new ChampionGameCountRefreshSummary(slices.Count, removed, rows, games);
     }
 
-    /// <summary>
-    /// Replaces one slice with its count over the raw rows, in one transaction, so a
-    /// reader sees either the previous count of the slice or the new one — never the
-    /// slice half-deleted.
-    /// </summary>
-    private static async Task<int> RefreshSliceAsync(
-        TrueMainDbContext db,
-        GameCountSlice slice,
-        DateTime nowUtc,
-        CancellationToken ct)
-    {
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-
-        await db.ChampionGameCounts
-            .Where(row => row.QueueId == slice.QueueId
-                && row.Patch == slice.Patch
-                && row.PlatformId == slice.PlatformId)
-            .ExecuteDeleteAsync(ct);
-
-        // Two spellings rather than one "IS NOT DISTINCT FROM", which no index serves.
-        var inserted = slice.Patch.Length == 0
-            ? await db.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO champion_game_counts
-                    ("QueueId", "Patch", "PlatformId", "TeamPosition", "ChampionId", "Games", "RefreshedAtUtc")
-                SELECT m."QueueId", '', m."PlatformId", p."TeamPosition", p."ChampionId", COUNT(*), {nowUtc}
-                FROM matches m
-                INNER JOIN match_participants p ON p."MatchId" = m."Id"
-                WHERE m."QueueId" = {slice.QueueId}
-                  AND m."Patch" IS NULL
-                  AND m."PlatformId" = {slice.PlatformId}
-                GROUP BY m."QueueId", m."PlatformId", p."TeamPosition", p."ChampionId"
-                """, ct)
-            : await db.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO champion_game_counts
-                    ("QueueId", "Patch", "PlatformId", "TeamPosition", "ChampionId", "Games", "RefreshedAtUtc")
-                SELECT m."QueueId", m."Patch", m."PlatformId", p."TeamPosition", p."ChampionId", COUNT(*), {nowUtc}
-                FROM matches m
-                INNER JOIN match_participants p ON p."MatchId" = m."Id"
-                WHERE m."QueueId" = {slice.QueueId}
-                  AND m."Patch" = {slice.Patch}
-                  AND m."PlatformId" = {slice.PlatformId}
-                GROUP BY m."QueueId", m."Patch", m."PlatformId", p."TeamPosition", p."ChampionId"
-                """, ct);
-
-        await transaction.CommitAsync(ct);
-        return inserted;
-    }
+    private static Task<List<GameCountSlice>> LoadSlicesAsync(TrueMainDbContext db, CancellationToken ct)
+        => db.ChampionGameCounts
+            .AsNoTracking()
+            .Select(row => new GameCountSlice(row.QueueId, row.Patch, row.PlatformId))
+            .Distinct()
+            .ToListAsync(ct);
 
     private sealed record GameCountSlice(int QueueId, string Patch, string PlatformId);
 }
