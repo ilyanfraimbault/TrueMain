@@ -317,9 +317,10 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`KitEditor.vue`) works on a draft saved whole: spells (Rift's nine, a pick of the other slot's spell swaps them),
   starter (up to six), boots (up to four), the rune page with every tree, rune and shard a button (the client's rules: a tree
   changed resets its rows, the secondary's two runes on two rows, `utils/kit-runes.ts`), and the tree drawn as the
-  build tree (`KitTree.vue`): a node clicked asks for another item, × drops it and what follows, and every row ends
-  on a dashed "+" slot while the path has room — under a leaf the next item, beside items another branch, on the
-  first row another first item (#2197); the tree takes legendaries only, and an item dragged onto a sibling (or
+  build tree (`KitTree.vue`): a node clicked asks for another item, × drops it and what follows, and a dashed "+"
+  slot sits right beside the last item of each row while the path has room — another branch (another first item on
+  the first row) — and right under an item with nothing after it — the next item (#2197). A slot never moves a node:
+  a single path stays one straight line, only a second branch spreads the tree; the tree takes legendaries only, and an item dragged onto a sibling (or
   moved with Alt+←/→) trades places with it, each with its branch — the leftmost is the default (#2201). The item picker searches the Rift's
   shop by name, grouped legendaries / boots / components / starters, from Data Dragon (map 11 only, boot upgrades and
   duplicate names left out, `utils/kit-items.ts`), each icon with the site's item card on hover, the legendaries

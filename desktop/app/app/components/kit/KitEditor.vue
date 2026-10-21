@@ -108,8 +108,7 @@ const removeBoots = (index: number) => (draft.value = withBoots(draft.value, dra
     </div>
 
     <div>
-      <p class="stat-label mb-1">Items</p>
-      <p class="mb-3 text-xs text-dimmed">Click an item to change it, a + to add one: under an item, the one that follows it; beside items, another branch. Drag an item onto another of its row to swap them: the leftmost, on the solid line, is the one followed in game.</p>
+      <p class="stat-label mb-2">Items</p>
       <KitTree :tree="draft.tree" :items="items" :boots="draft.boots" editable @pick="target = { kind: 'tree', ...$event }" @remove="removeNode" @swap="swapNodes" />
     </div>
 
