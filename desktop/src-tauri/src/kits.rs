@@ -53,11 +53,15 @@ pub fn kits_set(
     store: serde_json::Value,
 ) -> Result<KitStore, String> {
     let store = KitStore::from_json(&store.to_string());
+    // Held across the write, so two windows saving at once leave the file and
+    // the memory on the same store.
+    let mut kept = kits.store.lock().expect("kits poisoned");
     store.save(&kits.path).map_err(|error| {
         tracing::warn!(%error, "could not save the kits");
         error.to_string()
     })?;
-    *kits.store.lock().expect("kits poisoned") = store.clone();
+    *kept = store.clone();
+    drop(kept);
     let _ = app.emit(CHANGED_EVENT, &store);
     Ok(store)
 }
