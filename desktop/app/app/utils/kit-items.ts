@@ -14,6 +14,21 @@ export const KIT_ITEM_GROUPS: { group: KitItemGroup, label: string }[] = [
   { group: 'starter', label: 'Starter' },
 ]
 
+/** The in-game shop's classes, in its filter's order (the API's `/items/classes`). */
+export type ItemShopClass = 'Fighter' | 'Marksman' | 'Assassin' | 'Mage' | 'Tank' | 'Support'
+
+export const ITEM_SHOP_CLASSES: { value: ItemShopClass, label: string, icon: string }[] = [
+  { value: 'Fighter', label: 'Fighter', icon: 'i-lucide-swords' },
+  { value: 'Marksman', label: 'Marksman', icon: 'i-lucide-crosshair' },
+  { value: 'Assassin', label: 'Assassin', icon: 'i-lucide-skull' },
+  { value: 'Mage', label: 'Mage', icon: 'i-lucide-wand-sparkles' },
+  { value: 'Tank', label: 'Tank', icon: 'i-lucide-shield' },
+  { value: 'Support', label: 'Support', icon: 'i-lucide-heart-handshake' },
+]
+
+/** Each item's shop classes, by id, its main class first. */
+export type ItemClassMap = Record<number, string[]>
+
 /** Summoner's Rift's summoner spells (Data Dragon's keys): Cleanse, Exhaust, Flash, Ghost, Heal, Smite, Teleport, Ignite, Barrier. */
 export const RIFT_SPELLS = [1, 3, 4, 6, 7, 11, 12, 14, 21]
 
@@ -71,17 +86,22 @@ export function kitItemGroups(items: Record<number, StaticItemData>): Map<number
 
 /**
  * The items of `groups` matching `query` (any word of the name, case and accents
- * ignored), cheapest first in each group, the groups in picker order.
+ * ignored), cheapest first in each group, the groups in picker order. With
+ * `shopClass`, the legendaries are only that class's, as the shop's filter
+ * keeps them; the other groups carry no class worth filtering by.
  */
 export function searchKitItems(
   items: Record<number, StaticItemData>,
   groups: Map<number, KitItemGroup>,
   query: string,
   only: KitItemGroup[],
+  { shopClass = null, classes = {} }: { shopClass?: ItemShopClass | null, classes?: ItemClassMap } = {},
 ): { group: KitItemGroup, label: string, items: StaticItemData[] }[] {
   const fold = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   const words = fold(query).split(/\s+/).filter(Boolean)
   const matches = (item: StaticItemData) => words.every(word => fold(item.name).includes(word))
+  const inClass = (item: StaticItemData, group: KitItemGroup) =>
+    !shopClass || group !== 'legendary' || (classes[item.id] ?? []).includes(shopClass)
   return KIT_ITEM_GROUPS
     .filter(({ group }) => only.includes(group))
     .map(({ group, label }) => ({
@@ -90,7 +110,7 @@ export function searchKitItems(
       items: [...groups]
         .filter(([, g]) => g === group)
         .map(([id]) => items[id]!)
-        .filter(matches)
+        .filter(item => matches(item) && inClass(item, group))
         .sort((a, b) => a.totalGold - b.totalGold || a.name.localeCompare(b.name)),
     }))
     .filter(section => section.items.length > 0)

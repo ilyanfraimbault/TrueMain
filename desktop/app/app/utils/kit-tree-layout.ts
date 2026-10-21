@@ -51,6 +51,9 @@ export function siblingAt(layout: KitTreeLayout, at: number[], x: number, y: num
   return index === undefined || index === at.at(-1) ? null : index
 }
 
+/** A row measured around its first node's centre: each node's centre, its slot's, and how far it reaches either side. */
+interface Row { centres: number[], slot: number | null, left: number, right: number }
+
 /**
  * The kit's tree laid out the way the build tree is (`layoutBuildTree`): each
  * node centred over its branches, rows `size + vGap` apart, siblings `hGap`
@@ -58,61 +61,80 @@ export function siblingAt(layout: KitTreeLayout, at: number[], x: number, y: num
  * the player's default and every branch is theirs. Several roots sit side by
  * side as one forest.
  *
- * With `slotDepth`, every row of `slotDepth` items or fewer ends on a slot
- * for a new item, kept off the centring so the default path stays straight.
+ * With `slotDepth`, every row of `slotDepth` items or fewer gets a slot for a
+ * new item: right beside its last node — another branch — or, for a node with
+ * nothing after it, right under it. A slot never moves a node: a parent sits
+ * over its own children only, so a single path stays one straight line and
+ * only a second branch spreads the tree.
  */
 export function layoutKitTree(
   tree: KitNode[],
   { size, hGap, vGap, slotDepth = 0 }: { size: number, hGap: number, vGap: number, slotDepth?: number },
 ): KitTreeLayout {
-  /** A row at `depth` (0 for the roots) ends on a slot. */
+  const half = size / 2
+  /** A row at `depth` (0 for the roots) gets a slot. */
   const slotted = (depth: number) => depth < slotDepth
-  /** The row's nodes, side by side, without its slot. */
-  const nodesWidth = (level: KitNode[], depth: number) =>
-    level.reduce((sum, node, i) => sum + widthOf(node, depth) + (i > 0 ? hGap : 0), 0)
-  /** The whole row: its nodes, then its slot. */
-  const rowWidth = (level: KitNode[], depth: number) => {
-    const width = nodesWidth(level, depth)
-    if (!slotted(depth)) return width
-    return width + (level.length > 0 ? hGap : 0) + size
+
+  // How far each node's subtree reaches left and right of its centre, and where its children sit.
+  const shapes = new Map<KitNode, { row: Row, mid: number, left: number, right: number }>()
+
+  function measureRow(level: KitNode[], depth: number): Row {
+    if (level.length === 0) return slotted(depth) ? { centres: [], slot: 0, left: half, right: half } : { centres: [], slot: null, left: 0, right: 0 }
+    const centres: number[] = []
+    level.forEach((node, i) => {
+      const shape = measure(node, depth)
+      if (i === 0) centres.push(0)
+      else {
+        const previous = shapes.get(level[i - 1]!)!
+        centres.push(centres[i - 1]! + previous.right + hGap + shape.left)
+      }
+    })
+    const last = centres.at(-1)!
+    const slot = slotted(depth) ? last + size + hGap : null
+    const reach = Math.max(last + shapes.get(level.at(-1)!)!.right, slot === null ? -Infinity : slot + half)
+    return { centres, slot, left: shapes.get(level[0]!)!.left, right: reach }
   }
-  function widthOf(node: KitNode, depth: number): number {
-    return Math.max(size, rowWidth(node.children, depth + 1))
+
+  function measure(node: KitNode, depth: number) {
+    const known = shapes.get(node)
+    if (known) return known
+    const row = measureRow(node.children, depth + 1)
+    const mid = row.centres.length ? (row.centres[0]! + row.centres.at(-1)!) / 2 : 0
+    const shape = { row, mid, left: Math.max(half, mid + row.left), right: Math.max(half, row.right - mid) }
+    shapes.set(node, shape)
+    return shape
   }
 
   const nodes: PlacedKitNode[] = []
   const edges: KitTreeLayout['edges'] = []
   const slots: KitTreeSlot[] = []
-  const rowY = (depth: number) => depth * (size + vGap) + size / 2
+  const rowY = (depth: number) => depth * (size + vGap) + half
 
-  function place(level: KitNode[], left: number, depth: number, parent: PlacedKitNode | null, onMain: boolean) {
-    let cursor = left
+  /** Places a measured row whose first centre (or lone slot) is at `origin`. */
+  function place(level: KitNode[], row: Row, origin: number, depth: number, parent: PlacedKitNode | null, onMain: boolean) {
     level.forEach((node, index) => {
-      const width = widthOf(node, depth)
-      const row = rowWidth(node.children, depth + 1)
-      const start = cursor + (width - row) / 2
       const placed: PlacedKitNode = {
         at: [...(parent?.at ?? []), index],
         itemId: node.itemId,
-        // Over its children, the slot left out; over its slot when it has none.
-        x: node.children.length > 0 ? start + nodesWidth(node.children, depth + 1) / 2 : cursor + width / 2,
+        x: origin + row.centres[index]!,
         y: rowY(depth),
         main: onMain && index === 0,
       }
       nodes.push(placed)
       if (parent) edges.push({ parent, child: placed })
-      place(node.children, start, depth + 1, placed, placed.main)
-      cursor += width + hGap
+      const shape = shapes.get(node)!
+      place(node.children, shape.row, placed.x - shape.mid, depth + 1, placed, placed.main)
     })
-    if (slotted(depth)) {
-      slots.push({ parentAt: parent?.at ?? [], after: parent?.itemId ?? null, branch: level.length > 0, x: cursor + size / 2, y: rowY(depth) })
+    if (row.slot !== null) {
+      slots.push({ parentAt: parent?.at ?? [], after: parent?.itemId ?? null, branch: level.length > 0, x: origin + row.slot, y: rowY(depth) })
     }
   }
 
-  place(tree, 0, 0, null, true)
+  const roots = measureRow(tree, 0)
+  place(tree, roots, roots.left, 0, null, true)
   edges.sort((a, b) => Number(a.child.main) - Number(b.child.main))
 
   const ys = [...nodes, ...slots].map(point => point.y)
-  const height = ys.length ? Math.max(...ys) + size / 2 : 0
-  return { nodes, edges, slots, width: rowWidth(tree, 0), height }
+  const height = ys.length ? Math.max(...ys) + half : 0
+  return { nodes, edges, slots, width: roots.left + roots.right, height }
 }

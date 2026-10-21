@@ -151,4 +151,14 @@ describe('the item picker\'s shop', () => {
     expect(searchKitItems(items, groups, 'lûden', ['legendary', 'boots']).map(s => s.label)).toEqual(['Legendary'])
     expect(searchKitItems(items, groups, 'nothing', ['legendary'])).toEqual([])
   })
+
+  it('keeps a shop class\'s legendaries only, the other groups untouched', () => {
+    const groups = kitItemGroups(items)
+    const classes = { 6655: ['Mage', 'Support'], 3802: ['Fighter'] }
+    const ids = (shopClass: 'Mage' | 'Tank' | null) => searchKitItems(items, groups, '', ['legendary', 'component'], { shopClass, classes })
+      .map(section => [section.group, section.items.map(i => i.id)])
+    expect(ids('Mage')).toEqual([['legendary', [6655]], ['component', [1001, 1052, 3802]]])
+    expect(ids('Tank')).toEqual([['component', [1001, 1052, 3802]]])
+    expect(ids(null)).toEqual(ids('Mage'))
+  })
 })
