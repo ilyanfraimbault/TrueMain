@@ -95,6 +95,17 @@ public interface IRiotAccountRepository
     /// </remarks>
     Task<int> ReleaseExpiredMatchIngestClaimsAsync(DateTime leaseCutoffUtc, CancellationToken ct);
 
+    /// <summary>
+    /// <see cref="ReleaseExpiredMatchIngestClaimsAsync(DateTime, CancellationToken)"/> narrowed to
+    /// the accounts of <paramref name="platforms"/>, or every account when null. A permanent
+    /// match-fetch worker owns its routing value's platforms and nothing else (#1457), so it
+    /// may only ever release those: the other workers' claims are live.
+    /// </summary>
+    Task<int> ReleaseExpiredMatchIngestClaimsAsync(
+        DateTime leaseCutoffUtc,
+        IReadOnlyCollection<string>? platforms,
+        CancellationToken ct);
+
     Task<int> SetMatchIngestStatusAsync(string platformId, string puuid, MatchIngestStatus status, CancellationToken ct);
     Task UpdateLastMatchIngestAtAsync(string platformId, string puuid, DateTime atUtc, CancellationToken ct);
 

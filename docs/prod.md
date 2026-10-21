@@ -346,10 +346,10 @@ to `${POSTGRES_DB}_api` or `${POSTGRES_DB}` and run `SHOW statement_timeout; SHO
 ## Ingestor tuning knobs
 
 `compose.prod.yaml` overrides the ingestor's app settings for full-volume
-ingestion. The knobs are shared by both lanes (`ingestor` on `FetchLane`,
-`ingestor-aggregate` on `AggregateLane`, #1490) through one YAML anchor, and
-every step below runs on the fetch lane. Two of them deserve a note because
-their unit is easy to misread:
+ingestion. The knobs are shared by both lanes (`ingestor` on `FetchWorkers`
+since #1457, `ingestor-aggregate` on `AggregateLane`, #1490) through one YAML
+anchor, and every step below runs on the fetch lane. Two of them deserve a note
+because their unit is easy to misread:
 
 - **`ManualSeed__BatchSize` (750).** Manual-seed intake is FIFO and strictly
   batched, so a large backlog drains at a fixed rate rather than being spent
@@ -357,7 +357,12 @@ their unit is easy to misread:
   step in the fetch lane's sequence, which runs once per container pass. The
   measured cadence is what to size against, not a nominal interval: prod ran
   55 fetch passes on 2026-09-05, and the lane split raises that by taking
-  aggregation out of the same queue.
+  aggregation out of the same queue. Since #1457 the pass is the fetch lane's
+  *maintenance* pass — match fetching runs beside it as permanent workers — so
+  it repeats every `INGESTOR_MAINTENANCE_INTERVAL_MINUTES` (1) after it ends,
+  more often again than the sequential lane did. A draining backlog now spends
+  its account-v1 calls on the regional hosts *while* the workers fetch there,
+  so it can hold the workers below their target rate until it is drained.
   That unit made the previous value of 200 look four times stronger than it
   was: 200/cycle is ~2.5–4.8k seeds a day, and the per-champion dpm sweep puts
   tens of thousands in the queue in one run, two to three weeks of drain.
@@ -367,9 +372,12 @@ their unit is easy to misread:
   ceiling on paper — the real figure is bounded by the Riot budget the lane
   actually has, and lower again by whatever share of the queue has gone stale. This is a knob for a backlog, not a steady state:
   turn it back down once the queue is drained.
-- **`MatchIngestion__BatchSize`** is the next bottleneck: seeding faster gets
-  accounts registered faster, their matches still ingest at that many per
-  cycle.
+- **`MatchIngestion__BatchSize`** sizes each fetch worker's claim (split across
+  the three regional routes, 25 accounts each) rather than a per-cycle quota:
+  the workers claim again as soon as a batch is written, so match throughput is
+  set by `INGESTOR_FETCH_TARGET_REQUESTS_PER_MINUTE` (Riot calls a minute per
+  regional host, default 30 — production's average before #1457). Raising it is
+  the throughput ramp of #1459, not a tuning to do in passing.
 
 `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
 projects against (#925); unset means no forecast, which the panel says rather

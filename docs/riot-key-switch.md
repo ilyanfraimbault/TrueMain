@@ -110,7 +110,8 @@ If the count is not zero, do **not** proceed. Let `AccountRefresh` run until it
 is: the process resolves each account through account-v1 `by-puuid`, which
 returns `gameName`/`tagLine`, and stamps them on the row (#789). Running the
 ingestor with `INGESTOR_JOB_MODE=AccountRefreshOnly` concentrates the whole
-call budget on that backfill. Historically ~23 % of prod accounts had no Riot
+call budget on that backfill (set `INGESTOR_RUN_ONCE=true` with it to run the
+passes back-to-back, restarted by Docker, rather than a minute apart). Historically ~23 % of prod accounts had no Riot
 ID, so budget days, not minutes, the first time.
 
 `"Status" = 1` (`Invalid`) rows are deliberately out of scope: they already
@@ -206,7 +207,7 @@ table:
 
 ```bash
 cd /docker/truemain
-INGESTOR_JOB_MODE=AccountRefreshOnly docker compose up -d ingestor
+INGESTOR_JOB_MODE=AccountRefreshOnly INGESTOR_RUN_ONCE=true docker compose up -d ingestor
 docker compose logs -f ingestor
 ```
 
@@ -312,7 +313,7 @@ to let them be recomputed rather than repaired.
 
 ```bash
 cd /docker/truemain
-docker compose up -d --force-recreate ingestor   # back to INGESTOR_JOB_MODE=FetchLane
+docker compose up -d --force-recreate ingestor   # back to INGESTOR_JOB_MODE=FetchWorkers
 ```
 
 Then watch, in the admin portal: the Riot API usage panel (429 rate, calls per

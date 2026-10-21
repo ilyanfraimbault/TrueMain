@@ -63,4 +63,31 @@ public class RiotRateLimitOptions
     /// </remarks>
     [Range(1, 3600)]
     public int MaxPermitWaitSeconds { get; set; } = 600;
+
+    /// <summary>
+    /// Fraction of every application window on a regional route (<c>americas</c>,
+    /// <c>europe</c>, <c>asia</c>, <c>sea</c>) held back for a caller, by process name, while
+    /// that caller is active (#1457). The permanent match-fetch workers run on those routes
+    /// all the time; this is what keeps them from starving the cadenced processes that also
+    /// need them. An idle reservation holds nothing, so its share goes to whoever can use it.
+    /// </summary>
+    /// <remarks>
+    /// Binding adds to these defaults rather than replacing them; set a caller to 0 to drop
+    /// its reservation. On a personal key (95 permits per 2 minutes after the headroom) the
+    /// defaults reserve 5 + 2 permits per window, so another caller keeps at most 44 a
+    /// minute while both are active.
+    /// </remarks>
+    public Dictionary<string, double> ReservedShares { get; set; } = new(StringComparer.Ordinal)
+    {
+        ["AccountRefresh"] = 0.05,
+        ["ManualSeed"] = 0.02
+    };
+
+    /// <summary>
+    /// How long after its last request a reserved caller still counts as active, in seconds.
+    /// Covers the gap between two calls of the same run — the database work in between — so
+    /// a permanent worker cannot take the reservation back between them.
+    /// </summary>
+    [Range(0, 600)]
+    public int ReservationLingerSeconds { get; set; } = 5;
 }
