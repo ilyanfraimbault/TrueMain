@@ -36,54 +36,61 @@ export PATH="${scratch}/bin:${PATH}"
 sha=0123456789abcdef0123456789abcdef01234567
 
 fail() {
-  echo "FAIL $1"
+  local message="$1"
+  echo "FAIL ${message}"
   failures=$((failures + 1))
+  return 0
 }
 
 # run <request> [docker exit code]: runs the forced command for one request,
 # sets $got_exit and $got_out
 run() {
+  local request="$1" docker_code="${2:-0}"
   rm -f "${scratch}"/docker.args "${scratch}"/docker.cwd "${scratch}"/docker.tag "${scratch}"/migrate.stdin
-  echo "${2:-0}" > "${scratch}/docker.code"
+  echo "$docker_code" > "${scratch}/docker.code"
   got_exit=0
-  got_out="$(printf 'SELECT 1;\n' | SSH_ORIGINAL_COMMAND="$1" IMAGE_TAG=from-client \
+  got_out="$(printf 'SELECT 1;\n' | SSH_ORIGINAL_COMMAND="$request" IMAGE_TAG=from-client \
     "$command" "${scratch}/project" "${scratch}/bin/migrate" 2>/dev/null)" || got_exit=$?
+  return 0
 }
 
 expect_migrate() {
-  local label="$1"
-  run "$2"
-  if [ "$got_exit" = 0 ] && [ "$(cat "${scratch}/migrate.stdin" 2>/dev/null)" = "SELECT 1;" ] \
-    && [ ! -e "${scratch}/docker.args" ]; then
+  local label="$1" request="$2"
+  run "$request"
+  if [[ "$got_exit" = 0 ]] && [[ "$(cat "${scratch}/migrate.stdin" 2>/dev/null)" = "SELECT 1;" ]] \
+    && [[ ! -e "${scratch}/docker.args" ]]; then
     echo "ok   ${label} → migration fed stdin"
   else
     fail "${label}: want the migration run with stdin, got exit ${got_exit}"
   fi
+  return 0
 }
 
 expect_pull() {
   local label="$1" tag="$2"
   run "pull ${tag}"
-  if [ "$got_exit" = 0 ] \
-    && [ "$(cat "${scratch}/docker.args")" = "compose pull api web admin ingestor" ] \
-    && [ "$(cat "${scratch}/docker.cwd")" = "${scratch}/project" ] \
-    && [ "$(cat "${scratch}/docker.tag")" = "$tag" ] \
-    && [ "$got_out" = "ci-ssh-command: pulled ${tag}" ] \
-    && [ ! -e "${scratch}/migrate.stdin" ]; then
+  if [[ "$got_exit" = 0 ]] \
+    && [[ "$(cat "${scratch}/docker.args")" = "compose pull api web admin ingestor" ]] \
+    && [[ "$(cat "${scratch}/docker.cwd")" = "${scratch}/project" ]] \
+    && [[ "$(cat "${scratch}/docker.tag")" = "$tag" ]] \
+    && [[ "$got_out" = "ci-ssh-command: pulled ${tag}" ]] \
+    && [[ ! -e "${scratch}/migrate.stdin" ]]; then
     echo "ok   ${label} → pulled ${tag}"
   else
     fail "${label}: want a pull of ${tag}, got exit ${got_exit}, docker '$(cat "${scratch}/docker.args" 2>/dev/null)' tag '$(cat "${scratch}/docker.tag" 2>/dev/null)', output '${got_out}'"
   fi
+  return 0
 }
 
 expect_refused() {
-  local label="$1"
-  run "$2"
-  if [ "$got_exit" = 64 ] && [ ! -e "${scratch}/docker.args" ] && [ ! -e "${scratch}/migrate.stdin" ]; then
+  local label="$1" request="$2"
+  run "$request"
+  if [[ "$got_exit" = 64 ]] && [[ ! -e "${scratch}/docker.args" ]] && [[ ! -e "${scratch}/migrate.stdin" ]]; then
     echo "ok   ${label} → refused"
   else
     fail "${label}: want exit 64 with nothing run, got exit ${got_exit}"
   fi
+  return 0
 }
 
 expect_migrate "no remote command runs the migration" ""
@@ -116,7 +123,7 @@ expect_refused "an uppercase verb" "PULL 1.22.0"
 expect_refused "migrate with an argument" "migrate now"
 
 run "pull 1.22.0" 1
-if [ "$got_exit" = 1 ] && [ -z "$got_out" ]; then
+if [[ "$got_exit" = 1 ]] && [[ -z "$got_out" ]]; then
   echo "ok   a failed pull → exit 1, no success line"
 else
   fail "a failed pull: want exit 1 and no success line, got exit ${got_exit}, output '${got_out}'"
@@ -124,13 +131,13 @@ fi
 
 got_exit=0
 SSH_ORIGINAL_COMMAND="pull 1.22.0" "$command" >/dev/null 2>&1 || got_exit=$?
-if [ "$got_exit" != 0 ]; then
+if [[ "$got_exit" != 0 ]]; then
   echo "ok   no project directory → exit ${got_exit}"
 else
   fail "no project directory: want a failure, got exit 0"
 fi
 
-if [ "$failures" -gt 0 ]; then
+if [[ "$failures" -gt 0 ]]; then
   echo "${failures} failure(s)"
   exit 1
 fi

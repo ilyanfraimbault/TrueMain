@@ -48,12 +48,13 @@ expect() {
   rm -f "${scratch}"/calls "${scratch}"/command.* "${scratch}"/stdin.*
   SSH_CODES="$codes" SSH_OUTS="$outs" "$prepull" >/dev/null 2>&1 || got_exit=$?
   got_calls="$(cat "${scratch}/calls" 2>/dev/null || echo 0)"
-  if [ "$got_exit" = "$want_exit" ] && [ "$got_calls" = "$want_calls" ]; then
+  if [[ "$got_exit" = "$want_exit" ]] && [[ "$got_calls" = "$want_calls" ]]; then
     echo "ok   ${label} → exit ${got_exit}, ${got_calls} call(s)"
   else
     echo "FAIL ${label}: want exit ${want_exit} after ${want_calls} call(s), got exit ${got_exit} after ${got_calls}"
     failures=$((failures + 1))
   fi
+  return 0
 }
 
 expect "the host pulls and confirms" "0" 0 1 "pulled"
@@ -69,17 +70,17 @@ IMAGE_TAG=1.23.0 expect "a pulled line for another tag does not count" "0" 1 1 "
 
 expect "every attempt asks for the same pull, with nothing on stdin" "255 0" 0 2 "- pulled"
 for n in 1 2; do
-  if [ "$(cat "${scratch}/command.${n}")" != "pull 1.22.0" ]; then
+  if [[ "$(cat "${scratch}/command.${n}")" != "pull 1.22.0" ]]; then
     echo "FAIL attempt ${n} sent '$(cat "${scratch}/command.${n}")' instead of 'pull 1.22.0'"
     failures=$((failures + 1))
   fi
-  if [ -s "${scratch}/stdin.${n}" ]; then
+  if [[ -s "${scratch}/stdin.${n}" ]]; then
     echo "FAIL attempt ${n} sent something on stdin"
     failures=$((failures + 1))
   fi
 done
 
-if [ "$failures" -gt 0 ]; then
+if [[ "$failures" -gt 0 ]]; then
   echo "${failures} failure(s)"
   exit 1
 fi

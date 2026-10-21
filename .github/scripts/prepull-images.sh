@@ -46,17 +46,17 @@ while true; do
     "root@${SSH_HOST}" "pull ${IMAGE_TAG}" < /dev/null > "$stdout_log" || code=$?
   cat "$stdout_log"
 
-  if [ "$code" -eq 0 ]; then
+  if [[ "$code" -eq 0 ]]; then
     if grep -qxF "ci-ssh-command: pulled ${IMAGE_TAG}" "$stdout_log"; then
       exit 0
     fi
-    echo "::error::The host did not confirm the pull: its CI key still runs the previous forced command. Install .github/scripts/vps/ci-ssh-command.sh there, or turn the pre-pull off (docs/ci.md, Pre-pull before recreate)."
+    echo "::error::The host did not confirm the pull: its CI key still runs the previous forced command. Install .github/scripts/vps/ci-ssh-command.sh there, or turn the pre-pull off (docs/ci.md, Pre-pull before recreate)." >&2
     exit 1
   fi
 
-  if [ "$code" -eq 255 ]; then
-    if [ "$attempt" -ge "$attempts" ]; then
-      echo "::error::SSH could not reach the host after ${attempts} attempts; nothing was redeployed. Re-run the failed jobs (docs/ci.md, Pre-pull before recreate)."
+  if [[ "$code" -eq 255 ]]; then
+    if [[ "$attempt" -ge "$attempts" ]]; then
+      echo "::error::SSH could not reach the host after ${attempts} attempts; nothing was redeployed. Re-run the failed jobs (docs/ci.md, Pre-pull before recreate)." >&2
       exit 255
     fi
     delay="${delays[attempt - 1]}"
@@ -65,11 +65,11 @@ while true; do
     continue
   fi
 
-  if [ "$code" -eq 64 ]; then
-    echo "::error::The host refused 'pull ${IMAGE_TAG}': the tag is not a git sha or a semver; nothing was redeployed."
+  if [[ "$code" -eq 64 ]]; then
+    echo "::error::The host refused 'pull ${IMAGE_TAG}': the tag is not a git sha or a semver; nothing was redeployed." >&2
     exit "$code"
   fi
 
-  echo "::error::Pulling ${IMAGE_TAG} failed on the host (exit ${code}); not retried, nothing was redeployed and the running stack is untouched."
+  echo "::error::Pulling ${IMAGE_TAG} failed on the host (exit ${code}); not retried, nothing was redeployed and the running stack is untouched." >&2
   exit "$code"
 done
