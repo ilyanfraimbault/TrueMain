@@ -67,10 +67,23 @@ describe('ProcessesRiotApiHeadroom', () => {
     const rows = wrapper.findAll('tbody tr')
     expect(rows).toHaveLength(2)
     expect(rows[0]!.text()).toContain('europe')
+    expect(rows[0]!.text()).toContain('500')
     expect(rows[0]!.text()).toContain('100 / 2m')
     expect(rows[0]!.classes()).toContain('text-highlighted')
     expect(rows[1]!.text()).toContain('no limit header')
     expect(rows[1]!.text()).toContain('—')
+  })
+
+  it('keeps the fraction of a call a real roster costs per account', () => {
+    const fractional: RiotApiHeadroom = {
+      ...sufficient,
+      routes: [{ ...sufficient.routes[0]!, callsPerAccountPerDay: 0.16125, additionalAccountsHeadroom: 1_211_273_602 }],
+    }
+    const wrapper = mount(ProcessesRiotApiHeadroom, { props: { headroom: fractional }, global })
+    const row = wrapper.find('tbody tr').text()
+
+    expect(row).toContain('0.16')
+    expect(row).toContain('1.2B')
   })
 
   it('states the per-host history still missing', () => {
