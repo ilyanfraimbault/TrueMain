@@ -903,6 +903,16 @@ build costs runner minutes, not wall time, since it runs beside CI.
   never ship, their tests run under `claude plugin test` (bun, outside CI), and
   their `tsconfig.json` extends a file the Claude Code engine generates on load
   — analysed, they read as uncovered new code and fail the gate (#2068).
+- `Download the lcov reports` downloads by pattern, and `download-artifact`
+  puts a lone match straight into `path` instead of a directory named after
+  it: a PR touching one frontend (the usual case since #2218) left its report
+  where the scanner does not look, and its new code read as 0 % covered
+  (#2226). The next step moves a lone `lcov.info` into its artifact's
+  directory, so the scanner's three fixed paths hold whatever the plan ran.
+- `backend/Tools/**` is analysed but out of the coverage measure
+  (`sonar.coverage.exclusions`): the offline back-tests run by hand on CSV
+  exports of preprod, never under a test runner, so their new lines could only
+  ever count as uncovered (#2226).
 
 The quality gate **blocks the merge** (#2052). On a PR, `analysis` passes
 `sonar.qualitygate.wait=true`, so its `end` step fails when the gate is red, and

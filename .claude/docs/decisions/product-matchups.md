@@ -353,8 +353,27 @@ allies outweigh the lane, and bet the matchup on the solver's top placement even
   grade binned from these deltas would still be a derived number);
 - **reasons** — the 2–3 parts of the score that move it most, either way, as text-free data the client words
   (`laneMatchup`, `blindSafety`, `synergy`, plus the lane phase at 15 minutes as a reason that is never a score
-  term). Still missing: the enemy team beyond our lane (#1713) and the damage mix (#1905, #1907).
+  term). The enemy team beyond our lane (#1713) and the team composition (below) are measured and returned, weight 0
+  until a back-test sets them.
 `DraftCandidateScorer`, `Core/Lol/Draft/DraftScoring.cs` — #1906.
+
+**The team composition is measured on the item-context fold's counters, and stated before it is scored
+(2026-10-21).** The issue asked for "the candidate's win rate when its allies' magic share (and frontline count) falls
+in the band the current draft is in, minus its overall rate" on a new champion-level aggregate. None was needed:
+`champion_item_context_totals` already counts games and wins per champion, lane, `AllyMagicDamage` /
+`AllyFrontline` band and unconditioned (`Overall`), on the root branch of the build slot — every game that completed
+a first item. Both rates come from that one cohort, so what it leaves out cancels in the difference; it has no elo
+dimension, so the term pools every rank. The board is placed by the fold's own `DraftAxisEvaluator`, profile snapshot
+and thresholds; an ally not picked yet counts as an unprofiled member, so the axes appear with three allies on the
+board. The term is the mean over the placed axes, shrunk like the others, and **weighs 0** like the enemy team: the
+back-test (`Tools/DraftEvaluation`, now exporting the totals and the profiles) sets it on preprod data. First run
+(training 16.20, test 16.21, 7,549 main picks, every one placed): lane known 0.5200 at weight 0, rising with the
+weight to 0.5255 at 1 — inside the AUC's noise at that size (≈ 0.006), so it stays 0 until a mature patch or prod
+volume confirms it; the same run had the enemy team falling with its weight (0.5200 → 0.5134 at 1). Meanwhile the
+axis that moves the pick most is a `teamFit` reason (≥ 30 games, ≥ 0.1 pt once shrunk) — a measured figure with its
+games, like the lane phase. Facts that are not score terms (lane phase, team composition) are stated after the
+up-to-three score terms rather than only when one of the three slots is free: with a full card they would never show.
+`DraftTeamFitReader` — #1906, #1905, #1907.
 
 **The enemy team is measured on its own opposing-pair aggregate, folded behind its own flag, and enters the score
 only once a back-test sets its weight.** `champion_opponent_stats` pairs a tracked seat with each enemy, and the
@@ -378,7 +397,9 @@ team beyond the lane waits for #1713's opposing-pair aggregate. `DraftBanQuerySe
 
 **Draft reads use the current patch, with the previous one as a per-champion fallback.** The app sent no patch, so
 every draft figure averaged every stored patch — several balance states at once. Without a requested patch the
-draft reads the two newest patches of the synergy baselines; a champion's matchup record comes from the current
+draft reads the two newest patches of the synergy baselines — the app still sends none on purpose: on patch day the
+client is on a patch the tables have barely seen, and the server knows which patch holds data (the bracket is sent:
+the player's tier and above, `decisions/desktop.md`). A champion's matchup record comes from the current
 patch when it has 200 games at the lane there, from both summed otherwise (lane shares: 2,000 games), and a pairing
 the current patch lacks is looked up on the previous one. Per champion, not per draft: on patch day the popular
 picks are measured hours before a niche one. `DraftPatchScopeResolver`, `DraftLaneReader` — #1906, #1467.
