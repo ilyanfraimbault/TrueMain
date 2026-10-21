@@ -50,13 +50,16 @@ Third case, `matches.BansAggregated` (#920): backfilled to `true` like #811 but 
 source rows don't exist. Riot payloads aren't kept, so a match ingested before #920 has no `match_bans` rows at
 all; folding it would add to the ban *denominator* while contributing no bans and deflate every rate.
 
-**The operator champion game counts are a per-slice recompute of the raw rows, not a fold (2026-10-19).**
+**The operator champion game counts are a whole-table recompute of the raw rows, not a fold (2026-10-19, one statement since 2026-10-21).**
 `champion_game_counts` (#2132) is the count of what `match_participants` holds now, so it must lose a patch
 retention deletes and move a game the lane fix re-positions; a fold-once counter would keep both, and would need a
 decrement in retention and in every participant rewriter. `ChampionGameCountRefreshProcess` therefore replaces
-each `(queue, patch, platform)` slice — the grain of `IX_matches_queue_patch_platform` — in its own transaction and
-drops the slices no stored match belongs to. It is one grouped pass over the retained window with no self-join,
-throttled to 30 minutes and run after retention, which is why it does not repeat #811's cost — #2132, #811.
+the whole table from one grouped `INSERT … SELECT` in a single transaction, so slices no stored match belongs to
+vanish with it. It first ran one statement per `(queue, patch, platform)` slice, but the slice columns live on
+`matches` only: every large slice hash-joined against a full scan of the participant index, so a run read
+`match_participants` once per large slice and single slices hit the 300 s command timeout under load (#2217). One
+pass over the retained window with no self-join, under a 15 min command timeout, throttled to 30 minutes and run
+after retention, which is why it does not repeat #811's cost — #2132, #2217, #811.
 
 **The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back (2026-10-19).**
 `champion_aggregate_scopes` was the last full recompute — every live scope rebuilt every run, about an hour on prod

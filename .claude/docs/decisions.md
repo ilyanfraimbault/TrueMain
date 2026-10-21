@@ -209,7 +209,7 @@ Last verified against `develop` on 2026-09-02.
 - Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid — #772, #694, #1599
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back, and the bracket is the participant's stamp (2026-10-19) — #1367, #1365
-- The operator champion game counts are a per-slice recompute of the raw rows, not a fold (2026-10-19) — #2132, #811
+- The operator champion game counts are a whole-table recompute of the raw rows in one statement, not a fold (2026-10-19, 2026-10-21) — #2132, #2217, #811
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
 - Champion profiles (`champion_profile_stats`) are measured from the champion's own games over the full pool, never labelled by hand; the ranged flag is the one static attribute — #1449
 - Damage profiles are served through the fold's own snapshot rule; the per-build split is a sibling table filled forward (no backfill); an unprofiled champion gets a Data Dragon class, never a share (2026-10-05) — #1905

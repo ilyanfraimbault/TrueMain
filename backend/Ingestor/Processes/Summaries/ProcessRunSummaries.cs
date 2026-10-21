@@ -343,9 +343,9 @@ public sealed record CandidateStockSnapshotSummary(
 
 /// <summary>
 /// Champion game count refresh outcome (#2132). <see cref="Slices"/> is the
-/// <c>(queue, patch, platform)</c> slices recomputed from the raw rows,
-/// <see cref="SlicesRemoved"/> the ones dropped because no stored match belongs to them
-/// any more, <see cref="Rows"/> the rollup rows written and <see cref="Games"/> their sum —
+/// <c>(queue, patch, platform)</c> slices the recomputed rollup holds,
+/// <see cref="SlicesRemoved"/> the ones the previous rollup held that no stored match
+/// belongs to any more, <see cref="Rows"/> the rollup rows written and <see cref="Games"/> their sum —
 /// the stored participant count the operator champion stats now read.
 /// </summary>
 public sealed record ChampionGameCountRefreshSummary(
