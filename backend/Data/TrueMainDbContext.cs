@@ -51,6 +51,11 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionBanStat> ChampionBanStats => Set<ChampionBanStat>();
     public DbSet<BanScopeTotal> BanScopeTotals => Set<BanScopeTotal>();
 
+    // The light per-patch record (#1956): champion_aggregate_scopes summed per (queue, patch,
+    // champion, position, bracket, population), folded by the pattern aggregation in the
+    // transaction that replaces the scopes. Outlives them: retention never deletes it.
+    public DbSet<ChampionPatchStat> ChampionPatchStats => Set<ChampionPatchStat>();
+
     // Measured champion profiles (#1449): per (champion, position, patch) sums of what
     // the champion did in its games — damage split, sustain, CC, damage taken, lane
     // leads at 10/15, item archetypes — plus its ranged flag. Populated incrementally
