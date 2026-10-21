@@ -32,6 +32,29 @@ of a patch is written before any of its full aggregates is dropped (never purge 
 history would be gone), and patch N-2 is purged only once patch N has enough matches to be live. This reverses the
 production half of #466/#711 ("old patches are frozen and must never be wiped") on purpose — #1467.
 
+**The light per-patch record is `champion_patch_stats` plus the ban pair, folded with every scope replacement (2026-10-21).**
+Step 1 of the two-level retention above. `champion_patch_stats` holds games and wins per queue × patch × champion ×
+position × elo bracket × population — `champion_aggregate_scopes` summed over the account and the platform, a few
+thousand rows a patch. The pick-rate denominator is the same sum over every champion of the lane, so nothing else is
+stored for it; `ALL` is the sum of the brackets, as on the scopes. Three calls:
+- **Bans stay where they are and join the light level.** `champion_ban_stats` + `ban_scope_totals` are already at the
+  light grain (patch × champion × band, no position) with their stored `ALL` band (#920); copying them onto
+  per-position rows would repeat each count up to five times. So aggregate retention no longer deletes them — on
+  preprod either, which only keeps a few thousand rows a patch more.
+- **Folded, not recomputed.** The pattern aggregation is the only writer of the scopes, so the persister subtracts a
+  batch's slices from the record before deleting them and adds the rebuilt ones back, in the same transaction, then
+  drops the rows a replacement emptied. The record therefore agrees with the scopes on every patch that still has
+  them, at the cost of a grouped read over the batch's own slices — not a rescan of the patch. A derivation from
+  the scopes after each run was rejected: it reads a whole patch per run, and a run cut short between its steps and
+  the derivation would leave a patch stale with nothing to notice it.
+- **Backfilled in-process, once.** The first run after it ships finds the table empty and fills it from every scope
+  present, in one statement (15 min command timeout) before any fold — the backfill of every patch whose full
+  aggregates still exist. A migration could not do it: migrations apply while the previous ingestor still runs, and
+  the scopes it replaced in between would be missing from the record.
+
+The subtraction is floored at zero so a record that drifted from hand-edited scopes is rewritten by the next
+replacement instead of failing every run on the row's wins-within-games check — #1956, #1467.
+
 **Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid.**
 The dense per-minute grid grew to ~13 GB / 55.6M rows for exactly one consumer (power spikes); every other
 reader uses only those five marks. It was first pruned once a match was powerspike-aggregated (#772, #694);

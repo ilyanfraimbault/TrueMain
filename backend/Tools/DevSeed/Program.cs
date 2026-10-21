@@ -168,6 +168,10 @@ static async Task CleanupAsync(TrueMainDbContext db)
     // No owner column exists on this table (see its doc comment) — the
     // --force-wipe / non-synthetic-data guard above is what keeps this safe.
     await db.ChampionMatchupStats.ExecuteDeleteAsync();
+
+    // The light per-patch record is folded by the pattern aggregation, which the seed
+    // bypasses: emptied here, the aggregation's next run backfills it from every scope.
+    await db.ChampionPatchStats.ExecuteDeleteAsync();
 }
 
 static async Task<RiotAccount> GetOrCreateDevSeedAccountAsync(TrueMainDbContext db)
