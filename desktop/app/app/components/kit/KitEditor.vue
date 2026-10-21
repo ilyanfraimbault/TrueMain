@@ -15,6 +15,7 @@ const props = defineProps<{ kit: Kit, saving?: boolean }>()
 const emit = defineEmits<{ save: [kit: Kit], cancel: [] }>()
 
 const { items, summoners, runeTree } = useStaticData()
+const { classes: itemClasses } = useItemClasses()
 
 const draft = ref<Kit>(cloneKit(props.kit))
 watch(() => props.kit.id, () => (draft.value = cloneKit(props.kit)))
@@ -123,6 +124,6 @@ const removeBoots = (index: number) => (draft.value = withBoots(draft.value, dra
       <UButton label="Save kit" icon="i-lucide-check" :disabled="issues.length > 0" :loading="saving" @click="emit('save', draft)" />
     </div>
 
-    <KitItemPicker v-model:open="pickerOpen" :items="items" :groups="pickerGroups" :blocked="blocked" :blocked-note="target?.kind === 'boots' ? 'already chosen' : 'already on this path'" :title="pickerTitle" @pick="picked" />
+    <KitItemPicker v-model:open="pickerOpen" :items="items" :groups="pickerGroups" :blocked="blocked" :blocked-note="target?.kind === 'boots' ? 'already chosen' : 'already on this path'" :classes="itemClasses" :title="pickerTitle" @pick="picked" />
   </div>
 </template>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import type { KitStore } from '#shared/types/kit'
 import type { GameState } from '~/types/game'
 import { item, kit } from './kit-fixtures'
@@ -125,6 +125,35 @@ describe('useKits in the shell', () => {
     await expect(kits.remove('k1')).rejects.toThrow('disk full')
     expect(kits.kitsFor(103, 'MIDDLE')).toHaveLength(1)
     expect(kits.error.value).toContain('disk full')
+  })
+})
+
+describe('useItemClasses', () => {
+  it('reads the classes once per patch, and retries a failed read on the next patch', async () => {
+    const patch = ref('16.21.1')
+    const apiGet = vi.fn()
+      .mockResolvedValueOnce({ patch: '16.21', items: [{ itemId: 3031, classes: ['Marksman'] }, { itemId: 3190, classes: ['Support', 'Tank'] }] })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ patch: '16.23', items: [{ itemId: 3089, classes: ['Mage'] }] })
+    vi.stubGlobal('watch', watch)
+    vi.stubGlobal('apiGet', apiGet)
+    vi.stubGlobal('useChampionStatics', () => ({ patch }))
+    const { useItemClasses } = await import('~/composables/useItemClasses')
+
+    const { classes } = useItemClasses()
+    await flush()
+    expect(classes.value).toEqual({ 3031: ['Marksman'], 3190: ['Support', 'Tank'] })
+    expect(apiGet).toHaveBeenCalledWith('/items/classes', { patch: '16.21.1' }, { background: true })
+    useItemClasses()
+    await flush()
+    expect(apiGet).toHaveBeenCalledTimes(1)
+
+    patch.value = '16.22.1'
+    await flush()
+    expect(classes.value).toEqual({ 3031: ['Marksman'], 3190: ['Support', 'Tank'] })
+    patch.value = '16.23.1'
+    await flush()
+    expect(classes.value).toEqual({ 3089: ['Mage'] })
   })
 })
 

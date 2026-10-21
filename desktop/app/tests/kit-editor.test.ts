@@ -69,6 +69,7 @@ beforeEach(() => {
   vi.stubGlobal('watch', watch)
   vi.stubGlobal('toRef', toRef)
   vi.stubGlobal('useStaticData', () => ({ items, summoners: ref({}), runeTree: ref(RUNE_TREE), pending: ref(false) }))
+  vi.stubGlobal('useItemClasses', () => ({ classes: ref({}) }))
   vi.stubGlobal('useChampionStatics', () => ({ nameOf: () => 'Ahri' }))
   vi.stubGlobal('useKits', () => kitsApi)
   vi.stubGlobal('useKitImport', () => kitImport)
