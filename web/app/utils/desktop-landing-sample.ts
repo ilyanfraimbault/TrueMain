@@ -56,13 +56,26 @@ export const SAMPLE_PACE_REFERENCE = {
 } as const
 
 /**
+ * The objectives panel's sample at 13:23 (#2078's rules): a drake each side, the
+ * Rift turned Infernal so the next one is named, due at 16:00; the grubs gone;
+ * the Herald at 15:00 and Baron at 20:00. Each spawn is a game time, in seconds,
+ * as the shell sends it.
+ */
+export const SAMPLE_OBJECTIVES = {
+  drakes: { ally: ['cloud'], enemy: ['infernal'] },
+  next: 'infernal',
+  spawns: { dragon: 960, herald: 900, baron: 1200 },
+} as const
+
+/**
  * Our side's chance to win in the sample, from the model the overlay itself
- * runs (`#common/utils/win-probability`): every lane even, three turrets and
- * two drakes against one and one.
+ * runs (`#common/utils/win-probability`): every lane even, three turrets against
+ * one, a drake each.
  */
 export function sampleWinProbability(): number {
-  const side = (turrets: number, dragons: number) => ({ turrets, inhibitorsDown: 0, dragons, baron: false, elder: false })
-  return winProbability({ leads: [], ours: side(3, 2), theirs: side(1, 1), clock: SAMPLE_CLOCK })
+  const dragons = (side: 'ally' | 'enemy') => SAMPLE_OBJECTIVES.drakes[side].length
+  const side = (turrets: number, count: number) => ({ turrets, inhibitorsDown: 0, dragons: count, baron: false, elder: false })
+  return winProbability({ leads: [], ours: side(3, dragons('ally')), theirs: side(1, dragons('enemy')), clock: SAMPLE_CLOCK })
 }
 
 /** A champion's square icon on Data Dragon, from its key (`Ahri`); null until the patch is known. */

@@ -6,13 +6,13 @@ import {
 } from '~/utils/desktop-landing-sample'
 
 /**
- * One of the in-game overlay's four panels, redrawn for `/download` (#2072) the
+ * One of the in-game overlay's five panels, redrawn for `/download` (#2072) the
  * way the app draws it over its sample game (`desktop/app/app/components/overlay/*`):
  * same widths, type and colours, the sample's values. An illustration, so the
  * page labels it as a sample and hides it from assistive tech; the section's
  * copy says what each panel does.
  */
-export type LandingOverlayPanelKind = 'next-item' | 'win-probability' | 'pace' | 'item-value'
+export type LandingOverlayPanelKind = 'next-item' | 'win-probability' | 'pace' | 'objectives' | 'item-value'
 
 const props = defineProps<{
   panel: LandingOverlayPanelKind
@@ -21,7 +21,7 @@ const props = defineProps<{
 }>()
 
 /** The app's panel widths, in points (`PANEL_WIDTHS`). */
-const WIDTHS: Record<LandingOverlayPanelKind, number> = { 'next-item': 232, 'win-probability': 160, 'pace': 176, 'item-value': 300 }
+const WIDTHS: Record<LandingOverlayPanelKind, number> = { 'next-item': 232, 'win-probability': 160, 'pace': 176, 'objectives': 212, 'item-value': 300 }
 
 const canonicalIcon = useCanonicalIcon()
 const itemIcon = (id: number) => (props.patch ? `https://ddragon.leagueoflegends.com/cdn/${props.patch}/img/item/${id}.png` : null)
@@ -144,6 +144,8 @@ const number = (value: number | undefined) => (value === undefined ? '–' : for
         </span>
       </div>
     </div>
+
+    <DesktopLandingObjectives v-else-if="panel === 'objectives'" />
 
     <div v-else class="flex flex-col gap-2">
       <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">

@@ -106,6 +106,18 @@ describe('LandingOverlayPanel', () => {
   })
 })
 
+describe('LandingObjectives', () => {
+  it('sets the dragon pit between the drakes each side took, then counts the camps down from the sample clock', async () => {
+    const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'objectives', patch: PATCH, items: null } })
+
+    const rows = wrapper.findAll('li')
+    expect(rows).toHaveLength(3)
+    expect(rows[0]!.findAll('img.ring-ally\\/70')).toHaveLength(1)
+    expect(rows[0]!.findAll('img.ring-enemy\\/70')).toHaveLength(1)
+    expect(rows.map(row => row.text())).toEqual(['2:37', '1:37', '6:37'])
+  })
+})
+
 describe('LandingGameScreen', () => {
   it('turns on the panels it is given, item value only while TAB is held', async () => {
     const wrapper = await mountSuspended(DesktopLandingGameScreen, {
@@ -121,12 +133,13 @@ describe('LandingGameScreen', () => {
 })
 
 describe('LandingInGame', () => {
-  it('lists the four panels and draws them all when the steps cannot drive the screen', async () => {
+  it('lists the five panels and draws them all when the steps cannot drive the screen', async () => {
     const wrapper = await mountSuspended(DesktopLandingInGame, { props: { patch: PATCH, items: ITEMS } })
 
-    expect(wrapper.findAll('ol > li')).toHaveLength(4)
+    expect(wrapper.findAll('ol > li')).toHaveLength(5)
     expect(wrapper.text()).toContain('What to buy next')
-    expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(4)
+    expect(wrapper.text()).toContain('The next objectives, timed')
+    expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(5)
   })
 })
 

@@ -3,7 +3,7 @@ import type { StaticItemData } from '#shared/types/static-data'
 import type { LandingOverlayPanelKind } from './LandingOverlayPanel.vue'
 
 /**
- * The in-game moment: the overlay's four panels arrive on the screen one by
+ * The in-game moment: the overlay's five panels arrive on the screen one by
  * one as the visitor scrolls through what each does. On a wide screen the
  * screen stays pinned beside the steps and the step crossing the middle of the
  * viewport is the one drawn; on a narrow one, or without motion, the screen
@@ -26,6 +26,11 @@ const STEPS: { panel: LandingOverlayPanelKind, title: string, body: string, keys
     panel: 'next-item',
     title: 'What to buy next',
     body: 'The legendary the true mains of your champion complete next from where your build stands, and the gold it still takes — with the whole build in a row underneath, so you see where you stand and when the boots come. The starter until you have one.',
+  },
+  {
+    panel: 'objectives',
+    title: 'The next objectives, timed',
+    body: 'When the dragon, the Voidgrubs, the Rift Herald and Baron are next up, and the drakes each side holds — from the game clock and the kills the game announces, what every player can see, kept for you.',
   },
   {
     panel: 'item-value',
