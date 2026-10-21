@@ -51,7 +51,7 @@ public sealed class CommunityDragonItemClassProvider(
             : PatchVersion.Parse(gameVersion).ToMajorMinor();
 
         // Two attempts at most: the second runs against an entry this call just created.
-        for (var attempt = 0; ; attempt++)
+        for (var attempt = 0; attempt < 2; attempt++)
         {
             var lazyTask = Entry(patch);
 
@@ -79,9 +79,11 @@ public sealed class CommunityDragonItemClassProvider(
                 continue;
             }
 
-            logger.LogDebug("CommunityDragon has not published patch {Patch} yet; serving its '{Branch}' branch.", patch, LatestBranch);
-            return await GetClassesAsync(null, ct);
+            break;
         }
+
+        logger.LogDebug("CommunityDragon has not published patch {Patch} yet; serving its '{Branch}' branch.", patch, LatestBranch);
+        return await GetClassesAsync(null, ct);
     }
 
     private Lazy<Task<Loaded>> Entry(string patch)
@@ -151,41 +153,34 @@ public sealed class CommunityDragonItemClassProvider(
     private static IReadOnlyDictionary<int, IReadOnlyList<ItemShopClass>> Read(JsonElement root)
     {
         var items = new Dictionary<int, IReadOnlyList<ItemShopClass>>();
-        foreach (var entry in root.EnumerateObject())
+        foreach (var value in root.EnumerateObject().Select(entry => entry.Value))
         {
-            var value = entry.Value;
-            if (value.ValueKind != JsonValueKind.Object
-                || !value.TryGetProperty("itemID", out var idElement)
-                || !idElement.TryGetInt32(out var itemId)
-                || !value.TryGetProperty("mItemAttributes", out var attributes)
-                || attributes.ValueKind != JsonValueKind.Array)
-            {
-                continue;
-            }
-
-            var classes = new List<ItemShopClass>();
-            foreach (var attribute in attributes.EnumerateArray())
-            {
-                if (!attribute.TryGetInt32(out var bits))
-                {
-                    continue;
-                }
-
-                foreach (var known in KnownClasses)
-                {
-                    if ((bits & (int)known) != 0 && !classes.Contains(known))
-                    {
-                        classes.Add(known);
-                    }
-                }
-            }
-
-            if (classes.Count > 0)
+            if (value.ValueKind == JsonValueKind.Object
+                && value.TryGetProperty("itemID", out var idElement)
+                && idElement.TryGetInt32(out var itemId)
+                && value.TryGetProperty("mItemAttributes", out var attributes)
+                && attributes.ValueKind == JsonValueKind.Array
+                && ClassesOf(attributes) is { Count: > 0 } classes)
             {
                 items[itemId] = classes;
             }
         }
 
         return items;
+    }
+
+    /// <summary>The classes an item's attribute bits name, in the data's order, each once.</summary>
+    private static List<ItemShopClass> ClassesOf(JsonElement attributes)
+    {
+        var classes = new List<ItemShopClass>();
+        foreach (var attribute in attributes.EnumerateArray())
+        {
+            if (attribute.TryGetInt32(out var bits))
+            {
+                classes.AddRange(KnownClasses.Where(known => (bits & (int)known) != 0 && !classes.Contains(known)));
+            }
+        }
+
+        return classes;
     }
 }

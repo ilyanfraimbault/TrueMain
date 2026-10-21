@@ -181,7 +181,7 @@ export function readStore(value: unknown): KitStore {
   const active: Record<string, string> = {}
   for (const [key, id] of Object.entries(raw?.active ?? {})) {
     const kit = typeof id === 'string' ? byId.get(id) : undefined
-    if (kit && kit.positions.some(position => activeKey(kit.championId, position) === key)) active[key] = id
+    if (kit?.positions.some(position => activeKey(kit.championId, position) === key)) active[key] = id
   }
   return { kits: [...byId.values()], active }
 }
