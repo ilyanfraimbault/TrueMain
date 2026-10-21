@@ -9,7 +9,12 @@ export interface NextItemRequest {
   /** Items held or completed, in the order they appeared in the inventory. */
   items: number[]
   allies: { championId: number, position: string | null }[]
-  enemies: { championId: number, position: string | null }[]
+  /**
+   * In game, each enemy's inventory too (#1750): what they have built places
+   * the game on the in-game axes. Champion select sends none — no inventory
+   * is not an empty one.
+   */
+  enemies: { championId: number, position: string | null, items?: number[] }[]
 }
 
 export interface NextItemReason {
@@ -83,9 +88,16 @@ export function nextItemRequest(
     const id = championIdOf(player.champion)
     return id ? { championId: id, position: player.position || null } : null
   }
-  const others = (ours: boolean) => game.players
-    .filter(player => !player.isMe && (player.team === me.team) === ours)
+  const allies = game.players
+    .filter(player => !player.isMe && player.team === me.team)
     .map(participant)
+    .filter(entry => entry !== null)
+  const enemies = game.players
+    .filter(player => !player.isMe && player.team !== me.team)
+    .map((player) => {
+      const entry = participant(player)
+      return entry ? { ...entry, items: player.items.map(item => item.itemId) } : null
+    })
     .filter(entry => entry !== null)
 
   return {
@@ -94,8 +106,8 @@ export function nextItemRequest(
       position: me.position,
       // What was completed, in order, then anything held the order missed.
       items: [...order, ...held.filter(id => !order.includes(id))],
-      allies: others(true),
-      enemies: others(false),
+      allies,
+      enemies,
     },
   }
 }

@@ -1,4 +1,5 @@
 import type { DamageProfile, TeamDamage } from '~/utils/damage-profile'
+import { BUILT_AXES } from '~/utils/built-reasons'
 import { teamDamage } from '~/utils/damage-profile'
 
 /**
@@ -102,10 +103,11 @@ export const PUSH_MIN_RATIO = 1.25
  * The situations the draft advice may give as a reason: what the enemy team
  * and the lane opponent bring. The ally axes measure what a flex pick's team
  * already has — "build Shieldbow when your team deals magic damage" answers
- * nothing in this draft — and the gold lead does not exist before the game.
+ * nothing in this draft — and the gold lead, like what the enemies have built
+ * (#1750), does not exist before the game.
  */
 export function isDraftReason(axis: string): boolean {
-  return axis.startsWith('Enemy') || axis.startsWith('Opponent')
+  return (axis.startsWith('Enemy') || axis.startsWith('Opponent')) && !BUILT_AXES.includes(axis)
 }
 
 /**

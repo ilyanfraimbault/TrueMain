@@ -15,6 +15,18 @@ public static class FinalBuildResolver
         IReadOnlyList<int> finalItems,
         IReadOnlyCollection<int> starterItems,
         IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
+        => [.. ResolveTimed(itemEvents, finalItems, starterItems, itemMetadataById).Select(step => step.ItemId)];
+
+    /// <summary>
+    /// <see cref="Resolve"/>, each item with the timestamp the timeline completed it at — null
+    /// when the timeline never shows it (an item read off the final inventory alone). The
+    /// in-game item context (#1750) reads the moment each decision of the build opened from it.
+    /// </summary>
+    public static IReadOnlyList<(int ItemId, int? CompletedAtMs)> ResolveTimed(
+        IReadOnlyList<ItemEvent> itemEvents,
+        IReadOnlyList<int> finalItems,
+        IReadOnlyCollection<int> starterItems,
+        IReadOnlyDictionary<int, ItemMetadata> itemMetadataById)
     {
         var starterItemIds = starterItems
             .Where(itemId => itemId > 0)
@@ -41,7 +53,9 @@ public static class FinalBuildResolver
             .OrderBy(metadata => completionTimes.GetValueOrDefault(metadata.Id, int.MaxValue))
             .ThenBy(metadata => metadata.Id)
             .Take(MaxBuildItems)
-            .Select(GetDisplayedBuildItemId)
+            .Select(metadata => (
+                GetDisplayedBuildItemId(metadata),
+                completionTimes.TryGetValue(metadata.Id, out var completedAt) ? completedAt : (int?)null))
             .ToArray();
     }
 

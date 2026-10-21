@@ -318,6 +318,23 @@ public sealed class ItemContextVerdictBuilderTests
         verdict.Axes[1].Axis.Should().Be(ItemContextAxis.EnemyCrowdControl);
     }
 
+    [Fact]
+    public void AnOverlayOnlyAxisIsNeverJudgedIntoASiteVerdict()
+    {
+        // What the enemies built (#1750) feeds the next item only: the same gap that makes a
+        // site axis a finding leaves the verdict without one.
+        var verdict = Single(
+            options: Options(),
+            stats: [Overall(400), Overall(600, item: Rival),
+                    Stat(ItemContextAxis.EnemyArmorBuilt, ItemContextBucket.High, 310),
+                    Stat(ItemContextAxis.EnemyArmorBuilt, ItemContextBucket.Low, 90)],
+            totals: [OverallTotal(1000), Total(ItemContextAxis.EnemyArmorBuilt, ItemContextBucket.High, 500),
+                     Total(ItemContextAxis.EnemyArmorBuilt, ItemContextBucket.Low, 500)]);
+
+        verdict.Class.Should().Be(ItemContextClass.Preference);
+        verdict.Axes.Should().BeEmpty();
+    }
+
     private static ItemContextAggregationOptions Options() => new()
     {
         MinBucketGames = 100,
