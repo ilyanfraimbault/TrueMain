@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import type { StaticItemData } from '#shared/types/static-data'
-import {
-  SAMPLE_ALLIES, SAMPLE_ENEMIES, SAMPLE_PACE, SAMPLE_PACE_REFERENCE,
-  championIconUrl, sampleLaneGold, sampleWinProbability,
-} from '~/utils/desktop-landing-sample'
+import { SAMPLE_PACE, SAMPLE_PACE_REFERENCE, sampleWinProbability } from '~/utils/desktop-landing-sample'
 
 /**
  * One of the in-game overlay's panels, redrawn for `/download` (#2072) the
@@ -12,20 +9,19 @@ import {
  * page labels it as a sample and hides it from assistive tech; the section's
  * copy says what each panel does.
  */
-export type LandingOverlayPanelKind = 'next-item' | 'win-probability' | 'pace' | 'objectives' | 'item-value'
+export type LandingOverlayPanelKind = 'next-item' | 'win-probability' | 'pace' | 'objectives' | 'lane-gold'
+/** The panels drawn as a panel; the lane-gold plates sit on the scoreboard's rows instead (`LandingLanePlates`). */
+export type LandingPanelKind = Exclude<LandingOverlayPanelKind, 'lane-gold'>
 
-const props = withDefaults(defineProps<{
-  panel: LandingOverlayPanelKind
+defineProps<{
+  panel: LandingPanelKind
   patch: string | null
   items: Record<number, StaticItemData> | null
-  /** The item value's lane rows; the app drops them while the lane-gold plates are on (#2186). */
-  lanes?: boolean
-}>(), { lanes: true })
+}>()
 
 /** The app's panel widths, in points (`PANEL_WIDTHS`). */
-const WIDTHS: Record<LandingOverlayPanelKind, number> = { 'next-item': 232, 'win-probability': 160, 'pace': 176, 'objectives': 292, 'item-value': 300 }
+const WIDTHS: Record<LandingPanelKind, number> = { 'next-item': 232, 'win-probability': 160, 'pace': 176, 'objectives': 292 }
 
-const canonicalIcon = useCanonicalIcon()
 
 const ours = Math.round(sampleWinProbability() * 100)
 
@@ -51,9 +47,6 @@ const curve = (() => {
 })()
 const gradient = `landing-pace-${useId()}`
 
-const laneGold = computed(() => sampleLaneGold(props.items))
-const teams = computed(() => laneGold.value?.reduce((sum, lane) => ({ ours: sum.ours + lane.ours, theirs: sum.theirs + lane.theirs }), { ours: 0, theirs: 0 }) ?? null)
-const number = (value: number | undefined) => (value === undefined ? '–' : formatCount(value))
 </script>
 
 <template>
@@ -107,25 +100,6 @@ const number = (value: number | undefined) => (value === undefined ? '–' : for
       </div>
     </div>
 
-    <DesktopLandingObjectives v-else-if="panel === 'objectives'" />
-
-    <div v-else class="flex flex-col gap-2">
-      <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <span class="stat-value justify-self-end text-lg leading-none text-ally">{{ number(teams?.ours) }}</span>
-        <DesktopLandingGoldGap :gap="teams ? teams.ours - teams.theirs : 0" large />
-        <span class="stat-value text-lg leading-none text-enemy">{{ number(teams?.theirs) }}</span>
-      </div>
-      <ul v-if="lanes" class="flex flex-col gap-1 border-t border-default pt-2">
-        <li v-for="(ally, index) in SAMPLE_ALLIES" :key="ally" class="grid grid-cols-[1.25rem_1fr_auto_1fr_1.25rem] items-center gap-2">
-          <img v-if="patch" :src="canonicalIcon(championIconUrl(ally, patch))" alt="" width="20" height="20" class="size-5 rounded">
-          <span v-else class="size-5 rounded bg-elevated" />
-          <span class="justify-self-end text-[11px] tabular-nums text-muted">{{ number(laneGold?.[index]?.ours) }}</span>
-          <DesktopLandingGoldGap :gap="laneGold ? laneGold[index]!.ours - laneGold[index]!.theirs : 0" />
-          <span class="text-[11px] tabular-nums text-muted">{{ number(laneGold?.[index]?.theirs) }}</span>
-          <img v-if="patch" :src="canonicalIcon(championIconUrl(SAMPLE_ENEMIES[index]!, patch))" alt="" width="20" height="20" class="size-5 rounded">
-          <span v-else class="size-5 rounded bg-elevated" />
-        </li>
-      </ul>
-    </div>
+    <DesktopLandingObjectives v-else />
   </div>
 </template>

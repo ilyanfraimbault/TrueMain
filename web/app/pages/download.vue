@@ -124,7 +124,7 @@ const MORE = [
       <DesktopLandingSection
         id="in-game"
         moment="In game"
-        title="Six small panels, right on the game."
+        title="Small panels, right on the game."
         lead="Drawn from the game's own live data in windows of their own that never take your keyboard. Nothing is injected and nothing reads the game's memory. Move them, resize them, or hide them all with one shortcut."
       >
         <DesktopLandingInGame :patch="patch" :items="items ?? null" />

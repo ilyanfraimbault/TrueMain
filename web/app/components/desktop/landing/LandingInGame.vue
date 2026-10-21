@@ -3,7 +3,7 @@ import type { StaticItemData } from '#shared/types/static-data'
 import type { LandingOverlayPanelKind } from './LandingOverlayPanel.vue'
 
 /**
- * The in-game moment: the overlay's six panels (the lane-gold plates with the item value, under TAB) arrive on the screen one by
+ * The in-game moment: the overlay's panels (under TAB, the lane-gold plates) arrive on the screen one by
  * one as the visitor scrolls through what each does. On a wide screen the
  * screen stays pinned beside the steps and the step crossing the middle of the
  * viewport is the one drawn; on a narrow one, or without motion, the screen
@@ -33,9 +33,9 @@ const STEPS: { panel: LandingOverlayPanelKind, title: string, body: string, keys
     body: 'When the dragon, the Voidgrubs, the Rift Herald and Baron are next up, in one strip above the game, and the race to the soul under it — from the game clock and the kills the game announces: what every player can see, kept for you.',
   },
   {
-    panel: 'item-value',
+    panel: 'lane-gold',
     title: 'Who has the gold',
-    body: 'Each team\'s item gold, and on the scoreboard\'s own rows each lane\'s gap, pointing at the side ahead — while you hold the key. Every panel can be always on, held or toggled by a key of your choice.',
+    body: 'On the scoreboard\'s own rows, each lane\'s item-gold gap, pointing at the side ahead — while you hold the key. Every panel can be always on, held or toggled by a key of your choice.',
     keys: 'TAB',
   },
 ]

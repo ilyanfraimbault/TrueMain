@@ -96,26 +96,6 @@ describe('LandingOverlayPanel', () => {
     // The curve ends on a dot, as OverlayStats draws it.
     expect(wrapper.findAll('circle')).toHaveLength(1)
   })
-
-  it('sums item gold lane by lane, leaving out consumables and trinkets', async () => {
-    const items = { ...ITEMS, 3047: item('Plated Steelcaps', 1200, ['Consumable']) }
-    const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'item-value', patch: PATCH, items } })
-    const rows = wrapper.findAll('li')
-
-    expect(rows).toHaveLength(5)
-    // Bottom lane: Jinx holds an Infinity Edge (3,450) and a Cloak of Agility (600), Ezreal nothing priced here.
-    expect(rows[3]!.text()).toContain('4,050')
-    // Support: Locket on both sides, the boots counted as a consumable for this test.
-    expect(rows[4]!.text()).toContain('2,200')
-    expect(wrapper.findAll('img')).toHaveLength(10)
-  })
-
-  it('shows dashes until the item map is read', async () => {
-    const wrapper = await mountSuspended(DesktopLandingOverlayPanel, { props: { panel: 'item-value', patch: null, items: null } })
-
-    expect(wrapper.text()).toContain('–')
-    expect(wrapper.findAll('img')).toHaveLength(0)
-  })
 })
 
 describe('LandingObjectives', () => {
@@ -129,6 +109,19 @@ describe('LandingObjectives', () => {
     const race = wrapper.find('[data-soul-race]')
     expect(race.findAll('img.ring-ally\\/70')).toHaveLength(1)
     expect(race.findAll('img.ring-enemy\\/70')).toHaveLength(1)
+  })
+})
+
+describe('sampleLaneGold', () => {
+  it('sums item gold lane by lane, leaving out consumables and trinkets', () => {
+    const lanes = sampleLaneGold({ ...ITEMS, 3047: item('Plated Steelcaps', 1200, ['Consumable']) })!
+
+    expect(lanes).toHaveLength(5)
+    // Bottom lane: Jinx holds an Infinity Edge (3,450) and a Cloak of Agility (600), Ezreal nothing priced here.
+    expect(lanes[3]).toMatchObject({ ours: 4050, theirs: 0 })
+    // Support: Locket on both sides, the boots counted as a consumable for this test.
+    expect(lanes[4]).toMatchObject({ ours: 2200, theirs: 2200 })
+    expect(sampleLaneGold(null)).toBeNull()
   })
 })
 
@@ -155,24 +148,18 @@ describe('LandingLanePlates', () => {
 })
 
 describe('LandingGameScreen', () => {
-  it('draws the item value without its lane rows: the plates hold them', async () => {
+  it('turns on the panels it is given, and under TAB the plates alone, never the item value', async () => {
     const wrapper = await mountSuspended(DesktopLandingGameScreen, {
-      props: { shown: ['item-value'], tabHeld: true, patch: PATCH, items: ITEMS },
-    })
-
-    expect(wrapper.find('.landing-plates').classes()).toContain('is-on')
-    expect(wrapper.findAll('[data-row]')).toHaveLength(5)
-  })
-
-  it('turns on the panels it is given, item value only while TAB is held', async () => {
-    const wrapper = await mountSuspended(DesktopLandingGameScreen, {
-      props: { shown: ['win-probability', 'item-value'], tabHeld: false, patch: PATCH, items: ITEMS },
+      props: { shown: ['win-probability', 'lane-gold'], tabHeld: false, patch: PATCH, items: ITEMS },
     })
 
     expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(1)
+    expect(wrapper.find('.landing-plates').classes()).not.toContain('is-on')
 
     await wrapper.setProps({ tabHeld: true })
-    expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(2)
+    expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(1)
+    expect(wrapper.find('.landing-plates').classes()).toContain('is-on')
+    expect(wrapper.findAll('[data-row]')).toHaveLength(5)
     expect(wrapper.find('kbd').classes()).toContain('opacity-100')
   })
 })
@@ -184,7 +171,8 @@ describe('LandingInGame', () => {
     expect(wrapper.findAll('h3')).toHaveLength(5)
     expect(wrapper.text()).toContain('What to buy next')
     expect(wrapper.text()).toContain('The next objectives, timed')
-    expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(5)
+    expect(wrapper.findAll('.landing-panel.is-on')).toHaveLength(4)
+    expect(wrapper.find('.landing-plates').classes()).toContain('is-on')
   })
 })
 
