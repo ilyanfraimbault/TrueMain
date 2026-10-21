@@ -109,9 +109,14 @@ public sealed class RiotQuotaQueryService(
 
     /// <summary>The budget family of a routing host: <c>regional</c>, <c>platform</c> or <c>unknown</c>.</summary>
     internal static string KindOf(string route)
-        => RegionalRoutes.Contains(route) ? "regional"
-            : route == UnknownRoute ? "unknown"
-            : "platform";
+    {
+        if (RegionalRoutes.Contains(route))
+        {
+            return "regional";
+        }
+
+        return route == UnknownRoute ? "unknown" : "platform";
+    }
 
     /// <summary>
     /// The count Riot reported for <paramref name="windowSeconds"/> in an
