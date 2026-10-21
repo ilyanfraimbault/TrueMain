@@ -249,6 +249,14 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         entity.HasIndex(e => e.Id, "IX_match_participants_role_bound_pending")
             .HasFilter("\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
 
+        // The Lane Position Fix's candidate scan (#2095): the (match, team) pairs that
+        // still carry an unresolved lane, in key order. No other index leads on
+        // TeamPosition, so without this one the planner walked the whole covering
+        // champion/position index to return a handful of rows. Partial, so it holds only
+        // the unresolved rows — the ambiguous teams the process never corrects.
+        entity.HasIndex(e => new { e.MatchId, e.TeamId }, "IX_match_participants_team_position_pending")
+            .HasFilter("\"TeamPosition\" = ''");
+
         entity.HasOne(e => e.RiotAccount)
             .WithMany()
             .HasForeignKey(e => e.RiotAccountId);
