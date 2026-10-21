@@ -33,6 +33,8 @@ pub const MAX_NAME_CHARS: usize = 40;
 const MAX_KITS: usize = 500;
 const MAX_CHILDREN: usize = 12;
 const MAX_STARTER: usize = 6;
+/// Boots the player may pick between; the first is the kit's default.
+const MAX_BOOTS: usize = 4;
 
 /// A kit's rune page: every perk by id, as the build's page names them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,8 +95,10 @@ pub struct Kit {
     pub spells: [i64; 2],
     #[serde(default)]
     pub starter: Vec<i64>,
-    #[serde(default)]
-    pub boots: Option<i64>,
+    /// The boots to pick between, the first the default. A file written before
+    /// several were allowed holds one id or `null`; both still read.
+    #[serde(default, deserialize_with = "boots_list")]
+    pub boots: Vec<i64>,
     #[serde(default)]
     pub tree: Vec<KitNode>,
     #[serde(default)]
@@ -119,11 +123,13 @@ impl Kit {
         if !usable {
             return None;
         }
-        self.boots = self.boots.filter(|id| *id > 0);
+        let mut seen = HashSet::new();
+        self.boots.retain(|id| *id > 0 && seen.insert(*id));
+        self.boots.truncate(MAX_BOOTS);
         self.starter.retain(|id| *id > 0);
         self.starter.truncate(MAX_STARTER);
-        let depth = MAX_PATH_ITEMS - usize::from(self.boots.is_some());
-        let mut above: Vec<i64> = self.boots.into_iter().collect();
+        let depth = MAX_PATH_ITEMS - usize::from(!self.boots.is_empty());
+        let mut above = self.boots.clone();
         self.tree = prune(std::mem::take(&mut self.tree), depth, &mut above);
         Some(self)
     }
@@ -225,6 +231,15 @@ impl KitStore {
     }
 }
 
+/// A kit's boots as a list, from a list, a single id or nothing.
+fn boots_list<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Vec<i64>, D::Error> {
+    Ok(match Value::deserialize(deserializer)? {
+        Value::Array(ids) => ids.iter().filter_map(Value::as_i64).collect(),
+        Value::Number(id) => id.as_i64().into_iter().collect(),
+        _ => Vec::new(),
+    })
+}
+
 fn parse<T: DeserializeOwned>(value: Option<&Value>) -> Option<T> {
     value.and_then(|value| serde_json::from_value(value.clone()).ok())
 }
@@ -247,7 +262,7 @@ mod tests {
         json!({
             "id": id, "name": "Into tanks", "championId": 103, "position": "MIDDLE",
             "runes": runes(), "spells": [4, 14], "starter": [1056, 2003, 2003],
-            "boots": 3020, "tree": tree, "updatedAt": "2026-10-20T10:00:00Z"
+            "boots": [3020], "tree": tree, "updatedAt": "2026-10-20T10:00:00Z"
         })
     }
 
@@ -291,9 +306,25 @@ mod tests {
         assert_eq!(depth(&store.kits[0].tree), MAX_PATH_ITEMS - 1);
 
         let mut bootless = kit("b", chain(&[1, 2, 3, 4, 5, 6, 7]));
-        bootless["boots"] = Value::Null;
+        bootless["boots"] = json!([]);
         let store = KitStore::from_json(&json!({ "kits": [bootless] }).to_string());
         assert_eq!(depth(&store.kits[0].tree), MAX_PATH_ITEMS);
+    }
+
+    #[test]
+    fn reads_one_or_several_boots_and_keeps_them_off_every_path() {
+        let mut legacy = kit("a", chain(&[6655]));
+        legacy["boots"] = json!(3020);
+        let mut none = kit("b", chain(&[6655]));
+        none["boots"] = Value::Null;
+        let mut several = kit("c", chain(&[6655, 3047]));
+        several["boots"] = json!([3020, 3047, 3020, 0, 3111, 3158, 3006]);
+        let store = KitStore::from_json(&json!({ "kits": [legacy, none, several] }).to_string());
+        assert_eq!(store.kits[0].boots, vec![3020]);
+        assert!(store.kits[1].boots.is_empty());
+        // Repeats and non-items go, then the cap; a boots on a path goes with its subtree.
+        assert_eq!(store.kits[2].boots, vec![3020, 3047, 3111, 3158]);
+        assert!(store.kits[2].tree[0].children.is_empty());
     }
 
     #[test]

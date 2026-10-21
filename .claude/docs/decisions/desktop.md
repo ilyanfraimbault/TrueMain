@@ -906,4 +906,6 @@ a click through `PATCH /lol-champ-select/v1/session/my-selection` after the sess
 or a timer; a build's spells are still not imported. In game the next item follows the kit's branch the held items
 took (the earliest completed when two were, the first child where it splits), then its boots, with no share, reason
 or runner-up — those are the mains' figures — and falls back to the mains' answer, said as such, once the kit has
-nothing left — #2185.
+nothing left — #2185. The boots are a list to pick between, the first the default, still one slot of a full build;
+any of them held counts as the boots done; the tree takes legendaries only, components being a build's steps, not
+its choices — #2201.

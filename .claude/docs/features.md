@@ -309,19 +309,21 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   toast. Nothing is written without the click.
 - **Kits** (#2185) — a player's own build on a champion and position: a branching item tree (a path at most six items
   with the boots, any number of branches per item, the first child the default), a rune page and two summoner
-  spells, plus a starter basket and boots. The app's champion page has a "Builds / My kits" switch (`?view=kits`):
+  spells, plus a starter basket and up to four boots to pick between (the first the default, #2201). The app's champion page has a "Builds / My kits" switch (`?view=kits`):
   the lane's kits listed like build rows (name, keystone, spells, the default path's icons, "Active"), "New kit"
   started from TrueMain's first build on the lane (starter, boots, core path, rune page, spells; each row's first
   rune and Flash + Ignite where the build has none), Edit, Duplicate, Rename, Delete (asks first) and "Use in
   champion select" — one active kit per champion and position (`components/kit/`). The editor
   (`KitEditor.vue`) works on a draft saved whole: spells (Rift's nine, a pick of the other slot's spell swaps them),
-  starter (up to six), boots, the rune page with every tree, rune and shard a button (the client's rules: a tree
+  starter (up to six), boots (up to four), the rune page with every tree, rune and shard a button (the client's rules: a tree
   changed resets its rows, the secondary's two runes on two rows, `utils/kit-runes.ts`), and the tree drawn as the
   build tree (`KitTree.vue`): a node clicked asks for another item, × drops it and what follows, and every row ends
   on a dashed "+" slot while the path has room — under a leaf the next item, beside items another branch, on the
-  first row another first item (#2197). The item picker searches the Rift's shop by name, grouped legendaries / boots /
-  components / starters, from Data Dragon (map 11 only, boot upgrades and duplicate names left out,
-  `utils/kit-items.ts`); an item already on the path is greyed. What keeps a kit from being saved is listed under
+  first row another first item (#2197); the tree takes legendaries only, and an item dragged onto a sibling (or
+  moved with Alt+←/→) trades places with it, each with its branch — the leftmost is the default (#2201). The item picker searches the Rift's
+  shop by name, grouped legendaries / boots / components / starters, from Data Dragon (map 11 only, boot upgrades and
+  duplicate names left out, `utils/kit-items.ts`), each icon with the site's item card on hover; an item already on
+  the path (or a boots already chosen) is greyed, its card still shown. What keeps a kit from being saved is listed under
   it (`kitIssues`). Kept by the shell in `kits.json` (`shell_state::kits`, versioned, read leniently — a kit that
   breaks a rule is dropped alone; `kits_get` / `kits_set`, every change emitted to every window), in `localStorage`
   under the dev server. In champion select, our pick's active kit takes the build pane: the header says "Your kit:
@@ -331,7 +333,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`champ_select_spells` → `PATCH /lol-champ-select/v1/session/my-selection`, read the session first, champion
   select only, not in the simulator). In game, the next item (game page and overlay) follows the active kit: the
   next node on the branch the held items took (the one completed first when two were, the first child where it
-  splits), then the kit's boots; the row is the kit's (boots after the first item), its starter replaces the
+  splits), then the kit's first boots unless one of its boots is held; the row is the kit's (boots after the first
+  item, the pair held if any), its starter replaces the
   mains'; no share, reason or runner-up. Once the kit has nothing left the mains' answer comes back, the game page
   saying "Your kit is complete" (`useKitStep`, `utils/kit-tree.ts`). No sharing yet.
 - **Hover, lock and ban from the app** (#1909) — the strip over the draft says whose turn it is ("Your ban", "Your
