@@ -1,3 +1,4 @@
+using Core.Lol.Spells;
 using TrueMain.ReadModels.Champions;
 
 using TrueMain.Services.Champions.Builds;
@@ -67,7 +68,7 @@ public static class CompositionBuildAggregator
                 },
             SummonerSpells = PickTop(
                     facts.Where(f => f.Spell1Id > 0 || f.Spell2Id > 0),
-                    f => (f.Spell1Id, f.Spell2Id),
+                    f => new SummonerSpellPair(f.Spell1Id, f.Spell2Id).OrderedForDisplay(),
                     winWeight)
                 is { } spells
                 ? new BuildSummonerSpellsReadModel

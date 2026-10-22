@@ -1,3 +1,4 @@
+using Core.Lol.Spells;
 using Data.Entities;
 using TrueMain.ReadModels.Champions;
 
@@ -206,10 +207,11 @@ internal static class ChampionBuildDistributions
         {
             return null;
         }
+        var pair = new SummonerSpellPair(dim.Spell1Id, dim.Spell2Id).OrderedForDisplay();
         return new BuildSummonerSpellsReadModel
         {
-            Spell1Id = dim.Spell1Id,
-            Spell2Id = dim.Spell2Id,
+            Spell1Id = pair.Spell1Id,
+            Spell2Id = pair.Spell2Id,
             Games = aggregate.Games,
             PickRate = RateMath.Rate(aggregate.Games, sliceGames),
             WinRate = RateMath.Rate(aggregate.Wins, aggregate.Games)
