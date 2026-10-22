@@ -327,14 +327,16 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   build tree (`KitTree.vue`): a node clicked asks for another item, × drops it and what follows, and a dashed "+"
   slot sits right beside the last item of each row while the path has room — another branch (another first item on
   the first row) — and right under an item with nothing after it — the next item (#2197). A slot never moves a node:
-  a single path stays one straight line, only a second branch spreads the tree; the tree takes legendaries only, and an item dragged onto a sibling (or
-  moved with Alt+←/→) trades places with it, each with its branch — the leftmost is the default (#2201). The item picker searches the Rift's
+  a single path stays one straight line, only a second branch spreads the tree; the tree takes legendaries only, and an item dragged onto any other
+  item — a sibling or not, the nearest one the trade allows (not its own ancestor, no path past the depth or with an item twice, `swapNodes`) —
+  trades places with it, each with its branch, the two gliding to their new places; Alt+←/→ does it with the sibling beside it — the leftmost is
+  the default (#2201, #2234). The tree fits its width, icons and gaps shrinking together down to 16 px rather than scrolling (#2234). The item picker searches the Rift's
   shop by name, grouped legendaries / boots / components / starters, from Data Dragon (map 11 only, boot upgrades and
   duplicate names left out, `utils/kit-items.ts`), each icon with the site's item card on hover, the legendaries
   filtered by the in-game shop's class tabs (All / Fighter / Marksman / Assassin / Mage / Tank / Support, from
   `GET /items/classes`, `useItemClasses`; no tabs when they could not be read, #2203); an item already on
-  the path (or a boots already chosen) is greyed, its card still shown. What keeps a kit from being saved is listed under
-  it (`kitIssues`). Kept by the shell in `kits.json` (`shell_state::kits`, versioned, read leniently — a kit that
+  the path (or a boots already chosen) is greyed, its card still shown. What keeps a kit from being saved is listed in
+  the Save button's tooltip (`kitIssues`, #2234). Kept by the shell in `kits.json` (`shell_state::kits`, versioned, read leniently — a kit that
   breaks a rule is dropped alone; `kits_get` / `kits_set`, every change emitted to every window), in `localStorage`
   under the dev server. In champion select, our pick's kits on its lane are a "Your kits" section of the build pane's
   list, between the builds and the truemains (#2205, `useDraftKits`): the draft's build stays the default, a kit

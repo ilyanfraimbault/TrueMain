@@ -93,19 +93,29 @@ export function addChild(tree: KitNode[], at: number[], itemId: number): KitNode
   return editLevel(tree, at, level => [...level, { itemId, children: [] }])
 }
 
+/** The tree with `node` in place of the one at `at`. */
+function placed(tree: KitNode[], at: number[], node: KitNode): KitNode[] {
+  const index = at.at(-1)
+  return editLevel(tree, at.slice(0, -1), level => level.map((other, i) => (i === index ? node : other)))
+}
+
+const holds = (outer: number[], inner: number[]) => outer.length <= inner.length && outer.every((index, i) => inner[i] === index)
+const repeats = (tree: KitNode[]) => kitPaths(tree).filter(path => new Set(path).size < path.length).length
+
 /**
- * The tree with the node at `at` and its sibling at `index` traded places,
- * each with what follows it: how the player picks which branch comes first —
- * the default one, followed in game.
+ * The tree with the nodes at `a` and `b` traded places, each with what follows
+ * it — siblings or not: between siblings it is how the player picks the branch
+ * that comes first (the default one, followed in game), across the tree how a
+ * branch moves under another item. `null` when one holds the other, or when
+ * the trade would run a path past `depth` items or put an item twice on one
+ * (a tree already past either is not held to more than it was).
  */
-export function swapSiblings(tree: KitNode[], at: number[], index: number): KitNode[] {
-  const from = at.at(-1)
-  if (from === undefined || from === index) return tree
-  return editLevel(tree, at.slice(0, -1), (level) => {
-    const [a, b] = [level[from], level[index]]
-    if (!a || !b) return level
-    return level.map((node, i) => (i === from ? b : i === index ? a : node))
-  })
+export function swapNodes(tree: KitNode[], a: number[], b: number[], depth: number): KitNode[] | null {
+  const [first, second] = [nodeAt(tree, a), nodeAt(tree, b)]
+  if (!first || !second || holds(a, b) || holds(b, a)) return null
+  const swapped = placed(placed(tree, a, second), b, first)
+  if (treeDepth(swapped) > Math.max(depth, treeDepth(tree)) || repeats(swapped) > repeats(tree)) return null
+  return swapped
 }
 
 /** The tree without the node at `at` and everything under it. */
