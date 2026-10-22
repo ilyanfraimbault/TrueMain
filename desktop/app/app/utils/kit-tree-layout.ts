@@ -4,7 +4,8 @@ import type { KitNode } from '#shared/types/kit'
 export interface PlacedKitNode {
   at: number[]
   /**
-   * Who the node is rather than where: the items from its root down to it. It
+   * Who the node is rather than where: the items from its root down to it when
+   * first drawn, then kept for as long as the node is (through `keys`). It
    * survives a swap, so a drawn node keeps its element and glides to its new
    * place instead of being redrawn there.
    */
@@ -43,19 +44,18 @@ export interface KitTreeLayout {
 }
 
 /**
- * The sibling the node at `at`, dragged so its centre is at (`x`, `y`), would
- * trade places with: the one of its row whose centre is nearest — the gaps
- * between siblings, however wide their branches make them, count as theirs —
- * or `null` while the node is still nearest its own place, or off its row by
- * more than an icon.
+ * The node the one at `at`, dragged so its centre is at (`x`, `y`), would trade
+ * places with: the nearest of those `accepts` lets it take, within an icon of
+ * its centre — the gaps between nodes count as the nearest one's. `null` while
+ * the dragged node is still nearest its own place, or nowhere near another.
  */
-export function siblingAt(layout: KitTreeLayout, at: number[], x: number, y: number, size: number): number | null {
-  const parent = at.slice(0, -1).join('.')
-  const row = layout.nodes.filter(node => node.at.length === at.length && node.at.slice(0, -1).join('.') === parent)
-  const own = row.find(node => node.at.at(-1) === at.at(-1))
-  if (!own || Math.abs(own.y - y) > size) return null
-  const nearest = row.reduce((best, node) => (Math.abs(node.x - x) < Math.abs(best.x - x) ? node : best), own)
-  return nearest === own ? null : nearest.at.at(-1) ?? null
+export function dropTargetAt(layout: KitTreeLayout, at: number[], x: number, y: number, size: number, accepts: (to: number[]) => boolean): number[] | null {
+  const own = at.join('.')
+  const distance = (node: PlacedKitNode) => Math.hypot(node.x - x, node.y - y)
+  const nearest = layout.nodes
+    .filter(node => node.at.join('.') === own || accepts(node.at))
+    .reduce<PlacedKitNode | null>((best, node) => (distance(node) <= size && (!best || distance(node) < distance(best)) ? node : best), null)
+  return !nearest || nearest.at.join('.') === own ? null : nearest.at
 }
 
 /** A row measured around its first node's centre: each node's centre, its slot's, and how far it reaches either side. */
@@ -76,7 +76,14 @@ interface Row { centres: number[], slot: number | null, left: number, right: num
  */
 export function layoutKitTree(
   tree: KitNode[],
-  { size, hGap, vGap, slotDepth = 0 }: { size: number, hGap: number, vGap: number, slotDepth?: number },
+  { size, hGap, vGap, slotDepth = 0, keys }: {
+    size: number
+    hGap: number
+    vGap: number
+    slotDepth?: number
+    /** The keys given so far, by node: a node moved with its branch keeps the one it had. */
+    keys?: WeakMap<KitNode, string>
+  },
 ): KitTreeLayout {
   const half = size / 2
   /** A row at `depth` (0 for the roots) gets a slot. */
@@ -116,6 +123,15 @@ export function layoutKitTree(
   const edges: KitTreeLayout['edges'] = []
   const slots: KitTreeSlot[] = []
   const rowY = (depth: number) => depth * (size + vGap) + half
+  const used = new Set<string>()
+  /** The node's kept key, else `fresh`; never one already drawn. */
+  function keyOf(node: KitNode, fresh: string): string {
+    let key = keys?.get(node) ?? fresh
+    while (used.has(key)) key += '+'
+    used.add(key)
+    keys?.set(node, key)
+    return key
+  }
 
   /** Places a measured row whose first centre (or lone slot) is at `origin`. */
   function place(level: KitNode[], row: Row, origin: number, depth: number, parent: PlacedKitNode | null, onMain: boolean) {
@@ -126,7 +142,7 @@ export function layoutKitTree(
       seen.set(node.itemId, twin + 1)
       const placed: PlacedKitNode = {
         at: [...(parent?.at ?? []), index],
-        key: `${parent?.key ?? ''}/${node.itemId}${twin ? `~${twin}` : ''}`,
+        key: keyOf(node, `${parent?.key ?? ''}/${node.itemId}${twin ? `~${twin}` : ''}`),
         itemId: node.itemId,
         x: origin + row.centres[index]!,
         y: rowY(depth),

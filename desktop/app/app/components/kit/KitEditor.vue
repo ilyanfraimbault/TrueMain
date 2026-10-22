@@ -3,7 +3,7 @@ import type { Kit } from '#shared/types/kit'
 import type { ChampionPosition } from '#common/utils/positions'
 import type { KitItemGroup } from '~/utils/kit-items'
 import { cloneKit, KIT_BOOTS_MAX, KIT_NAME_MAX, kitIssues, withBoots } from '~/utils/kit'
-import { addChild, blockedItems, removeSubtree, replaceItem, swapSiblings } from '~/utils/kit-tree'
+import { addChild, blockedItems, maxDepth, removeSubtree, replaceItem, swapNodes } from '~/utils/kit-tree'
 
 /**
  * The kit editor (#2185): a draft of the kit, saved as a whole or dropped —
@@ -11,7 +11,7 @@ import { addChild, blockedItems, removeSubtree, replaceItem, swapSiblings } from
  * Spells, starter and boots in their own slots over the rune page, then the
  * item tree, every node editable — legendaries only: what a build completes.
  * Several boots are the player's choice between them, the first the default. What keeps the kit from being saved is
- * listed under it, in the player's words (`kitIssues`).
+ * listed on the Save button's tooltip, in the player's words (`kitIssues`).
  */
 const props = defineProps<{ kit: Kit, saving?: boolean }>()
 const emit = defineEmits<{ save: [kit: Kit], cancel: [] }>()
@@ -74,7 +74,10 @@ function picked(itemId: number) {
   }
 }
 
-const swapNodes = (at: number[], index: number) => (draft.value = { ...draft.value, tree: swapSiblings(draft.value.tree, at, index) })
+function swap(a: number[], b: number[]) {
+  const tree = swapNodes(draft.value.tree, a, b, maxDepth(draft.value.boots))
+  if (tree) draft.value = { ...draft.value, tree }
+}
 const removeNode = (at: number[]) => (draft.value = { ...draft.value, tree: removeSubtree(draft.value.tree, at) })
 const removeStarter = (index: number) => (draft.value = { ...draft.value, starter: draft.value.starter.filter((_, i) => i !== index) })
 const removeBoots = (index: number) => (draft.value = withBoots(draft.value, draft.value.boots.filter((_, i) => i !== index)))
@@ -86,7 +89,7 @@ const removeBoots = (index: number) => (draft.value = withBoots(draft.value, dra
       <UFormField label="Name">
         <UInput v-model="draft.name" :maxlength="KIT_NAME_MAX" placeholder="Into tanks" class="w-72" />
       </UFormField>
-      <UFormField label="Positions" description="Offered on each of them.">
+      <UFormField label="Positions">
         <RolePicker :positions="draft.positions as ChampionPosition[]" @update:positions="draft.positions = $event" />
       </UFormField>
     </div>
@@ -116,18 +119,25 @@ const removeBoots = (index: number) => (draft.value = withBoots(draft.value, dra
 
     <div>
       <p class="stat-label mb-2">Items</p>
-      <KitTree :tree="draft.tree" :items="items" :boots="draft.boots" editable @pick="target = { kind: 'tree', ...$event }" @remove="removeNode" @swap="swapNodes" />
+      <KitTree :tree="draft.tree" :items="items" :boots="draft.boots" editable @pick="target = { kind: 'tree', ...$event }" @remove="removeNode" @swap="swap" />
     </div>
-
-    <ul v-if="issues.length" class="space-y-1 text-sm text-warning" aria-live="polite">
-      <li v-for="issue in issues" :key="issue" class="flex items-center gap-1.5">
-        <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0" />{{ issue }}
-      </li>
-    </ul>
 
     <div class="flex items-center justify-end gap-2 border-t border-default pt-3">
       <UButton label="Cancel" color="neutral" variant="ghost" @click="emit('cancel')" />
-      <UButton label="Save kit" icon="i-lucide-check" :disabled="issues.length > 0" :loading="saving" @click="emit('save', draft)" />
+      <!-- What keeps the kit from being saved, on the button it disables. The
+           tooltip hangs on a wrapper: a disabled button takes no pointer. -->
+      <UTooltip :disabled="!issues.length" :content="{ side: 'top', align: 'end' }">
+        <span class="inline-flex" :tabindex="issues.length ? 0 : undefined">
+          <UButton label="Save" icon="i-lucide-check" :disabled="issues.length > 0" :loading="saving" @click="emit('save', draft)" />
+        </span>
+        <template #content>
+          <ul class="space-y-1 text-xs" aria-label="Before saving">
+            <li v-for="issue in issues" :key="issue" class="flex items-center gap-1.5">
+              <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0 text-warning" />{{ issue }}
+            </li>
+          </ul>
+        </template>
+      </UTooltip>
     </div>
 
     <KitItemPicker v-model:open="pickerOpen" :items="items" :groups="pickerGroups" :blocked="blocked" :blocked-note="target?.kind === 'boots' ? 'already chosen' : 'already on this path'" :classes="itemClasses" :title="pickerTitle" @pick="picked" />
