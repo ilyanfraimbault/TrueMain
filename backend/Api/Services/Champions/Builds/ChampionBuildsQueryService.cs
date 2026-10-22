@@ -216,6 +216,7 @@ public sealed class ChampionBuildsQueryService(
         CancellationToken ct)
         => await db.ChampionAggregateScopes
             .AsNoTracking()
+            .WithBuilds(db)
             .WhereChampionScope(
                 reference.ChampionId,
                 reference.QueueId,

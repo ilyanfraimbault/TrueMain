@@ -55,6 +55,7 @@ public class TrueMainDbContext : DbContext
     // champion, position, bracket, population), folded by the pattern aggregation in the
     // transaction that replaces the scopes. Outlives them: retention never deletes it.
     public DbSet<ChampionPatchStat> ChampionPatchStats => Set<ChampionPatchStat>();
+    public DbSet<ChampionBuildPurgedPatch> ChampionBuildPurgedPatches => Set<ChampionBuildPurgedPatch>();
 
     // Measured champion profiles (#1449): per (champion, position, patch) sums of what
     // the champion did in its games — damage split, sustain, CC, damage taken, lane

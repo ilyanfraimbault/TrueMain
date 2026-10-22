@@ -273,6 +273,20 @@ namespace Data.Migrations
                     b.ToTable("champion_ban_stats", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionBuildPurgedPatch", b =>
+                {
+                    b.Property<string>("Patch")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("PurgedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Patch");
+
+                    b.ToTable("champion_build_purged_patches", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.ChampionDamageProfileStat", b =>
                 {
                     b.Property<Guid>("Id")

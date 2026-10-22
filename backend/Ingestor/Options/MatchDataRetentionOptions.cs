@@ -43,6 +43,20 @@ public class MatchDataRetentionOptions
     public int AggregateRetainedPatchCount { get; set; }
 
     /// <summary>
+    /// Number of live patches whose <em>build-level</em> champion aggregates are kept
+    /// (#1958, production's half of the two-level retention of #1467). A patch outside
+    /// the platform windows (<c>RetainedPatchWindow</c>, the same "live" rule the
+    /// pattern aggregation uses) loses its patterns and every per-patch panel table —
+    /// matchups, synergies, scaling, profiles, item context, benchmarks — but keeps its
+    /// account-level scopes, which the truemains leaderboard and the persona "last game"
+    /// sum over every patch, and its light record (<c>champion_patch_stats</c>), which the
+    /// trend reads. A patch whose light record is missing is never purged. <c>0</c> (the
+    /// default) disables it.
+    /// </summary>
+    [Range(0, int.MaxValue)]
+    public int BuildAggregateRetainedPatchCount { get; set; }
+
+    /// <summary>
     /// Whether retention prunes a timeline-ingested match's snapshots down to the
     /// canonical marks (5/10/15/20/30) (#694). Enabled by default: matches ingested
     /// while the dense per-minute grid was still written carry intermediate minutes
