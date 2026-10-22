@@ -3,6 +3,13 @@ import type { KitNode } from '#shared/types/kit'
 /** A node placed: its address in the tree (`kit-tree.ts`), its item, its centre in px. */
 export interface PlacedKitNode {
   at: number[]
+  /**
+   * Who the node is rather than where: the items from its root down to it when
+   * first drawn, then kept for as long as the node is (through `keys`). It
+   * survives a swap, so a drawn node keeps its element and glides to its new
+   * place instead of being redrawn there.
+   */
+  key: string
   itemId: number
   x: number
   y: number
@@ -17,6 +24,8 @@ export interface PlacedKitNode {
  */
 export interface KitTreeSlot {
   parentAt: number[]
+  /** The parent's `key` (`''` for the roots): the slot follows it through a swap. */
+  parentKey: string
   /** The item the new one follows, `null` for a root. */
   after: number | null
   /** Beside items already there: a new branch rather than the next item. */
@@ -35,20 +44,18 @@ export interface KitTreeLayout {
 }
 
 /**
- * The sibling of the node at `at` whose box holds the point (`x`, `y`): where
- * a node dragged along its row would trade places, or `null` off every
- * sibling and on the node itself.
+ * The node the one at `at`, dragged so its centre is at (`x`, `y`), would trade
+ * places with: the nearest of those `accepts` lets it take, within an icon of
+ * its centre — the gaps between nodes count as the nearest one's. `null` while
+ * the dragged node is still nearest its own place, or nowhere near another.
  */
-export function siblingAt(layout: KitTreeLayout, at: number[], x: number, y: number, size: number): number | null {
-  const parent = at.slice(0, -1).join('.')
-  const half = size / 2
-  const hit = layout.nodes.find(node =>
-    node.at.length === at.length
-    && node.at.slice(0, -1).join('.') === parent
-    && Math.abs(node.x - x) <= half
-    && Math.abs(node.y - y) <= half)
-  const index = hit?.at.at(-1)
-  return index === undefined || index === at.at(-1) ? null : index
+export function dropTargetAt(layout: KitTreeLayout, at: number[], x: number, y: number, size: number, accepts: (to: number[]) => boolean): number[] | null {
+  const own = at.join('.')
+  const distance = (node: PlacedKitNode) => Math.hypot(node.x - x, node.y - y)
+  const nearest = layout.nodes
+    .filter(node => node.at.join('.') === own || accepts(node.at))
+    .reduce<PlacedKitNode | null>((best, node) => (distance(node) <= size && (!best || distance(node) < distance(best)) ? node : best), null)
+  return !nearest || nearest.at.join('.') === own ? null : nearest.at
 }
 
 /** A row measured around its first node's centre: each node's centre, its slot's, and how far it reaches either side. */
@@ -69,7 +76,14 @@ interface Row { centres: number[], slot: number | null, left: number, right: num
  */
 export function layoutKitTree(
   tree: KitNode[],
-  { size, hGap, vGap, slotDepth = 0 }: { size: number, hGap: number, vGap: number, slotDepth?: number },
+  { size, hGap, vGap, slotDepth = 0, keys }: {
+    size: number
+    hGap: number
+    vGap: number
+    slotDepth?: number
+    /** The keys given so far, by node: a node moved with its branch keeps the one it had. */
+    keys?: WeakMap<KitNode, string>
+  },
 ): KitTreeLayout {
   const half = size / 2
   /** A row at `depth` (0 for the roots) gets a slot. */
@@ -109,12 +123,26 @@ export function layoutKitTree(
   const edges: KitTreeLayout['edges'] = []
   const slots: KitTreeSlot[] = []
   const rowY = (depth: number) => depth * (size + vGap) + half
+  const used = new Set<string>()
+  /** The node's kept key, else `fresh`; never one already drawn. */
+  function keyOf(node: KitNode, fresh: string): string {
+    let key = keys?.get(node) ?? fresh
+    while (used.has(key)) key += '+'
+    used.add(key)
+    keys?.set(node, key)
+    return key
+  }
 
   /** Places a measured row whose first centre (or lone slot) is at `origin`. */
   function place(level: KitNode[], row: Row, origin: number, depth: number, parent: PlacedKitNode | null, onMain: boolean) {
+    const seen = new Map<number, number>()
     level.forEach((node, index) => {
+      // Twin siblings (the same item twice) told apart by their order among themselves.
+      const twin = seen.get(node.itemId) ?? 0
+      seen.set(node.itemId, twin + 1)
       const placed: PlacedKitNode = {
         at: [...(parent?.at ?? []), index],
+        key: keyOf(node, `${parent?.key ?? ''}/${node.itemId}${twin ? '~' + twin : ''}`),
         itemId: node.itemId,
         x: origin + row.centres[index]!,
         y: rowY(depth),
@@ -126,7 +154,7 @@ export function layoutKitTree(
       place(node.children, shape.row, placed.x - shape.mid, depth + 1, placed, placed.main)
     })
     if (row.slot !== null) {
-      slots.push({ parentAt: parent?.at ?? [], after: parent?.itemId ?? null, branch: level.length > 0, x: origin + row.slot, y: rowY(depth) })
+      slots.push({ parentAt: parent?.at ?? [], parentKey: parent?.key ?? '', after: parent?.itemId ?? null, branch: level.length > 0, x: origin + row.slot, y: rowY(depth) })
     }
   }
 

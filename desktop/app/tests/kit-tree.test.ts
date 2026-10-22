@@ -13,11 +13,11 @@ import {
   nextKitStep,
   nodeAt,
   removeSubtree,
-  swapSiblings,
+  swapNodes,
   replaceItem,
   treeDepth,
 } from '~/utils/kit-tree'
-import { layoutKitTree, siblingAt } from '~/utils/kit-tree-layout'
+import { dropTargetAt, layoutKitTree } from '~/utils/kit-tree-layout'
 
 const n = (itemId: number, ...children: KitNode[]): KitNode => ({ itemId, children })
 
@@ -31,11 +31,23 @@ const SORC = 3020
 const tree = [n(LUDENS, n(LICH, n(RABADON)), n(SHADOWFLAME, n(ZHONYA)))]
 
 describe('the tree', () => {
-  it('trades two siblings, each with what follows it', () => {
-    const swapped = swapSiblings(tree, [0, 1], 0)
+  it('trades two nodes, each with what follows it, siblings or not', () => {
+    const swapped = swapNodes(tree, [0, 1], [0, 0], 6)!
     expect(kitPaths(swapped)).toEqual([[LUDENS, SHADOWFLAME, ZHONYA], [LUDENS, LICH, RABADON]])
-    expect(swapSiblings(tree, [0, 1], 1)).toBe(tree)
-    expect(swapSiblings(tree, [0, 1], 5)).toEqual(tree)
+    // Across the tree: Zhonya's under Lich Bane, Rabadon's under Shadowflame.
+    expect(kitPaths(swapNodes(tree, [0, 0, 0], [0, 1, 0], 6)!)).toEqual([[LUDENS, LICH, ZHONYA], [LUDENS, SHADOWFLAME, RABADON]])
+    // A branch moved up a row takes what follows it along.
+    expect(kitPaths(swapNodes(tree, [0, 1], [0, 0, 0], 6)!)).toEqual([[LUDENS, LICH, SHADOWFLAME, ZHONYA], [LUDENS, RABADON]])
+  })
+
+  it('refuses a trade with itself, an ancestor, past the depth or with an item twice on a path', () => {
+    expect(swapNodes(tree, [0, 1], [0, 1], 6)).toBeNull()
+    expect(swapNodes(tree, [0], [0, 1, 0], 6)).toBeNull()
+    expect(swapNodes(tree, [0, 1], [5], 6)).toBeNull()
+    // Shadowflame → Zhonya's under Rabadon's: four items on a path, one past a depth of three.
+    expect(swapNodes(tree, [0, 1], [0, 0, 0], 3)).toBeNull()
+    const twice = [n(LUDENS, n(LICH, n(ZHONYA)), n(SHADOWFLAME, n(LICH)))]
+    expect(swapNodes(twice, [0, 0, 0], [0, 1], 6)).toBeNull()
   })
 
   it('lists every path, the default first', () => {
@@ -149,13 +161,32 @@ describe('the layout', () => {
     expect(layoutKitTree([], { size: 10, hGap: 2, vGap: 4 })).toEqual({ nodes: [], edges: [], slots: [], width: 0, height: 0 })
   })
 
-  it('finds the sibling a dragged node is over, and nothing else', () => {
+  it('finds the node a dragged one is nearest, among those it may trade with', () => {
     const layout = layoutKitTree(tree, { size: 10, hGap: 2, vGap: 4 })
-    // Lich at x 5, Shadowflame at x 17, on the row at y 19.
-    expect(siblingAt(layout, [0, 0], 18, 20, 10)).toBe(1)
-    expect(siblingAt(layout, [0, 0], 5, 19, 10)).toBeNull()
-    expect(siblingAt(layout, [0, 0], 17, 33, 10)).toBeNull()
-    expect(siblingAt(layout, [0, 0, 0], 17, 33, 10)).toBeNull()
+    const any = () => true
+    // Lich at x 5, Shadowflame at x 17, on the row at y 19; Rabadon's at 5 and Zhonya's at 17 on y 33.
+    expect(dropTargetAt(layout, [0, 0], 18, 20, 10, any)).toEqual([0, 1])
+    expect(dropTargetAt(layout, [0, 0], 5, 19, 10, any)).toBeNull()
+    // Past the middle of the gap is the other's, before it still the node's own place.
+    expect(dropTargetAt(layout, [0, 0], 12, 22, 10, any)).toEqual([0, 1])
+    expect(dropTargetAt(layout, [0, 0], 10, 19, 10, any)).toBeNull()
+    // Down a row, onto another branch.
+    expect(dropTargetAt(layout, [0, 0], 17, 32, 10, any)).toEqual([0, 1, 0])
+    // Only where `accepts` lets it go, and never far from every node.
+    expect(dropTargetAt(layout, [0, 0], 17, 32, 10, to => to.length === 2)).toBeNull()
+    expect(dropTargetAt(layout, [0, 0], 60, 60, 10, any)).toBeNull()
+  })
+
+  it('keys a node by its items, so it keeps its key through a swap', () => {
+    const keys = (layout: ReturnType<typeof layoutKitTree>) => Object.fromEntries(layout.nodes.map(node => [node.key, node.at.join('.')]))
+    const before = keys(layoutKitTree(tree, { size: 10, hGap: 2, vGap: 4 }))
+    const after = keys(layoutKitTree(swapNodes(tree, [0, 1], [0, 0], 6)!, { size: 10, hGap: 2, vGap: 4 }))
+    expect(before[`/${LUDENS}/${LICH}/${RABADON}`]).toBe('0.0.0')
+    expect(after[`/${LUDENS}/${LICH}/${RABADON}`]).toBe('0.1.0')
+    expect(after[`/${LUDENS}/${SHADOWFLAME}`]).toBe('0.0')
+    // The same item twice among siblings still gets two keys.
+    expect(layoutKitTree([n(LUDENS, n(LICH), n(LICH))], { size: 10, hGap: 2, vGap: 4 }).nodes.map(node => node.key))
+      .toEqual([`/${LUDENS}`, `/${LUDENS}/${LICH}`, `/${LUDENS}/${LICH}~1`])
   })
 
   it('gives every row with room a slot beside its last node, never moving a node for it', () => {

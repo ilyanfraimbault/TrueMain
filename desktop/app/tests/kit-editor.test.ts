@@ -20,7 +20,7 @@ const picker = {
   methods: { next: () => nextPick },
   template: '<div v-if="open" class="picker" :data-title="title" :data-blocked="blocked.join()" :data-groups="groups.join()"><button class="pick" @click="$emit(\'pick\', next())" /></div>',
 }
-const tree = { props: ['tree', 'editable'], emits: ['pick', 'remove'], template: '<div class="tree" :data-roots="tree.map(n => n.itemId).join()"><button class="branch" @click="$emit(\'pick\', { at: [0], mode: \'child\' })" /><button class="replace" @click="$emit(\'pick\', { at: [0, 1], mode: \'replace\' })" /><button class="drop" @click="$emit(\'remove\', [0, 1])" /><button class="swap" @click="$emit(\'swap\', [0, 0], 1)" /></div>' }
+const tree = { props: ['tree', 'editable'], emits: ['pick', 'remove'], template: '<div class="tree" :data-roots="tree.map(n => n.itemId).join()"><button class="branch" @click="$emit(\'pick\', { at: [0], mode: \'child\' })" /><button class="replace" @click="$emit(\'pick\', { at: [0, 1], mode: \'replace\' })" /><button class="drop" @click="$emit(\'remove\', [0, 1])" /><button class="swap" @click="$emit(\'swap\', [0, 0], [0, 1])" /></div>' }
 const global = {
   // The starter and boots rows are drawn for real: the test clicks through them.
   components: { KitItemSlots, KitDetail },
@@ -41,7 +41,7 @@ const global = {
     UBadge: { props: ['label'], template: '<span class="badge">{{ label }}</span>' },
     UIcon: true,
     USkeleton: true,
-    UTooltip: { template: '<div><slot /></div>' },
+    UTooltip: { template: '<div><slot /><slot name="content" /></div>' },
     UDropdownMenu: { props: ['items'], template: '<div class="menu"><button v-for="entry in items[0]" :key="entry.label" class="menu-item" @click="entry.onSelect()">{{ entry.label }}</button></div>' },
     UModal: { props: ['open', 'title', 'description'], emits: ['update:open'], template: '<div v-if="open" class="modal"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /></div>' },
   },
@@ -125,17 +125,17 @@ describe('KitEditor', () => {
     await wrapper.get('.add-top').trigger('click')
 
     await wrapper.get('input').setValue('Into mages')
-    const save = wrapper.findAll('.u-button').find(button => button.text() === 'Save kit')!
+    const save = wrapper.findAll('.u-button').find(button => button.text() === 'Save')!
     await save.trigger('click')
     const saved = wrapper.emitted('save')![0]![0] as Kit
     expect(saved).toMatchObject({ positions: ['TOP', 'MIDDLE'], name: 'Into mages', boots: [3111], starter: [3157, 2003, 3157] })
     expect(saved.tree[0]!.children.map(child => child.itemId)).toEqual([3157, 3100])
   })
 
-  it('lists what keeps it from being saved', async () => {
+  it('lists what keeps it from being saved on the Save button\'s tooltip', async () => {
     const wrapper = mount(KitEditor, { props: { kit: kit({ name: '', spells: [4, 4], runes: { ...PAGE, statFlex: 1 } }) }, global })
     expect(wrapper.findAll('li').map(li => li.text())).toEqual(['Name the kit.', 'Choose two different summoner spells.', 'Choose a shard on each row.'])
-    const save = wrapper.findAll('.u-button').find(button => button.text() === 'Save kit')!
+    const save = wrapper.findAll('.u-button').find(button => button.text() === 'Save')!
     expect(save.attributes('disabled')).toBeDefined()
     await wrapper.findAll('.u-button').find(button => button.text() === 'Cancel')!.trigger('click')
     expect(wrapper.emitted('cancel')).toHaveLength(1)
