@@ -26,7 +26,7 @@
       <USkeleton class="ml-auto h-4 w-20" />
       <USkeleton class="ml-auto h-3 w-12" />
     </div>
-    <div class="hidden shrink-0 items-center gap-1 @2xl:flex">
+    <div class="hidden shrink-0 items-center gap-1 @5xl:flex">
       <USkeleton class="size-7 rounded" />
       <USkeleton class="size-7 rounded" />
       <USkeleton class="size-7 rounded" />
