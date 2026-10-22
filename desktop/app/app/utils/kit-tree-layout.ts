@@ -142,7 +142,7 @@ export function layoutKitTree(
       seen.set(node.itemId, twin + 1)
       const placed: PlacedKitNode = {
         at: [...(parent?.at ?? []), index],
-        key: keyOf(node, `${parent?.key ?? ''}/${node.itemId}${twin ? `~${twin}` : ''}`),
+        key: keyOf(node, `${parent?.key ?? ''}/${node.itemId}${twin ? '~' + twin : ''}`),
         itemId: node.itemId,
         x: origin + row.centres[index]!,
         y: rowY(depth),
