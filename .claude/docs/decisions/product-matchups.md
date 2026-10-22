@@ -122,7 +122,14 @@ Centred on 50%, not on the champion's own average: "ahead at 15 against this pic
 average would move the centre line every time the opponent pool shifts. Opponents with no lane rate (under
 `MinDecidedLaneGames`) are left off rather than drawn on the centre line, which would read as "dead even". The
 role picker is the panel's own and selects the lane on both sides, as the aggregate is keyed. The player-scoped
-champion page keeps the list: its live route has no lane data — 2026-10-18, #2094.
+champion page kept the list at first (its live route had no lane data) — 2026-10-18, #2094.
+**The player champion page shows the same spread, on the player's own lanes.** The list sat in the sidebar under
+the performance card, the one place on the site where matchups still read as best/worst rows. The player route now
+judges each of the player's games at 15 minutes from their own timeline snapshots, with the fold's rule
+(`LaneOutcomeRules`, 300 gold) — never the population-wide aggregate, which is not one player's lane — and with no
+decided-lane floor, as it has no games floor: one decided lane places an icon, and the tooltip states how many
+lanes the rate rests on. The spread sits in the main column between the build and the games, cross-patch like the
+list was, and its role picker offers All positions there — product call, 2026-10-22.
 The strip carries no caption, band labels, ring colours, counts or hardest/easiest summary: the icons' positions
 say it, and each icon's tooltip reads only the opponent and its lane win rate. The card is titled "Matchups" — product call after seeing it live, 2026-10-20, #2159.
 
