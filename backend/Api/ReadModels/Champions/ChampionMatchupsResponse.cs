@@ -109,11 +109,12 @@ public sealed record ChampionMatchupEntry
     /// <para>
     /// <see langword="null"/> when nothing can be said: fewer decided lanes than
     /// <see cref="TrueMain.Options.ChampionsListOptions.MinDecidedLaneGames"/> (which
-    /// includes none at all), or a <em>player-scoped</em> slice, whose lane cannot be
-    /// read off a population-wide aggregate. Every global slice carries it, search
-    /// included — both halves of that row now come from the same aggregate rows, so
-    /// the lane sample can no longer exceed the games it sits beside. Never a
-    /// substitute zero.
+    /// includes none at all). Every global slice carries it, search included — both
+    /// halves of that row come from the same aggregate rows, so the lane sample can no
+    /// longer exceed the games it sits beside. A <em>player-scoped</em> slice judges its
+    /// lanes live from the player's own 15-minute snapshots (never the population-wide
+    /// aggregate) and has no floor: one decided lane is a rate, like one game is a row.
+    /// Never a substitute zero.
     /// </para>
     /// </summary>
     public double? LaneWinRate { get; init; }
