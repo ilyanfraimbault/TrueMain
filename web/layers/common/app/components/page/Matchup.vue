@@ -120,21 +120,28 @@ function setEnemy(position: ChampionPosition, championId: number | null) {
       title="Failed to load the champion list"
     />
 
-    <BuilderMatchupStage
+    <BuilderDraftBoard
       :champions="champions"
       :played-champion-id="playedChampionId"
       :played-position="playedPosition"
       :opponent-champion-id="opponentChampionId"
+      :ally-slots="allySlots"
+      :enemy-slots="enemySlots"
+      :has-picks="hasContextPicks"
+      :lane="recommendation?.lane ?? null"
+      :lane-loading="isLoading"
       @update:played-champion-id="playedChampionId = $event"
       @update:played-position="playedPosition = $event"
       @update:opponent-champion-id="opponentChampionId = $event"
+      @update:ally="setAlly"
+      @update:enemy="setEnemy"
+      @clear="resetContext"
     />
 
-    <!-- The page's one line of numbers (#1111): the recommendation's sample and
-         the matchup's lane figures together. Mounted on the champion / role /
-         opponent triple alone, so it survives the standard-build fallback below
-         — exactly the state where a reader needs to know how much (or how
-         little) is behind the page. -->
+    <!-- The page's one line of numbers (#1111): the recommendation's sample.
+         Mounted on the champion / role / opponent triple alone, so it survives
+         the standard-build fallback below — exactly the state where a reader
+         needs to know how much (or how little) is behind the page. -->
     <BuilderMatchupStats
       v-if="playedChampionId !== null && playedPosition !== null && opponentChampionId !== null"
       :position="playedPosition"
@@ -143,18 +150,6 @@ function setEnemy(position: ChampionPosition, championId: number | null) {
       :recommendation="recommendation ?? null"
       :loading="isLoading"
       @show-games="gamesDrawerOpen = true"
-    />
-
-    <BuilderTeamContext
-      v-if="isDraftReady && playedPosition"
-      :champions="champions"
-      :played-position="playedPosition"
-      :ally-slots="allySlots"
-      :enemy-slots="enemySlots"
-      :has-picks="hasContextPicks"
-      @update:ally="setAlly"
-      @update:enemy="setEnemy"
-      @clear="resetContext"
     />
 
     <FetchErrorAlert
@@ -180,19 +175,6 @@ function setEnemy(position: ChampionPosition, championId: number | null) {
       :opponent-champion="opponentChampion"
       :draft-request="shownDraftRequest"
       :champions="champions"
-    />
-
-    <!-- Nothing picked yet. Without this the page is a stage floating over a
-         screen of empty background — it reads as broken rather than as waiting
-         for input. Dashed, recessed and unlabelled by a heading so it stays a
-         placeholder and not a third panel to parse. -->
-    <UEmpty
-      v-if="!isDraftReady"
-      variant="naked"
-      icon="i-lucide-swords"
-      description="Pick a champion and a role"
-      class="rounded-xl border border-dashed border-accented bg-muted"
-      :ui="{ description: 'font-medium text-highlighted' }"
     />
   </div>
 </template>

@@ -135,3 +135,12 @@ export function championSplashUrlFromIcon(iconUrl: string | null | undefined): s
   const key = iconUrl?.match(/\/img\/champion\/([^/.]+)\.png$/)?.[1]
   return key ? `https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${key}_0.jpg` : null
 }
+
+/**
+ * A champion's default loading-screen art (the tall 308 x 560 portrait of a pick
+ * card), from its square icon URL, the same way as {@link championSplashUrlFromIcon}.
+ */
+export function championLoadingUrlFromIcon(iconUrl: string | null | undefined): string | null {
+  const key = iconUrl?.match(/\/img\/champion\/([^/.]+)\.png$/)?.[1]
+  return key ? `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${key}_0.jpg` : null
+}
