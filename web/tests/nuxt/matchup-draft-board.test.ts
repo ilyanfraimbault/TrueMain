@@ -91,8 +91,8 @@ describe('BuilderLaneDuel', () => {
     const wrapper = await mountSuspended(BuilderLaneDuel, { props: { position: 'TOP', champion: aatrox!, opponent: yone!, lane, loading: false } })
     expect(wrapper.text()).toContain('55%')
     expect(wrapper.text()).toContain('Lane win rate')
-    expect(wrapper.text()).toContain('of 33 decided')
-    expect(wrapper.text()).toContain('+169 gold')
+    expect(wrapper.text()).not.toContain('decided')
+    expect(wrapper.text()).not.toContain('gold')
   })
 
   it('names the jungle\'s figure as a matchup tempo, and says what is missing', async () => {

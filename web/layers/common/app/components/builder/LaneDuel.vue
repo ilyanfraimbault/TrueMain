@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { CompositionLane } from '#shared/types/composition'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
-import { formatCount } from '#shared/utils/counts'
 import { formatPercentage } from '#shared/utils/ddragon'
 import type { ChampionPosition } from '#common/utils/positions'
 import { winRateTone } from '#common/utils/rate-tone'
@@ -109,7 +108,6 @@ const missing = computed(() => {
           :class="winRateTone(lane.winRate)"
         >{{ formatPercentage(lane.winRate, 0) }}</span>
         <span class="stat-label">{{ laneNoun === 'matchup' ? 'Ahead at 15' : 'Lane win rate' }}</span>
-        <span class="text-xs text-muted tabular-nums">of {{ formatCount(lane.decidedGames) }} decided</span>
         <BuilderMatchupLaneGaps
           :lane="lane"
           :lane-noun="laneNoun"
