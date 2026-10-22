@@ -59,7 +59,7 @@ const movable = computed(() => {
 const canMove = (node: PlacedKitNode) => movable.value.has(node.at.join('.'))
 
 // The drag, by pointer events: the webview's native drag and drop is the shell's, for files.
-interface Drag { at: number[], start: { x: number, y: number }, offset: { x: number, y: number }, moved: boolean, target: number | null }
+interface Drag { at: number[], origin: { x: number, y: number }, start: { x: number, y: number }, offset: { x: number, y: number }, moved: boolean, target: number | null }
 const canvas = ref<HTMLElement | null>(null)
 const drag = ref<Drag | null>(null)
 /** Set when a drag ends, so the click it ends with does not ask for an item. */
@@ -81,7 +81,7 @@ function grab(node: PlacedKitNode, event: PointerEvent) {
   catch {
     // Untracked pointer: no capture, the drag still runs.
   }
-  drag.value = { at: node.at, start: local(event), offset: { x: 0, y: 0 }, moved: false, target: null }
+  drag.value = { at: node.at, origin: { x: node.x, y: node.y }, start: local(event), offset: { x: 0, y: 0 }, moved: false, target: null }
 }
 
 function follow(event: PointerEvent) {
@@ -90,7 +90,9 @@ function follow(event: PointerEvent) {
   const point = local(event)
   const offset = { x: point.x - current.start.x, y: point.y - current.start.y }
   const moved = current.moved || Math.hypot(offset.x, offset.y) > 4
-  drag.value = { ...current, offset, moved, target: moved ? siblingAt(layout.value, current.at, point.x, point.y, props.size) : null }
+  // Aimed by the icon's centre, wherever on it the pointer took hold.
+  const target = moved ? siblingAt(layout.value, current.at, current.origin.x + offset.x, current.origin.y + offset.y, props.size) : null
+  drag.value = { ...current, offset, moved, target }
 }
 
 function release() {
@@ -129,7 +131,15 @@ const edgePath = ({ parent, child }: { parent: { x: number, y: number }, child: 
 
 <template>
   <div class="overflow-x-auto" :class="editable && 'p-2'">
-    <div ref="canvas" class="relative mx-auto" :style="{ width: `${width}px`, height: `${height}px` }">
+    <!-- Editable, a press on the tree is a drag of ours: not a text selection,
+         and not the webview's own drag of the icon's image, which takes the
+         pointer away mid-drag (a `pointercancel`) and drops the node where it was. -->
+    <div
+      ref="canvas"
+      class="relative mx-auto"
+      :class="editable && 'select-none'"
+      :style="{ width: `${width}px`, height: `${height}px` }"
+    >
       <svg class="absolute inset-0 overflow-visible" aria-hidden="true" :width="width" :height="height">
         <path
           v-for="(edge, index) in layout.edges"
@@ -145,9 +155,9 @@ const edgePath = ({ parent, child }: { parent: { x: number, y: number }, child: 
 
       <div
         v-for="node in layout.nodes"
-        :key="node.at.join('.')"
-        class="group absolute"
-        :class="dragging(node) && 'z-10 opacity-80'"
+        :key="node.key"
+        class="group absolute rounded"
+        :class="dragging(node) ? 'z-10 scale-110 opacity-90 shadow-lg' : 'transition-[left,top,transform,scale] duration-200 ease-out'"
         :style="{
           left: `${node.x - size / 2}px`,
           top: `${node.y - size / 2}px`,
@@ -167,6 +177,7 @@ const edgePath = ({ parent, child }: { parent: { x: number, y: number }, child: 
           @pointermove="follow"
           @pointerup="release"
           @pointercancel="drag = null"
+          @dragstart.prevent
           @keydown.alt.left.prevent="nudge(node, -1)"
           @keydown.alt.right.prevent="nudge(node, 1)"
           @click="choose(node)"
@@ -188,9 +199,9 @@ const edgePath = ({ parent, child }: { parent: { x: number, y: number }, child: 
 
       <button
         v-for="slot in layout.slots"
-        :key="`slot-${slot.parentAt.join('.')}`"
+        :key="`slot-${slot.parentKey}`"
         type="button"
-        class="absolute flex items-center justify-center rounded border border-dashed border-default text-dimmed transition hover:border-primary/60 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+        class="absolute flex items-center justify-center rounded border border-dashed border-default text-dimmed transition-[left,top,color,border-color] duration-200 ease-out hover:border-primary/60 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
         :style="{ left: `${slot.x - size / 2}px`, top: `${slot.y - size / 2}px`, width: `${size}px`, height: `${size}px` }"
         :aria-label="slotLabel(slot)"
         :title="slotLabel(slot)"

@@ -149,13 +149,30 @@ describe('the layout', () => {
     expect(layoutKitTree([], { size: 10, hGap: 2, vGap: 4 })).toEqual({ nodes: [], edges: [], slots: [], width: 0, height: 0 })
   })
 
-  it('finds the sibling a dragged node is over, and nothing else', () => {
+  it('finds the sibling a dragged node is nearest, and nothing else', () => {
     const layout = layoutKitTree(tree, { size: 10, hGap: 2, vGap: 4 })
     // Lich at x 5, Shadowflame at x 17, on the row at y 19.
     expect(siblingAt(layout, [0, 0], 18, 20, 10)).toBe(1)
     expect(siblingAt(layout, [0, 0], 5, 19, 10)).toBeNull()
+    // Past the middle of the gap is the sibling's, before it still the node's own place.
+    expect(siblingAt(layout, [0, 0], 12, 24, 10)).toBe(1)
+    expect(siblingAt(layout, [0, 0], 11, 19, 10)).toBeNull()
+    expect(siblingAt(layout, [0, 1], 40, 19, 10)).toBeNull()
+    expect(siblingAt(layout, [0, 1], -20, 19, 10)).toBe(0)
     expect(siblingAt(layout, [0, 0], 17, 33, 10)).toBeNull()
     expect(siblingAt(layout, [0, 0, 0], 17, 33, 10)).toBeNull()
+  })
+
+  it('keys a node by its items, so it keeps its key through a swap', () => {
+    const keys = (layout: ReturnType<typeof layoutKitTree>) => Object.fromEntries(layout.nodes.map(node => [node.key, node.at.join('.')]))
+    const before = keys(layoutKitTree(tree, { size: 10, hGap: 2, vGap: 4 }))
+    const after = keys(layoutKitTree(swapSiblings(tree, [0, 1], 0), { size: 10, hGap: 2, vGap: 4 }))
+    expect(before[`/${LUDENS}/${LICH}/${RABADON}`]).toBe('0.0.0')
+    expect(after[`/${LUDENS}/${LICH}/${RABADON}`]).toBe('0.1.0')
+    expect(after[`/${LUDENS}/${SHADOWFLAME}`]).toBe('0.0')
+    // The same item twice among siblings still gets two keys.
+    expect(layoutKitTree([n(LUDENS, n(LICH), n(LICH))], { size: 10, hGap: 2, vGap: 4 }).nodes.map(node => node.key))
+      .toEqual([`/${LUDENS}`, `/${LUDENS}/${LICH}`, `/${LUDENS}/${LICH}~1`])
   })
 
   it('gives every row with room a slot beside its last node, never moving a node for it', () => {
