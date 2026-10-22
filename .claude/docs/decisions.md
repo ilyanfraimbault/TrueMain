@@ -117,6 +117,7 @@ Last verified against `develop` on 2026-09-02.
 - Column captions head every rendering of the matchup rows, filtered view included, and beat figure-restating tooltips — #1494
 - The role opponent is a database filter, a pinned matchup is used whole, and votes are weighted by patch and pilot — #1659, #563, #923
 - A refetch on `/matchup` shows skeletons rather than the previous answer dimmed — #1659, #1117
+- `/matchup` draws its draft as the desktop app's champion select (loading-art cards, lane duel between the teams), not as a form — #2241
 
 ## Player profile — [`decisions/product-player-profile.md`](decisions/product-player-profile.md)
 

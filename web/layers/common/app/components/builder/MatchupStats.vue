@@ -9,7 +9,9 @@ import { winRateBand } from '#common/utils/rate-tone'
 
 /**
  * The page's single line of numbers (#1111): what the recommendation below was
- * computed from, and how the matchup itself goes at 15 minutes.
+ * computed from. How the lane itself goes at 15 minutes is read over the same
+ * games, and drawn in the board's lane duel (`LaneDuel`), between the two teams,
+ * the way the desktop app's champion select draws it.
  *
  * <b>Why one strip and not two.</b> This used to be two — a "This matchup" card
  * here and a sample strip inside `RecommendationPanel` — which put two `games`
@@ -51,12 +53,8 @@ const emit = defineEmits<{ 'show-games': [] }>()
 
 const build = computed(() => props.recommendation?.build ?? null)
 const confidence = computed(() => props.recommendation?.confidence ?? null)
-const lane = computed(() => props.recommendation?.lane ?? null)
-
-// The jungle has no lane (#939): the same figures are read as a matchup tempo
-// there, and the labels say so rather than claiming a lane that isn't one.
-const isJungle = computed(() => props.position === 'JUNGLE')
-const laneNoun = computed<'lane' | 'matchup'>(() => (isJungle.value ? 'matchup' : 'lane'))
+// The jungle has no lane (#939): the same figures are read as a matchup tempo.
+const laneNoun = computed<'lane' | 'matchup'>(() => (props.position === 'JUNGLE' ? 'matchup' : 'lane'))
 
 const sampleWinRate = computed(() => {
   const games = build.value?.gamesConsidered ?? 0
@@ -73,11 +71,9 @@ interface StatCell {
 }
 
 const stats = computed<StatCell[]>(() => {
-  const entry = lane.value
   const sample = build.value
   const conf = confidence.value
   const champion = props.championName ?? 'the champion'
-  const opponent = props.opponentName ?? 'this opponent'
 
   return [
     {
@@ -108,25 +104,13 @@ const stats = computed<StatCell[]>(() => {
       value: sampleWinRate.value === null ? '—' : formatPercentage(sampleWinRate.value),
       caption: 'across those games',
       hint: 'Win rate across the games the build is computed from — the same games every '
-        + `cell of this line counts, ${laneNoun.value} figures included.`,
+        + `cell of this line counts, and the ${laneNoun.value} win rate in the duel above too.`,
       tone: winRateBand(sampleWinRate.value),
-    },
-    {
-      key: 'lane',
-      label: isJungle.value ? 'Ahead at 15' : 'Lane win rate',
-      value: entry?.winRate == null ? '—' : formatPercentage(entry.winRate, 0),
-      caption: entry?.winRate == null
-        ? 'nothing decided yet'
-        : `of ${formatCount(entry.decidedGames)} decided`,
-      hint: `Share of these ${champion} vs ${opponent} games that reached 15 minutes clearly `
-        + 'ahead, out of those that ended clearly ahead or behind — the same games the cells '
-        + 'beside it count, so the whole line describes one sample.',
-      tone: winRateBand(entry?.winRate ?? null),
     },
   ]
 })
 
-/** Nothing recorded at all — said in one line rather than as four em dashes. */
+/** Nothing recorded at all — said in one line rather than as three em dashes. */
 const emptyNotice = computed(() => {
   const champion = props.championName ?? 'This champion'
   const opponent = props.opponentName ?? 'that champion'
@@ -137,7 +121,7 @@ const emptyNotice = computed(() => {
 
 <template>
   <SectionCard
-    title="This matchup"
+    title="Behind this build"
     :level="2"
   >
     <!-- Skeleton on every fetch, not only the first (#1659 follow-up). A cold
@@ -146,10 +130,10 @@ const emptyNotice = computed(() => {
          progress — worse, the stale figures stay legible enough to be believed. -->
     <div
       v-if="recommendation === null || loading"
-      class="grid grid-cols-2 gap-4 lg:grid-cols-4"
+      class="grid grid-cols-2 gap-4 sm:grid-cols-3"
     >
       <div
-        v-for="index in 4"
+        v-for="index in 3"
         :key="index"
         class="space-y-1.5"
       >
@@ -167,7 +151,7 @@ const emptyNotice = computed(() => {
 
     <div
       v-else
-      class="grid grid-cols-2 gap-4 lg:grid-cols-4"
+      class="grid grid-cols-2 gap-4 sm:grid-cols-3"
     >
       <div
         v-for="stat in stats"
@@ -202,11 +186,6 @@ const emptyNotice = computed(() => {
           </UTooltip>
         </div>
 
-        <BuilderMatchupLaneGaps
-          v-if="stat.key === 'lane'"
-          :lane="lane"
-          :lane-noun="laneNoun"
-        />
       </div>
     </div>
   </SectionCard>
