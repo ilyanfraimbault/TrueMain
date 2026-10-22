@@ -392,4 +392,8 @@ public sealed record MatchDataRetentionSummary(
     // Pair rows and the baselines they are read against, summed (#922) — they are
     // deleted together in one transaction, so one counter describes both.
     int DeletedSynergyStats,
+    // The build half of the two-level retention (#1958): patches whose patterns and panel
+    // tables this run purged (their scopes and light record stay), and the patterns removed.
+    IReadOnlyList<string> BuildPurgedPatches,
+    int DeletedBuildPatterns,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

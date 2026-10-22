@@ -1,3 +1,4 @@
+using Data;
 using Data.Entities;
 
 namespace TrueMain.Services.Champions.Scopes;
@@ -10,6 +11,16 @@ namespace TrueMain.Services.Champions.Scopes;
 /// </summary>
 internal static class ChampionAggregateScopeQueries
 {
+    /// <summary>
+    /// Leaves out the patches whose builds were purged (#1958). Their account-level scopes
+    /// stay for the leaderboard, so without this a build reader would resolve to, or list,
+    /// a patch with no patterns left and render an empty build behind live-looking totals.
+    /// </summary>
+    public static IQueryable<ChampionAggregateScope> WithBuilds(
+        this IQueryable<ChampionAggregateScope> source,
+        TrueMainDbContext db)
+        => source.Where(scope => !db.ChampionBuildPurgedPatches.Any(purged => purged.Patch == scope.GameVersion));
+
     public static IQueryable<ChampionAggregateScope> WhereChampionScope(
         this IQueryable<ChampionAggregateScope> source,
         int championId,

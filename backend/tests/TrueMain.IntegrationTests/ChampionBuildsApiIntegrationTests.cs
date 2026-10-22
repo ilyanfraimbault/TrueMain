@@ -198,6 +198,54 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetChampionAsync_NeverServesAPatchWhoseBuildsWerePurged()
+    {
+        await SeedMultiTierAggregatesAsync();
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // A patch keeps its account-level scopes once its builds are purged (#1958). Both
+            // sides of 16.5 are purged here: the older one a reader can still ask for, and a
+            // newer one that would otherwise win the default resolution.
+            // Seeded as the purge leaves them: the scope and the marker, no pattern.
+            foreach (var patch in new[] { "16.4", "16.6" })
+            {
+                db.ChampionAggregateScopes.Add(new ChampionAggregateScope
+                {
+                    Id = Guid.NewGuid(),
+                    RiotAccountId = Guid.Parse("aaaa1111-1111-1111-1111-111111111111"),
+                    ChampionId = 777,
+                    GameVersion = patch,
+                    PlatformId = "KR",
+                    QueueId = 420,
+                    Position = "MIDDLE",
+                    EloBracket = EloBracket.Silver,
+                    IsMain = true,
+                    Games = 60,
+                    Wins = 30,
+                    LastGameStartTimeUtc = DateTime.UtcNow,
+                    AggregatedAtUtc = DateTime.UtcNow,
+                });
+                db.ChampionBuildPurgedPatches.Add(new ChampionBuildPurgedPatch { Patch = patch, PurgedAtUtc = DateTime.UtcNow });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var latest = await client.GetFromJsonAsync<ChampionResponse>("/champions/777");
+        latest!.Patch.Should().Be("16.5", "the newest patch with builds left is served, not a purged one");
+        latest.TotalGames.Should().Be(100);
+
+        var purged = await client.GetAsync("/champions/777?patch=16.4");
+        purged.StatusCode.Should().Be(HttpStatusCode.NotFound, "a purged patch has no build to render");
+    }
+
+    [Fact]
     public async Task GetChampionAsync_CountsOnlyTruemainsByDefault_AndWidensWhenAskedTo()
     {
         await SeedMixedPopulationAggregatesAsync();

@@ -109,6 +109,8 @@ internal sealed class ChampionDirectoryPatchResolver(
         var sw = Stopwatch.StartNew();
         var distinctPatches = await db.ChampionAggregateScopes
             .AsNoTracking()
+            // A patch whose builds were purged has nothing left to serve (#1958).
+            .WithBuilds(db)
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
             // Mains only, and deliberately not parameterised on the population —
             // for the same reason this resolution carries no elo clause: which
