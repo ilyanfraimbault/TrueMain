@@ -73,7 +73,7 @@ retention, and a narrowing of it: in prod the patterns are 95% of the full aggre
 scopes), while the scopes are what the truemains leaderboard (games, W/L, KDA, their sorts) and the persona "last game"
 sum over every patch at account level, which the light record cannot answer. So `MatchDataRetention:
 BuildAggregateRetainedPatchCount` (prod and preprod 2) purges, for a patch outside every platform's live window
-(`RetainedPatchWindow`, the pattern aggregation's own rule, never narrower than the raw match window), its patterns
+(`RetainedPatchWindow`, the pattern aggregation's own rule; it is read from `matches`, so it is never wider than the raw match window either — on preprod, `RetainedPatchCount` 1, that is one patch, measured 2026-10-22 when 16.20 lost 2.3M patterns the run after its last matches were retired), its patterns
 (chunked per 5,000 scopes) and every per-patch panel table the full purge drops (one shared list), and keeps its scopes,
 its light record and its bans. A patch without a light record is skipped, never purged. Each purge writes
 `champion_build_purged_patches`, and every build reader (`WithBuilds`: the scope loader, the builds query, the
