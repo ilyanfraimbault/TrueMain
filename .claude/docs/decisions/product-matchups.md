@@ -299,6 +299,13 @@ patch ×3, older retained patch ×2, crossed with main ×4 / non-main ×1, on to
 similarity and win weights. Multiplied rather than tiered so no factor silences another — a main's
 game on the previous patch still outvotes a stranger's on the current one — and never zero, because
 down-weighting a game is not the same as dropping it. Chosen by the product owner — #1659.
+↳ **The core path is voted one slot at a time, not as a whole prefix** (`WalkCorePath`). Voting on
+the three-item prefix made each prefix its own candidate: on a 15-game sample every one was unique,
+the tie went to the first game of the selection, and a win that ended on one legendary made the path
+`[6610]` over 1 game, with an empty tree under it (Aatrox vs Yone, preprod). Now the first item is
+voted over every game, each next one over the games that followed the path so far; a step past the
+first needs the champion page's gates (2 games, 20% of the games that reached it), unless the path is
+already down to one game, which it keeps following — #2247.
 
 **A refetch on `/matchup` shows skeletons, not the previous answer dimmed.**
 The page has no submit: every draft edit refires 400 ms later, and until #1659 the panel and the
