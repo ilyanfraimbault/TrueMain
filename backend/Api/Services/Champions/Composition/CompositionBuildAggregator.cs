@@ -28,11 +28,7 @@ public static class CompositionBuildAggregator
             return new CompositionBuildRecommendation();
         }
 
-        var corePath = PickTop(
-            facts.Where(f => f.BuildItems.Count > 0),
-            f => (IReadOnlyList<int>)f.BuildItems.Take(CorePathLength).ToArray(),
-            winWeight,
-            comparer: ItemListComparer.Instance);
+        var corePath = WalkCorePath(facts, winWeight);
         var corePathItems = corePath?.Key ?? [];
         var firstItemId = corePathItems.Count > 0 ? corePathItems[0] : 0;
 
@@ -129,6 +125,52 @@ public static class CompositionBuildAggregator
             .BuildItemTree(sequences, sequences.Count)
             .Select(node => ChampionBuildPathAnalyzer.ToReadModel(node, sequences.Count))
             .ToList();
+    }
+
+    /// <summary>
+    /// The core path, voted one slot at a time: the first item among every game
+    /// with one, each next item among the games that followed the path so far and
+    /// went on to complete another. Voting on the whole prefix instead made every
+    /// prefix its own candidate — on a thin sample each one is unique, and a lone
+    /// game that ended on a single item won the tie and became the path. A step
+    /// past the first needs <see cref="ChampionBuildPathAnalyzer.BuildTreeMinGames"/>
+    /// games and <see cref="ChampionBuildPathAnalyzer.ItemPathProbThreshold"/> of the
+    /// games that reached it, the champion page's gates, so the path does not follow
+    /// one game where several diverge. A path already down to a single game keeps
+    /// following it: that game is all the evidence there is (a one-game sample, a
+    /// player's own games). Games / wins are the raw count of games that followed
+    /// the whole path.
+    /// </summary>
+    private static TopGroup<IReadOnlyList<int>>? WalkCorePath(
+        IReadOnlyList<CompositionParticipantFacts> facts,
+        double winWeight)
+    {
+        var following = facts.Where(f => f.BuildItems.Count > 0).ToList();
+        if (following.Count == 0)
+        {
+            return null;
+        }
+
+        var path = new List<int>();
+        while (path.Count < CorePathLength)
+        {
+            var slot = path.Count;
+            var next = PickTop(following.Where(f => f.BuildItems.Count > slot), f => f.BuildItems[slot], winWeight);
+            if (next is null)
+            {
+                break;
+            }
+            if (slot > 0
+                && (next.Games < Math.Min(ChampionBuildPathAnalyzer.BuildTreeMinGames, following.Count)
+                    || (double)next.Games / following.Count < ChampionBuildPathAnalyzer.ItemPathProbThreshold))
+            {
+                break;
+            }
+            path.Add(next.Key);
+            following = following.Where(f => f.BuildItems.Count > slot && f.BuildItems[slot] == next.Key).ToList();
+        }
+
+        return new TopGroup<IReadOnlyList<int>>(path, following.Count, following.Count(f => f.Win));
     }
 
     private sealed record TopGroup<TKey>(TKey Key, int Games, int Wins);
