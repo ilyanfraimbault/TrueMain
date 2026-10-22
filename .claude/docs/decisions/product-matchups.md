@@ -132,6 +132,13 @@ lanes the rate rests on. The spread sits in the main column between the build an
 list was, and its role picker offers All positions there — product call, 2026-10-22.
 The strip carries no caption, band labels, ring colours, counts or hardest/easiest summary: the icons' positions
 say it, and each icon's tooltip reads only the opponent and its lane win rate. The card is titled "Matchups" — product call after seeing it live, 2026-10-20, #2159.
+**The spread follows the page's lane only, says "WR", and washes red to blue.** The panel's own role picker is
+gone: the opponent is always whoever held the role the reader is looking at, and a lane picked inside the panel
+apart from the page's contradicted the build beside it. The tooltip reads only `54% WR` (plus `(N games)` on the
+player page) — the icon already names the opponent, and "lanes won" read wrong on a jungler, whose 15-minute lead
+is the same measure but not a lane; the accessible name keeps the opponent's name. The strip's wash takes the match
+rows' result colours (`result-tone.ts`: red on the losing left, blue on the winning right) rather than the
+rose-gold `data-*` axis — product call, 2026-10-22.
 
 **Lane win rate stores three counters and divides by the *decided* lanes, not by games played.**
 A gold *threshold* at 15 min (`LaneOutcomeAggregation:GoldLeadThreshold`, 300) is what defines a won lane, and
