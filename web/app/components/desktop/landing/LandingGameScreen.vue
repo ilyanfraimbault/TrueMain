@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import type { StaticItemData } from '#shared/types/static-data'
-import type { LandingOverlayPanelKind } from './LandingOverlayPanel.vue'
+import type { LandingOverlayPanelKind, LandingPanelKind } from './LandingOverlayPanel.vue'
 
 /**
  * A player's screen during a game — a real one, one of our own Yone games at
  * 13:23 (`public/desktop/game.webp`) — with the overlay's panels drawn where
  * the app puts them by default (`shell-state::overlay`: win probability top
- * left, item value top centre, next item top right, pace centre left, 16 points
+ * left, objectives top centre, next item top right, pace centre left (#2184), and
+ * under TAB the lane-gold plates on the scoreboard's rows (#2186) rather than the
+ * item value — 16 points
  * from the sides and 56 from the top on a 1920-point screen).
  *
  * Panels are drawn a little larger than life (a 1920-point screen shrunk to a page
@@ -19,11 +21,11 @@ const props = defineProps<{
   items: Record<number, StaticItemData> | null
 }>()
 
-const ANCHORS: Record<LandingOverlayPanelKind, string> = {
+const ANCHORS: Record<LandingPanelKind, string> = {
   'win-probability': 'left-[0.85%] top-[5.2%] origin-top-left',
-  'item-value': 'left-1/2 top-[5.2%] origin-top -translate-x-1/2',
   'next-item': 'right-[0.85%] top-[5.2%] origin-top-right',
   'pace': 'left-[0.85%] top-1/2 origin-left -translate-y-1/2',
+  'objectives': 'left-1/2 top-[5.2%] origin-top -translate-x-1/2',
 }
 
 const screen = ref<HTMLElement | null>(null)
@@ -38,7 +40,7 @@ onMounted(() => {
   onBeforeUnmount(() => observer.disconnect())
 })
 
-const visible = (panel: LandingOverlayPanelKind) => props.shown.includes(panel) && (panel !== 'item-value' || props.tabHeld)
+const visible = (panel: LandingOverlayPanelKind) => props.shown.includes(panel) && (panel !== 'lane-gold' || props.tabHeld)
 </script>
 
 <template>
@@ -54,6 +56,15 @@ const visible = (panel: LandingOverlayPanelKind) => props.shown.includes(panel) 
       :style="{ '--landing-scale': scale }"
     >
       <DesktopLandingOverlayPanel :panel="panel" :patch="patch" :items="items" />
+    </div>
+
+    <!-- The lane-gold plates on the scoreboard's rows while TAB is held (#2186), the TAB step's panel. -->
+    <div
+      class="landing-plates absolute left-1/5 top-[28.6%] h-[35.6%] w-3/5"
+      :class="{ 'is-on': visible('lane-gold') }"
+      :style="{ '--landing-scale': scale }"
+    >
+      <DesktopLandingLanePlates :patch="patch" :items="items" />
     </div>
 
     <kbd
@@ -72,6 +83,15 @@ const visible = (panel: LandingOverlayPanelKind) => props.shown.includes(panel) 
   transition: opacity 450ms cubic-bezier(0.2, 0, 0, 1), scale 450ms cubic-bezier(0.2, 0, 0, 1), filter 450ms cubic-bezier(0.2, 0, 0, 1);
 }
 
+.landing-plates {
+  opacity: 0;
+  transition: opacity 450ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.landing-plates.is-on {
+  opacity: 1;
+}
+
 .landing-panel.is-on {
   opacity: 1;
   scale: var(--landing-scale);
@@ -79,6 +99,6 @@ const visible = (panel: LandingOverlayPanelKind) => props.shown.includes(panel) 
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-panel { transition: none; }
+  .landing-panel, .landing-plates { transition: none; }
 }
 </style>

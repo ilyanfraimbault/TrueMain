@@ -26,6 +26,7 @@ function clip(id: string, createdAtMs: number, gameStartedAtMs = 0, startMs = 0)
     moments: [],
     youtubeUrl: null,
     videoOnDisk: true,
+    automatic: [],
   }
 }
 

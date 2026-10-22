@@ -2,6 +2,7 @@ using System.Net;
 using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Riot.RateLimiting;
+using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -287,6 +288,7 @@ public sealed class RiotRateLimiterTests
             Microsoft.Extensions.Options.Options.Create(options),
             timeProvider,
             TestIngestorMetrics.Create(),
+            new CallerContext(),
             NullLogger<RiotRateLimiter>.Instance);
     }
 

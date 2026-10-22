@@ -35,7 +35,8 @@ const playerPath = (id: string) => `/recordings/clips/${encodeURIComponent(id)}`
       />
     </div>
 
-    <ul class="grid grid-cols-2 gap-2">
+    <!-- Four across under the match history, two by two once the window narrows. -->
+    <ul class="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <li v-for="item in clips" :key="item.id">
         <NuxtLink
           :to="playerPath(item.id)"

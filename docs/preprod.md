@@ -31,7 +31,7 @@ Preprod runs the ingestion pipeline as **two containers** (#1362), as prod does 
 
 | container | `Job:Mode` | cadence |
 | --- | --- | --- |
-| `truemain-preprod-ingestor` | `FetchLane` | back-to-back (`RunOnce`, restarted by Docker) |
+| `truemain-preprod-ingestor` | `FetchWorkers` | permanent match-fetch workers, plus a maintenance pass every `INGESTOR_MAINTENANCE_INTERVAL_MINUTES` (default 1) |
 | `truemain-preprod-ingestor-aggregate` | `AggregateLane` | every `INGESTOR_AGGREGATE_INTERVAL_MINUTES` (default 120 here, 20 on prod) |
 
 The two halves have opposite bottlenecks — the fetch lane waits on Riot, the aggregate lane on Postgres — so
@@ -42,8 +42,17 @@ Both lanes share one environment block in `compose.preprod.yaml` (the `x-ingesto
 the mode, the cadence, the `Application Name` on the connection string and the crash volume differ. To collapse
 preprod back to one lane, set `INGESTOR_JOB_MODE=Full` and stop the aggregate container.
 
-The fetch lane stays on the default `RunOnce` loop: its passes are back-to-back, paced by the per-routing-value
-rate limiter rather than by a timer. The aggregate lane runs on a timer (`INGESTOR_AGGREGATE_INTERVAL_MINUTES`,
+Since #1457 the fetch container runs `FetchWorkers`: match fetching is one permanent worker per regional routing
+value (`americas`, `europe`, `asia`), each claiming its own platforms' accounts, fetching and writing them, and
+claiming again; the fetch lane's other steps (`LadderSync`, `Discovery`, `ManualSeed`, `Harvest`, `Scoring`,
+`MainActivity`, `AccountRefresh`, `PaceSampling`) run beside them as a maintenance pass, one minute after the
+previous one ends. The workers are held to the target rate of the ramp stage `INGESTOR_FETCH_RAMP_STAGE` (stage 1 = 30 Riot calls a
+minute per regional host, production's average before the change; how to raise it: `docs/ingestion-ramp.md`), and
+stop claiming while the host's memory or free disk is below its backpressure threshold (#1459), and the rate limiter reserves a share of every
+regional window for `AccountRefresh` and `ManualSeed` while they are active (`RiotRateLimit__ReservedShares__*`).
+The container runs with `Job:RunOnce=false` (`INGESTOR_RUN_ONCE`): with `RunOnce`, a `FetchWorkers` process exits
+after one maintenance pass and one batch per worker, and Docker's restart would then cut the workers off every
+pass. `INGESTOR_JOB_MODE=FetchLane` puts the sequential lane back (rollback), on the same one-minute loop. The aggregate lane runs on a timer (`INGESTOR_AGGREGATE_INTERVAL_MINUTES`,
 default 120 here, 20 on prod): there is nothing to gain from re-folding the same rows the moment a pass ends, and
 a fixed cadence is what makes "how stale can an aggregate be?" answerable. Preprod waits longer between passes
 (#2122): the pattern aggregation rebuilt the whole live patch each pass until #1367, so a 20-minute gap kept
@@ -53,6 +62,15 @@ file the crash reporter writes before it reaches Mongo. `MainAnalysis__Aggregate
 the widened fold multiplies the aggregation's source rows and that process once OOM-killed a VPS (#601);
 measured on 2026-09-01 it ran at ~250 MB RSS with no restart and produced 16.6k non-main scopes on the live
 patch alongside 20.9k main ones. Postgres runs the prod tuning at roughly half the values, see `docs/prod.md`.
+
+What to watch after a change to the fetch workers (#1457) — none of it is visible to CI:
+
+- `process_runs` — `Discovery`, `LadderSync`, `MainActivity` and `AccountRefresh` keep running at least as
+  often as before; the worker batches (`MatchIngestion`, iteration mode `FetchWorkers`) follow one another
+  without gaps longer than the idle delay while there is work.
+- The Riot API tab — `MatchIngestion` near the target rate on each regional host, `AccountRefresh` and
+  `ManualSeed` still completing their regional calls over several hours, the 429 rate flat.
+- `matches ingested` on the overview — the daily throughput unchanged at the default target rate.
 
 What to watch while the split is on trial:
 
@@ -148,10 +166,16 @@ front of the apps:
 - **Admin login throttle.** The admin runs with `NUXT_TRUST_PROXY=true`, like
   prod, because Caddy overwrites `X-Forwarded-For` with the peer it saw.
 
-The Caddyfile is inline in `compose.preprod.yaml` (`configs.edge_caddyfile`),
-as prod's is in `compose.prod.yaml`, because the Docker Manager deploy ships
-the compose file and nothing else — the same reason `umami-proxy` is
-configured that way. One thing stays different by nature: it serves plain HTTP
+Like prod's, the edge is its own Docker Manager project, `truemain-preprod-edge`,
+deployed from `compose.preprod.edge.yaml` after the stack rolls, and joined to web
+and admin over the `truemain_preprod_edge` network that `compose.preprod.yaml`
+owns — so a deploy does not take the edge down, and it serves the same
+maintenance page while web and admin are recreated (`docs/prod.md`, *Maintenance
+page*, #2179). The Caddyfile and the page are inline in that file
+(`configs.edge_caddyfile`, `configs.maintenance_page`), because the Docker
+Manager deploy ships the compose file and nothing else — the same reason
+`umami-proxy` is configured that way. The page must stay identical to prod's: the
+`compose-config` CI job compares them. One thing stays different by nature: it serves plain HTTP
 (`auto_https off`): preprod has no DNS name to get a certificate for, and the
 host's 80/443 belong to another project, so the admin session cookie stays
 non-`Secure`.
@@ -257,12 +281,18 @@ The deploy depends on this job succeeding, so a failed or skipped migration
 blocks the image roll.
 
 `PREPROD_SSH_KEY`'s public half is installed in the VPS's
-`~/.ssh/authorized_keys` with a forced `command=/usr/local/bin/apply-migration.sh`
-(plus `no-pty`/`no-port-forwarding`/`no-agent-forwarding`/`no-X11-forwarding`) —
-whatever the CI step sends as a remote command is ignored, so a leaked key
-can only ever pipe SQL into that one fixed `psql` invocation, never get a
-general root shell. The script itself (owning the container name and compose
-path) lives on the VPS, not in the workflow.
+`~/.ssh/authorized_keys` with a forced `command=` (plus
+`no-pty`/`no-port-forwarding`/`no-agent-forwarding`/`no-X11-forwarding`), so a
+leaked key can never get a general root shell. Since #1089 that command is
+`.github/scripts/vps/ci-ssh-command.sh`, installed by hand: it accepts the
+migration (no remote command, SQL on stdin, delegated to the host's
+`/usr/local/bin/apply-migration.sh`, which owns the container name and runs
+that one fixed `psql` invocation) and `pull <tag>` of the four application
+images, and refuses anything else. Install steps, and the
+`PREPROD_PREPULL_IMAGES` variable that turns the deploy's pre-pull on once the
+script is in place, are in `docs/ci.md` (*Pre-pull before recreate*). Until
+both are done, the host keeps `command=/usr/local/bin/apply-migration.sh` and
+the pre-pull stays off.
 
 ### Manual fallback
 
@@ -295,11 +325,16 @@ in `backend/Ingestor/Options/*`:
 | `Discovery__NewAccountsTarget` | 15 | 75 | new accounts per run |
 | `Scoring__TopNPerPlatform` | 50 | 300 | candidates queued per platform |
 | `Harvest__MaxCandidatesPerRun` | 500 | 7500 | harvest candidate generation cap |
-| `MatchIngestion__BatchSize` | 25 | 75 | accounts fetched per cycle |
+| `MatchIngestion__BatchSize` | 25 | 75 | accounts claimed per batch, split across the three fetch workers |
 | `ManualSeed__BatchSize` | 250 | 750 | manual seeds resolved per cycle |
 | `MatchDataRetention__RetainedPatchCount` | 1 | 2 (code default) | patches of match data kept |
 | `MatchDataRetention__AggregateRetainedPatchCount` | 2 | 0 (code default: kept forever) | patches of aggregates kept, so older champion pages are empty on preprod by choice |
 | `INGESTOR_AGGREGATE_INTERVAL_MINUTES` | 120 | 20 | minutes between two aggregate-lane passes |
+| `INGESTOR_MAINTENANCE_INTERVAL_MINUTES` | 1 | 1 | minutes between two maintenance passes of the fetch container (#1457) |
+| `INGESTOR_FETCH_RAMP_STAGE` | 1 | 1 | ramp stage of the fetch workers' target rate (#1459, `docs/ingestion-ramp.md`) |
+| `INGESTOR_BACKPRESSURE_MIN_AVAILABLE_MEMORY_PERCENT` | 10 | 10 | available host memory below which the fetch workers stop claiming (#1459) |
+| `INGESTOR_BACKPRESSURE_MIN_FREE_DISK_PERCENT` | 15 | 15 | free disk below which the fetch workers stop claiming (#1459) |
+| `INGESTOR_BACKPRESSURE_DRILL_MINUTES` | 0 | 0 | backpressure drill length, for verification only (#1459) |
 | `MongoLogging__LogsRetention` | 30 days | 90 days (default) | diagnostic log TTL |
 | `MatchIngestion__MatchesPerAccount` | 10 | 20 (default) | matches fetched per account |
 | `MainAnalysis__MatchesToConsider` | 30 | 50 (default) | recent matches main analysis reads |

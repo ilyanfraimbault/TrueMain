@@ -80,9 +80,20 @@ public sealed record DraftCandidateReadModel
     public int SynergyGames { get; init; }
 
     /// <summary>
+    /// Team composition (#1906): the mean, over the axes the board can place our team on
+    /// (allies' magic share, frontline count), of the candidate's win rate in that band
+    /// minus its win rate overall. Zero until three allies are on the board. Weighed 0 in
+    /// <see cref="Score"/> until the back-test sets it.
+    /// </summary>
+    public double TeamFitDelta { get; init; }
+
+    /// <summary>Games the team-composition figure rests on: the largest band's.</summary>
+    public int TeamFitGames { get; init; }
+
+    /// <summary>
     /// The ranking key: the lane term (the opponent where the board shows one,
     /// the blind expectation for the rest), the champion's strength at the lane,
-    /// then the ally term, each delta shrunk
+    /// the enemy team, the team composition, then the ally term, each delta shrunk
     /// towards zero by its games. Deliberately not called a win probability, and
     /// not meant to be displayed.
     /// </summary>
@@ -147,6 +158,13 @@ public static class DraftReasonKinds
     /// <summary>The pairing with one ally: <c>championId</c>, <c>position</c>, <c>delta</c>, <c>games</c>, <c>tentative</c> when only hovered.</summary>
     public const string Synergy = "synergy";
 
+    /// <summary>
+    /// Our team's composition (#1906): with allies in <c>bucket</c> (<c>Low</c>, <c>Mid</c>,
+    /// <c>High</c>) of <c>axis</c> (<c>AllyMagicDamage</c>, <c>AllyFrontline</c>), the pick's win
+    /// rate moves by <c>delta</c> over <c>games</c>; <c>tentative</c> when a hover is part of it.
+    /// </summary>
+    public const string TeamFit = "teamFit";
+
     /// <summary>A ban: our pick (<c>championId</c>) is behind by <c>delta</c> over <c>games</c> into it, played in <c>share</c> of the lane's games.</summary>
     public const string LaneThreat = "laneThreat";
 
@@ -181,6 +199,12 @@ public sealed record DraftReasonReadModel
     public double? Share { get; init; }
 
     public int? Count { get; init; }
+
+    /// <summary>The composition axis a <c>teamFit</c> reason reads.</summary>
+    public string? Axis { get; init; }
+
+    /// <summary>The band of <see cref="Axis"/> the board puts our team in.</summary>
+    public string? Bucket { get; init; }
 
     public int? Of { get; init; }
 

@@ -9,6 +9,8 @@ const ICONS: Record<OverlayPanel, string> = {
   'win-probability': 'i-lucide-scale',
   'stats': 'i-lucide-activity',
   'item-value': 'i-lucide-coins',
+  'objectives': 'i-lucide-timer',
+  'lane-gold': 'i-lucide-rows-3',
 }
 </script>
 

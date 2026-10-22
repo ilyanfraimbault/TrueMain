@@ -20,6 +20,8 @@ export const PANEL_WIDTHS: Record<OverlayPanel, number> = {
   'win-probability': 160,
   'item-value': 300,
   'stats': 176,
+  'objectives': 292,
+  'lane-gold': 60,
 }
 
 /**
@@ -28,10 +30,13 @@ export const PANEL_WIDTHS: Record<OverlayPanel, number> = {
  * measured the panel drawn with its sample.
  */
 const HEIGHTS: Record<OverlayPanel, number> = {
-  'next-item': 90,
+  'next-item': 140,
   'win-probability': 48,
   'item-value': 200,
   'stats': 84,
+  'objectives': 62,
+  // Never read: the scoreboard's rows set it (`utils/scoreboard-geometry.ts`).
+  'lane-gold': 384,
 }
 
 /** The screen a browser-only `npm run dev` lays the panels on. */

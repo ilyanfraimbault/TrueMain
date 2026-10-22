@@ -120,6 +120,35 @@ public sealed class ExpiredClaimReleaseIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReleaseExpiredClaims_NarrowedToPlatforms_ShouldLeaveTheOtherPlatformsClaimsAlone()
+    {
+        // A permanent fetch worker (#1457) reaps while the other routing values' workers hold
+        // live claims of their own: narrowed to its platforms, it may never touch theirs,
+        // however expired they look from here.
+        var now = DateTime.UtcNow;
+
+        await SeedAccountAsync("EUW1", "puuid-europe", MatchIngestStatus.Processing, now.AddHours(-2));
+        await SeedCandidateAsync("EUW1", "puuid-europe", championId: 22, MainCandidateStatus.Processing);
+        await SeedAccountAsync("KR", "puuid-asia", MatchIngestStatus.Processing, now.AddHours(-2));
+        await SeedCandidateAsync("KR", "puuid-asia", championId: 22, MainCandidateStatus.Processing);
+
+        IReadOnlyCollection<string> europe = ["EUW1", "EUN1"];
+        await using (var db = _fixture.CreateDbContext())
+        {
+            (await new MainCandidateRepository(db).ReleaseExpiredClaimsAsync(now, europe, CancellationToken.None))
+                .Should().Be(1);
+            (await new RiotAccountRepository(db).ReleaseExpiredMatchIngestClaimsAsync(now, europe, CancellationToken.None))
+                .Should().Be(1);
+        }
+
+        await using var verifyDb = _fixture.CreateDbContext();
+        verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-europe").MatchIngestStatus.Should().Be(MatchIngestStatus.Idle);
+        verifyDb.MainCandidates.Single(c => c.Puuid == "puuid-europe").Status.Should().Be(MainCandidateStatus.Queued);
+        verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-asia").MatchIngestStatus.Should().Be(MatchIngestStatus.Processing);
+        verifyDb.MainCandidates.Single(c => c.Puuid == "puuid-asia").Status.Should().Be(MainCandidateStatus.Processing);
+    }
+
+    [Fact]
     public async Task ReleaseExpiredClaimsAsync_ShouldMakeASelfSealedAccountClaimableAgain()
     {
         // The regression that matters. Before the reap the account matches neither claim

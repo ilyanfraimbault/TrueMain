@@ -17,7 +17,7 @@ export const TIER_COLORS: Record<string, string> = {
   GOLD: 'text-amber-400',
   PLATINUM: 'text-teal-300',
   EMERALD: 'text-emerald-300',
-  DIAMOND: 'text-sky-300',
+  DIAMOND: 'text-blue-400',
   MASTER: 'text-fuchsia-300',
   GRANDMASTER: 'text-red-300',
   CHALLENGER: 'text-cyan-200',
@@ -34,7 +34,7 @@ export const TIER_HEX: Record<string, string> = {
   GOLD: '#fbbf24',        // amber-400
   PLATINUM: '#5eead4',    // teal-300
   EMERALD: '#6ee7b7',     // emerald-300
-  DIAMOND: '#7dd3fc',     // sky-300
+  DIAMOND: '#60a5fa',     // blue-400
   MASTER: '#f0abfc',      // fuchsia-300
   GRANDMASTER: '#fca5a5', // red-300
   CHALLENGER: '#a5f3fc',  // cyan-200

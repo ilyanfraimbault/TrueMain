@@ -1,4 +1,5 @@
 import type { GamePlayer, GameState, GameTeam } from '~/types/game'
+import type { ItemRouteStep } from '~/utils/build-path'
 import type { NextItemOrderStep } from '~/utils/next-item'
 import type { PaceReference } from '~/utils/pace-benchmark'
 
@@ -10,8 +11,24 @@ import type { PaceReference } from '~/utils/pace-benchmark'
  * game: a real game always wins.
  */
 
-/** The next item the sample shows, and the gold it still needs. */
-export const SAMPLE_NEXT_ITEM = { itemId: 3157, missing: 650 } as const
+const sampleStep = (itemId: number, cost: number, rank: number, components: ItemRouteStep[] = []): ItemRouteStep =>
+  ({ itemId, cost, rank, share: null, measured: true, components })
+
+/**
+ * The next item the sample shows (#2183): Zhonya's Hourglass with an
+ * Amplifying Tome held and 750 gold, its path in a made-up order — Seeker's
+ * Armguard (Tome, Cloth Armor, Tome) then the Rod — so the three states show:
+ * the Tome held, the Cloth Armor and the second Tome bought now, the Rod later.
+ */
+export const SAMPLE_NEXT_ITEM = {
+  itemId: 3157,
+  held: [1052],
+  gold: 750,
+  route: [
+    sampleStep(2420, 1600, 1, [sampleStep(1052, 400, 1), sampleStep(1029, 300, 2), sampleStep(1052, 400, 3)]),
+    sampleStep(1058, 1200, 2),
+  ],
+}
 
 /** The build row under it (#2101): one item and the boots done, the sample's next item, the rest to come. */
 export const SAMPLE_BUILD_ORDER: NextItemOrderStep[] = [
@@ -71,8 +88,18 @@ export function sampleGame(): GameState {
     ],
     gold: 600,
     objectives: {
-      order: { turrets: 3, inhibitors: [], dragons: 2, baronUntil: null, elderUntil: null },
-      chaos: { turrets: 1, inhibitors: [], dragons: 1, baronUntil: null, elderUntil: null },
+      order: { turrets: 3, inhibitors: [], dragons: 2, drakes: ['infernal', 'mountain'], baronUntil: null, elderUntil: null },
+      chaos: { turrets: 1, inhibitors: [], dragons: 1, drakes: ['hextech'], baronUntil: null, elderUntil: null },
+      // At the sample's 26:00: the next drake in 1:15, the grubs and the
+      // Herald done, Baron up since 20:00.
+      timers: {
+        dragon: { at: 1635, until: null },
+        elder: false,
+        drake: 'ocean',
+        grubs: { at: null, until: null },
+        herald: { at: null, until: null },
+        baron: { at: 1200, until: null },
+      },
     },
     pace: {
       samples: [

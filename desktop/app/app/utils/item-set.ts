@@ -1,5 +1,7 @@
 import type { ChampionItemContextItem } from '#shared/types/item-context'
+import type { Kit } from '#shared/types/kit'
 import type { BuildCoreView, BuildTreeNode } from '~/types/build'
+import { kitPaths } from '~/utils/kit-tree'
 
 /**
  * What the item set import sends the shell (`lcu::item_sets::BuildItems`):
@@ -66,4 +68,31 @@ export function itemSetBuild(core: BuildCoreView, situational: number[], known: 
 /** Whether the set would have anything in it. */
 export function hasItems(build: ItemSetBuild): boolean {
   return build.starter.length + build.boots.length + build.core.length + build.situational.length > 0
+}
+
+/** One titled block of a kit's set (`lcu::item_sets::NamedBlock`). */
+export interface NamedItemBlock {
+  title: string
+  items: number[]
+}
+
+/**
+ * A kit's set (#2185): the starter and the boots first, then one block per
+ * path of its tree, the default path first and titled "Core" when it is the
+ * only one; with branches each block is named by the item it ends on. Ids
+ * the patch does not know are dropped, as for a build's set.
+ */
+export function kitItemSetBlocks(kit: Kit, name: (itemId: number) => string, known: (itemId: number) => boolean): NamedItemBlock[] {
+  const keep = (ids: number[]) => ids.filter(known)
+  const paths = kitPaths(kit.tree).map(keep).filter(path => path.length > 0)
+  const titleOf = (path: number[], index: number) => {
+    if (paths.length === 1) return 'Core'
+    const label = index === 0 ? 'Core' : `Path ${index + 1}`
+    return `${label} · ${name(path.at(-1)!)}`
+  }
+  return [
+    { title: 'Starter', items: keep(kit.starter) },
+    { title: 'Boots', items: keep(kit.boots) },
+    ...paths.map((path, index) => ({ title: titleOf(path, index), items: path })),
+  ].filter(block => block.items.length > 0)
 }

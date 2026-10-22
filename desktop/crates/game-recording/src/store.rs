@@ -14,8 +14,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::anchor::Anchor;
 use crate::highlights::{Highlight, HighlightSource};
+use crate::marks::Mark;
 use crate::moments::{self, Moment, Objective};
+use crate::plays::Play;
 use crate::settings::Quality;
+use crate::teamfights::Teamfight;
 use crate::win_probability::{WIN_PROBABILITY_FILE, WIN_PROBABILITY_TEMPORARY};
 
 pub const VIDEO_FILE: &str = "video.mp4";
@@ -70,6 +73,21 @@ pub struct RecordingMeta {
     /// time.
     #[serde(default)]
     pub objectives: Vec<Objective>,
+    /// The moments the player marked with the mark key, in video time (#2079).
+    #[serde(default)]
+    pub marks: Vec<Mark>,
+    /// The steals, aces and first blood the live feed announced, in game time
+    /// (#1766).
+    #[serde(default)]
+    pub plays: Vec<Play>,
+    /// The teamfights the player took part in, in game time — from the live
+    /// feed at the stop, the timeline once finalised (#1766).
+    #[serde(default)]
+    pub teamfights: Vec<Teamfight>,
+    /// The player's champion as the game named it, for the automatic clips'
+    /// titles ("Pentakill on Ahri").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub champion_name: Option<String>,
     /// Exempt from the disk budget — the player kept the full game.
     pub pinned: bool,
 }
@@ -93,16 +111,21 @@ impl RecordingMeta {
             highlights: Vec::new(),
             highlights_source: None,
             objectives: Vec::new(),
+            marks: Vec::new(),
+            plays: Vec::new(),
+            teamfights: Vec::new(),
+            champion_name: None,
             pinned: false,
         }
     }
 
-    /// The highlights and objectives on the video.
+    /// The highlights, objectives and marks on the video.
     pub fn moments(&self) -> Vec<Moment> {
         moments::on_video(
             self.anchor.as_ref(),
             &self.highlights,
             &self.objectives,
+            &self.marks,
             self.duration_ms,
         )
     }

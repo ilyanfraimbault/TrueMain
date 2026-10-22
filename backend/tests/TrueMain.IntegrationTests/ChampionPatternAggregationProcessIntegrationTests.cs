@@ -85,6 +85,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         patterns.Should().HaveCount(2,
             "two source matches with distinct builds = two pattern rows in the same scope; "
             + "the second run deletes + reinserts via the cascade so we must not see duplicates");
+        await PatchStatsShouldMirrorScopesAsync();
     }
 
     [Fact]
@@ -117,6 +118,9 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await using var verifyDb = _fixture.CreateDbContext();
         (await verifyDb.ChampionAggregateScopes.ToListAsync()).Should().BeEmpty();
         (await verifyDb.ChampionAggregatePatterns.ToListAsync()).Should().BeEmpty();
+        await PatchStatsShouldMirrorScopesAsync();
+        (await verifyDb.ChampionPatchStats.ToListAsync()).Should().BeEmpty(
+            "a slice the replacement emptied leaves no 0-game row in the light record");
     }
 
     [Fact]
@@ -161,6 +165,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         // champion's truemain build.
         (await verifyDb.ChampionAggregateScopes.Where(scope => scope.IsMain).ToListAsync())
             .Should().BeEmpty();
+        await PatchStatsShouldMirrorScopesAsync();
     }
 
     [Fact]
@@ -230,6 +235,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         var live = scopes.Single(scope => scope.GameVersion == "16.6");
         live.Games.Should().Be(1);
         live.Wins.Should().Be(1);
+        await PatchStatsShouldMirrorScopesAsync();
     }
 
     [Fact]
@@ -357,6 +363,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         var scope = await verifyDb.ChampionAggregateScopes.SingleAsync();
         scope.EloBracket.Should().Be(EloBracket.Gold);
         scope.Games.Should().Be(2);
+        await PatchStatsShouldMirrorScopesAsync();
     }
 
     [Fact]
@@ -409,6 +416,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         rebuilt.Games.Should().Be(3);
         rebuilt.Wins.Should().Be(2);
         scopes.Single(scope => scope.GameVersion == "16.6").Id.Should().Be(untouchedScopeId);
+        await PatchStatsShouldMirrorScopesAsync();
     }
 
     [Fact]
@@ -446,6 +454,71 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
 
         await using var verifyDb = _fixture.CreateDbContext();
         (await verifyDb.ChampionAggregateScopes.SingleAsync()).Games.Should().Be(2);
+        await PatchStatsShouldMirrorScopesAsync();
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldBackfillTheLightRecordFromExistingScopes_BeforeFoldingIntoIt()
+    {
+        await SeedChampionPatternDataAsync();
+
+        // A frozen patch aggregated before the light record existed: only its scope is left.
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            await new TrueMain.TestKit.EntityBuilders.ChampionAggregateSeeder()
+                .AddPatternDefaults(
+                    _riotAccountId, championId: 22, patch: "16.1", platformId: "KR", queueId: 420,
+                    position: "BOTTOM", summoner1Id: 4, summoner2Id: 7, skillOrderKey: "Q",
+                    buildItems: [6672], bootsItemId: 0, games: 40, wins: 25, DateTime.UtcNow)
+                .SaveAsync(seedDb);
+        }
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await PatchStatsShouldMirrorScopesAsync();
+        await using var verifyDb = _fixture.CreateDbContext();
+        (await verifyDb.ChampionPatchStats.Select(stat => stat.Patch).OrderBy(patch => patch).ToListAsync())
+            .Should().Equal("16.1", "16.5");
+    }
+
+    /// <summary>
+    /// The light per-patch record (#1956) is the scopes summed over the account and the
+    /// platform — after any run, whatever the run replaced.
+    /// </summary>
+    private async Task PatchStatsShouldMirrorScopesAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+        var fromScopes = await db.ChampionAggregateScopes
+            .AsNoTracking()
+            .GroupBy(scope => new { scope.QueueId, scope.GameVersion, scope.ChampionId, scope.Position, scope.EloBracket, scope.IsMain })
+            .Select(group => new
+            {
+                group.Key.QueueId,
+                Patch = group.Key.GameVersion,
+                group.Key.ChampionId,
+                group.Key.Position,
+                group.Key.EloBracket,
+                group.Key.IsMain,
+                Games = group.Sum(scope => scope.Games),
+                Wins = group.Sum(scope => scope.Wins),
+            })
+            .ToListAsync();
+        var record = await db.ChampionPatchStats
+            .AsNoTracking()
+            .Select(stat => new
+            {
+                stat.QueueId,
+                stat.Patch,
+                stat.ChampionId,
+                stat.Position,
+                stat.EloBracket,
+                stat.IsMain,
+                stat.Games,
+                stat.Wins,
+            })
+            .ToListAsync();
+
+        record.Should().BeEquivalentTo(fromScopes);
     }
 
     /// <summary>What <c>MainAnalysisProcess</c> does after flipping the seeded main's row.</summary>

@@ -1,13 +1,10 @@
 <script setup lang="ts">
-import type { CrestBand } from '#common/utils/rank-chart'
-import { scoreTopPx } from '#common/utils/rank-chart'
+import type { CrestBand } from '#common/utils/rank-chart-geometry'
 
-// The LP curve's y-axis: one tier crest per tier in the history, stacked at
-// its score band. The column shares the chart's exact height so the offsets
-// line up with the data range.
+// The LP curve's y-axis: one tier crest per tier band in view, at the middle of
+// the band. The column shares the plot's exact height so the offsets line up.
 defineProps<{
-  bands: readonly CrestBand[]
-  yDomain: [number, number]
+  crests: readonly CrestBand[]
   height: number
 }>()
 </script>
@@ -18,13 +15,14 @@ defineProps<{
     :style="{ height: `${height}px` }"
     aria-hidden="true"
   >
-    <RankIcon
-      v-for="band in bands"
-      :key="band.tier"
-      :tier="band.tier"
-      :size="20"
-      class="absolute left-0 -translate-y-1/2"
-      :style="{ top: `${scoreTopPx(band.score, yDomain, height)}px` }"
-    />
+    <!-- Positioned by a wrapper: RankIcon's own root is `relative`, which outranks an `absolute` passed to it. -->
+    <div
+      v-for="crest in crests"
+      :key="crest.tier"
+      class="absolute left-0 flex -translate-y-1/2"
+      :style="{ top: `${crest.top}px` }"
+    >
+      <RankIcon :tier="crest.tier" :size="20" />
+    </div>
   </div>
 </template>

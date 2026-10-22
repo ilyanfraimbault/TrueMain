@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { useElementSize } from '@vueuse/core'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { positionLabel, type ChampionPosition } from '#common/utils/positions'
+import { ALL_POSITIONS, positionLabel, type ChampionPosition, type PositionFilter } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { formatPointDelta, formatSigned } from '~~/shared/utils/deltas'
-import { formatCount } from '~~/shared/utils/counts'
 import {
   beeswarmRows,
   buildMatchupSpread,
   matchupSpreadPosition,
-  type MatchupSpreadBand,
   type MatchupSpreadPoint,
 } from '~~/shared/utils/matchup-spread'
 
@@ -21,24 +18,30 @@ import {
 // "do I win the lane", which a game won by the jungler does not.
 const props = defineProps<{
   championId: number
-  /** The page's lane; the panel starts there and follows it when it changes. */
-  position: ChampionPosition | null
+  /**
+   * The page's lane; the panel starts there and follows it when it changes. `ALL`
+   * (player scope only) pairs each of the player's games with the opponent of the
+   * position they held in it.
+   */
+  position: PositionFilter | null
   champions: ChampionStaticListItem[]
+  /** When set, the player's own games and their own lanes (the player champion page). */
+  nameTag?: string
   eloBracket?: string
   patch?: string | null
 }>()
 
-const ICON = 36
-const ROW = 40
-const MIN_ROWS = 3
+const ICON = 28
+const ROW = 32
+const MIN_ROWS = 5
 
-const role = ref<ChampionPosition | null>(props.position)
+const role = ref<PositionFilter | null>(props.position)
 watch(() => props.position, (value) => { role.value = value })
 
 const { data, status, error } = useChampionMatchups(
   () => props.championId,
   () => role.value,
-  { eloBracket: () => props.eloBracket, patch: () => props.patch },
+  { nameTag: () => props.nameTag, eloBracket: () => props.eloBracket, patch: () => props.patch },
 )
 
 // `idle` counts as loading: the fetch is client-only, and the server must not
@@ -46,8 +49,15 @@ const { data, status, error } = useChampionMatchups(
 const isLoading = computed(() => isLoadingStatus(status.value) && !data.value)
 
 const championById = useChampionsById(() => props.champions)
-const championName = computed(() => championById.value.get(props.championId)?.name ?? 'This champion')
-const roleName = computed(() => (positionLabel(role.value) ?? 'lane').toLowerCase())
+const isAllPositions = computed(() => role.value === ALL_POSITIONS)
+// The picker speaks `null` for "All positions"; the route speaks `ALL`.
+const pickerRole = computed<ChampionPosition | null>(() =>
+  role.value === ALL_POSITIONS ? null : role.value)
+const emptyDescription = computed(() => {
+  if (isAllPositions.value) return 'No decided lane against any opponent yet.'
+  const roleName = (positionLabel(role.value) ?? 'lane').toLowerCase()
+  return `Not enough decided lanes against any ${roleName} opponent yet.`
+})
 
 const spread = computed(() => buildMatchupSpread(data.value?.matchups ?? []))
 const hasPoints = computed(() => spread.value.points.length > 0)
@@ -76,37 +86,24 @@ const layout = computed(() => {
   }
 })
 
-const RING: Record<MatchupSpreadBand, string> = {
-  favourable: 'ring-data-good',
-  even: 'ring-accented',
-  hard: 'ring-data-bad',
-}
-
-const TONE: Record<MatchupSpreadBand, string> = {
-  favourable: 'text-data-good',
-  even: 'text-default',
-  hard: 'text-muted',
-}
-
 function opponentName(point: MatchupSpreadPoint): string {
   const id = point.entry.opponentChampionId
   return championDisplayName(id, championById.value.get(id) ?? null)
 }
 
+// One player's lanes are a handful per opponent, so their tooltip states the sample
+// the rate rests on; the champion page's aggregate needs no such caveat.
 function describe(point: MatchupSpreadPoint): string {
-  const { entry } = point
-  const parts = [
-    `${formatPercentage(point.laneWinRate, 0)} lanes won (${formatPointDelta(point.delta)})`,
-    `${formatCount(entry.decidedLaneGames)} decided lanes`,
-  ]
-  if (entry.averageGoldDiffAt15 !== null) parts.push(`${formatSigned(entry.averageGoldDiffAt15)} gold at 15`)
-  return `${opponentName(point)} — ${parts.join(' · ')}`
+  const rate = `${opponentName(point)} — ${formatPercentage(point.laneWinRate, 0)} lanes won`
+  if (!props.nameTag) return rate
+  const lanes = point.entry.decidedLaneGames
+  return `${rate} (${lanes} decided ${lanes === 1 ? 'lane' : 'lanes'})`
 }
 
 // Same deep link as the matchup rows: the `/matchup` tool with both champions
 // and the role pinned (#939).
 function matchupToolLink(opponentChampionId: number): string | undefined {
-  if (!role.value) return undefined
+  if (!role.value || isAllPositions.value) return undefined
   const query = new URLSearchParams({
     champion: String(props.championId),
     position: role.value,
@@ -116,124 +113,60 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
 }
 
 const NuxtLinkComponent = resolveComponent('NuxtLink')
-
-const subtitle = computed(() => {
-  if (!hasPoints.value) return undefined
-  const n = spread.value.points.length
-  return `${n} ${n === 1 ? 'opponent' : 'opponents'} · a lane is won when ahead in gold at 15 min`
-})
-
-const extremes = computed(() => [
-  { label: 'Hardest', point: spread.value.hardest },
-  { label: 'Easiest', point: spread.value.easiest },
-])
 </script>
 
 <template>
-  <SectionCard :level="2" title="Matchup spread" :subtitle="subtitle">
+  <SectionCard :level="2" title="Matchups">
     <template #actions>
-      <RolePicker hide-all :position="role" @update:position="value => (role = value)" />
+      <RolePicker
+        :hide-all="!nameTag"
+        :position="pickerRole"
+        @update:position="value => (role = value ?? ALL_POSITIONS)"
+      />
     </template>
 
-    <div class="flex flex-col gap-4">
-      <USkeleton v-if="isLoading" class="h-40 w-full rounded-md" />
+    <USkeleton v-if="isLoading" class="h-40 w-full rounded-md" />
 
-      <FetchErrorAlert v-else-if="error" :error="error" title="Failed to load the matchups" />
+    <FetchErrorAlert v-else-if="error" :error="error" title="Failed to load the matchups" />
 
-      <UEmpty
-        v-else-if="!hasPoints"
-        size="sm"
-        icon="i-lucide-swords"
-        :description="`Not enough decided lanes against any ${roleName} opponent yet.`"
-      />
+    <UEmpty
+      v-else-if="!hasPoints"
+      size="sm"
+      icon="i-lucide-swords"
+      :description="emptyDescription"
+    />
 
-      <template v-else>
-        <div>
-          <div
-            ref="strip"
-            class="relative overflow-hidden rounded-md bg-linear-to-r from-data-bad/15 via-transparent to-data-good/15"
-            :style="{ height: `${layout.height}px` }"
-          >
-            <div class="absolute inset-y-2 left-1/2 w-px bg-accented" aria-hidden="true" />
-            <UTooltip
-              v-for="mark in layout.marks"
-              :key="mark.point.entry.opponentChampionId"
-              :text="describe(mark.point)"
-            >
-              <component
-                :is="matchupToolLink(mark.point.entry.opponentChampionId) ? NuxtLinkComponent : 'div'"
-                :to="matchupToolLink(mark.point.entry.opponentChampionId)"
-                :aria-label="describe(mark.point)"
-                class="absolute rounded-md ring-2 transition-transform hover:z-10 hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                :class="RING[mark.point.band]"
-                :style="{ left: `${mark.left}px`, top: `${mark.top}px`, width: `${ICON}px`, height: `${ICON}px` }"
-              >
-                <SkeletonImage
-                  v-if="championById.get(mark.point.entry.opponentChampionId)?.iconUrl"
-                  :src="championById.get(mark.point.entry.opponentChampionId)!.iconUrl"
-                  :alt="opponentName(mark.point)"
-                  :width="ICON"
-                  :height="ICON"
-                  loading="lazy"
-                  class="size-full rounded-md"
-                />
-                <div v-else class="size-full rounded-md bg-elevated" />
-              </component>
-            </UTooltip>
-          </div>
-          <div class="mt-1.5 flex justify-between text-xs text-muted tabular-nums">
-            <span>Hard {{ formatPointDelta(-spread.halfWidth, { digits: 0 }) }}</span>
-            <span>Even · 50% lanes won</span>
-            <span>Easy {{ formatPointDelta(spread.halfWidth, { digits: 0 }) }}</span>
-          </div>
-        </div>
-
-        <dl class="flex flex-wrap items-end gap-x-8 gap-y-3 border-t border-default pt-3">
-          <div>
-            <dt class="text-xs text-muted">Favourable</dt>
-            <dd class="text-lg font-semibold tabular-nums text-data-good">{{ spread.counts.favourable }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs text-muted">Even</dt>
-            <dd class="text-lg font-semibold tabular-nums text-default">{{ spread.counts.even }}</dd>
-          </div>
-          <div>
-            <dt class="text-xs text-muted">Hard</dt>
-            <dd class="text-lg font-semibold tabular-nums text-muted">{{ spread.counts.hard }}</dd>
-          </div>
-          <div v-if="spread.averageLaneWinRate !== null">
-            <dt class="text-xs text-muted">{{ championName }} lanes won</dt>
-            <dd class="text-lg font-semibold tabular-nums text-default">
-              {{ formatPercentage(spread.averageLaneWinRate, 1) }}
-            </dd>
-          </div>
-          <div v-for="item in extremes" :key="item.label">
-            <template v-if="item.point">
-              <dt class="text-xs text-muted">{{ item.label }}</dt>
-              <dd class="flex items-center gap-2 text-sm">
-                <SkeletonImage
-                  v-if="championById.get(item.point.entry.opponentChampionId)?.iconUrl"
-                  :src="championById.get(item.point.entry.opponentChampionId)!.iconUrl"
-                  :alt="opponentName(item.point)"
-                  width="24"
-                  height="24"
-                  loading="lazy"
-                  class="size-6 rounded"
-                />
-                <span class="text-default">{{ opponentName(item.point) }}</span>
-                <span class="font-medium tabular-nums" :class="TONE[item.point.band]">
-                  {{ formatPointDelta(item.point.delta) }}
-                </span>
-              </dd>
-            </template>
-          </div>
-        </dl>
-
-        <p v-if="spread.unmeasured > 0" class="text-xs text-dimmed">
-          {{ spread.unmeasured }} more {{ spread.unmeasured === 1 ? 'opponent has' : 'opponents have' }}
-          too few decided lanes to place.
-        </p>
-      </template>
+    <div
+      v-else
+      ref="strip"
+      class="relative overflow-hidden rounded-md bg-linear-to-r from-data-bad/15 via-transparent to-data-good/15"
+      :style="{ height: `${layout.height}px` }"
+    >
+      <div class="absolute inset-y-2 left-1/2 w-px bg-accented" aria-hidden="true" />
+      <UTooltip
+        v-for="mark in layout.marks"
+        :key="mark.point.entry.opponentChampionId"
+        :text="describe(mark.point)"
+      >
+        <component
+          :is="matchupToolLink(mark.point.entry.opponentChampionId) ? NuxtLinkComponent : 'div'"
+          :to="matchupToolLink(mark.point.entry.opponentChampionId)"
+          :aria-label="describe(mark.point)"
+          class="absolute rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          :style="{ left: `${mark.left}px`, top: `${mark.top}px`, width: `${ICON}px`, height: `${ICON}px` }"
+        >
+          <SkeletonImage
+            v-if="championById.get(mark.point.entry.opponentChampionId)?.iconUrl"
+            :src="championById.get(mark.point.entry.opponentChampionId)!.iconUrl"
+            :alt="opponentName(mark.point)"
+            :width="ICON"
+            :height="ICON"
+            loading="lazy"
+            class="size-full rounded"
+          />
+          <div v-else class="size-full rounded bg-elevated" />
+        </component>
+      </UTooltip>
     </div>
   </SectionCard>
 </template>

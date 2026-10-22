@@ -16,9 +16,9 @@ two environments and the migration path in detail.
 | `deploy-preprod.yml` | push to `develop`, manual | Preflight → version → publish images → roll out → tag |
 | `deploy-prod.yml` | GitHub Release published | Preflight → publish images → roll out → verify the edge, and serve a held desktop app build the release catches up with |
 | `build-images.yml` | called by both deploys | Builds and pushes the four images with the requested tags |
-| `rollout.yml` | called by both deploys | Applies migrations over SSH, then redeploys the Docker Manager project |
+| `rollout.yml` | called by both deploys | Applies migrations over SSH, pre-pulls the images over SSH where enabled, then redeploys the Docker Manager project |
 | `loadtest-preprod.yml` | manual | k6 load test against preprod from a GitHub runner; summary on the job page (`docs/load-testing.md`) |
-| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/common/` or `web/shared/` | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; lint, typecheck, unit tests and static build of its Nuxt app (below) |
+| `desktop.yml` | PRs and `develop`/`master` pushes touching `desktop/`, `web/layers/common/` or `web/shared/`, each job on its own paths | fmt, clippy and tests of the desktop app's Rust crates; the macOS capture spike built and published as an artifact; the Windows capture helper built and smoke-tested on a Windows runner; the overlay smoke-tested on a Windows desktop; lint, typecheck, unit tests and static build of its Nuxt app (below) |
 | `desktop-release.yml` | `develop` pushes touching `desktop/`, `web/layers/common/` or `web/shared/` (Markdown aside), or manual | Builds the desktop app for macOS and Windows: a preprod build every time, a production build on a version bump, served by production once it runs what the build reads (below) |
 | `desktop-promote.yml` | manual, with a version | Serves a desktop production build on truemain.lol by hand — a rollback, or a held build (below) |
 
@@ -45,10 +45,13 @@ which downstream jobs are worth a runner:
 
 | Output | Paths | Gates |
 | ------ | ----- | ----- |
-| `backend` | `backend/**`, `global.json` | backend build + unit + integration tests, API and Ingestor image builds |
+| `backend` | `backend/**`, `global.json`, `web/shared/fixtures/performance-score-vectors.json` | backend build + unit + integration tests — the vectors are linked into the unit tests, which pin the C# score to the desktop app's port (#2075) |
 | `data` | `backend/Data/**` | `migrate-fresh` |
-| `web` | `web/**` | the site's frontend job, its image build |
-| `admin` | `admin/**`, and from the site `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's frontend job, its image build |
+| `web` | `web/**` | the site's frontend job |
+| `admin` | `admin/**`, and from the site `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's frontend job |
+| `backend_image` | `backend/*/Dockerfile`, `backend/.dockerignore`, `backend/Directory.*.props`, `backend/**/*.csproj` | API and Ingestor image builds |
+| `web_image` | `web/Dockerfile`, `web/.dockerignore`, `web/package.json`, `web/package-lock.json`, `web/**/nuxt.config.ts` | the site's image build |
+| `admin_image` | `admin/Dockerfile`, `admin/.dockerignore`, `admin/package.json`, `admin/package-lock.json`, `admin/nuxt.config.ts`, and from the site `web/.dockerignore`, `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's image build |
 | `compose` | `compose*.yaml`, `.env*.example` | compose config validation |
 | `scripts` | `.github/scripts/**`, `.github/file-size-baseline.txt`, `compose.preprod.yaml`, `compose.prod.yaml` | deploy-script tests, file sizes |
 | `ci` | `ci.yml`, `.github/actions/**` | everything |
@@ -173,6 +176,16 @@ lock file that installs in the frontend job can still fail inside the image
 (#1236). Layer caches are scoped per image (`type=gha,scope=<image>`) and
 shared with the deploy builds.
 
+On a PR an image only builds when its packaging changes (the `*_image` filters
+above, #2218): the Dockerfile and `.dockerignore`, the dependency manifests and
+lock files, the .NET project files, and `nuxt.config.ts`, which holds the trace
+rule the web image asserts below and the font providers. Every other change is
+code the `backend` and `frontend` jobs already compile; building it again in an
+image proved nothing they had not. The admin image also rebuilds on the site
+paths its second context copies, since an import there reaching outside them
+only fails inside the image. The `develop` push builds all four before preprod
+deploys them, so a break the filter misses stops there, never at a release.
+
 The admin image is the one built from two contexts. Its own is `./admin`; the
 server layer it extends (`web/layers/nitro`, #1625) lives in the site's tree,
 so `admin/Dockerfile` copies that layer, the site's `shared/` it imports and
@@ -262,7 +275,7 @@ every run.
 
 The same job then checks the one setting the env file can silently turn
 against the compose file: `INGESTOR_JOB_MODE`. Both deployed compose files run
-the ingestor as two lanes, `ingestor` on `${INGESTOR_JOB_MODE:-FetchLane}` and
+the ingestor as two lanes, `ingestor` on `${INGESTOR_JOB_MODE:-FetchWorkers}` and
 `ingestor-aggregate` on `AggregateLane`, and the env file wins over that
 default. Release `1.20.5` deployed green with a leftover `full` from a key
 freeze: `ingestor` kept running the whole pipeline next to the new aggregate
@@ -283,7 +296,9 @@ file Docker Manager will.
 
 `rollout.yml` runs `migrate` then `deploy`; the deploy depends on the
 migration succeeding, so a failed script blocks the image roll
-(`docs/production-migrations.md`). The migration script is printed to the log
+(`docs/production-migrations.md`). Where it is enabled, the deploy job's first
+step pulls the images on the host before Docker Manager is asked for anything
+(*Pre-pull before recreate*). The migration script is printed to the log
 and uploaded as an artifact with 90-day retention, the only place the SQL is
 visible before it applies.
 
@@ -332,6 +347,100 @@ deployed gets its `-rc.N` tag (`tag` runs last). A group holds one running and
 one pending run, and queuing a third cancels the pending one: that is why the
 preprod load test keeps a group of its own (*Load test*).
 
+### Pre-pull before recreate
+
+Docker Manager **recreates before it pulls**: every container of the project
+is stopped and removed, then the images are pulled, then the stack starts. A
+pull that fails in between leaves every container `Created` and never started,
+so a registry error is not a skipped deploy but an outage that lasts until
+someone runs `docker compose up -d` by hand. Preprod was down twenty minutes
+that way, behind a green pipeline, on a GHCR `denied` (#1089).
+
+So the deploy job opens with `Pre-pull the images over SSH`: it asks the host
+to pull the four application images at `IMAGE_TAG` (api, web, admin and the
+ingestor both lanes run) and fails the run if the host cannot, before Docker
+Manager is called, while the previous containers still serve.
+`.github/scripts/prepull-images.sh` sends `pull <tag>` over the same CI key as
+the migration, with the migration's bounded retry on connection failures only
+(ssh exit 255: four attempts, 15, 30 then 60 seconds apart, 30-second
+`ConnectTimeout`, *Migration over SSH*). A pull that ran and failed is
+reported at once and not retried: nothing was touched, and re-running the
+failed jobs is the retry. The step has its own ten-minute timeout, which is
+why the deploy job's is 35.
+
+What it buys is bounded by `pull_policy: always` on the application services:
+Docker Manager still asks the registry once it has removed the containers.
+After a pre-pull every layer is already local, so that second pull is a
+manifest check per image instead of the whole download, and a tag the
+registry refuses or does not have never reaches the recreate at all.
+`.github/scripts/prepull-images.test.sh` pins the client with an `ssh` stub
+and runs in the `deploy-scripts` CI job.
+
+#### The CI key's forced command
+
+The CI key is pinned in each host's `authorized_keys` to a forced command, so a
+leaked key can never get a shell. Until #1089 that command was the migration
+alone and any remote command was discarded. It is now
+`.github/scripts/vps/ci-ssh-command.sh`, which reads the request sshd puts in
+`SSH_ORIGINAL_COMMAND` and accepts exactly two:
+
+- **No command, or `migrate`**: `exec`s the host's existing migration command
+  (default `/usr/local/bin/apply-migration.sh`) with the client's stdin, so
+  the `migrate` job, which sends no command and pipes SQL, runs exactly what it
+  ran before.
+- **`pull <tag>`**, the tag a 7 to 40 character lowercase git sha or a semver
+  (`1.22.0`, `1.23.0-rc.4`): runs `docker compose pull api web admin ingestor`
+  in the project directory with `IMAGE_TAG` set to the tag in an otherwise
+  empty environment (`HOME` and `PATH` aside), then prints
+  `ci-ssh-command: pulled <tag>`.
+
+Anything else, a moving tag such as `latest` included, is refused with exit
+64 and runs nothing. The tag is matched whole against the regex before it is
+used, the request is never evaluated by a shell, and the project directory and
+migration command are fixed in `authorized_keys`, never read from the client.
+`ci-ssh-command.test.sh`, next to it, pins the accepted and refused requests
+with `docker` and migration stubs and runs in the `deploy-scripts` CI job.
+
+The client requires the success line, not just exit 0: a host still on the
+previous forced command runs the migration with an empty stdin, which applies
+nothing and can exit 0. Without the line that would read as a pull; with it, the
+run fails and names the missing install.
+
+**Installing it** is a host write, done by the owner on each VPS, once per
+change to the script. `<project-dir>` is the environment's Docker Manager
+project directory (the one holding its `docker-compose.yml` and `.env`,
+`docs/preprod.md` and `docs/prod.md` say which), and `<ci-public-key>` the
+public half of the environment's `*_SSH_KEY`:
+
+```bash
+# 1. Copy the script from the commit you are installing, root-owned, not writable by others.
+install -o root -g root -m 755 ci-ssh-command.sh /usr/local/bin/ci-ssh-command.sh
+
+# 2. Check both requests by hand before switching the key over.
+SSH_ORIGINAL_COMMAND='pull <a-deployed-tag>' /usr/local/bin/ci-ssh-command.sh <project-dir>
+SSH_ORIGINAL_COMMAND='ls' /usr/local/bin/ci-ssh-command.sh <project-dir>; echo "exit $?"   # refused, exit 64
+
+# 3. In root's ~/.ssh/authorized_keys, on the CI key's line only, replace
+#      command="/usr/local/bin/apply-migration.sh"
+#    with
+#      command="/usr/local/bin/ci-ssh-command.sh <project-dir>"
+#    and keep the no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding options.
+```
+
+The existing migration script stays where it is: the new command delegates to
+it. Rolling back is restoring the old `command=` value. The next deploy's
+`migrate` job is the end-to-end check of the migration path; the pre-pull is
+only exercised once it is enabled.
+
+**Enabling the step**: it runs only when the repository variable
+`PREPROD_PREPULL_IMAGES` (preprod) or `PROD_PREPULL_IMAGES` (prod) is `true`,
+passed to `rollout.yml` as its `prepull` input. Unset, the step is skipped and
+the rollout behaves as before, which is what lets this ship ahead of the host
+install. Install the script on a host, then set that environment's variable
+under *Settings → Secrets and variables → Actions → Variables*; the next deploy
+of that environment pre-pulls. Turning the variable off is the rollback that
+needs no host access.
+
 ### Verifying the rollout reached the VPS
 
 `hostinger/deploy-on-vps` does not upload the compose file. It hands Docker
@@ -352,11 +461,11 @@ green.
 
 **The migration's SSH channel cannot be reused for this.** The CI key is
 pinned to a forced command in the host's `authorized_keys`
-(`command="…",no-pty`), so it may run the migration and nothing else: any
-remote command the workflow passes is discarded and the forced one runs in its
-place. That is the right shape for a CI credential and it is deliberately left
-alone, but it means the deploy job's evidence has to come from somewhere the
-key does not gate. The Hostinger API is that place, it needs no new secret,
+(`command="…",no-pty`), so it may run the migration and, since #1089, an image
+pull, and nothing else (*The CI key's forced command*): a `docker ps` is
+refused. That is the right shape for a CI credential and it is deliberately
+kept narrow, so the deploy job's evidence has to come from somewhere the key
+does not gate. The Hostinger API is that place, it needs no new secret,
 and it reports the live container list rather than what the compose file
 intends.
 
@@ -390,11 +499,14 @@ the `PROD_ENV_FILE` / `PREPROD_ENV_FILE` secret plus `IMAGE_TAG` and
 `APP_VERSION`. Nothing else in the repository reaches the host: not a sibling
 file a compose file would bind-mount with a relative path, not a script, not a
 config. The `migrate` job writes nothing either, it pipes SQL into a fixed
-command on the host.
+command on the host, and the pre-pull only adds images to the host's image
+store. The CI key's forced command (*Pre-pull before recreate*) is the one
+repository file on the host, installed by hand rather than by the deploy.
 
 So **every piece of configuration a deployed stack needs lives inside its
-compose file**: the edge Caddyfile of both stacks
-(`configs.edge_caddyfile`), preprod's Umami proxy and Umami's replay cleanup
+compose file**: the edge Caddyfile and maintenance page of both edges
+(`configs.edge_caddyfile` and `configs.maintenance_page` in
+`compose.*.edge.yaml`), preprod's Umami proxy and Umami's replay cleanup
 script are top-level `configs:` with inline `content`. A relative bind mount
 in `compose.prod.yaml` or `compose.preprod.yaml` is a file someone has to copy
 by hand, and it drifts silently: prod's edge ran a hand-copied `Caddyfile`
@@ -414,13 +526,45 @@ JSON route (`/api/static/versions`, large enough for Caddy to compress). It
 fails the run unless both answer 200 with a `Content-Encoding` of `zstd` or
 `gzip`, and the page carries `Strict-Transport-Security` and
 `Content-Security-Policy` — the directives that were shipped and silently
-absent (#1598). It polls for five minutes, because Caddy is recreated with the
-stack and may still be starting when the rollout check passes.
+absent (#1598). It runs after the `edge-rollout` job and polls for five
+minutes, because a release that changes the edge recreates Caddy, which may
+still be starting when that job's check passes.
 
 It only runs on prod: preprod's origins are operator values kept out of the
 repository, and its edge is plain HTTP without HSTS or CSP by design
 (`docs/preprod.md`). `.github/scripts/verify-edge.test.sh` pins the checks
 against fixed headers and runs in the `deploy-scripts` CI job.
+
+### The edge is its own project
+
+Docker Manager recreates every container of a project on each deploy — the
+databases and the edge Caddy included, whatever changed. With Caddy in the app
+stack, every release left the public site answering nothing for 40 to 60 seconds,
+and nothing in the stack could serve a maintenance page while the stack itself
+was down (#2179).
+
+So each environment runs **two Docker Manager projects**: the app stack
+(`truemain` from `compose.prod.yaml`, `truemain-preprod` from
+`compose.preprod.yaml`) and its edge (`truemain-edge` from
+`compose.prod.edge.yaml`, `truemain-preprod-edge` from
+`compose.preprod.edge.yaml`), Caddy alone. The app stack owns a dedicated
+network (`truemain_edge` / `truemain_preprod_edge`) that web, admin and (prod)
+Umami join; the edge joins it as `external`, so it reaches the services it
+proxies and nothing else. That ownership sets the order: the app rolls first and
+never depends on the edge; the edge needs the network the app created.
+
+The reusable `edge-rollout.yml` runs after `rollout.yml` in both deploy
+workflows. Redeploying the edge recreates Caddy, so it only happens when it
+changes something: `edge-drift.sh` asks the Docker Manager API for the project
+list and the compose file the edge project holds, and deploys when the project
+is missing, when a container of it is not running, or when the file differs
+from the repository's at the deployed commit — never because the API failed to
+answer. `verify-edge-running.sh` then polls until every edge container runs:
+the edge builds no image of ours, so `verify-rollout.sh` has nothing to assert
+on it. Both scripts are pinned by `*.test.sh` in the `deploy-scripts` job.
+
+The maintenance page is duplicated in the two edge files, because each deploy
+reads one file; the `compose-config` job fails when the two copies differ.
 
 ### Preprod versioning
 
@@ -504,6 +648,17 @@ log before the upload, and a step that runs even when the test was cut short
 (`-RedactOnly`) does it again. The runner has no GPU, so Windows draws no rounded
 corners. The screenshots, a JSON per step and the app's log
 are uploaded as an artifact.
+
+A `changes` job gates each of these jobs on what it compiles (#2218), as in
+`ci.yml`: the `Rust crates` job on the workspace manifests, `desktop/crates/`
+and `desktop/capture/windows/`; the Windows shell job on those and
+`desktop/src-tauri/`; the macOS spike on those and `desktop/capture/macos/`;
+the Windows overlay on the shell's paths and `desktop/app/`, its smoke script
+and the fixtures it replays; the `Nuxt app` job on `desktop/app/` and the
+site's two shared paths. A change to the site's shared layer therefore runs the
+`Nuxt app` job alone: the Windows and macOS jobs build Rust, which it never
+reaches. A change to `desktop.yml`, a push and a draft marked ready behave as
+in `ci.yml`.
 
 ## Desktop releases
 
@@ -683,13 +838,14 @@ the production app every version production has caught up with.
 
 ## Claude review
 
-`claude-review.yml` posts inline comments prefixed `BLOCKING:` or `NIT:` and
-always ends with one formal review: approve when nothing is blocking, request
-changes otherwise. It reviews along two axes kept apart in its body, so one
+`claude-review.yml` posts blocking points only (#2218): a clean PR gets a bare
+approval with no body and no inline comment; otherwise each point is an inline
+comment prefixed `BLOCKING:` and the review requests changes. Suggestions, nits
+and code smells are never posted, so a review that says anything is one to act
+on. It reviews along two axes kept apart in its body, so one
 cannot mask the other: **Spec** (does the diff do what the linked issue's
 `Scope`/`Acceptance` ask, read with `gh issue view`; the PR body when there is
-no issue) and **Standards** (the repository's written rules). Code smells
-from a fixed list (Fowler's) are only ever `NIT:` suggestions. The prompt defines blocking narrowly (bugs, security, data
+no issue) and **Standards** (the repository's written rules). The prompt defines blocking narrowly (bugs, security, data
 loss, regressions, missing tests, project rules CI cannot catch) and forbids
 flagging versions or APIs from memory, because the repository regularly runs
 tooling newer than the model's training data. Dependabot is in `allowed_bots`
@@ -719,13 +875,27 @@ build costs runner minutes, not wall time, since it runs beside CI.
   push that brought it, and the gate cannot be tuned, so it would only ever
   restate the coverage of code merged before the gate existed (#2061) — each
   with a notice instead of a red check. It filters inside the workflow, not
-  with `on: paths`, so the required check below exists on every PR.
+  with `on: paths`, so the required check below exists on every PR. It also
+  plans what the analysis needs (#2218): the frontend coverage of the apps the
+  PR touches (`web` on `web/**`, `admin` on its own tree and the site paths it
+  extends, the desktop app on `desktop/app/**`), and the backend test suites
+  only when the backend changed (`ci.yml`'s `backend` paths). A PR analysis
+  rates new code only, so an area the PR leaves alone needs no coverage report.
+  Pushes to `develop` and a change to `sonar.yml` plan everything. The build
+  itself always runs: the .NET scanner reads the TypeScript and Vue code
+  through it, so skipping it would mean a second scanner and a different set
+  of analysed files from one PR to the next.
 - `frontend-coverage` runs each app's vitest suite with v8 coverage (lcov) and
   rewrites the app-relative `SF:` paths to repo-relative ones. It installs with
   `--ignore-scripts` and runs only the apps' own `postinstall` (`nuxt prepare`),
   so no dependency's lifecycle script runs in a job that sits next to the token. The desktop app's
   run only covers its own tree; the shared layer's coverage comes from `web`.
-- `analysis` wraps the Release build and both test suites between
+  `analysis` downloads the reports by pattern: `download-artifact` puts each
+  one in a folder named after its artifact, except when a single one matches
+  (a PR touching one app), which it unpacks straight into the target folder —
+  so the scanner is given both `lcov/lcov.info` and the per-app paths, and
+  ignores whichever do not exist.
+- `analysis` wraps the Release build and, when planned, both test suites between
   `dotnet-sonarscanner begin` and `end`. Coverage comes from
   `Microsoft.Testing.Extensions.CodeCoverage` (`dotnet test --coverage`, XML
   format): `dotnet-coverage collect` cannot instrument the Microsoft Testing
@@ -738,6 +908,16 @@ build costs runner minutes, not wall time, since it runs beside CI.
   never ship, their tests run under `claude plugin test` (bun, outside CI), and
   their `tsconfig.json` extends a file the Claude Code engine generates on load
   — analysed, they read as uncovered new code and fail the gate (#2068).
+- `Download the lcov reports` downloads by pattern, and `download-artifact`
+  puts a lone match straight into `path` instead of a directory named after
+  it: a PR touching one frontend (the usual case since #2218) left its report
+  where the scanner does not look, and its new code read as 0 % covered
+  (#2226). The next step moves a lone `lcov.info` into its artifact's
+  directory, so the scanner's three fixed paths hold whatever the plan ran.
+- `backend/Tools/**` is analysed but out of the coverage measure
+  (`sonar.coverage.exclusions`): the offline back-tests run by hand on CSV
+  exports of preprod, never under a test runner, so their new lines could only
+  ever count as uncovered (#2226).
 
 The quality gate **blocks the merge** (#2052). On a PR, `analysis` passes
 `sonar.qualitygate.wait=true`, so its `end` step fails when the gate is red, and
@@ -880,11 +1060,12 @@ leaves a misleading version on the page (#1637).
   connection string is sized to that share: the per-service budget, which
   adds up to `max_user_connections`, is in `docs/prod.md` (*Connection pools*,
   #1632), with the other values.
-- Both deployed stacks put Caddy in front of web and admin with its
-  Caddyfile inline under `configs.edge_caddyfile`, because the deploy ships
-  the compose file alone (*What the deploy writes on the VPS*; prod in
-  `docs/prod.md`, #1598; preprod's plain-HTTP edge in `docs/preprod.md`,
-  #1558). The preprod one requires `PREPROD_SITE_URL` and
+- Both deployed environments put Caddy in front of web and admin, in an edge
+  project of its own (`compose.*.edge.yaml`, *The edge is its own project*,
+  #2179) with its Caddyfile inline under `configs.edge_caddyfile`, because the
+  deploy ships the compose file alone (*What the deploy writes on the VPS*; prod
+  in `docs/prod.md`, #1598; preprod's plain-HTTP edge in `docs/preprod.md`,
+  #1558). The preprod stack requires `PREPROD_SITE_URL` and
   `PREPROD_ADMIN_URL`, which is why the compose-config job sets both.
 - Both deployed stacks publish the API's port on the loopback interface only
   (`127.0.0.1:8080:8080` on prod, `127.0.0.1:8081:8080` on preprod). Nothing

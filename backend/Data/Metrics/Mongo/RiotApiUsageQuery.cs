@@ -327,50 +327,6 @@ public sealed class RiotApiUsageQuery(MongoLogContext context) : IRiotApiUsageQu
             doc.RateLimitType);
     }
 
-    public async Task<RiotApiSaturationInputs> GetSaturationInputsAsync(CancellationToken ct)
-    {
-        if (!context.IsActive)
-        {
-            return new RiotApiSaturationInputs(0, null, null);
-        }
-
-        var since = DateTime.UtcNow.AddDays(-7);
-        var filter = Filter.Gte(doc => doc.BucketStartUtc, since);
-
-        var group = new BsonDocument
-        {
-            { "_id", BsonNull.Value },
-            { "totalCalls", new BsonDocument("$sum", "$count") },
-            { "earliestBucketUtc", new BsonDocument("$min", "$bucketStartUtc") }
-        };
-
-        var totalsTask = context.RiotApiCallRollups
-            .Aggregate()
-            .Match(filter)
-            .Group<BsonDocument>(group)
-            .FirstOrDefaultAsync(ct);
-        // Reuses the app-wide "freshest rollup with headers" lookup, scoped to the
-        // same 7-day window rather than the caller's selected UI window: the
-        // saturation estimate must see the same limits regardless of what the
-        // operator happens to be filtering the page to.
-        var rateLimitTask = LatestRateLimitAsync(filter, ct);
-
-        await Task.WhenAll(totalsTask, rateLimitTask);
-
-        var totals = await totalsTask;
-        var rateLimit = await rateLimitTask;
-
-        if (totals is null)
-        {
-            return new RiotApiSaturationInputs(0, null, rateLimit);
-        }
-
-        return new RiotApiSaturationInputs(
-            totals["totalCalls"].ToInt64(),
-            totals["earliestBucketUtc"].ToUniversalTime(),
-            rateLimit);
-    }
-
     /// <summary>
     /// The lower time bound and display bin of <paramref name="window"/>. Shared with
     /// <see cref="RiotQuotaQuery"/> so both panels read exactly the same span.

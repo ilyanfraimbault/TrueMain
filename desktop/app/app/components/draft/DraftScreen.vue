@@ -25,7 +25,12 @@ const { turnLabel } = provideChampSelectActions(draft)
 const { myPool, hasPool, lanePool, candidates } = useDraftCandidates(draft)
 
 const pinnedLanes = ref<Record<number, string>>({})
-const { recommendation, pending: ranking, error: rankError } = useDraftRecommendation(draft, pinnedLanes, candidates)
+// The player's record (standing, latest games) feeds the bracket and the comfort lines; held
+// for the session, read again only when stale.
+const { refresh: readRecord } = usePlayerRecord()
+onMounted(() => void readRecord())
+const eloBracket = useDraftEloBracket()
+const { recommendation, pending: ranking, error: rankError } = useDraftRecommendation(draft, pinnedLanes, candidates, eloBracket)
 
 /**
  * Bans are the question on our ban turn, and in the planning phase once the
@@ -36,7 +41,7 @@ const banTime = computed(() => {
   if (action?.kind === 'ban' && action.inProgress) return true
   return props.draft.timerPhase === 'PLANNING' && props.draft.myChampion !== null && !props.draft.myChampionLocked
 })
-const { bans, pending: banPending, error: banError } = useDraftBans(draft, lanePool, banTime)
+const { bans, pending: banPending, error: banError } = useDraftBans(draft, lanePool, banTime, eloBracket)
 
 const pickSuggestions = computed<DraftSuggestionItem[]>(() => (recommendation.value?.candidates ?? []).map(candidate => ({
   championId: candidate.championId,
@@ -64,6 +69,16 @@ const viewed = ref<ViewedPick | null>(null)
 const previewed = ref<number | null>(null)
 const { subject, shownView, duel } = useDraftSubject(draft, enemyLanes, viewed, previewed)
 const { build, pending: buildPending, error: buildError } = useDraftBuild(subject)
+
+// ─── The player's own kits (#2185, #2205) ───────────────────────────────────
+
+/** Our pick and lane, while our own build is the one on screen. */
+const ownPick = computed(() => {
+  const current = subject.value
+  if (!current || shownView.value !== null || current.championId !== props.draft.myChampion) return null
+  return { championId: current.championId, position: current.request.position }
+})
+const { kits, kitId, pickKit } = useDraftKits(ownPick)
 
 /** A click reads that champion's build; a second click on it goes back. */
 function view(team: 'ally' | 'enemy', championId: number) {
@@ -191,15 +206,23 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
 
       <BuildView
         v-else-if="subject"
+        :kit-id="kitId"
         :champion-id="subject.championId"
         :position="subject.request.position"
         :draft="{ build, pending: buildPending, error: buildError, opponentId: duel.opponentId, label: 'This draft', request: subject.request }"
+        :kits="kits"
+        @update:kit-id="pickKit"
       >
         <template #advice>
           <DraftItemAdvice :subject="subject" />
         </template>
         <template #header>
-          <DraftBuildHeader :champion-id="subject.championId" :position="subject.request.position" :can-go-back="canGoBack" @back="back" />
+          <DraftBuildHeader
+            :champion-id="subject.championId"
+            :position="subject.request.position"
+            :can-go-back="canGoBack"
+            @back="back"
+          />
         </template>
       </BuildView>
 

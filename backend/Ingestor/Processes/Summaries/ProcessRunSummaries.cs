@@ -1,3 +1,5 @@
+using Ingestor.Processes.Components.ItemContextAggregation;
+
 namespace Ingestor.Processes.Summaries;
 
 // Persisted shapes — DO NOT rename a property without a migration plan.
@@ -259,6 +261,16 @@ public sealed record OpponentAggregationSummary(
     int BaselineRows) : IProcessRunSummary;
 
 /// <summary>
+/// Champion scaling aggregation outcome (#1368): matches and batches, the cohort members
+/// folded, and the (champion, lane, patch, band, bucket) rows they touched.
+/// </summary>
+public sealed record ScalingAggregationSummary(
+    int Matches,
+    int Batches,
+    int Participants,
+    int Rows) : IProcessRunSummary;
+
+/// <summary>
 /// Champion ban aggregation outcome (#920). <see cref="ScopeRows"/> counts the
 /// (patch, elo band) denominators touched and <see cref="BanRows"/> the champion
 /// counts, so a run whose matches all folded into the ALL band alone — every
@@ -284,14 +296,16 @@ public sealed record ChampionProfileAggregationSummary(
 /// <summary>
 /// Outcome of one <c>ChampionItemContextAggregationProcess</c> run (#1450): matches
 /// flagged, participants whose build was folded, champion slices touched, and verdicts
-/// rebuilt from them.
+/// rebuilt from them — plus where the run's decisions sat on each in-game axis of what the
+/// enemies had built (#1750), the measurement those axes' bands are calibrated from.
 /// </summary>
 public sealed record ChampionItemContextAggregationSummary(
     int Matches,
     int Batches,
     int Participants,
     int Scopes,
-    int Verdicts) : IProcessRunSummary;
+    int Verdicts,
+    IReadOnlyDictionary<string, BuiltAxisQuantiles>? BuiltAxes = null) : IProcessRunSummary;
 
 /// <summary>
 /// Daily storage snapshot outcome (#925). <see cref="Written"/> is 0 rather than
@@ -329,9 +343,9 @@ public sealed record CandidateStockSnapshotSummary(
 
 /// <summary>
 /// Champion game count refresh outcome (#2132). <see cref="Slices"/> is the
-/// <c>(queue, patch, platform)</c> slices recomputed from the raw rows,
-/// <see cref="SlicesRemoved"/> the ones dropped because no stored match belongs to them
-/// any more, <see cref="Rows"/> the rollup rows written and <see cref="Games"/> their sum —
+/// <c>(queue, patch, platform)</c> slices the recomputed rollup holds,
+/// <see cref="SlicesRemoved"/> the ones the previous rollup held that no stored match
+/// belongs to any more, <see cref="Rows"/> the rollup rows written and <see cref="Games"/> their sum —
 /// the stored participant count the operator champion stats now read.
 /// </summary>
 public sealed record ChampionGameCountRefreshSummary(
@@ -378,7 +392,4 @@ public sealed record MatchDataRetentionSummary(
     // Pair rows and the baselines they are read against, summed (#922) — they are
     // deleted together in one transaction, so one counter describes both.
     int DeletedSynergyStats,
-    // Ban counts and the match totals they are divided by, summed (#920) — deleted
-    // together in one transaction, so one counter describes both.
-    int DeletedBanStats,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;

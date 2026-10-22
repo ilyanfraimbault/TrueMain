@@ -111,6 +111,7 @@ public sealed class LadderSyncProcess(
         if (apexDue)
         {
             await SyncApexTiersAsync(platforms, apexTiers, buffer, stats, ct);
+            await ApexCutoffs.EstimateHistoryAsync(sessionFactory, logger, apexTiers, nowUtc, ct);
         }
 
         await SweepDivisionsAsync(platforms, slots, budget, buffer, stats, ct);
@@ -177,6 +178,7 @@ public sealed class LadderSyncProcess(
                         buffer.Add(platformString, entry.Puuid!, resolvedTier, entry.Rank!, entry.LeaguePoints, entry.Wins, entry.Losses);
                     }
 
+                    await ApexCutoffs.RecordAsync(sessionFactory, platformString, tier, league, timeProvider.GetUtcNow().UtcDateTime, ct);
                     await buffer.FlushIfFullAsync(this, stats, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)

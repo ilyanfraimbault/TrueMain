@@ -1,3 +1,4 @@
+import type { Chord, ChordView } from '~/types/overlay'
 import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 
 /**
@@ -8,6 +9,8 @@ import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 export type RecordingResolution = 'native' | '1440p' | '1080p' | '720p'
 export type RecordingFrameRate = 30 | 60
 export type RecordingQueues = 'ranked' | 'all'
+/** The lengths a mark's clip can keep, in seconds (`MarkLength`, `crates/game-recording/src/marks.rs`). */
+export type MarkLength = 30 | 60 | 120
 
 /** What the player chooses. `folder: null` = the default folder. */
 export interface RecordingSettings {
@@ -16,7 +19,21 @@ export interface RecordingSettings {
   quality: { resolution: RecordingResolution, frameRate: RecordingFrameRate }
   budgetBytes: number
   folder: string | null
+  /** The chord that marks a moment while a game records (#2079); `null` = marking off. */
+  markKey: Chord | null
+  /** How much of the game before a press its clip keeps, in seconds (#1767). */
+  markLength: MarkLength
+  /** The plays cut as clips of their own once a game is finalised (#1766); empty = automatic clips off. */
+  autoClips: AutoClipKind[]
 }
+
+/**
+ * A play the shell can clip automatically (`AutoClipKind`,
+ * `crates/game-recording/src/auto_clips.rs`): a triple kill or more, an epic
+ * monster the player's side stole, an ace the player was in, first blood the
+ * player drew, a teamfight they took part in, a multi-kill then an objective.
+ */
+export type AutoClipKind = 'multiKill' | 'steal' | 'ace' | 'firstBlood' | 'teamfight' | 'combo'
 
 export interface RecordingSettingsView {
   settings: RecordingSettings
@@ -25,6 +42,8 @@ export interface RecordingSettingsView {
   minBudgetBytes: number
   /** Estimated size of an hour at each preset, for a 16:9 window at least that tall. `null` for native. */
   estimates: { resolution: RecordingResolution, frameRate: RecordingFrameRate, bytesPerHour: number | null }[]
+  /** The mark key as the player presses it, and what it also does in game; `null` when marking is off. */
+  markKey: ChordView | null
 }
 
 /**
@@ -49,6 +68,8 @@ export interface RecordingStatus {
 export type MomentKind =
   | 'kill' | 'death' | 'assist'
   | 'dragon' | 'elder' | 'baron' | 'herald' | 'grubs' | 'atakhan' | 'tower' | 'inhibitor'
+  /** The player pressed the mark key: its clip is the `windowMs` before. */
+  | 'marked'
 
 /** One moment on a video's timeline, already mapped onto the video. */
 export interface Moment {
@@ -59,9 +80,23 @@ export interface Moment {
   endVideoMs: number
   /** Kills in a row (1–5) for a kill, 0 otherwise. */
   kills: number
-  /** Objectives only: whether the player's team took it. `null` for kills, deaths, assists. */
+  /** Objectives only: whether the player's team took it. `null` for kills, deaths, assists and marks. */
   ally: boolean | null
+  /**
+   * Who landed the kill, for a death or an assist — a participant id (1–10),
+   * `null` for the player's own kills, an execution and objectives. Moments
+   * kept by an older build, or read from the live feed, have no ids.
+   */
+  killerId: number | null
+  /** Who died: every victim of a multi-kill, the one of an assist; empty for a death. */
+  victimIds: number[]
+  /** An elemental drake's element; `null` for anything else, and for drakes an older build kept. */
+  dragon: DragonKind | null
+  /** A marked moment's clip length before the press (#1767); absent for every other moment, and for marks an older build kept (30 s). */
+  windowMs?: number
 }
+
+export type DragonKind = 'infernal' | 'mountain' | 'ocean' | 'cloud' | 'hextech' | 'chemtech'
 
 /** One full game on disk. */
 export interface GameRecording {
@@ -137,6 +172,8 @@ export interface Clip {
   youtubeUrl: string | null
   /** False once a published clip's file was deleted to free space: it plays from YouTube (#2005). */
   videoOnDisk: boolean
+  /** The plays an automatic clip holds (#1766); empty for a clip the player cut or marked. */
+  automatic: AutoClipKind[]
 }
 
 export interface RecordingLibrary {

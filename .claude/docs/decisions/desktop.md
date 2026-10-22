@@ -52,7 +52,16 @@ order — each candidate's score depends on it alone, so the merge is exact. The
 (lane first, blind safety before the enemy shows our lane opponent — #1906); the enemy-team component is #1713
 (2026-09-27) — #1675. Player comfort (mastery, the player's recent games on the champion) decides the pool and is
 shown as a reason; it never enters the score or breaks ties — no composite player score, #1671/#1683 (2026-10-05)
-— #1906.
+— #1906. The reason is a line on the card's hover counted from the last 20 non-remake games of the client's history
+("Your Ahri: 12 of your last 20 games, 7 wins", `utils/draft-comfort.ts`, 2026-10-21).
+
+**The draft asks for the player's tier and above (2026-10-21).** Both draft requests carry `eloBracket` =
+`<TIER>_PLUS` from the player's Solo/Duo standing as this machine last saw it (the rank history the overlay's pace
+panel reads), bare `CHALLENGER` at the top, and nothing — every bracket — when no tier is known. Not the tier alone:
+most of what is folded is high-elo, so one low tier would shrink every delta to nothing; not every bracket either,
+which answers a Gold player with Iron games. "And above" keeps the sample of the tiers they will meet and play
+against as they climb. The lane prior and the team composition ignore it (pooled on purpose). `useDraftEloBracket`,
+`utils/draft-elo.ts` — #1906.
 
 **A suggestion card leads with its strongest reason, never with the score.** The score is a ranking key built from
 shrunk deltas and weights; printed as "+2.1%" it reads as a chance to win, which the draft never shows. The card's
@@ -185,8 +194,8 @@ components.** The dashboard is for whoever installed the app, and TrueMain only 
 profile endpoints would leave most players with an empty page until #1682 settles an intake. The client already knows
 every player: the shell reads the ranked standing, the profile background skin and the latest 20 games from the LCU
 on demand (a Tauri command, not the pushed state — the record only moves when a game ends), each game's full
-scoreboard once per launch (kill participation, damage share, both teams), and a game's timeline when its row is
-opened (`player_game`), all cached by game.
+scoreboard once per launch (kill participation, damage share, both teams) and, since #2075, its timeline with it (the
+performance score's marks; a remake's is not read), all cached by game.
 
 **Installing the app never feeds the ingestion pipeline (2026-10-06).** The intake #1682 was waiting on is not built:
 the dashboard (profile, history, form tiles, LP curve) and the draft's "My pool" (the client's champion mastery) are
@@ -221,11 +230,25 @@ The client keeps no LP history, so the app notes the Solo/Duo standing on this m
 moved, 90 days deep; the curve and each game's LP gain come from those snapshots — the last before the game against
 the last after it and before the next Solo/Duo game, null across a promotion or with a side missing — and start empty
 on a fresh install rather than being estimated. The detail's laning @15 and first-to-level-2 are read from the
-timeline by the site's rules (the frame at 15:00 against the opposing lane; the second skill point). TrueMain's
-performance score and a participant's rank are not in the client's data and are not shown. The form tiles are the last
+timeline by the site's rules (the frame at 15:00 against the opposing lane; the second skill point). A participant's
+rank is not in the client's data and is not shown. (The performance score is now shown — #2075, below.) The form tiles are the last
 five games against the whole sample, in the ranked card's delta idiom (a trend arrow on the data axis, no sign); a
 flat move or a too-short sample shows no delta. No composite player score. Remakes are kept out of the list and of
 every average. The patch's best picks by lane stay as the no-client state (2026-09-30) — #1683.
+
+**The dashboard's games carry the site's performance score, MVP and ACE, graded on the client when TrueMain does not
+hold the game (2026-10-20, reverses the "no score" half of #1683).** #1683 held that the score was not in the client's
+data; it is — the score is a pure function of each player's scoreboard line and their leads over the lane opponent at
+the canonical marks, and the client serves both. The shell reads each listed game's timeline with its scoreboard (a
+remake's is not read) and reduces it to every player's gold, CS and XP at 5/10/15/20/30 by the ingestor's frame rule
+(nearest frame within 30 s, `lcu::marks`); the app grades the ten with a TypeScript port of the model
+(`utils/performance-score.ts`, `utils/match-performance.ts`) rather than a public scoring endpoint: no game data leaves
+the machine, it works offline and on every game the client lists. One model, two runtimes, held together by shared
+vectors (`web/shared/fixtures/performance-score-vectors.json`) that the C# and the app's suites both run — the model
+changes on both sides or fails on one. A row prefers TrueMain's stored score when TrueMain holds the game (one read of
+the player's latest 50 per session; a 404 for an untracked player grades everything locally), and the opened game's
+scoreboard is graded the same way, so the row and its detail always agree. A game without its scoreboard and a remake
+carry no score. Still no composite *player* score: this is the per-game score the site prints — #2075.
 
 **The app's lists are tables with fixed columns under headers; the tier list is the site's.** (The champions, truemains, favorites and matchup pages have since become the site's own, shared through the layer — #1732; a link to a page only the site has, such as a player's profile, opens it in the browser.) The truemains
 leaderboard drawn with the site's `LeaderboardRow` did not line up at the app's width — the row sizes its columns with
@@ -254,10 +277,10 @@ those figures for a picture of the app; it carries no TrueMain statistic (2026-1
 
 **`/download` follows a game moment by moment, with the app's UI drawn live in HTML (2026-10-16).** Competitor
 desktop pages show the product moving; ours described one moment with a still, while the app had grown an overlay,
-recordings and goals. The page keeps the #1725 capture of champion select under the hero and the left-aligned,
+recordings and goals (since removed, #2074). The page keeps the #1725 capture of champion select under the hero and the left-aligned,
 card-free typography, then one section per moment — champion select, in game, recordings — each
 with a scene redrawn from the app's components in HTML/CSS (`web/app/components/desktop/landing/`): the ranked
-picks and the hover beat (the rune import was cut from the scene: off-topic at that step, the product owner's call), the four overlay panels arriving at their default anchors as the steps scroll
+picks and the hover beat (the rune import was cut from the scene: off-topic at that step, the product owner's call), the five overlay panels (the objectives strip since #2193) arriving at their default anchors as the steps scroll
 by, the recap with a clip cut and saved. Every drawn value is the app's own overlay-preview
 sample (`utils/desktop-landing-sample.ts`, the shape of `overlay-sample.ts`; the win probability runs the shared model
 on it) or a sample, and the ranked picks carry no figure, for the same reason the podium is never captured.
@@ -405,6 +428,56 @@ only over `/` or `/game` — the pages the game's own navigation would have take
 they opened by hand, the game page's rule. The Recordings page follows DPM's layout (the product owner's reference) in
 the site's materials; its settings are the short list of #1744 — no OBS (2026-10-01) — #1755, #1777.
 
+**A mark key keeps the 30 seconds before a press as a clip, cut as soon as the game ends (2026-10-20; the length
+became a setting with #1767).** The product
+owner's pick from the Invade benchmark: a moment the timeline cannot flag — an outplay, a funny moment — had to be found
+again by scrubbing the full game. A chord, ⌥⇧0 / Alt+Shift+0 by default (the overlay's Alt+Shift and digit family, at the
+far end of the digits it suggests for its panels — counted up from 1, one per panel —, on no default League bind), set in the recording settings, marks the moment
+while a game records.
+- **Read like the overlay's chords**, by the same key watch: the keyboard's state, only while League is frontmost and a
+  game records — no hook, no hotkey, no Input Monitoring. The game gets the keys too, so the setting warns against the
+  player's League binds; a panel's chord, a reserved one or a system one is refused, and the overlay refuses a panel
+  the mark key's chord in turn.
+- **The video's own clock**, read from the capture at the press, so a mark needs no game-clock anchor; written to
+  `recording.json` at once (a crash keeps it), a press within a second of the last being the same one.
+- **A saved clip, not a kept game.** Once the video is closed each mark is cut into a clip of the 30 seconds before it,
+  titled with the game clock at the press: the player chose it, like a clip cut by hand, so the budget never deletes it
+  — keeping the whole game for it would spend a full game's disk on 30 seconds. The recap shows the mark with the
+  automatic moments and lets the player move the clip's ends; saving an adjusted range replaces the clip, keeping its
+  favourite (never one published on YouTube, whose link is the old cut's).
+- **Instant replay is this key (2026-10-21, #1767).** No second shortcut: the mark key keeps the 30 s, the minute or
+  the two minutes before a press — a setting beside the key, kept on each mark as it is pressed — and the overlay says
+  so over the game ("Last 1 min saved") in a window of its own, shown 2.5 s a fifth of the way down the game's screen,
+  over the game only, gone with the overlay's hide shortcut but not with the panels' switch (it answers a key the
+  player pressed). The clip is titled with the champion the game's player list names and the game clock ("Ahri at
+  12:34", "Marked at 12:34" without the champion), and is still cut once the game ends, from the full recording. The
+  rolling buffer that would record *without* keeping the full game (OBS's replay buffer) stays deferred: undecided
+  until recording's cost in game is measured. No usage counter yet — the desktop telemetry catalogue is the API's
+  (#1952) — #2079, #1767.
+
+**Automatic clips cut the plays the player picks once a game is finalised, titled only from what the events show
+(2026-10-21).** The product owner's reference is DPM's "Recording & clips": the plays worth keeping cut out on their
+own, listed beside the full games. Deferred on 2026-10-05 until the manual clips proved used, then put on Sprint 9 by
+the product owner — #1766.
+- **Six kinds, all on by default, each a setting**: a multi-kill from a triple (doubles come too often), a multi-kill
+  (from a double) followed within 45 s by an objective the player's side took — not a tower ("Triple kill into
+  Baron") —, an epic monster the player's side stole, an ace by the player's side with a kill or assist of the player
+  in the 30 s before, first blood the player drew, and a teamfight — four champions or more down, each kill within 15 s
+  of the last, the player killing, dying or assisting in it ("Teamfight 3/0/1"). None picked turns it off.
+- **Sources**: the timeline for the player's kills, the objectives and the teamfights; the live feed's own `Stolen`,
+  `Ace` and `FirstBlood` for steals, aces and first blood, which the timeline does not mark, sided with the game's
+  player list (`/liveclientdata/playerlist`) — a play whose side the names do not tell is left out, never guessed.
+  The player's champion in a title ("Pentakill on Ahri") is the one the player list names.
+- **Windows**: 10 s before a play (20 s for a steal and an ace) to 5 s after, placed through the anchor; overlapping
+  windows are one clip named after its most telling play (a combo, a steal, a multi-kill, an ace, a teamfight, first
+  blood); a kind turned off neither clips nor names. The thumbnail is taken at that play.
+- **Saved clips like the others**: cut without re-encoding by the helper once the game is finalised, outliving the
+  full game, never deleted by the budget (they still count in it). A clip adjusted in the recap becomes a clip of the
+  player's own.
+- **Not titled from the screen.** "Flash charm", "Insec", "Wind wall the ult" would need reading the video or the
+  game's memory (Riot policy, Vanguard): out of scope. The steals, aces and teamfights are not drawn on the recap's
+  timeline yet — #1766.
+
 **A clip is published on YouTube through YouTube's own upload page, never its Data API (2026-10-12).** The product
 owner's call: the app opens `youtube.com/upload` in the player's browser, drags the clip's file onto it from the app
 and hands over a prepared title, description and tags; the player gives the video's link back and the clip keeps it.
@@ -458,6 +531,31 @@ past that step without boots has them as its next step, and they take the panel'
 what the row exists to say. Not backfilled — re-arming the fold would re-count every other slot — so it fills from the
 matches folded after the change and the next patch has it whole (2026-10-19) — #2101.
 
+**In game, the next item reads what the enemies have built (2026-10-21).** The app sends each enemy's inventory with
+the request (`enemies[].items`, the live game's slots); the API keeps the completed items through the fold's own
+catalogue and places the game on the in-game axes (#1750) with the fold's own evaluator, so a bucket here means what it
+meant in the counters. Champion select sends no inventory, and none is not an empty one: the draft advice gets no
+in-game axis, and `isDraftReason` refuses them besides. The live reading is the board as it stands now, not at the
+instant the branch opened: the panel is asked again on every purchase of anyone, so it starts at that instant and then
+follows the enemies as they build. When one of those axes is the strongest reason, it reads in the app's own words, as
+a game state — "once the enemies have built armor" (`utils/built-reasons.ts`) — because the site words none of them
+(product decision, 2026-10-05) — #1750.
+
+**The next item's components come in the order the mains buy them, and the gold walks that order (2026-10-21).**
+The recipe sorted cheapest first was not how players buy: a main going for Archangel's Staff buys the Tear, then Lost
+Chapter, and a back with 800 gold has a right purchase the panel did not say. The item-context fold now also counts,
+per (champion, position, patch, item), the rank at which each recipe slot was first bought before the item completed
+(`champion_item_component_orders`), the timeline replayed as an inventory: a purchase goes to the item that consumed
+it, a sub-component bought towards an intermediate of the recipe starts that intermediate, a component never bought on
+its own ranks after the ones that were, an undo is honoured, and a game that bought the item outright counts nothing.
+Intermediates get their own order the same way. The read orders the slots by mean rank (ties to the one bought first
+more often, then the recipe), reaching back up to two patches until an item holds 20 games; under that, the recipe's
+order, marked unmeasured. On the panel the gold in hand covers the components **in that order** and stops at the first
+it cannot pay for — never the cheapest first — "≈" when the 50-gold step straddles the sum; an intermediate is one tile,
+opened into its parts when some are held or when the gold stops inside it and its first parts are buyable now. The
+overlay panel shows it too and is labelled "Build path" (its settings key stays `nextItem`). Not backfilled, like the
+boots step: it fills from the matches folded after the change — #2183.
+
 **Every app version is built twice, once per site, and each site serves only its own build (2026-10-01).** The product
 owner's call: the app downloaded from preprod is a test build and must read preprod — API, the pages it opens in the
 browser, its update feed — and the one downloaded from truemain.lol must read production. A build is tied to its site
@@ -502,19 +600,45 @@ process is frontmost, so it never covers the client or another app (the product 
 and ignores the mouse in game: the game keeps every click and key, and the overlay is read at a glance, not used. Its
 shortcut and TAB are read from the keyboard's state, because over a captured display no hotkey reaches the app — which
 also settles #1752's macOS question: TAB is detected without an event tap, so without the Input Monitoring permission.
-The overlay is four independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
+The overlay is five independent panels, each its own window placed on its own (#1671's choice over one HUD), on by
 default and set up on its own Overlay page since #1819 (2026-10-03; the game page's slideover before) — each on/off and
 where, by dragging it on a copy of the screen, taking it off with its ×, and dragging it back from a column of the
 hidden panels, or by dragging it in an on-screen preview, the only time the panels take the mouse — plus size and
 opacity for all. Five fixed spots stay each panel's default place, no longer a picker:
 
-- **Next item**: **one item** — the next one, and the gold still to earn for it or that it can be bought now — and
-  nothing else: no components (which one to buy first is not measured yet, so the overlay does not pretend to know),
-  no runners-up, no boots; the game page keeps the full panel, from the same `useNextItemPanel`. Whole game or only
-  while dead.
+- **Build path** (the next-item panel, renamed 2026-10-21, #2183): **one item** — the next one, and the gold still
+  to earn for it or that it can be bought now — its components in the order the mains buy them, owned / buy now /
+  later, and the build row; no runners-up, no boots column; the game page keeps the full panel, from the same
+  `useNextItemPanel`. Whole game or only while dead. (Until #2183 it showed no components: which one to buy first was
+  not measured.)
 - **Every panel waits for the game to start**: the Live Client API answers on the loading screen already, with the
   ten players and a zero clock; a reading counts as a game only once its feed holds `GameStart` (2026-10-04).
 - **Win probability**: on screen the whole game, two percentages and a bar in the sides' colours, no labels.
+- **Objectives** (#2078, 2026-10-20; one strip since #2184, 2026-10-20): when the dragon pit (a drake, or the Elder
+  once a side holds the soul), the Voidgrubs, the Rift Herald and Baron are next up — icons only, the game's minimap
+  ones; no names, no "Up", no counts like "2–1", no soul badge (each read as noise, the product owner's calls). **One
+  compact strip, not a row per objective** (#2184: four rows took a lot of height for four numbers; the competitor's
+  single strip was the benchmark, our look kept): a glass pill each, side by side, the icon and an `m:ss` countdown —
+  rose-gold within a minute — or, once it stands, the icon lit (a rose-gold glow and ring) with a green dot. A pill
+  that does not matter yet stays in grey with its countdown, so the strip keeps its landmarks: the Herald while the
+  grubs are still to come or stand, Baron while the Herald is (19:45 at the latest) — the camp the top side holds
+  before it, rather than a fixed clock. A camp taken for good or gone from the map leaves the strip. Every pill is as
+  wide as the widest countdown, and the soul race's line is drawn from 0:00, so nothing in a game changes the strip's
+  height (a ticking countdown or a camp leaving moves nothing vertically). Under the pills, **the soul race**: blue
+  side's drakes on the left, red side's on the right, ringed in their side's colour, meeting at the pit's next drake
+  once one has fallen (two hairlines in the sides' colours before). The pit's icon is its next drake's element from the Rift's terrain
+  (`gameData.mapTerrain`, which turns after the second drake, the element of every drake after); the API names neither of the first two before they fall, so those read "Drake" with the plain icon rather than a guess.
+  The strip's default spot is **top centre** (a timer strip, under the game's own objective announcements), the
+  item value's former one: **the item value moved to centre right**, beside the TAB scoreboard rather than over its
+  top. A settings file from before the objectives keeps the item value where it put it, and the objectives then take
+  the spot no panel holds (`OverlaySettings::with_new_panels_placed`).
+  Only the game clock, the terrain and the kills the event feed announces to every player, against the
+  season's spawn rules held in one table in the shell (`live_client::timers::RIFT`, V26: Atakhan removed, Baron back at
+  20:00, grubs and Herald once a game); nothing read from memory or the screen, no jungle camp, no summoner spell, no
+  enemy cooldown — nothing about an enemy the player could not see. The shell sends spawn *times*, which move only when
+  an objective falls; the panel counts down on its own clock. Swiftplay, ARAM and every other mode get no timers rather
+  than the Rift's wrong ones. Whether the countdowns match the game's own timers to the second (the grubs' and the
+  Herald's despawn is ten seconds later in combat; the Elder's 6:00 after the soul) is only proven in a real game.
 - **Your pace**: CS per minute with its curve (from minute 3, so the minion-less start does not read as a climb), and
   gold per minute, from one sample per whole minute the feed keeps (`live_client::pace`) — a change a minute, not one
   per poll. Gold earned is not in the API: it is read as the inventory's cost plus the gold in hand. **Damage per
@@ -545,11 +669,36 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
   player while sending their names and puuids, which made the whole board anonymous (#1812's first cut); a player
   listed without `gameName`/`tagLine` has their name read by puuid (`/lol-summoner/v2/summoners/puuid/{puuid}`, #1869).
 - **Item value**: only while TAB is held — each team's item gold, a chevron toward the side ahead with the gap, then
-  each lane's — in its own panel rather than pinned to Riot's scoreboard rows, which move with resolution and HUD scale.
-  Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's rule).
+  each lane's. Item gold is the full Data Dragon price of each held item, consumables and trinkets left out (#1752's
+  rule). The lanes were kept off Riot's scoreboard rows at first, "which move with resolution and HUD scale"; #2186
+  reversed that (below): with the lane-gold plates on, the panel keeps only the team totals.
 
 No interactive mode in game: nothing on the panels needs a click. macOS only until a Windows pass is measured
 (2026-10-02) — #1673, #1795, #1752.
+
+**Each lane's gold gap sits on the game's own scoreboard rows, placed from the HUD settings (2026-10-21).** Reverses
+#1752's "in its own panel rather than pinned to Riot's rows": the product owner found the second table beside the
+game's one too many, and a competitor shows the rows are reachable — the TAB scoreboard is drawn at a fixed place for a
+window size and a HUD scale, its rows in a known player order. A sixth panel, **lane gold** (#2186): a see-through,
+click-through window as tall as the scoreboard's five rows, down its middle, one small plate per row with the gap
+between that row's two players and a chevron toward the side ahead (ours blue, theirs red).
+- **Placed, never dragged.** The shell computes the window from the game's window frame (the monitor when it fills
+  it) and the client's `HUD.GlobalScale` (`/lol-game-settings/v1/game-settings`, read at game start; Riot's defaults
+  without a client). The player only has a vertical **nudge** (±60 px of a 1080p screen) for a setup the measure
+  misses. The geometry (`shell_state::scoreboard`, mirrored in `utils/scoreboard-geometry.ts`, same test values) is
+  sized by the window's height against 1080p, by its width below 16:9: centred across, five rows growing upwards from
+  a fixed bottom edge as the HUD scale grows. Its constants come from one real 1920 × 1080 TAB screenshot whose HUD
+  scale (~0.3) is read off its ability bar, and the ability bar's growth between League's HUD 0 and 100 (×1.52): to
+  be confirmed in real games at several HUD scales, which is why the nudge exists.
+- **Rows ↔ players**: blue side (ORDER) on the left, red (CHAOS) on the right whichever side we are on, each team in
+  lane order (TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY from the Live Client's `position`), the API's order in a queue
+  without lanes. "Mirror scoreboard layout" only turns the left team's rows to read inwards (Riot's description, the
+  2015 PBE screenshots): the teams keep their sides, so the plates do not move or flip with it. Rows a player swapped
+  by hand on the scoreboard are not followed.
+- **The window is transparent**, unlike every other panel's card: macOS needs Tauri's `macOSPrivateApi` for a
+  transparent webview — the app ships outside the Mac App Store, the only place that refuses it.
+- **TAB held is shared** by the two scoreboard panels; the item value keeps its team totals and drops its lane rows
+  while the plates are on. A settings file from before (v3) gets the plates only if its item value was on (v4).
 
 **On Windows the overlay is the same panels in topmost, non-activating layered windows, over Borderless only
 (2026-10-02).** The panels, their rule and their placement are the macOS ones: one driver (`overlay/panels.rs`) sizes,
@@ -579,7 +728,8 @@ held with TAB, the others always — so a settings file from before (v2) migrate
   cannot swallow it and does not try; it **warns** instead, naming what the key does in game, from the player's own
   League keybindings (`/lol-game-settings/v1/input-settings`) or Riot's defaults without a client — a warning, never
   a refusal.
-- **Refused**, with the reason shown: modifiers alone, TAB alone (except the item value's held default), Esc and Enter
+- **Refused**, with the reason shown: modifiers alone, TAB alone (except held, by the scoreboard's two panels — the
+  item value and the lane gold, the only chord two panels may share), Esc and Enter
   (menu, chat), the hide shortcut, the system's chords (⌘/Win, Alt+Tab, Alt+F4) and a chord another panel has. The
   rule is `shell-state`'s and is applied again to every file and save: a refused trigger falls back to the panel's default.
 - **Suggested** when a panel is first put on a chord: Alt+Shift and a digit per panel, away from Riot's default binds
@@ -633,9 +783,11 @@ it among ten; the list beside them keys it with a primary bar only — no ring, 
 from the client's timeline (2026-10-19).** The same reduced timeline as the curve (`lcu::win_probability`) carries each
 player's gold and experience a minute; the site never has them (it keeps timelines at a few marks, #772), so the
 panel is the app's only, and it renders only when the timeline carries gold — never an empty panel. Under the curves,
-the team lead as a band drawn with the win probability's own band; the objectives on the time axis from the timeline's
-events; a list per side whose rows pin a line. Modelled on a competing companion's Gold tab (benchmark 2026-10-18) —
-#2102.
+the team lead as a band drawn with the win probability's own band; the kills and objectives on the time axis from the
+timeline's events, as the recap's timeline draws them (2026-10-20): a dot an event, blue above the line for our side, red
+below for the enemy's, merged when closer than a dot's width at the rendered size, a tooltip listing a dot's kills
+(killer → victims' portraits) and objectives (minimap icons) — the glyph row overlapped at busy moments; a list per side
+whose rows pin a line. Modelled on a competing companion's Gold tab (benchmark 2026-10-18) — #2102, #2171.
 
 **The app measures its own use: counters under an anonymous install id, folded per install and day; downloads are
 counted by the site's redirect (2026-10-02).** The site's Umami cannot see the app — a static bundle in a webview with a
@@ -703,24 +855,11 @@ nothing; the list is read again after, and a player set missing from it is repor
 block is the slice's `Situational` verdicts (item context, #1450) by pick rate, else the build tree's other branches
 along the core path — never padded. The skill order is not written into a block title — #1908.
 
-**Measurable goals live on this machine, are measured from the client's games, and take their suggested targets from
-the player's own average (2026-10-05).** A goal is a target on one of the dashboard's eight metrics over the player's
-next N games — the metric's own ratio of sums over them (`average`), or the threshold met in K of them (`eachGame`) —
-optionally on one queue, champion and lane. It is kept in `localStorage` per Riot ID, like the LP history, and read
-against the games `usePlayerRecord` lists, so it moves after each game and counts the ones played while the app was
-closed; nothing about it is sent, the same rule as #1805. Only games started after it was set count, remakes and games
-the metric cannot read (an unread scoreboard for KP or damage share) are skipped and extend the run. Each counted game
-is frozen into the goal with the parts of its ratio, so a goal stays decided once its games leave the client's bounded
-history, and older pages are read only while a run needs them. A verdict reads the value at the precision the player
-sees (6.96 CS/min shows 7.0 and meets 7). Suggestions take the tiles where recent form is furthest below the player's
-own average and set the target at that average — a figure measured from their games, never a "players at your rank"
-benchmark we do not have (#1912 may add the tier's median later); none below the sample the tiles need for a delta,
-no CS/min for a mostly-support player, vision first for one. Guardrails: at most 3 active goals and 3 suggestions, a
-plain sentence (no badges), no toast — the outcome waits on the post-game dashboard — and nothing in the in-game
-overlay, which would be a separate decision under Riot's decision-support rule. The issue's open questions, settled:
-5 games by default (the tiles' recent window); "All" queues allowed but never the default nor suggested, since it
-mixes ARAM with the Rift; no per-champion default for a one-trick, the player picks the champion when they want one.
-No usage counter was added for goals — #1913.
+**The dashboard has no goals (2026-10-20).** Measurable goals (#1913: local targets on the dashboard's metrics over
+the next N games, suggested at the player's own average) shipped on 2026-10-05 and were removed on the product owner's
+call while reviewing the dashboard against a competitor's — they did not want them. The card, its editor, `useGoals`,
+`utils/goals.ts` and `utils/goal-store.ts` went with it; goals already kept in a player's `localStorage` are left
+there, unread — #1913, #2074.
 
 **The dashboard's Today card counts the day from local midnight and sums only the LP it measured (2026-10-16).** A
 compact summary of the session — games, W–L, time played, net LP — under the ranked card, prompted by a benchmark of a
@@ -734,13 +873,16 @@ grid's day view already counts the day's games; the card adds the LP and the tim
 #2073.
 
 **The dashboard's latest clips are a small fixed grid of four that opens the Recordings page's own player
-(2026-10-18).** The same benchmark showed highlights one click from the competitor's home, while a clip saved yesterday
-was two clicks and a filter away on `/recordings`. The product owner wanted it small — at most a quarter of the page —
-so it is a card in the dashboard's right column, under the Today card: four thumbnails two by two, the most recently
-saved first. With fewer than four clips the free cells stay as empty slots of a clip's height, so the card never
-changes shape as clips come and go. A clip opens the clip player the Recordings page opens (no second player), "See
-all" lands on the page's Clips filter; the card reads the same library command and is absent when the shell records
-nothing or no clip exists — #2077.
+(2026-10-18, moved 2026-10-20).** The same benchmark showed highlights one click from the competitor's home, while a
+clip saved yesterday was two clicks and a filter away on `/recordings`. The product owner wanted it small — at most a
+quarter of the page: four thumbnails, the most recently saved first. It first sat in the right column under the Today
+card, two by two; #2074 moved it under the match history, four in a row, because the right column ran far longer than
+the history and the page read lopsided. With fewer than four clips the free cells stay as empty slots of a clip's
+height, so the card never changes shape as clips come and go. A clip opens the clip player the Recordings page opens
+(no second player), "See all" lands on the page's Clips filter; the card reads the same library command and is absent
+when the shell records nothing or no clip exists. A recorded game's row opens its recap from a play button, the icon
+alone, in a slot of the same width on every row, so a recorded row's teams and build do not sit left of the others'
+— #2077, #2074.
 
 **The app's footprint is measured, never estimated (2026-10-05).** Resource use is among the most common complaints
 about League companions, so the product owner asked for a lighter app during a game and for its real memory on
@@ -769,6 +911,17 @@ invisible to the Live Client API), so the gold arrow leans low, never high; the 
 click-through panel has no tooltip. Iron → Platinum, which TrueMain does not ingest, come from the capped `PaceSampling`
 process (see `pipeline-riot-budget.md`) — #1912.
 
+**The dashboard's form tiles carry the median of the player's Solo/Duo tier on their main role, beside the own-average
+move (2026-10-20).** From the competitor benchmark (#2076): the tiles said "better than your average" and nothing about
+"good at my rank". The reference is the player's **own** tier, not the tier above — the overlay's pace rule (#1912), and
+"players of the next tier" would read as a target, which is advice. The main role is the lane most of the games on screen
+were played on (the tiles average every lane, the reference names one, in its tooltip); the tier comes from the
+client's Solo/Duo standing and is picked on the machine from every tier the API answers, so nothing is sent (#1805).
+No standing, no main role, a tier under the sample floor or the benchmark unreachable → the tile shows the player's own
+form alone. The figure sits on the tile's label row with the tier's emblem, in the muted text colour — a reference, so
+no good/bad colour; the tooltip names the tier, the lane and the games it was read from. Site profiles show no
+reference: the tier there would be TrueMain's reading of someone else's rank, and the issue scoped the dashboard — #2076.
+
 **The app hovers, locks and bans in champion select — on the player's click only (2026-10-05).** The product owner
 asked for picking and banning without switching to the client. Riot allows decision support, not decision-making, and
 forbids an application acting on the player's behalf, so every write is a click: no code path writes on a timer, a
@@ -784,3 +937,30 @@ intent on our future pick action (unverified on a live client at the time of wri
 hovered champion when the timer runs out is the client's rule; the app says so and never acts at expiry. Summoner
 spells, skins, swaps and trades are not written. Nothing about the enemy that champion select hides is read for
 this — #1909.
+
+**A player keeps their own builds as kits: an item tree, a rune page and two spells per champion and position, used
+in champion select and the overlay (2026-10-21).** Benchmarked on a competitor's "My builds" (a flat item route per
+role); ours is a loadout — the item path *and* the rune page *and* the spells — and the path is a tree like our
+champion build tree, so one kit covers the branch a main actually plays ("into tanks / into mages"). A path holds at
+most six items with the boots, no item twice on a path, a keystone of the primary tree, two different spells; the
+first child of a node is the default. Kits live on the player's machine only, in the shell's own versioned file
+(`shell_state::kits`), read leniently so one broken kit never costs the others; sharing is a follow-up. A new kit
+starts from TrueMain's build on the lane so the player swaps rather than fills. One kit per champion and position
+is active: in champion select it takes the build pane (the header names it and switches back to TrueMain's build),
+and the existing click-only imports write it — the same one `TrueMain: ` item set (Starter, Boots, then one block
+per path) and the same TrueMain rune page, so the ownership rules of #1678 and #1908 hold unchanged. **This revises
+#1678 and #1909's "summoner spells are not written"** for a kit only: the spells are the player's own choice, set on
+a click through `PATCH /lol-champ-select/v1/session/my-selection` after the session is read, never on a pick, a lock
+or a timer; a build's spells are still not imported. In game the next item follows the kit's branch the held items
+took (the earliest completed when two were, the first child where it splits), then its boots, with no share, reason
+or runner-up — those are the mains' figures — and falls back to the mains' answer, said as such, once the kit has
+nothing left — #2185. The boots are a list to pick between, the first the default, still one slot of a full build;
+any of them held counts as the boots done; the tree takes legendaries only, components being a build's steps, not
+its choices — #2201. The picker groups legendaries by the in-game shop's classes, read from the game data (the
+`mItemAttributes` bits — no other source carries them) by the API once per patch and served small, never by the app:
+the dump is ~16 MB — #2203. A kit is offered on one or several positions (`positions`, a kit saved on one position reads
+as that one), listed on each of their champion pages; the My kits page lists them all and makes new ones for any champion.
+**This revises #2185's one active kit per champion and position, which took champion select's build pane:** there is
+no switch any more — every kit on the pick's lane is offered in champion select as rows of the build pane's list,
+beside the draft's build (still the default, answering the matchup) and the favourite truemains' builds; the kit
+picked there is the one the next item follows in game — #2205.

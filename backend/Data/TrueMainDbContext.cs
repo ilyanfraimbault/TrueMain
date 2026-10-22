@@ -41,11 +41,20 @@ public class TrueMainDbContext : DbContext
     public DbSet<ChampionOpponentStat> ChampionOpponentStats => Set<ChampionOpponentStat>();
     public DbSet<ChampionOpponentBaselineStat> ChampionOpponentBaselineStats => Set<ChampionOpponentBaselineStat>();
 
+    // Win rate by game length for the champion page's scaling panel (#1368), populated by
+    // ChampionScalingAggregationProcess over the same cohort as the matchup rows.
+    public DbSet<ChampionScalingStat> ChampionScalingStats => Set<ChampionScalingStat>();
+
     // Champion ban counts and the match totals they are divided by (#920), both
     // populated by ChampionBanAggregationProcess in one fold so a ban rate is
     // always numerator and denominator over the same cohort of matches.
     public DbSet<ChampionBanStat> ChampionBanStats => Set<ChampionBanStat>();
     public DbSet<BanScopeTotal> BanScopeTotals => Set<BanScopeTotal>();
+
+    // The light per-patch record (#1956): champion_aggregate_scopes summed per (queue, patch,
+    // champion, position, bracket, population), folded by the pattern aggregation in the
+    // transaction that replaces the scopes. Outlives them: retention never deletes it.
+    public DbSet<ChampionPatchStat> ChampionPatchStats => Set<ChampionPatchStat>();
 
     // Measured champion profiles (#1449): per (champion, position, patch) sums of what
     // the champion did in its games — damage split, sustain, CC, damage taken, lane
@@ -78,10 +87,19 @@ public class TrueMainDbContext : DbContext
     // verdicts, read by the desktop app's in-game panel through POST champions/{id}/next-item.
     public DbSet<ChampionNextItemTerm> ChampionNextItemTerms => Set<ChampionNextItemTerm>();
 
+    // The order the mains buy each item's components in (#2183), folded in the same pass and
+    // served on each next-item candidate as its build path.
+    public DbSet<ChampionItemComponentOrder> ChampionItemComponentOrders => Set<ChampionItemComponentOrder>();
+
     // The desktop overlay's pace benchmark (#1912): per-minute CS and gold-earned
     // histograms per (patch, tier, position), folded from each timeline in memory at
     // ingestion by TimelineIngestionService — never a per-minute participant grid.
     public DbSet<PaceBenchmarkStat> PaceBenchmarkStats => Set<PaceBenchmarkStat>();
+
+    // The desktop dashboard's form benchmark (#2076): end-of-game KDA, kill participation,
+    // CS/min, deaths and vision/min histograms per (patch, tier, position), folded with the
+    // pace benchmark from the same games.
+    public DbSet<FormBenchmarkStat> FormBenchmarkStats => Set<FormBenchmarkStat>();
 
     // The low-tier pace sampler's ledger (#1912): matches it folded without storing them.
     public DbSet<PaceSampledMatch> PaceSampledMatches => Set<PaceSampledMatch>();
@@ -105,6 +123,8 @@ public class TrueMainDbContext : DbContext
     public DbSet<DiscoveryCursor> DiscoveryCursors => Set<DiscoveryCursor>();
 
     public DbSet<LadderSyncCursor> LadderSyncCursors => Set<LadderSyncCursor>();
+
+    public DbSet<ApexCutoffSnapshot> ApexCutoffSnapshots => Set<ApexCutoffSnapshot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

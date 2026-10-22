@@ -5,13 +5,15 @@ use std::path::PathBuf;
 
 use game_recording::anchor::Segment;
 use game_recording::{
-    ClipStore, FrameRate, Moment, ParticipantChampion, Quality, RecordedWinProbability,
-    RecordingSettings, RecordingStatus, Resolution, StoredClip, StoredRecording,
+    AutoClipKind, ClipStore, FrameRate, Moment, ParticipantChampion, Quality,
+    RecordedWinProbability, RecordingSettings, RecordingStatus, Resolution, StoredClip,
+    StoredRecording,
 };
 use lcu::WinProbabilityTimeline;
 use serde::Serialize;
 
 use super::Activity;
+use crate::overlay::ChordView;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,10 +39,13 @@ pub struct SettingsView {
     folder: PathBuf,
     min_budget_bytes: u64,
     estimates: Vec<Estimate>,
+    /// The mark key as the player presses it and what it also does in game;
+    /// `None` when marking is off.
+    mark_key: Option<ChordView>,
 }
 
 impl SettingsView {
-    pub fn new(settings: RecordingSettings, folder: PathBuf) -> Self {
+    pub fn new(settings: RecordingSettings, folder: PathBuf, mark_key: Option<ChordView>) -> Self {
         let mut estimates = Vec::new();
         for resolution in [
             Resolution::Native,
@@ -65,6 +70,7 @@ impl SettingsView {
             folder,
             min_budget_bytes: game_recording::settings::MIN_BUDGET_BYTES,
             estimates,
+            mark_key,
         }
     }
 }
@@ -187,6 +193,8 @@ pub struct ClipView {
     youtube_url: Option<String>,
     /// Gone once a published clip's file was deleted to free space (#2005).
     video_on_disk: bool,
+    /// The plays an automatic clip holds (#1766); empty for the player's own.
+    automatic: Vec<AutoClipKind>,
 }
 
 impl ClipView {
@@ -222,6 +230,7 @@ impl ClipView {
             moments: meta.moments.clone(),
             youtube_url: meta.youtube_url.clone(),
             video_on_disk: clip.dir.video_path().is_file(),
+            automatic: meta.automatic.clone(),
         }
     }
 }

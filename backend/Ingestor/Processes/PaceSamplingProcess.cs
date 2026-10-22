@@ -263,7 +263,7 @@ public sealed class PaceSamplingProcess(
         {
             // Not worth its timeline call; remembered so no later run pays for the match again.
             run.MatchesUnusable++;
-            await RecordAsync(session, matchId, tier, [], run, ct);
+            await RecordAsync(session, matchId, tier, [], [], run, ct);
             return;
         }
 
@@ -279,14 +279,25 @@ public sealed class PaceSamplingProcess(
             .ToDictionary(group => group.Key, group => group.First().TeamPosition);
 
         var keys = PaceBenchmarkBuilder.BuildAtTier(version.ToMajorMinor(), durationSeconds, endedInEarlySurrender, tier, positions, timeline);
-        await RecordAsync(session, matchId, tier, keys, run, ct);
+        var lines = info.Participants
+            .Select(participant => new FormBenchmarkBuilder.Line(
+                participant.TeamId,
+                participant.TeamPosition,
+                participant.Kills,
+                participant.Deaths,
+                participant.Assists,
+                participant.TotalMinionsKilled + participant.NeutralMinionsKilled,
+                participant.VisionScore))
+            .ToList();
+        var formKeys = FormBenchmarkBuilder.BuildAtTier(version.ToMajorMinor(), durationSeconds, endedInEarlySurrender, tier, lines);
+        await RecordAsync(session, matchId, tier, keys, formKeys, run, ct);
 
         run.MatchesSampled++;
         run.AddTier(tier.ToRiotName(), keys.Count / 2);
     }
 
     /// <summary>
-    /// Writes a match's bins and its ledger row in one transaction: a crash between the two
+    /// Writes a match's pace and form bins and its ledger row in one transaction: a crash between the two
     /// would either lose the match or count it again on the next run.
     /// </summary>
     private static async Task RecordAsync(
@@ -294,11 +305,13 @@ public sealed class PaceSamplingProcess(
         string matchId,
         RankTier tier,
         IReadOnlyCollection<PaceBenchmarkKey> keys,
+        IReadOnlyCollection<FormBenchmarkKey> formKeys,
         SamplingRun run,
         CancellationToken ct)
     {
         await using var transaction = await session.BeginTransactionAsync(ct);
         await session.PaceBenchmarkStats.AddCountsAsync(PaceBenchmarkBuilder.Count(keys), run.NowUtc, ct);
+        await session.FormBenchmarkStats.AddCountsAsync(FormBenchmarkBuilder.Count(formKeys), run.NowUtc, ct);
         session.PaceSampledMatches.Add(new PaceSampledMatch { MatchId = matchId, Tier = tier, SampledAtUtc = run.NowUtc });
         await session.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

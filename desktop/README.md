@@ -78,11 +78,20 @@ Tracking issue: **#1671**.
   starter above it — the basket the draft's build opens with for the ten
   champions on their lanes, its price and its share of games — which the
   overlay shows in the next item's place.
-- **Draws over the game** (#1795, macOS): three small panels, each placed on
+- **Draws over the game** (#1795, macOS): five small panels, each placed on
   its own — the next item alone (the item and the gold still to earn for it, or
   that it can be bought now), a win probability estimated from the item-gold
   gap and the map (turrets, inhibitors down, drakes, Baron, Elder), your CS per
-  minute with its curve and gold per minute, and, while TAB is held, each team's item gold and each lane's gap —
+  minute with its curve and gold per minute, the neutral objectives' next
+  spawns (#2078: the dragon pit — its next drake's element once the Rift has
+  turned, the Elder once a side holds the soul — between the drakes each side
+  took, blue side's left and red side's right, then the Voidgrubs, the Rift
+  Herald and Baron: icons only, the game's minimap ones, a countdown until each
+  spawns or a green dot while it stands, gone from the panel once taken for
+  good; derived by the shell from the
+  season's spawn rules, one table in `crates/live-client/src/timers.rs`, and the
+  kills the event feed announces, so a patch that moves a timer changes that
+  table; Summoner's Rift's standard game only), and, while TAB is held, each team's item gold and each lane's gap —
   once the game has started (its `GameStart` event), never over its loading screen —
   only while the game is the frontmost app, never over the client or anything
   else. Click-through and never focused, so the game keeps every click and key;

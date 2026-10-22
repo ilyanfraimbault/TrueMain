@@ -2,7 +2,8 @@
 import { formatCount } from '~~/shared/utils/counts'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { ALL_POSITIONS, POSITION_BY_VALUE } from '#common/utils/positions'
+import { getPositionIconUrl } from '#shared/utils/ddragon'
 
 /**
  * The champion section of the player-scoped champion page: the banner above is
@@ -21,7 +22,10 @@ const props = withDefaults(defineProps<{
   loading?: boolean
 }>(), { totalWins: null, lowSampleMessage: null, loading: false })
 
-const positionOption = computed(() => POSITION_BY_VALUE.get(props.position) ?? null)
+// `ALL` (#2158) reads as the picker's own "All positions" button: its fill icon.
+const positionOption = computed(() => props.position === ALL_POSITIONS
+  ? { label: 'All positions', iconUrl: getPositionIconUrl('fill') }
+  : POSITION_BY_VALUE.get(props.position) ?? null)
 // A win rate over zero games would be a fabricated 0%, so an empty slice keeps
 // its own line and never reaches this.
 const winRateLabel = computed(() =>

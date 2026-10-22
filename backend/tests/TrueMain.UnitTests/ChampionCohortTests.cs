@@ -23,7 +23,8 @@ public sealed class ChampionCohortTests
     [
         "ChampionMatchupLeadAggregationProcess.cs",
         "ChampionSynergyAggregationProcess.cs",
-        "ChampionOpponentAggregationProcess.cs"
+        "ChampionOpponentAggregationProcess.cs",
+        "ChampionScalingAggregationProcess.cs"
     ];
 
     /// <summary>
@@ -35,8 +36,6 @@ public sealed class ChampionCohortTests
     /// </summary>
     private static readonly string[] CohortReadSourceFiles =
     [
-        "Api/Services/Champions/Builds/ChampionItemTimingsQueryService.cs",
-        "Api/Services/Champions/Progression/ChampionScalingQueryService.cs",
         "Api/Services/Champions/Synergies/ChampionSynergyQueryService.cs",
         "Api/Services/Champions/Mains/ChampionMainsComparisonQueryService.cs"
     ];

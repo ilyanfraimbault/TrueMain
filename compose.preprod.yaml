@@ -192,6 +192,7 @@ services:
         condition: service_healthy
     networks:
       - truemain_internal
+      - truemain_edge
 
   admin:
     image: ghcr.io/ilyanfraimbault/truemain-admin:${IMAGE_TAG:-preprod}
@@ -219,24 +220,7 @@ services:
         condition: service_healthy
     networks:
       - truemain_internal
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: truemain-preprod-caddy
-    restart: unless-stopped
-    cpus: 0.25
-    cpu_shares: 256
-    configs:
-      - source: edge_caddyfile
-        target: /etc/caddy/Caddyfile
-    ports:
-      - "3001:3001"
-      - "3002:3002"
-    depends_on:
-      - web
-      - admin
-    networks:
-      - truemain_internal
+      - truemain_edge
 
   ingestor:
     image: ghcr.io/ilyanfraimbault/truemain-ingestor:${IMAGE_TAG:-preprod}
@@ -249,7 +233,13 @@ services:
     stop_grace_period: 120s
     environment:
       <<: *ingestor-environment
-      Job__Mode: ${INGESTOR_JOB_MODE:-FetchLane}
+      Job__Mode: ${INGESTOR_JOB_MODE:-FetchWorkers}
+      Job__RunOnce: "${INGESTOR_RUN_ONCE:-false}"
+      Job__IntervalMinutes: "${INGESTOR_MAINTENANCE_INTERVAL_MINUTES:-1}"
+      MatchFetchWorkers__RampStage: "${INGESTOR_FETCH_RAMP_STAGE:-1}"
+      IngestionBackpressure__MinAvailableMemoryPercent: "${INGESTOR_BACKPRESSURE_MIN_AVAILABLE_MEMORY_PERCENT:-10}"
+      IngestionBackpressure__MinFreeDiskPercent: "${INGESTOR_BACKPRESSURE_MIN_FREE_DISK_PERCENT:-15}"
+      IngestionBackpressure__DrillMinutes: "${INGESTOR_BACKPRESSURE_DRILL_MINUTES:-0}"
     volumes:
       - truemain_preprod_ingestor_crashes:/home/app/crashes
     depends_on:
@@ -386,38 +376,6 @@ configs:
       ignore_startup_parameters = extra_float_digits
       admin_users = postgres
       stats_users = ${POSTGRES_USER}
-  edge_caddyfile:
-    content: |
-      {
-      	auto_https off
-      }
-
-      (security_headers) {
-      	header {
-      		X-Content-Type-Options "nosniff"
-      		X-Frame-Options "DENY"
-      		Referrer-Policy "strict-origin-when-cross-origin"
-      		Permissions-Policy "camera=(), microphone=(), geolocation=(), browsing-topics=()"
-      		-X-Powered-By
-      	}
-      }
-
-      :3001 {
-      	log
-      	encode zstd gzip
-      	import security_headers
-      	reverse_proxy web:3000
-      }
-
-      :3002 {
-      	log
-      	encode zstd gzip
-      	import security_headers
-      	reverse_proxy admin:3000 {
-      		header_up X-Forwarded-For {remote_host}
-      	}
-      }
-
   umami_proxy_caddyfile:
     content: |
       {
@@ -461,4 +419,7 @@ volumes:
 networks:
   truemain_internal:
     name: truemain_preprod_internal
+    driver: bridge
+  truemain_edge:
+    name: truemain_preprod_edge
     driver: bridge

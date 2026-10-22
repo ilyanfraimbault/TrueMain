@@ -17,6 +17,13 @@ public static class AggregateRetention
     /// <c>MatchDataRetention:AggregateRetainedPatchCount</c> most recent ones. Disabled by default (0): aggregates are the site's frozen
     /// patch history (#466) and can never be recomputed once their raw matches
     /// are retired, so only small environments (preprod) opt in.
+    ///
+    /// <para>
+    /// The light per-patch level is never touched (#1467, #1956): <c>champion_patch_stats</c>
+    /// and the ban pair (<c>champion_ban_stats</c> / <c>ban_scope_totals</c>) are what is
+    /// left of a patch once its full aggregates go, so neither is deleted nor counted among
+    /// the patches observed here.
+    /// </para>
     /// </summary>
     public static async Task<AggregateDeletionResult> DeleteExpiredAsync(
         IDbContextFactory<TrueMainDbContext> dbContextFactory,
@@ -44,17 +51,19 @@ public static class AggregateRetention
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionOpponentBaselineStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionBanStats
+        observedPatches.UnionWith(await db.ChampionScalingStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.BanScopeTotals
-            .AsNoTracking().Select(total => total.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionProfileStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionDamageProfileStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.ChampionItemContextStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.ChampionItemComponentOrders
+            .AsNoTracking().Select(order => order.Patch).Distinct().ToListAsync(ct));
         observedPatches.UnionWith(await db.PaceBenchmarkStats
+            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        observedPatches.UnionWith(await db.FormBenchmarkStats
             .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
 
         // Rank the observed patch strings by parsed version and keep the N most
@@ -91,7 +100,7 @@ public static class AggregateRetention
         // One patch per transaction keeps each delete's lock footprint and WAL
         // bounded — a scope delete cascades to its pattern rows, and years of
         // frozen patches could otherwise pile into one huge transaction — while
-        // a patch's five tables still go together (no half-deleted patch left
+        // a patch's tables still go together (no half-deleted patch left
         // behind by an interruption). Global champion_dim_* rows are left
         // alone: they are deduplicated across patches and other scopes may
         // still reference them.
@@ -119,15 +128,12 @@ public static class AggregateRetention
                         .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionOpponentBaselineStats
                         .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                // Same reasoning as the synergy pair: the ban counts and the match
-                // totals they are divided by must leave together, or the survivor
-                // would be read as a rate over a denominator that is gone.
-                result.DeletedBanStats + await db.ChampionBanStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.BanScopeTotals
-                        .Where(total => total.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                // The game-length buckets of the scaling chart (#1368): one table, no
+                // denominator kept apart from it.
+                result.DeletedScalingStats + await db.ChampionScalingStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
                 // The measured profiles (#1449) and the item context they qualify (#1450).
-                // Same rule as the two pairs above and one more reason for it here: a
+                // Same rule as the pairs above and one more reason for it here: a
                 // verdict left without the counters it was derived from could never be
                 // recomputed, and the counters without their totals are not rates.
                 result.DeletedContextStats + await db.ChampionProfileStats
@@ -141,24 +147,27 @@ public static class AggregateRetention
                     + await db.ChampionItemContextVerdicts
                         .Where(verdict => verdict.Patch == stalePatch).ExecuteDeleteAsync(ct)
                     + await db.ChampionNextItemTerms
-                        .Where(term => term.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                // The desktop overlay's pace benchmark (#1912). Its read already pools only
-                // the most recent patches, so an aged-out patch is dead weight either way.
-                result.DeletedPaceBenchmarkStats + await db.PaceBenchmarkStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct));
+                        .Where(term => term.Patch == stalePatch).ExecuteDeleteAsync(ct)
+                    + await db.ChampionItemComponentOrders
+                        .Where(order => order.Patch == stalePatch).ExecuteDeleteAsync(ct),
+                // The desktop app's benchmarks: the overlay's pace (#1912) and the dashboard's
+                // form (#2076). Their reads already pool only the most recent patches, so an
+                // aged-out patch is dead weight either way.
+                result.DeletedBenchmarkStats + await db.PaceBenchmarkStats
+                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
+                    + await db.FormBenchmarkStats
+                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct));
             await transaction.CommitAsync(ct);
         }
 
         if (result.TotalDeleted > 0)
         {
             logger.LogInformation(
-                "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup, "
-                + "{DeletedSynergies} synergy and {DeletedBans} ban "
-                + "rows for stale patches {StalePatches} (keeping {RetainedPatches}).",
+                "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup "
+                + "and {DeletedSynergies} synergy rows for stale patches {StalePatches} (keeping {RetainedPatches}).",
                 result.DeletedScopes,
                 result.DeletedMatchupStats,
                 result.DeletedSynergyStats,
-                result.DeletedBanStats,
                 string.Join("|", stalePatches),
                 string.Join("|", retainedVersions.OrderDescending().Select(version => version.ToString())));
         }
@@ -169,12 +178,12 @@ public static class AggregateRetention
         int DeletedScopes,
         int DeletedMatchupStats,
         int DeletedSynergyStats,
-        int DeletedBanStats,
+        int DeletedScalingStats,
         // The situational-context family (#1449, #1450): champion profiles, the item
         // context counters and the verdicts derived from them, summed — they are deleted
         // together in one transaction, so one counter describes all four tables.
         int DeletedContextStats,
-        int DeletedPaceBenchmarkStats)
+        int DeletedBenchmarkStats)
     {
         public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0, 0);
 
@@ -182,8 +191,8 @@ public static class AggregateRetention
             => DeletedScopes
                 + DeletedMatchupStats
                 + DeletedSynergyStats
-                + DeletedBanStats
+                + DeletedScalingStats
                 + DeletedContextStats
-                + DeletedPaceBenchmarkStats;
+                + DeletedBenchmarkStats;
     }
 }

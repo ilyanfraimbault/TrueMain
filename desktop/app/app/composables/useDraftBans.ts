@@ -21,6 +21,8 @@ export function useDraftBans(
   draft: Ref<DraftState | null>,
   pool: Ref<number[]>,
   active: Ref<boolean>,
+  /** The player's bracket (`useDraftEloBracket`); null reads every bracket. */
+  eloBracket: Ref<string | null> = ref(null),
 ) {
   const bans = ref<DraftBans | null>(null)
   const pending = ref(false)
@@ -58,6 +60,7 @@ export function useDraftBans(
         .map(slot => slot.championId!),
       enemyChampions: state.enemyChampions,
       bans: [...state.allyBans, ...state.enemyBans],
+      eloBracket: eloBracket.value,
     }
   })
 

@@ -7,7 +7,7 @@
 //! the highlights land on the video. When the game ends the video is closed,
 //! the recap is opened on it, and the recording is finalised once the match
 //! history has the game (its timeline gives the definitive highlights and the
-//! objectives).
+//! objectives) — then the plays the player chose are cut as clips (#1766).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -25,10 +25,8 @@ use lcu::{GameflowPhase, LcuClient};
 use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 
-use super::{emit_library, emit_recap, emit_status, Activity, Recorder, SharedRecorder};
+use super::{cut, emit_library, emit_recap, emit_status, Activity, SharedRecorder, SharedSession};
 use crate::record::SharedClient;
-
-type SharedSession = Arc<Mutex<Session<HelperCapture>>>;
 
 /// The capture can fail to start on the loading screen: it is tried again
 /// while the game runs rather than giving up on the game.
@@ -110,7 +108,7 @@ pub async fn run(
 
 async fn record_game(
     app: &AppHandle,
-    recorder: &Recorder,
+    recorder: &SharedRecorder,
     helper: &Path,
     phases: &mut watch::Receiver<GameflowPhase>,
 ) -> Result<Done, String> {
@@ -147,6 +145,7 @@ async fn record_game(
     ))));
 
     let dir = start(&session, game, &settings, &root, phases).await?;
+    recorder.set_session(Some(session.clone()));
     crate::telemetry::feature(app, crate::telemetry::Feature::GameRecorded);
     let id = RecordingDir::new(dir.clone()).id();
     recorder.set_activity(Activity {
@@ -158,6 +157,8 @@ async fn record_game(
     emit_library(app);
 
     follow(&session, &live, phases).await;
+    // The game is over: the mark key marks nothing more.
+    recorder.set_session(None);
     // From here on a failure is logged, never returned: an error would read as
     // a game still running and skip the next one, which may already have begun.
     let done = if in_game(*phases.borrow()) {
@@ -203,6 +204,7 @@ async fn record_game(
     emit_recap(app, id.clone());
     thumbnail(helper, &dir).await;
     emit_library(app);
+    cut_marks(app, recorder, helper, &dir).await;
 
     let (history, timeline, scoreboard) = wait_for_history(&client, game.game_id, phases).await;
     let budget = recorder.games_budget();
@@ -231,7 +233,46 @@ async fn record_game(
     }
     thumbnail(helper, &dir).await;
     emit_library(app);
+    cut_auto_clips(app, recorder, helper, &dir).await;
     Ok(done)
+}
+
+/// The clips of the plays the player chose to clip automatically, once the
+/// game is finalised: its timeline places them best.
+async fn cut_auto_clips(app: &AppHandle, recorder: &SharedRecorder, helper: &Path, dir: &Path) {
+    let kinds = recorder.settings().auto_clips;
+    if kinds.is_empty() {
+        return;
+    }
+    let recorder = recorder.clone();
+    let (helper, dir) = (helper.to_path_buf(), dir.to_path_buf());
+    let cut =
+        tokio::task::spawn_blocking(move || cut::cut_auto_clips(&recorder, &helper, &dir, &kinds))
+            .await;
+    match cut {
+        Ok(0) => {}
+        Ok(count) => {
+            tracing::info!(count, "plays saved as automatic clips");
+            emit_library(app);
+        }
+        Err(error) => tracing::warn!(%error, "cutting the automatic clips failed"),
+    }
+}
+
+/// The clips of the moments the player marked, cut as soon as the video is
+/// closed: the recap opened on the game lists them at once.
+async fn cut_marks(app: &AppHandle, recorder: &SharedRecorder, helper: &Path, dir: &Path) {
+    let recorder = recorder.clone();
+    let (helper, dir) = (helper.to_path_buf(), dir.to_path_buf());
+    let cut = tokio::task::spawn_blocking(move || cut::cut_marks(&recorder, &helper, &dir)).await;
+    match cut {
+        Ok(0) => {}
+        Ok(count) => {
+            tracing::info!(count, "marked moments saved as clips");
+            emit_library(app);
+        }
+        Err(error) => tracing::warn!(%error, "cutting the marked moments failed"),
+    }
 }
 
 /// Whether the recording in `dir` holds a loading screen alone (`is_loading_only`).
@@ -306,7 +347,8 @@ async fn start(
 }
 
 /// Follow the game until it ends or the capture fails: the clock for the
-/// anchor, the live feed for the fallback highlights.
+/// anchor, the live feed for the fallback highlights and the plays it
+/// announces, the player list for their sides.
 async fn follow(
     session: &SharedSession,
     live: &LiveClient,
@@ -314,6 +356,7 @@ async fn follow(
 ) {
     let mut tick: u32 = 0;
     let mut player_known = false;
+    let mut players_known = false;
     loop {
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_secs(1)) => {}
@@ -332,6 +375,12 @@ async fn follow(
             if let Ok(player) = live.active_player().await {
                 lock(session).note_player(player);
                 player_known = true;
+            }
+        }
+        if !players_known {
+            if let Ok(players) = live.player_list().await {
+                players_known = !players.is_empty();
+                lock(session).note_players(players);
             }
         }
         if tick.is_multiple_of(CLOCK_EVERY) {

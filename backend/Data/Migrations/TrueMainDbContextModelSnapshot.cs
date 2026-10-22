@@ -25,6 +25,38 @@ namespace Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Data.Entities.ApexCutoffSnapshot", b =>
+                {
+                    b.Property<string>("PlatformId")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("Tier")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateOnly>("CapturedOnUtc")
+                        .HasColumnType("date");
+
+                    b.Property<int>("EntryCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsEstimated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("MinLeaguePoints")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("PlatformId", "Tier", "CapturedOnUtc");
+
+                    b.ToTable("apex_cutoff_snapshots", (string)null);
+                });
+
             modelBuilder.Entity("Data.Entities.BanScopeTotal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -469,6 +501,52 @@ namespace Data.Migrations
                     b.HasKey("QueueId", "Patch", "PlatformId", "TeamPosition", "ChampionId");
 
                     b.ToTable("champion_game_counts", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionItemComponentOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ComponentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Occurrence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "Position", "Patch", "ItemId", "ComponentId", "Occurrence", "Rank")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_item_component_orders_grain");
+
+                    b.ToTable("champion_item_component_orders", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.ChampionItemContextStat", b =>
@@ -935,6 +1013,46 @@ namespace Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Data.Entities.ChampionPatchStat", b =>
+                {
+                    b.Property<int>("QueueId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Position")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("EloBracket")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("IsMain")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("QueueId", "Patch", "Position", "EloBracket", "IsMain", "ChampionId");
+
+                    b.ToTable("champion_patch_stats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_champion_patch_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
+                        });
+                });
+
             modelBuilder.Entity("Data.Entities.ChampionProfileStat", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1055,6 +1173,54 @@ namespace Data.Migrations
                             t.HasCheckConstraint("CK_champion_profile_stats_CanonicalPosition", "\"Position\" IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')");
 
                             t.HasCheckConstraint("CK_champion_profile_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
+                        });
+                });
+
+            modelBuilder.Entity("Data.Entities.ChampionScalingStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Bucket")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ChampionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EloBracket")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Games")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TeamPosition")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Wins")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChampionId", "TeamPosition", "Patch", "EloBracket", "Bucket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_champion_scaling_stats_grain");
+
+                    b.ToTable("champion_scaling_stats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_champion_scaling_stats_WinsWithinGames", "\"Wins\" <= \"Games\"");
                         });
                 });
 
@@ -1192,6 +1358,50 @@ namespace Data.Migrations
                     b.HasKey("PlatformId");
 
                     b.ToTable("discovery_cursors", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.FormBenchmarkStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AggregatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Bucket")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Metric")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<string>("Patch")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Position", "Patch", "Tier", "Metric", "Bucket")
+                        .IsUnique()
+                        .HasDatabaseName("IX_form_benchmark_stats_grain");
+
+                    b.ToTable("form_benchmark_stats", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.LadderSyncCursor", b =>
@@ -1486,6 +1696,11 @@ namespace Data.Migrations
                     b.Property<int>("QueueId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("ScalingAggregated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("SynergyAggregated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1533,6 +1748,9 @@ namespace Data.Migrations
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_profile_pending")
                         .HasFilter("\"ProfileAggregated\" = false");
+
+                    b.HasIndex(new[] { "QueueId" }, "IX_matches_scaling_pending")
+                        .HasFilter("\"ScalingAggregated\" = false");
 
                     b.HasIndex(new[] { "QueueId" }, "IX_matches_snapshot_prune_pending")
                         .HasFilter("\"TimelineIngested\" = true AND \"TimelineSnapshotsPruned\" = false");
@@ -1770,6 +1988,9 @@ namespace Data.Migrations
 
                     b.HasIndex(new[] { "Id" }, "IX_match_participants_role_bound_pending")
                         .HasFilter("\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
+
+                    b.HasIndex(new[] { "MatchId", "TeamId" }, "IX_match_participants_team_position_pending")
+                        .HasFilter("\"TeamPosition\" = ''");
 
                     b.ToTable("match_participants", (string)null);
                 });

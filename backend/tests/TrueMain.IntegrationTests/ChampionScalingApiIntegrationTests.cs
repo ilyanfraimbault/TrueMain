@@ -1,9 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using AwesomeAssertions;
+using Core.Lol.Map;
 using Core.Lol.Ranking;
+using Core.Options;
 using Data.Entities;
+using Ingestor.Options;
+using Ingestor.Processes;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.ReadModels.Champions;
 using TrueMain.TestKit.EntityBuilders;
 
@@ -185,6 +190,7 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
         AddGames(db, "long", LongGameSeconds, longGames, longWins, account);
 
         await db.SaveChangesAsync();
+        await FoldAsync();
     }
 
     /// <summary>
@@ -208,6 +214,7 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
         AddGames(db, "iron", ShortGameSeconds, games: 12, wins: 6, account, EloBracket.Iron);
 
         await db.SaveChangesAsync();
+        await FoldAsync();
     }
 
     /// <summary>
@@ -240,7 +247,20 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
         AddGames(db, "untracked", ShortGameSeconds, games: 12, wins: 6, account: null);
 
         await db.SaveChangesAsync();
+        await FoldAsync();
     }
+
+    /// <summary>
+    /// The endpoint reads <c>champion_scaling_stats</c> (#1368), so a seeded corpus only
+    /// reaches it once the ingestor's fold has run over it.
+    /// </summary>
+    private Task FoldAsync()
+        => new ChampionScalingAggregationProcess(
+            NullLogger<ChampionScalingAggregationProcess>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
+            Microsoft.Extensions.Options.Options.Create(new ScalingAggregationOptions()),
+            new TestDbContextFactory(_fixture),
+            TimeProvider.System).RunCoreAsync(CancellationToken.None);
 
     private static void AddGames(
         Data.TrueMainDbContext db, string prefix, int durationSeconds, int games, int wins, RiotAccount? account,
@@ -304,6 +324,5 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
             [
                 new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
                 new KeyValuePair<string, string?>("ChampionsList:MinMatchupGames", "10"),
-                new KeyValuePair<string, string?>("ChampionsList:MinPlayerMatchupGames", "3"),
             ]);
 }

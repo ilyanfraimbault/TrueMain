@@ -20,6 +20,8 @@ export interface ObjectiveMarker {
   label: string
   /** Grubs: how many the side took in that camp; 1 otherwise. */
   count: number
+  /** Drakes: the element (`FIRE_DRAGON`, …) when the timeline names it; null otherwise. */
+  subType: string | null
 }
 
 /** Grub kills closer than this to the side's previous one belong to the same camp. */
@@ -73,7 +75,7 @@ export function objectiveMarkers(timeline: WinProbabilityTimeline, perspectiveTe
       camp.count++
       continue
     }
-    markers.push({ ms: event.ms, kind, teamId, label: '', count: 1, event })
+    markers.push({ ms: event.ms, kind, teamId, label: '', count: 1, subType: event.monsterSubType || null, event })
   }
 
   return markers.map(({ event, ...marker }) => ({

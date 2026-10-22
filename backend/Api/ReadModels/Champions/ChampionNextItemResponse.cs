@@ -99,6 +99,16 @@ public sealed record NextItemCandidateReadModel
 
     /// <summary>The situations that moved this item most, largest shift first, at most three.</summary>
     public IReadOnlyList<NextItemReasonReadModel> Reasons { get; init; } = [];
+
+    /// <summary>
+    /// The item's components in the order the mains buy them (#2183) — each step's
+    /// <c>Measured</c> says whether that order was measured or is the recipe's. Empty for an
+    /// item with no recipe, or when the item metadata could not be read.
+    /// </summary>
+    public IReadOnlyList<ItemRouteStepReadModel> Route { get; init; } = [];
+
+    /// <summary>Games behind the route's order.</summary>
+    public int RouteGames { get; init; }
 }
 
 /// <summary>One situation that moved an item: <c>EnemyMagicDamage</c> / <c>High</c>, and by how much.</summary>

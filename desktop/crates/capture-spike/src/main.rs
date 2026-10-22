@@ -21,8 +21,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use capture_helper::{Codec, HelperCapture};
 use game_recording::anchor::ClockSample;
 use game_recording::{
-    Change, FrameRate, GameInfo, GameOutcome, Quality, Queues, RecordingDir, RecordingSettings,
-    Resolution, Session,
+    Change, FrameRate, GameInfo, GameOutcome, MarkLength, Quality, Queues, RecordingDir,
+    RecordingSettings, Resolution, Session,
 };
 use lcu::live::LiveClient;
 use lcu::{GameflowPhase, LcuClient};
@@ -176,6 +176,11 @@ async fn run(options: Options) -> Result<(), String> {
         quality: options.quality,
         budget_bytes: u64::MAX,
         folder: Some(out.clone()),
+        // The spike measures the capture: nothing reads the keyboard, and
+        // nothing is cut — its player lists every automatic clip instead.
+        mark_key: None,
+        mark_length: MarkLength::default(),
+        auto_clips: Vec::new(),
     };
 
     let mut session = Session::new(
@@ -272,6 +277,9 @@ async fn run(options: Options) -> Result<(), String> {
     eprintln!("recording game {} into {}", game.game_id, dir.display());
     if let Ok(player) = live.active_player().await {
         session.note_player(player);
+    }
+    if let Ok(players) = live.player_list().await {
+        session.note_players(players);
     }
 
     let mut samples: Vec<ClockSample> = Vec::new();

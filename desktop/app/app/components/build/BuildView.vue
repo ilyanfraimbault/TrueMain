@@ -2,6 +2,7 @@
 import type { ProfileIdentity } from '#shared/types/profile'
 import type { BuildOption, CompositionBuildRequest } from '~/types/build'
 import type { DraftBuild } from '~/composables/useDraftBuild'
+import type { Kit } from '#shared/types/kit'
 
 /**
  * A champion's build, laid out the way the reference client does after a pick
@@ -15,13 +16,24 @@ import type { DraftBuild } from '~/composables/useDraftBuild'
  * clicked in the list shows that player's own build on the champion instead —
  * in a draft, their build against it, read from their games alone (#1987), or
  * their usual one when they have no game of it.
+ *
+ * In champion select, the player's kits on the champion and lane (#2185,
+ * #2205) are listed too, between the builds and the mains: one picked takes
+ * the pane (`kitId`), a build row or a main picked goes back to the builds.
+ * The default stays the first build — the draft's own.
  */
 const props = defineProps<{
   championId: number
   position: string
   /** The build computed for the draft, when there is one. */
   draft?: { build: DraftBuild | null, pending: boolean, error: string | null, opponentId?: number | null, label?: string, request?: CompositionBuildRequest | null } | null
+  /** The player's kits on this champion and lane, offered beside the builds. */
+  kits?: Kit[]
 }>()
+
+/** The kit picked in the list, shown instead of a build; `null` while a build or a main is. */
+const kitId = defineModel<string | null>('kitId', { default: null })
+const kitShown = computed(() => props.kits?.find(kit => kit.id === kitId.value) ?? null)
 
 const { response, pending: lanePending } = useChampionBuilds(toRef(props, 'championId'), toRef(props, 'position'))
 const { items, summoners, runeTree, pending: staticPending, loadChampion, championStatic } = useStaticData()
@@ -111,12 +123,28 @@ const emptyMessage = computed(() => {
         <slot name="header" />
       </div>
       <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2">
-        <BuildList v-model="selected" :options="options" :pending="lanePending || !!draft?.pending" :draft-label="draft?.label" :draft-opponent="draft?.opponentId ?? null" />
-        <BuildMains :champion-id="championId" :position="position" :selected-name-tag="onMain ? mainNameTag : null" @select="selectMain" />
+        <BuildList
+          :model-value="kitShown ? null : selected"
+          :options="options"
+          :pending="lanePending || !!draft?.pending"
+          :draft-label="draft?.label"
+          :draft-opponent="draft?.opponentId ?? null"
+          @update:model-value="selected = $event; kitId = null"
+        />
+        <section v-if="kits?.length">
+          <h3 class="px-2 pb-1 stat-label">Your kits</h3>
+          <KitList v-model="kitId" :kits="kits" />
+        </section>
+        <BuildMains :champion-id="championId" :position="position" :selected-name-tag="onMain && !kitShown ? mainNameTag : null" @select="kitId = null; selectMain($event)" />
       </div>
     </aside>
 
-    <div v-if="shown" class="min-h-0 space-y-4 overflow-y-auto p-3">
+    <div v-if="kitShown" class="min-h-0 space-y-4 overflow-y-auto p-3">
+      <slot name="advice" />
+      <KitBuild :kit="kitShown" />
+    </div>
+
+    <div v-else-if="shown" class="min-h-0 space-y-4 overflow-y-auto p-3">
       <!-- Whose build this is, when it is a true main's. -->
       <BuildMainBanner v-if="onMain && main" :identity="main.identity" :name-tag="mainNameTag!" :games="shown.games" :scope="mainScope" />
 
