@@ -27,6 +27,11 @@ export function useCanonicalIcon() {
   return (src: string | null | undefined) => src ?? undefined
 }
 
+/** The site's loading-screen art goes through its image server too; the app's is the CDN's. */
+export function useCanonicalLoadingArt() {
+  return (src: string | null | undefined): string | null => src ?? null
+}
+
 /**
  * Every champion as the site's static list item, keyed by id — the site's
  * `useChampionsById` over the static list, read from Data Dragon at once.
