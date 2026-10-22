@@ -9,8 +9,8 @@ import type { ChampionPosition } from '#common/utils/positions'
 
 /**
  * The champion page's matchup spread (#2094), mounted against a mocked matchups
- * endpoint: what it places, what it leaves off, and that its own role picker
- * re-asks the API for the lane it picks.
+ * endpoint: what it places, what it leaves off, and that it follows the page's
+ * lane with no role picker of its own.
  */
 
 const champions: ChampionStaticListItem[] = [
@@ -58,15 +58,16 @@ registerEndpoint('/api/champions/1/matchups', (event) => {
 registerEndpoint('/api/champions/9/matchups', event =>
   answer(9, String(getQuery(event).position), [entry(2, null), entry(3, null)]))
 
-async function mountSpread(championId: number, position: ChampionPosition) {
+async function mountSpread(championId: number, initial: ChampionPosition) {
+  const position = ref(initial)
   const wrapper = await mountSuspended(defineComponent({
-    setup: () => () => h(UApp, null, () => h(ChampionMatchupSpread, { championId, position, champions, patch: '16.20' })),
+    setup: () => () => h(UApp, null, () => h(ChampionMatchupSpread, { championId, position: position.value, champions, patch: '16.20' })),
   }))
   await vi.waitFor(async () => {
     await flushPromises()
-    expect(wrapper.find('a[href^="/matchup"]').exists() || wrapper.text().includes('Not enough decided lanes')).toBe(true)
+    expect(wrapper.find('a[href^="/matchup"]').exists() || wrapper.text().includes('Not enough games')).toBe(true)
   })
-  return wrapper
+  return Object.assign(wrapper, { position })
 }
 
 describe('champion matchup spread', () => {
@@ -79,7 +80,7 @@ describe('champion matchup spread', () => {
       '/matchup?champion=1&position=MIDDLE&opponent=4',
       '/matchup?champion=1&position=MIDDLE&opponent=3',
     ])
-    expect(links[0]!.attributes('aria-label')).toBe('Xerath — 43% lanes won')
+    expect(links[0]!.attributes('aria-label')).toBe('Xerath: 43% WR')
 
     // Only the axis: no caption, no band labels, no counts or extremes under it.
     const text = wrapper.text()
@@ -87,11 +88,12 @@ describe('champion matchup spread', () => {
     expect(text).not.toMatch(/a lane is won when|Favourable|Hardest|Easiest|lanes won|too few decided lanes/)
   })
 
-  it('asks the API again for the lane its role picker selects', async () => {
+  it('has no role picker and asks the API again when the page changes lane', async () => {
     const wrapper = await mountSpread(1, 'MIDDLE')
     requests.length = 0
 
-    await wrapper.find('button[aria-label="Top"]').trigger('click')
+    expect(wrapper.find('button[aria-label="Top"]').exists()).toBe(false)
+    wrapper.position.value = 'TOP'
     await vi.waitFor(async () => {
       await flushPromises()
       expect(wrapper.findAll('a[href^="/matchup"]').map(a => a.attributes('href')))
@@ -100,10 +102,10 @@ describe('champion matchup spread', () => {
     expect(requests).toEqual(['TOP'])
   })
 
-  it('says so when no opponent has enough decided lanes', async () => {
+  it('says so when no opponent has enough games', async () => {
     const wrapper = await mountSpread(9, 'UTILITY')
 
     expect(wrapper.find('a[href^="/matchup"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Not enough decided lanes against any support opponent yet.')
+    expect(wrapper.text()).toContain('Not enough games against any support opponent yet.')
   })
 })

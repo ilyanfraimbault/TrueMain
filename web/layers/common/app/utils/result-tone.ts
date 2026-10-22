@@ -1,7 +1,8 @@
 /**
  * The one source for a game's result colours — blue for a win, red for a loss —
  * shared by the match row (edge mark, wash, result label) and the match detail
- * (team headers, the selected player's chip). These name *which side won*, not a
+ * (team headers, the selected player's chip) and the matchup spread's strip,
+ * losses on its left and wins on its right. These name *which side won*, not a
  * measurement: a stat that is good or bad reads on the `--color-data-*` axis
  * (`rate-tone.ts`) instead. Class strings are written out in full so Tailwind's
  * static scan generates them.
@@ -42,3 +43,9 @@ const LOSS: ResultTone = {
 export function resultTone(win: boolean): ResultTone {
   return win ? WIN : LOSS
 }
+
+/**
+ * Loss-to-win wash across a strip read left to right (the matchup spread): the
+ * same red and blue as a row's wash, fading through nothing at the centre.
+ */
+export const RESULT_SPREAD_WASH = 'bg-linear-to-r from-red-500/12 via-transparent to-sky-500/12'
