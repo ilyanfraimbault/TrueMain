@@ -3,13 +3,13 @@ import { flushPromises } from '@vue/test-utils'
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { getQuery } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
-import { ChampionFilters, ChampionMatchups, ChampionPlayerHeading, UApp } from '#components'
+import { ChampionFilters, ChampionMatchupSpread, ChampionPlayerHeading, UApp } from '#components'
 import type { ChampionMatchupEntry, ChampionMatchups as ChampionMatchupsResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { ALL_POSITIONS, type PositionFilter } from '#common/utils/positions'
 
 /**
- * The player champion page's "All positions" slice (#2158): the matchups card
+ * The player champion page's "All positions" slice (#2158): the matchup spread
  * asks the player route for `ALL` and drops the `/matchup` links it cannot fill,
  * the heading names the slice, and the build filter offers the button only when
  * asked to.
@@ -21,7 +21,7 @@ const champions: ChampionStaticListItem[] = [
   { championId: 80, name: 'Pantheon', iconUrl: '/pantheon.png' },
 ]
 
-function entry(opponentChampionId: number, games: number, wins: number): ChampionMatchupEntry {
+function entry(opponentChampionId: number, games: number, wins: number, laneWins: number, lanes: number): ChampionMatchupEntry {
   return {
     opponentChampionId,
     games,
@@ -30,8 +30,8 @@ function entry(opponentChampionId: number, games: number, wins: number): Champio
     playRate: 0.1,
     winRateLowerBound: 0.2,
     winRateUpperBound: 0.8,
-    laneWinRate: null,
-    decidedLaneGames: 0,
+    laneWinRate: laneWins / lanes,
+    decidedLaneGames: lanes,
     averageGoldDiffAt15: null,
     goldDiffLaneGames: 0,
     averageXpDiffAt15: null,
@@ -48,13 +48,13 @@ registerEndpoint('/api/truemains/Aileri-KR1/champions/39/matchups', (event): Cha
     championId: 39,
     position,
     patch: null,
-    matchups: position === 'JUNGLE' ? [] : [entry(114, 3, 2), entry(80, 1, 1)],
+    matchups: position === 'JUNGLE' ? [] : [entry(114, 3, 2, 2, 3), entry(80, 1, 1, 1, 1)],
   }
 })
 
 async function mountMatchups(position: PositionFilter) {
   const wrapper = await mountSuspended(defineComponent({
-    setup: () => () => h(UApp, null, () => h(ChampionMatchups, {
+    setup: () => () => h(UApp, null, () => h(ChampionMatchupSpread, {
       championId: 39,
       position,
       champions,
@@ -63,7 +63,7 @@ async function mountMatchups(position: PositionFilter) {
   }))
   await vi.waitFor(async () => {
     await flushPromises()
-    expect(wrapper.text()).toMatch(/Best matchups|No recorded games/)
+    expect(wrapper.find('[aria-label*="lanes won"]').exists() || wrapper.text().includes('No decided lane') || wrapper.text().includes('Not enough decided lanes')).toBe(true)
   })
   return wrapper
 }
@@ -79,9 +79,10 @@ describe('player champion page — all positions', () => {
     const wrapper = await mountMatchups(ALL_POSITIONS)
 
     expect(positions).toContain('ALL')
-    expect(wrapper.text()).toContain('Fiora')
-    // A one-game opponent is listed: the player slice has no games floor.
-    expect(wrapper.text()).toContain('Pantheon')
+    const labels = wrapper.findAll('[aria-label*="lanes won"]').map(mark => mark.attributes('aria-label'))
+    expect(labels).toContain('Fiora — 67% lanes won (3 decided lanes)')
+    // A one-lane opponent is placed: the player slice has no lane floor.
+    expect(labels).toContain('Pantheon — 100% lanes won (1 decided lane)')
     expect(wrapper.findAll('a[href^="/matchup"]')).toHaveLength(0)
   })
 
@@ -92,10 +93,10 @@ describe('player champion page — all positions', () => {
       .toContain('/matchup?champion=39&position=TOP&opponent=114')
   })
 
-  it('says an empty player list holds no games, not none above a floor', async () => {
+  it('says an empty slice has no decided lane on that role', async () => {
     const wrapper = await mountMatchups('JUNGLE')
 
-    expect(wrapper.text()).toContain('No recorded games in the jungle yet.')
+    expect(wrapper.text()).toContain('Not enough decided lanes against any jungle opponent yet.')
   })
 
   it('names the slice in the build heading', async () => {

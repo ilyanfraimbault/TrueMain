@@ -377,6 +377,28 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetPlayerChampionMatchupsAsync_JudgesTheLanesFromThePlayersOwnSnapshots()
+    {
+        var nameTag = await SeedPlayerLaneSampleAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateClient(factory);
+
+        var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
+
+        // Four games against Zed: +500 gold at 15 (won), +100 (even), -400 (lost), and
+        // one with no 15-minute reading, which is a game but not a lane anyone can call.
+        var zed = matchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
+        zed.Games.Should().Be(4);
+        zed.DecidedLaneGames.Should().Be(2, "the even lane and the unread one are decided by neither side");
+        zed.LaneWinRate.Should().Be(0.5, "two decided lanes are a rate on the player's own row, under the global floor of 10");
+        zed.GoldDiffLaneGames.Should().Be(3);
+        zed.AverageGoldDiffAt15.Should().BeApproximately((500 + 100 - 400) / 3d, 1e-9);
+        zed.AverageXpDiffAt15.Should().BeApproximately((200 + 0 - 300) / 3d, 1e-9);
+    }
+
+    [Fact]
     public async Task GetChampionMatchupsAsync_ReturnsBadRequestForInvalidPosition()
     {
         await using var factory = new ApiWebApplicationFactory(_fixture);
@@ -775,6 +797,52 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         await RunAggregationAsync();
         return $"{account.GameName}-{account.TagLine}";
     }
+
+    /// <summary>
+    /// Seeds one tracked account with four Yone-vs-Zed games, three of them carrying
+    /// both sides' 15-minute reading (+500 / +100 / -400 gold, +200 / 0 / -300 xp) and
+    /// one without any. Returns the tag.
+    /// </summary>
+    private async Task<string> SeedPlayerLaneSampleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+
+        var account = new RiotAccountBuilder()
+            .WithGameName("MatchupLane")
+            .WithTagLine("KR1")
+            .WithPuuid("matchup-lane-puuid")
+            .Build();
+        db.RiotAccounts.Add(account);
+        db.MainChampionStats.Add(MainStat(account, Champion, games: 4));
+
+        (int Gold, int Xp)?[] gaps = [(500, 200), (100, 0), (-400, -300), null];
+        for (var i = 0; i < gaps.Length; i++)
+        {
+            var matchId = $"ml-zed-{i}";
+            AddLaneMatchup(db, matchId, "16.4.521.123", QueueId, yoneWins: i % 2 == 0, Opponent,
+                yoneAccountId: account.Id, yonePuuid: account.Puuid);
+            if (gaps[i] is { } gap)
+            {
+                db.MatchParticipantTimelineSnapshots.Add(Reading(matchId, participantId: 1, 6000 + gap.Gold, 7000 + gap.Xp));
+                db.MatchParticipantTimelineSnapshots.Add(Reading(matchId, participantId: 2, 6000, 7000));
+            }
+        }
+
+        await db.SaveChangesAsync();
+        return $"{account.GameName}-{account.TagLine}";
+    }
+
+    private static MatchParticipantTimelineSnapshot Reading(string matchId, int participantId, int totalGold, int xp)
+        => new()
+        {
+            MatchId = matchId,
+            ParticipantId = participantId,
+            IntervalMinute = 15,
+            TimestampMs = 900_000,
+            TotalGold = totalGold,
+            Xp = xp,
+            Level = 9,
+        };
 
     /// <summary>
     /// Seeds one tracked account on Yone in two positions: two Yone-vs-Zed games in

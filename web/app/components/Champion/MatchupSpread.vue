@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useElementSize } from '@vueuse/core'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { positionLabel, type ChampionPosition } from '#common/utils/positions'
+import { ALL_POSITIONS, positionLabel, type ChampionPosition, type PositionFilter } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatPercentage } from '~~/shared/utils/ddragon'
@@ -18,9 +18,15 @@ import {
 // "do I win the lane", which a game won by the jungler does not.
 const props = defineProps<{
   championId: number
-  /** The page's lane; the panel starts there and follows it when it changes. */
-  position: ChampionPosition | null
+  /**
+   * The page's lane; the panel starts there and follows it when it changes. `ALL`
+   * (player scope only) pairs each of the player's games with the opponent of the
+   * position they held in it.
+   */
+  position: PositionFilter | null
   champions: ChampionStaticListItem[]
+  /** When set, the player's own games and their own lanes (the player champion page). */
+  nameTag?: string
   eloBracket?: string
   patch?: string | null
 }>()
@@ -29,13 +35,13 @@ const ICON = 28
 const ROW = 32
 const MIN_ROWS = 5
 
-const role = ref<ChampionPosition | null>(props.position)
+const role = ref<PositionFilter | null>(props.position)
 watch(() => props.position, (value) => { role.value = value })
 
 const { data, status, error } = useChampionMatchups(
   () => props.championId,
   () => role.value,
-  { eloBracket: () => props.eloBracket, patch: () => props.patch },
+  { nameTag: () => props.nameTag, eloBracket: () => props.eloBracket, patch: () => props.patch },
 )
 
 // `idle` counts as loading: the fetch is client-only, and the server must not
@@ -43,7 +49,15 @@ const { data, status, error } = useChampionMatchups(
 const isLoading = computed(() => isLoadingStatus(status.value) && !data.value)
 
 const championById = useChampionsById(() => props.champions)
-const roleName = computed(() => (positionLabel(role.value) ?? 'lane').toLowerCase())
+const isAllPositions = computed(() => role.value === ALL_POSITIONS)
+// The picker speaks `null` for "All positions"; the route speaks `ALL`.
+const pickerRole = computed<ChampionPosition | null>(() =>
+  role.value === ALL_POSITIONS ? null : role.value)
+const emptyDescription = computed(() => {
+  if (isAllPositions.value) return 'No decided lane against any opponent yet.'
+  const roleName = (positionLabel(role.value) ?? 'lane').toLowerCase()
+  return `Not enough decided lanes against any ${roleName} opponent yet.`
+})
 
 const spread = computed(() => buildMatchupSpread(data.value?.matchups ?? []))
 const hasPoints = computed(() => spread.value.points.length > 0)
@@ -77,14 +91,19 @@ function opponentName(point: MatchupSpreadPoint): string {
   return championDisplayName(id, championById.value.get(id) ?? null)
 }
 
+// One player's lanes are a handful per opponent, so their tooltip states the sample
+// the rate rests on; the champion page's aggregate needs no such caveat.
 function describe(point: MatchupSpreadPoint): string {
-  return `${opponentName(point)} — ${formatPercentage(point.laneWinRate, 0)} lanes won`
+  const rate = `${opponentName(point)} — ${formatPercentage(point.laneWinRate, 0)} lanes won`
+  if (!props.nameTag) return rate
+  const lanes = point.entry.decidedLaneGames
+  return `${rate} (${lanes} decided ${lanes === 1 ? 'lane' : 'lanes'})`
 }
 
 // Same deep link as the matchup rows: the `/matchup` tool with both champions
 // and the role pinned (#939).
 function matchupToolLink(opponentChampionId: number): string | undefined {
-  if (!role.value) return undefined
+  if (!role.value || isAllPositions.value) return undefined
   const query = new URLSearchParams({
     champion: String(props.championId),
     position: role.value,
@@ -99,7 +118,11 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
 <template>
   <SectionCard :level="2" title="Matchups">
     <template #actions>
-      <RolePicker hide-all :position="role" @update:position="value => (role = value)" />
+      <RolePicker
+        :hide-all="!nameTag"
+        :position="pickerRole"
+        @update:position="value => (role = value ?? ALL_POSITIONS)"
+      />
     </template>
 
     <USkeleton v-if="isLoading" class="h-40 w-full rounded-md" />
@@ -110,7 +133,7 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
       v-else-if="!hasPoints"
       size="sm"
       icon="i-lucide-swords"
-      :description="`Not enough decided lanes against any ${roleName} opponent yet.`"
+      :description="emptyDescription"
     />
 
     <div
