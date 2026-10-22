@@ -94,12 +94,18 @@ const main = computed(() => mainBuild(props.row))
 
     <!-- Room for two lane icons on every row, so the layout never shifts
          whether a player has a secondary lane or no position data at all.
-         Hidden on narrow rows to keep them readable. -->
-    <LeaderboardLanes :positions="row.positions" class="hidden w-16 shrink-0 @xl:flex" />
+         Hidden on narrow rows to keep them readable.
+         The tiers below are sized against the row's fixed columns, not picked
+         by eye: the name is the only column that shrinks, so a tier that turns
+         on more fixed width than the row has left crushes it to nothing and the
+         next column paints over the avatar. Lanes join at @2xl (the name keeps
+         ~200px next to the stat block), the 256px champion build only at @5xl
+         (~734px of fixed columns once it's in, ~290px left for the name). -->
+    <LeaderboardLanes :positions="row.positions" class="hidden w-16 shrink-0 @2xl:flex" />
 
     <!-- Left spacer: with the right spacer below, the two centre the champion
          column between the name and the stat block on wide rows. -->
-    <div class="hidden flex-1 @2xl:block" />
+    <div class="hidden flex-1 @5xl:block" />
 
     <!-- Champion build (fixed-width slot, centred). Every sub-slot inside it
          holds its width too, so the column measures the same on a row whose
@@ -110,7 +116,7 @@ const main = computed(() => mainBuild(props.row))
       :top-champions="row.topChampions"
       :champions-by-id="championsById"
       :name-tag="rowNameTag"
-      class="relative z-10 hidden w-64 shrink-0 overflow-hidden @2xl:flex"
+      class="relative z-10 hidden w-64 shrink-0 overflow-hidden @5xl:flex"
     />
 
     <!-- Truemain score. Always reserved (empty slot when the account has no
