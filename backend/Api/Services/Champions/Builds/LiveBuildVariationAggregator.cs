@@ -1,3 +1,4 @@
+using Core.Lol.Spells;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions.Composition;
 
@@ -95,7 +96,7 @@ internal static class LiveBuildVariationAggregator
 
         var spells = TopVariations(
             facts.Where(fact => fact.Spell1Id > 0 && fact.Spell2Id > 0),
-            fact => (fact.Spell1Id, fact.Spell2Id),
+            fact => new SummonerSpellPair(fact.Spell1Id, fact.Spell2Id).OrderedForDisplay(),
             games,
             (pair, groupGames, groupWins, denominator) => new BuildSummonerSpellsReadModel
             {
