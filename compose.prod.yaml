@@ -10,6 +10,7 @@ x-ingestor-environment: &ingestor-environment
       Harvest__MaxCandidatesPerRun: "7500"
       MatchIngestion__BatchSize: "75"
       ManualSeed__BatchSize: "750"
+      MatchDataRetention__BuildAggregateRetainedPatchCount: "2"
 
 services:
   postgres:

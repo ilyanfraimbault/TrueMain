@@ -109,54 +109,11 @@ public static class AggregateRetention
             ct.ThrowIfCancellationRequested();
 
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
-            result = new AggregateDeletionResult(
-                result.DeletedScopes + await db.ChampionAggregateScopes
-                    .Where(scope => scope.GameVersion == stalePatch).ExecuteDeleteAsync(ct),
-                result.DeletedMatchupStats + await db.ChampionMatchupStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                // The synergy pair rows and the baselines they are divided by go in
-                // the same transaction as each other: a patch left with baselines but
-                // no pairs (or the reverse) would still be read, and would answer with
-                // an expected win rate computed against a cohort that no longer exists.
-                result.DeletedSynergyStats + await db.ChampionSynergyStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.ChampionSynergyBaselineStats
-                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    // The opposing pairs (#1713) and their baselines, by the same rule,
-                    // counted with the synergy rows they mirror.
-                    + await db.ChampionOpponentStats
-                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.ChampionOpponentBaselineStats
-                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                // The game-length buckets of the scaling chart (#1368): one table, no
-                // denominator kept apart from it.
-                result.DeletedScalingStats + await db.ChampionScalingStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                // The measured profiles (#1449) and the item context they qualify (#1450).
-                // Same rule as the pairs above and one more reason for it here: a
-                // verdict left without the counters it was derived from could never be
-                // recomputed, and the counters without their totals are not rates.
-                result.DeletedContextStats + await db.ChampionProfileStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.ChampionDamageProfileStats
-                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.ChampionItemContextStats
-                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.ChampionItemContextTotals
-                        .Where(total => total.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.ChampionItemContextVerdicts
-                        .Where(verdict => verdict.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.ChampionNextItemTerms
-                        .Where(term => term.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.ChampionItemComponentOrders
-                        .Where(order => order.Patch == stalePatch).ExecuteDeleteAsync(ct),
-                // The desktop app's benchmarks: the overlay's pace (#1912) and the dashboard's
-                // form (#2076). Their reads already pool only the most recent patches, so an
-                // aged-out patch is dead weight either way.
-                result.DeletedBenchmarkStats + await db.PaceBenchmarkStats
-                    .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct)
-                    + await db.FormBenchmarkStats
-                        .Where(stat => stat.Patch == stalePatch).ExecuteDeleteAsync(ct));
+            var deletedScopes = await db.ChampionAggregateScopes
+                .Where(scope => scope.GameVersion == stalePatch).ExecuteDeleteAsync(ct);
+            result = result
+                .Plus(await DeletePanelStatsAsync(db, stalePatch, ct))
+                .Plus(AggregateDeletionResult.Empty with { DeletedScopes = deletedScopes });
             await transaction.CommitAsync(ct);
         }
 
@@ -174,6 +131,67 @@ public static class AggregateRetention
 
         return result;
     }
+
+    /// <summary>
+    /// Every per-patch champion-page table of one patch except the scopes and their
+    /// patterns: matchups, synergy and opposing pairs with their baselines, scaling, the
+    /// situational-context family and the desktop benchmarks. Shared by the full purge
+    /// (which also drops the scopes) and the build purge (#1958, which keeps them), so
+    /// the two can never disagree on what "a patch's panels" are. Runs inside the
+    /// caller's transaction.
+    /// </summary>
+    internal static async Task<AggregateDeletionResult> DeletePanelStatsAsync(
+        TrueMainDbContext db,
+        string patch,
+        CancellationToken ct)
+        => new(
+            DeletedScopes: 0,
+            DeletedMatchupStats: await db.ChampionMatchupStats
+                .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct),
+            // The synergy pair rows and the baselines they are divided by go in
+            // the same transaction as each other: a patch left with baselines but
+            // no pairs (or the reverse) would still be read, and would answer with
+            // an expected win rate computed against a cohort that no longer exists.
+            DeletedSynergyStats: await db.ChampionSynergyStats
+                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
+                + await db.ChampionSynergyBaselineStats
+                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
+                // The opposing pairs (#1713) and their baselines, by the same rule,
+                // counted with the synergy rows they mirror.
+                + await db.ChampionOpponentStats
+                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
+                + await db.ChampionOpponentBaselineStats
+                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct),
+            // The game-length buckets of the scaling chart (#1368): one table, no
+            // denominator kept apart from it.
+            DeletedScalingStats: await db.ChampionScalingStats
+                .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct),
+            // The measured profiles (#1449) and the item context they qualify (#1450).
+            // Same rule as the pairs above and one more reason for it here: a
+            // verdict left without the counters it was derived from could never be
+            // recomputed, and the counters without their totals are not rates.
+            DeletedContextStats: await db.ChampionProfileStats
+                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
+                + await db.ChampionDamageProfileStats
+                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
+                + await db.ChampionItemContextStats
+                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
+                + await db.ChampionItemContextTotals
+                    .Where(total => total.Patch == patch).ExecuteDeleteAsync(ct)
+                + await db.ChampionItemContextVerdicts
+                    .Where(verdict => verdict.Patch == patch).ExecuteDeleteAsync(ct)
+                + await db.ChampionNextItemTerms
+                    .Where(term => term.Patch == patch).ExecuteDeleteAsync(ct)
+                + await db.ChampionItemComponentOrders
+                    .Where(order => order.Patch == patch).ExecuteDeleteAsync(ct),
+            // The desktop app's benchmarks: the overlay's pace (#1912) and the dashboard's
+            // form (#2076). Their reads already pool only the most recent patches, so an
+            // aged-out patch is dead weight either way.
+            DeletedBenchmarkStats: await db.PaceBenchmarkStats
+                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
+                + await db.FormBenchmarkStats
+                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct));
+
     public sealed record AggregateDeletionResult(
         int DeletedScopes,
         int DeletedMatchupStats,
@@ -186,6 +204,15 @@ public static class AggregateRetention
         int DeletedBenchmarkStats)
     {
         public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0, 0);
+
+        public AggregateDeletionResult Plus(AggregateDeletionResult other)
+            => new(
+                DeletedScopes + other.DeletedScopes,
+                DeletedMatchupStats + other.DeletedMatchupStats,
+                DeletedSynergyStats + other.DeletedSynergyStats,
+                DeletedScalingStats + other.DeletedScalingStats,
+                DeletedContextStats + other.DeletedContextStats,
+                DeletedBenchmarkStats + other.DeletedBenchmarkStats);
 
         public int TotalDeleted
             => DeletedScopes

@@ -71,6 +71,17 @@ public sealed class MatchDataRetentionProcess(
         var aggregateDeletion = await AggregateRetention.DeleteExpiredAsync(
             dbContextFactory, retentionOptions.Value.AggregateRetainedPatchCount, logger, ct);
 
+        // The build half of the two-level retention (#1958). Never narrower than the raw
+        // match window: the pattern aggregation rebuilds every patch of that window, so a
+        // build window inside it would purge patterns the next aggregation run writes back.
+        var buildRetainedPatchCount = retentionOptions.Value.BuildAggregateRetainedPatchCount;
+        var buildPurge = await BuildAggregateRetention.PurgeOutsideWindowAsync(
+            dbContextFactory,
+            retentionPlan.QueueId,
+            buildRetainedPatchCount <= 0 ? 0 : Math.Max(buildRetainedPatchCount, retentionPlan.RetainedPatchCount),
+            logger,
+            ct);
+
         // Prune the legacy dense per-minute snapshot grid down to the canonical marks
         // (#694). Independent of the deletions above.
         var snapshotPrune = await PruneTimelineSnapshotsAsync(retentionPlan.QueueId, ct);
@@ -83,6 +94,7 @@ public sealed class MatchDataRetentionProcess(
             prunedCandidates,
             demotedCandidates,
             aggregateDeletion,
+            buildPurge,
             snapshotPrune);
     }
 
@@ -415,6 +427,7 @@ public sealed class MatchDataRetentionProcess(
         int prunedCandidates,
         int demotedQueuedCandidates,
         AggregateRetention.AggregateDeletionResult aggregateDeletion,
+        BuildAggregateRetention.BuildPurgeResult buildPurge,
         SnapshotPruneResult snapshotPrune)
     {
         return new MatchDataRetentionSummary(
@@ -430,6 +443,8 @@ public sealed class MatchDataRetentionProcess(
             aggregateDeletion.DeletedScopes,
             aggregateDeletion.DeletedMatchupStats,
             aggregateDeletion.DeletedSynergyStats,
+            buildPurge.PurgedPatches,
+            buildPurge.DeletedPatterns,
             retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
                 .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))

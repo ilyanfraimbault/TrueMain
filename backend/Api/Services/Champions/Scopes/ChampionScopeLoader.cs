@@ -50,6 +50,7 @@ internal static class ChampionScopeLoader
 
         var baseQuery = db.ChampionAggregateScopes
             .AsNoTracking()
+            .WithBuilds(db)
             .WhereChampionScope(
                 championId, queueId, riotAccountId, normalizedPatch, platformId, requestedPosition,
                 // The resolution pass has to stand on the same population as the
@@ -105,6 +106,7 @@ internal static class ChampionScopeLoader
         // on the final scope slice.
         var scopedScopes = await db.ChampionAggregateScopes
             .AsNoTracking()
+            .WithBuilds(db)
             .WhereChampionScope(
                 championId,
                 queueId,
