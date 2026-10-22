@@ -41,7 +41,13 @@ internal sealed class ChampionDirectoryPatchResolver(
     {
         if (!string.IsNullOrEmpty(requestedPatch))
         {
-            return requestedPatch;
+            // An explicit patch whose builds were purged (#1958) still has its scopes, so
+            // serving it would print totals and tiers over empty builds: it answers as a
+            // patch with no data instead.
+            var purged = await db.ChampionBuildPurgedPatches
+                .AsNoTracking()
+                .AnyAsync(patch => patch.Patch == requestedPatch, ct);
+            return purged ? null : requestedPatch;
         }
 
         return await cache.GetOrComputeAsync(ActivePatchCacheKey, ResolveActivePatchCoreAsync, ct);

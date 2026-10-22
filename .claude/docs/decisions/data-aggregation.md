@@ -77,7 +77,7 @@ BuildAggregateRetainedPatchCount` (prod and preprod 2) purges, for a patch outsi
 (chunked per 5,000 scopes) and every per-patch panel table the full purge drops (one shared list), and keeps its scopes,
 its light record and its bans. A patch without a light record is skipped, never purged. Each purge writes
 `champion_build_purged_patches`, and every build reader (`WithBuilds`: the scope loader, the builds query, the
-directory's patch list) skips those patches, so a purged patch is never resolved or served with totals and no build.
+directory's patch list and its explicit `?patch=`) skips those patches, so a purged patch is never resolved or served with totals and no build.
 The per-account top build of the leaderboard naturally reads the live patches only. The global `champion_dim_*` rows
 are left alone: the aggregation inserts them concurrently. Product call, 2026-10-22, #1958.
 
