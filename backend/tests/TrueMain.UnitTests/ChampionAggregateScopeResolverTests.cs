@@ -67,6 +67,65 @@ public sealed class ChampionAggregateScopeResolverTests
     }
 
     [Fact]
+    public void ResolveFilledPatch_SkipsANewestPatchUnderTheBar()
+    {
+        // The #2249 case: a day into a patch, a popular lane holds a hundred games
+        // beside the thousands of the one before.
+        (string GameVersion, string Position, int Games)[] rows =
+        [
+            ("16.21", "BOTTOM", 125),
+            ("16.20", "BOTTOM", 8_818),
+        ];
+
+        ChampionAggregateScopeResolver.ResolveFilledPatch(rows, 500).Should().Be("16.20");
+    }
+
+    [Fact]
+    public void ResolveFilledPatch_ServesTheNewestPatchOnceItClearsTheBar()
+    {
+        (string GameVersion, string Position, int Games)[] rows =
+        [
+            ("16.21", "BOTTOM", 500),
+            ("16.20", "BOTTOM", 8_818),
+        ];
+
+        ChampionAggregateScopeResolver.ResolveFilledPatch(rows, 500).Should().Be("16.21");
+    }
+
+    [Fact]
+    public void ResolveFilledPatch_MovesALittlePlayedChampionOnAtHalfItsBusiestPatch()
+    {
+        // Neither patch reaches 500: the newest is served once it holds half of the
+        // busiest, rather than only once it overtakes it at the end of the patch.
+        (string GameVersion, string Position, int Games)[] halfway =
+        [
+            ("16.21", "TOP", 150),
+            ("16.20", "TOP", 300),
+        ];
+        (string GameVersion, string Position, int Games)[] early =
+        [
+            ("16.21", "TOP", 149),
+            ("16.20", "TOP", 300),
+        ];
+
+        ChampionAggregateScopeResolver.ResolveFilledPatch(halfway, 500).Should().Be("16.21");
+        ChampionAggregateScopeResolver.ResolveFilledPatch(early, 500).Should().Be("16.20");
+    }
+
+    [Fact]
+    public void ResolveFilledPatch_ZeroBarServesTheNewestPatch()
+    {
+        (string GameVersion, string Position, int Games)[] rows =
+        [
+            ("16.21", "BOTTOM", 1),
+            ("16.20", "BOTTOM", 8_818),
+        ];
+
+        ChampionAggregateScopeResolver.ResolveFilledPatch(rows, 0).Should().Be("16.21");
+        ChampionAggregateScopeResolver.ResolveFilledPatch([], 500).Should().BeNull();
+    }
+
+    [Fact]
     public void ResolveServablePatch_SkipsANewPatchThatCannotFillADirectory()
     {
         // The #1109 regression, in miniature: 16.16 exists and holds rows, but only

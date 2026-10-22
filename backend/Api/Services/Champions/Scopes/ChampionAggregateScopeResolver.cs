@@ -99,17 +99,65 @@ internal static class ChampionAggregateScopeResolver
     public static string? ResolveLatestPatchAboveFloor(
         IEnumerable<(string GameVersion, string Position, int Games)> rows,
         int minGames)
-        => rows
-            .GroupBy(row => row.GameVersion, StringComparer.Ordinal)
-            .Where(patchRows => patchRows
-                .Where(row => !string.IsNullOrWhiteSpace(row.Position))
-                .GroupBy(row => row.Position)
-                .Select(positionRows => positionRows.Sum(row => row.Games))
-                .DefaultIfEmpty(0)
-                .Max() >= minGames)
-            .Select(patchRows => patchRows.Key)
+        => DominantPositionGamesByPatch(rows)
+            .Where(patch => patch.Value >= minGames)
+            .Select(patch => patch.Key)
             .OrderByDescending(ParsePatchVersion)
             .FirstOrDefault();
+
+    /// <summary>
+    /// Picks the patch the public, patch-less champion page defaults to (#2249): the
+    /// newest one whose dominant position holds at least
+    /// <c>min(<paramref name="minGames"/>, half the busiest candidate's games)</c>.
+    ///
+    /// <para>
+    /// The absolute bar keeps a popular champion off a patch released hours ago: its
+    /// build tree prunes nodes under a share of their parent, so a lane of a hundred
+    /// games stops two items short of the one a settled patch draws. The relative bar
+    /// keeps a champion that never reaches the absolute bar from being pinned to the
+    /// previous patch for a whole patch: it moves once the new patch holds half of what
+    /// the old one did, roughly where its tree stops being shallower. The busiest patch
+    /// always clears its own half, so this never returns null on non-empty input.
+    /// </para>
+    ///
+    /// <para>
+    /// A zero or negative <paramref name="minGames"/> is the off-switch: the newest
+    /// patch with any row, the rule before #2249.
+    /// </para>
+    /// </summary>
+    public static string? ResolveFilledPatch(
+        IEnumerable<(string GameVersion, string Position, int Games)> rows,
+        int minGames)
+    {
+        var gamesByPatch = DominantPositionGamesByPatch(rows);
+        var newestFirst = OrderNewestFirst(gamesByPatch.Keys);
+        if (minGames <= 0 || gamesByPatch.Count == 0)
+        {
+            return newestFirst.FirstOrDefault();
+        }
+
+        // Compared doubled rather than halved, so an odd busiest count needs no rounding.
+        var busiest = gamesByPatch.Values.Max();
+        return newestFirst.First(patch =>
+        {
+            var games = gamesByPatch[patch];
+            return games >= minGames || 2L * games >= busiest;
+        });
+    }
+
+    private static Dictionary<string, int> DominantPositionGamesByPatch(
+        IEnumerable<(string GameVersion, string Position, int Games)> rows)
+        => rows
+            .GroupBy(row => row.GameVersion, StringComparer.Ordinal)
+            .ToDictionary(
+                patchRows => patchRows.Key,
+                patchRows => patchRows
+                    .Where(row => !string.IsNullOrWhiteSpace(row.Position))
+                    .GroupBy(row => row.Position)
+                    .Select(positionRows => positionRows.Sum(row => row.Games))
+                    .DefaultIfEmpty(0)
+                    .Max(),
+                StringComparer.Ordinal);
 
     public static string ResolveDominantPosition(IEnumerable<ChampionAggregateScope> scopes)
         => ResolveDominantPosition(scopes.Select(scope => (scope.Position, scope.Games)));
