@@ -118,14 +118,15 @@ const { perk, perkStyle, item: buildItem } = useBuildResolvers(runeTree, itemsMa
           <span class="stat-label w-12 text-right">Rank</span>
           <span class="stat-label w-10 text-right">WR</span>
         </div>
-        <ul class="divide-y divide-default/60">
+        <ul class="flex flex-1 flex-col divide-y divide-default/60">
           <li
             v-for="({ row, href, winRateLabel }, index) in displayRows"
             :key="`${row.identity.gameName}-${row.identity.tagLine}`"
+            class="flex flex-1"
           >
             <NuxtLink
               :to="href"
-              class="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-accented focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+              class="flex flex-1 items-center gap-3 px-4 py-2 transition-colors hover:bg-accented focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
             >
               <span class="w-4 shrink-0 text-sm tabular-nums text-dimmed">{{ index + 1 }}</span>
               <!-- The player, without a link of its own: the row is the link. -->
