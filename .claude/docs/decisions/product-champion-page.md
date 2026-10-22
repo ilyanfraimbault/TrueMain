@@ -310,3 +310,26 @@ matchup read follows #1557 — nothing is cached and the view gets the empty sum
 paragraph without its matchups for five minutes. Skipped when an opponent is pinned: the prose then
 describes that one matchup's build. Each named opponent links to its own champion page, the only
 champion→champion links in the server HTML since #1275 — #1954, #1538.
+
+**The champion page defaults to the newest patch its lane can fill, not the newest with any games (2026-10-22).**
+A day into 16.21, Caitlyn BOTTOM opened on 16.21 with 125 games while 16.20 held ~8.8k. The build tree prunes
+nodes under a tenth of their parent, so it stopped at four items instead of six — the tree logic was right,
+the slice was a stub, and it read as a bug. #1109's servable-patch bar did not help: it is site-wide, clears
+once forty champions are past ten games, and then moves every champion page with them. Across the 266
+directory lines measured that day, 16.21's median was 79 games against 3 119 on 16.20.
+
+- **A per-lane games bar, `ChampionsList:MinDefaultPatchGames` (500)**, applied by `ChampionScopeLoader` to
+  the patch-less public read — the idea player-scoped reads already had (`MinPlayerBuildGames`). 255 of the
+  266 settled 16.20 lines cleared it, so it holds back a patch still filling, not a champion that is little
+  played; the top build's tree only reached its settled depth from a few hundred games up.
+- **Or half the champion's busiest patch.** A champion that never reaches 500 would otherwise sit on the old
+  patch until the new one overtook it — the whole patch. At half, its tree is about as deep as the old
+  one's. The busiest patch always clears its own half, so the rule never comes back empty.
+- **Games, not lines.** #1109 counts lines because the directory renders lines; one champion page renders one
+  lane's games, and the tree's depth follows them.
+- **Every panel follows the champion read.** The front pins `selectedPatch` from its response; the SSR build
+  paragraph calls the same endpoint without a patch, so it resolves the same default. Explicit `?patch=` wins,
+  and the picker still offers the thin patch. A pinned opponent is the one exception: matchup builds are read
+  live from match participants and keep resolving to the newest patch that matchup was played on.
+- **The page may sit a patch behind the directory** for the first day or two of a patch. Accepted: both report
+  the patch they serve, and a full directory beside a full build tree beats a matching label on a stub — #2249.

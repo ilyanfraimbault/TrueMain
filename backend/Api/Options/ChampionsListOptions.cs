@@ -71,6 +71,33 @@ public sealed class ChampionsListOptions
     public int MinServablePatchLines { get; set; } = 50;
 
     /// <summary>
+    /// Games a champion's lane must hold on a patch before its public page, opened
+    /// without a <c>patch</c>, defaults to it (#2249). Under this bar the page serves
+    /// the newest patch that clears it — or that holds at least half the games of the
+    /// champion's busiest patch, so a champion that never reaches the bar still moves
+    /// on mid-patch instead of staying on the previous one to the end.
+    ///
+    /// <para>
+    /// <see cref="MinServablePatchLines"/> does not cover this: it is site-wide, so it
+    /// clears once forty champions are past ten games and moves every champion page with
+    /// them. On production on 2026-10-22, a day into 16.21, Caitlyn BOTTOM defaulted to
+    /// 16.21 with 125 games while 16.20 held ~8.8k; the build tree, which prunes nodes
+    /// under a tenth of their parent, stopped at four items instead of six, and read as a
+    /// bug. Across the 266 directory lines measured that day, 16.21's median was 79 games.
+    /// </para>
+    ///
+    /// <para>
+    /// Five hundred: on the same measurement 255 of the 266 lines of the settled 16.20
+    /// cleared it, so the bar holds back a patch that is still filling, not a champion
+    /// that is simply little played; and the top build's tree reached its settled depth
+    /// only from a few hundred games up. Explicit patches ignore it, and the thin patch
+    /// stays selectable in the picker. Set to 0 to default to the newest patch with any
+    /// games, the pre-#2249 behaviour.
+    /// </para>
+    /// </summary>
+    public int MinDefaultPatchGames { get; set; } = 500;
+
+    /// <summary>
     /// Most <c>(champion, lane)</c> lines one champion may contribute to the
     /// directory and the tier list, keeping its most-played lanes. Champions
     /// flex, so a game's ~170 champions produced up to 5 × N lines — measured on

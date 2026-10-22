@@ -246,6 +246,30 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetChampionAsync_DefaultsPastANewestPatchTooThinToFillThePage()
+    {
+        await SeedThinNewestPatchAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // 16.6 holds 30 games, under both MinDefaultPatchGames (500) and half of 16.5's
+        // 600: the page opens on 16.5, the patch that can fill it (#2249).
+        var byDefault = await client.GetFromJsonAsync<ChampionResponse>("/champions/779?position=BOTTOM");
+        byDefault!.Patch.Should().Be("16.5");
+        byDefault.TotalGames.Should().Be(600);
+
+        // The thin patch is still served when asked for by name.
+        var explicitPatch = await client.GetFromJsonAsync<ChampionResponse>(
+            "/champions/779?position=BOTTOM&patch=16.6");
+        explicitPatch!.Patch.Should().Be("16.6");
+        explicitPatch.TotalGames.Should().Be(30);
+    }
+
+    [Fact]
     public async Task GetChampionAsync_CountsOnlyTruemainsByDefault_AndWidensWhenAskedTo()
     {
         await SeedMixedPopulationAggregatesAsync();
@@ -286,6 +310,31 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync(
             "/champions/778?position=MIDDLE&opponentChampionId=122&truemainsOnly=false");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private async Task SeedThinNewestPatchAggregatesAsync()
+    {
+        var now = DateTime.UtcNow;
+        var accountId = Guid.Parse("eeee5555-5555-5555-5555-555555555555");
+
+        await using var db = _fixture.CreateDbContext();
+
+        db.RiotAccounts.Add(BuildAccount(accountId, "KR", "thin-patch-puuid", "thin-patch", now));
+        await db.SaveChangesAsync();
+
+        // A settled patch and the one released after it, still filling.
+        await new ChampionAggregateSeeder()
+            .AddPatternWithRune(accountId, 779, "16.5", "KR", 420, "BOTTOM",
+                summoner1Id: 4, summoner2Id: 7, skillOrderKey: "Q-W-E",
+                buildItems: [3031, 3006, 3094], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 600, wins: 310, aggregatedAtUtc: now.AddDays(-1))
+            .AddPatternWithRune(accountId, 779, "16.6", "KR", 420, "BOTTOM",
+                summoner1Id: 4, summoner2Id: 7, skillOrderKey: "Q-W-E",
+                buildItems: [3031, 3006, 3094], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 30, wins: 16, aggregatedAtUtc: now.AddMinutes(-5))
+            .SaveAsync(db);
     }
 
     private async Task SeedMixedPopulationAggregatesAsync()

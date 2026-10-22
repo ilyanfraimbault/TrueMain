@@ -51,6 +51,7 @@ Last verified against `develop` on 2026-09-02.
 - "Completed item" is the build path's eligibility rule, shared, not a local restatement of it — #1021
 - Champion URLs are bare slugs, and the slug map is app state rather than per-page async data — #1124
 - The champion page server-renders its build as prose — the one SSR round-trip the page pays — #926, #1123, #1273
+- The champion page defaults to the newest patch its lane can fill, not the newest with any games (2026-10-22) — #2249, #1109
 - The build paragraph's cache window is 5 minutes, because it sits next to live numbers — #1123, #926, #1273
 - `hydrate-on-visible` does not make a panel free — it defers hydration, not server rendering — #1123, #1231
 - The build paragraph is typeset, and rune trees get Riot's colours to do it — #1123, #1143

@@ -94,9 +94,9 @@ in hours and recurred **every patch day**.
   describe a meta that never existed. That is still why the teaser and the volume figure read from different
   calls.
 
-Player- and champion-scoped views were never affected: `ChampionScopeLoader` has had
-`ResolveLatestPatchAboveFloor` since long before this, for the same reason. #1109 is that idea finally applied
-to the global reads.
+Player-scoped views were never affected: `ChampionScopeLoader` has had `ResolveLatestPatchAboveFloor` since
+long before this, for the same reason. #1109 is that idea finally applied to the global reads. The public
+champion page was, until #2249 gave it its own per-lane bar (`product-champion-page.md`).
 
 Shares a trigger with #1107 (CommunityDragon's unpublished patch branch aborting the folds) but nothing else —
 and fixing #1107 makes this one *more* urgent, since the folds now succeed on patch day and the flip onto a

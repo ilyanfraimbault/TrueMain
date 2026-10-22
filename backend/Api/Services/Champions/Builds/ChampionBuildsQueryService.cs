@@ -23,7 +23,8 @@ public interface IChampionBuildsQueryService
     /// <param name="championId">Riot champion id to build the page for.</param>
     /// <param name="patch">
     /// Requested patch (<c>major.minor</c> or full Riot version); when null
-    /// the dominant patch in the scope is resolved automatically.
+    /// the newest patch whose lane holds <c>ChampionsList:MinDefaultPatchGames</c>
+    /// is resolved automatically (#2249), or the player's floor under a player scope.
     /// </param>
     /// <param name="position">
     /// Requested Riot team position; when null the dominant position is
@@ -114,7 +115,8 @@ public sealed class ChampionBuildsQueryService(
             platformId: scope?.PlatformId,
             minGames: scope?.MinGames,
             eloBrackets: bracketFilter,
-            truemainsOnly: truemainsOnly);
+            truemainsOnly: truemainsOnly,
+            defaultPatchMinGames: championsListOptions.Value.MinDefaultPatchGames);
         if (scopes is null)
         {
             return null;
