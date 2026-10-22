@@ -132,6 +132,13 @@ lanes the rate rests on. The spread sits in the main column between the build an
 list was, and its role picker offers All positions there — product call, 2026-10-22.
 The strip carries no caption, band labels, ring colours, counts or hardest/easiest summary: the icons' positions
 say it, and each icon's tooltip reads only the opponent and its lane win rate. The card is titled "Matchups" — product call after seeing it live, 2026-10-20, #2159.
+**The spread follows the page's lane only, says "WR", and washes red to blue.** The panel's own role picker is
+gone: the opponent is always whoever held the role the reader is looking at, and a lane picked inside the panel
+apart from the page's contradicted the build beside it. The tooltip reads only `54% WR` (plus `(N games)` on the
+player page) — the icon already names the opponent, and "lanes won" read wrong on a jungler, whose 15-minute lead
+is the same measure but not a lane; the accessible name keeps the opponent's name. The strip's wash takes the match
+rows' result colours (`result-tone.ts`: red on the losing left, blue on the winning right) rather than the
+rose-gold `data-*` axis — product call, 2026-10-22.
 
 **Lane win rate stores three counters and divides by the *decided* lanes, not by games played.**
 A gold *threshold* at 15 min (`LaneOutcomeAggregation:GoldLeadThreshold`, 300) is what defines a won lane, and
@@ -254,6 +261,9 @@ twice, and each surviving cell states its own denominator because the two popula
 does not render on the standard-build fallback, and the figures used to vanish exactly where the reader most
 needs them. The provenance-drawer *button* moved into the strip while the drawer itself stayed in the card, which
 already fetches the item / rune / spell maps it needs — the page owns the open flag between them.
+↳ **Since #2241 the lane cell sits in the draft board's lane duel**, between the two teams, as the desktop app's
+champion select draws it; the strip keeps the sample's three cells. Still one sample and no figure twice: the lane
+read is over the same games, and it is shown once.
 ↳ **XP @15 is stored, not derived** (`LaneXpDiffSum` over its own `LaneXpDiffGames`, mirroring #976's gold pair).
 Gold is who bought more, XP is who is bigger, and they routinely disagree: a lane won on kills and lost on waves
 shows a gold lead over an XP deficit, which the next all-in reverses. Only gold is banded — 300 XP is a third of
@@ -417,3 +427,13 @@ the player's tier and above, `decisions/desktop.md`). A champion's matchup recor
 patch when it has 200 games at the lane there, from both summed otherwise (lane shares: 2,000 games), and a pairing
 the current patch lacks is looked up on the previous one. Per champion, not per draft: on patch day the popular
 picks are measured hours before a niche one. `DraftPatchScopeResolver`, `DraftLaneReader` — #1906, #1467.
+
+**`/matchup` draws its draft as the desktop app's champion select, not as a form.**
+Each team's five picks are tall loading-art cards over their lanes, the lane duel between them; the played role
+decides which two cards are the matchup (yours ringed, the role opponent's ringed faintly), and every slot — the
+matchup's two and the eight context slots alike — is picked the same way, a click on its card opening one shared
+champion search. It replaces the portrait stage over a card of eight `ChampionPicker` selects (#921, #1063–#1071):
+the stage was right that the portrait should be the control, but sixteen selects under it read as a form, and the
+site and the app drew the same draft two different ways. The cards stay wordless (#1067, #1071); the roles strip
+moved into the duel, where the lane it names is the one being read. Before a role is picked, a card's click takes
+its lane as the role first — the one thing the board needs to know whose card is whose — #2241.
