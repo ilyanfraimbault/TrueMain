@@ -93,7 +93,7 @@ const stats = computed<StatCell[]>(() => {
       label: 'Draft match',
       // maxPossibleScore is 0 when nothing but the matchup was pinned: there is
       // no draft to be similar to, and 0% would read as "nothing resembles it".
-      value: conf !== null && conf.maxPossibleScore > 0 ? formatPercentage(conf.meanSimilarity) : '—',
+      value: conf !== null && conf.maxPossibleScore > 0 ? formatPercentage(conf.meanSimilarity, 0) : '—',
       caption: 'avg similarity',
       hint: 'Average similarity between those games and the rest of your draft.',
       tone: 'default',
@@ -101,7 +101,7 @@ const stats = computed<StatCell[]>(() => {
     {
       key: 'winRate',
       label: 'Win rate',
-      value: sampleWinRate.value === null ? '—' : formatPercentage(sampleWinRate.value),
+      value: sampleWinRate.value === null ? '—' : formatPercentage(sampleWinRate.value, 0),
       caption: 'across those games',
       hint: 'Win rate across the games the build is computed from — the same games every '
         + `cell of this line counts, and the ${laneNoun.value} win rate in the duel above too.`,

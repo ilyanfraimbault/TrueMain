@@ -1,4 +1,3 @@
-import { formatSigned } from '#shared/utils/deltas'
 
 /**
  * Bands the average gold gap at 15 minutes into a one-phrase verdict (#976).
@@ -62,22 +61,6 @@ export function laneVerdict(
     return { label: `Bad ${noun}`, color: 'warning', variant: 'soft' }
   }
   return { label: `Even ${noun}`, color: 'neutral', variant: 'soft' }
-}
-
-/** `+312` / `−184` / `0` — always signed, so the side it favours is never ambiguous. */
-export function formatGoldDiff(value: number): string {
-  return formatSigned(value)
-}
-
-/**
- * The experience gap, same signed format (#1111). Its own function rather than a
- * reuse of `formatGoldDiff` because the two are not interchangeable in meaning —
- * gold is who bought more, XP is who is bigger — and because the verdict bands
- * above are gold's alone: an XP gap of 300 is not "a very good lane", it is barely
- * a third of a level. Giving XP a formatter and *not* a band is the point.
- */
-export function formatXpDiff(value: number): string {
-  return formatGoldDiff(value)
 }
 
 /**
