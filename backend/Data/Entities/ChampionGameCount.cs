@@ -14,8 +14,8 @@ namespace Data.Entities;
 /// counted what <c>match_participants</c> holds right now: retention deleting a patch
 /// takes its games away, and a lane fix moves a participant from one position to
 /// another. A fold-once counter would keep both. So <c>ChampionGameCountRefreshProcess</c>
-/// recomputes each <c>(queue, patch, platform)</c> slice from the raw rows and replaces
-/// it, and drops the slices no stored match belongs to any more — the table is a
+/// recomputes the whole table from the raw rows and replaces it in one transaction
+/// (#2217), slices no stored match belongs to any more included — the table is a
 /// snapshot of the raw corpus as of <see cref="RefreshedAtUtc"/>, never a history.
 /// </para>
 ///

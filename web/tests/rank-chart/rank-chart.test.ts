@@ -1,15 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RankHistoryEntry } from '#shared/types/rank-history'
-import {
-  areaFillOf,
-  crestBands,
-  lineStrokeOf,
-  lpDeltaSince,
-  rankChartPoints,
-  rankChartYDomain,
-  tierGradientStops,
-} from '#common/utils/rank-chart'
-import { tierHex } from '#common/utils/tiers'
+import { lpDeltaSince, rankChartPoints } from '#common/utils/rank-chart'
 
 const NOW = Date.parse('2026-10-13T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
@@ -37,42 +28,5 @@ describe('lpDeltaSince', () => {
 
   it('has nothing to compare with a single snapshot', () => {
     expect(lpDeltaSince(climb.slice(0, 1), 7, NOW)).toBeNull()
-  })
-})
-
-describe('tierGradientStops', () => {
-  it('puts one hard-edged stop pair per tier run, meeting halfway between snapshots', () => {
-    expect(tierGradientStops(climb)).toEqual([
-      { offset: '0.000%', color: tierHex('GOLD') },
-      { offset: '16.667%', color: tierHex('GOLD') },
-      { offset: '16.667%', color: tierHex('PLATINUM') },
-      { offset: '100.000%', color: tierHex('PLATINUM') },
-    ])
-  })
-
-  it('draws a single snapshot in a plain colour', () => {
-    const one = climb.slice(0, 1)
-    expect(tierGradientStops(one)).toEqual([])
-    expect(areaFillOf(one, 'GOLD', 'url(#g)')).toBe(tierHex('GOLD'))
-    expect(lineStrokeOf(one, 'GOLD', 'url(#g)')).toBe(tierHex('GOLD'))
-  })
-
-  it('paints a multi-tier history with the gradient', () => {
-    expect(lineStrokeOf(climb, 'PLATINUM', 'url(#g)')).toBe('url(#g)')
-    expect(areaFillOf(climb, 'PLATINUM', 'url(#g)')).toBe('url(#g)')
-  })
-})
-
-describe('crestBands and rankChartYDomain', () => {
-  it('stacks one crest per tier in climb order', () => {
-    expect(crestBands(climb).map(band => band.tier)).toEqual(['GOLD', 'PLATINUM'])
-  })
-
-  it('pads the range so the line never hugs an edge', () => {
-    const [min, max] = rankChartYDomain(climb)
-    const scores = climb.map(point => point.score)
-    expect(min).toBeLessThan(Math.min(...scores))
-    expect(max).toBeGreaterThan(Math.max(...scores))
-    expect(rankChartYDomain([])).toEqual([0, 400])
   })
 })

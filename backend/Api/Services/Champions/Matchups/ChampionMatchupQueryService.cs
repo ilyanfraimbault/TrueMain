@@ -1,3 +1,4 @@
+using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
@@ -25,7 +26,9 @@ public interface IChampionMatchupQueryService
     /// <param name="position">
     /// Canonical Riot team position (<c>TOP</c> / <c>JUNGLE</c> /
     /// <c>MIDDLE</c> / <c>BOTTOM</c> / <c>UTILITY</c>) both lane sides must
-    /// share. Required and already validated by the caller.
+    /// share. Required and already validated by the caller. A player-scoped
+    /// request may pass <see cref="Core.Lol.Map.LanePositions.AllPositions"/>: each
+    /// game pairs with the opponent of the position the player held in it.
     /// </param>
     /// <param name="patch">
     /// Requested patch (<c>major.minor</c> or full Riot version); when null
@@ -49,7 +52,8 @@ public interface IChampionMatchupQueryService
     /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
-    /// The matchups list, ordered by win rate descending. On the leaderboard only
+    /// The matchups list, ordered by win rate descending. A player-scoped list
+    /// carries every opponent the player faced, unfloored. On the global leaderboard only
     /// opponents holding at least
     /// <see cref="TrueMain.Options.ChampionsListOptions.MinMatchupGames"/> games
     /// <em>and</em> at least
@@ -278,25 +282,27 @@ public sealed class ChampionMatchupQueryService(
         // is drawn from the same population as the build / summary pages.
         var queueId = (int)options.Value.QueueId;
 
-        // A deliberate opponent lookup shows the head-to-head from a single game up;
-        // the player's own leaderboard keeps the lower per-player floor. The
-        // share-based floor never applies here — one player's whole matchup history
-        // is smaller than one opponent's slice of the population's, so a share of it
-        // rounds to a game or two and would only restate the floor above it.
-        var minGames = opponentChampionId is not null
-            ? 1
-            : championsOptions.Value.MinPlayerMatchupGames;
+        // No games floor on one player's own matchups: every opponent they faced is
+        // listed, from a single game up. A player meets most opponents once or twice,
+        // so any floor empties the list, and what a reader looks for here is their own
+        // history against a pick, however thin — the row carries its game count. The
+        // global leaderboard keeps its floors; this is a different question.
 
-        // The champion side of the lane: rows for this champion at this
-        // position, narrowed to the one account asked for, in the games the cohort
-        // counts on the configured queue and patch (matched via the correlated
+        // The champion side: rows for this champion at this position (every lane
+        // position under ALL), narrowed to the one account asked for, in the games the
+        // cohort counts on the configured queue and patch (matched via the correlated
         // EXISTS over matches) — one player's own games, but never a remake.
         var games = ChampionCohort.Games(db, queueId, normalizedPatch);
         var championRows = db.MatchParticipants
             .AsNoTracking()
-            .Where(p1 => p1.ChampionId == championId && p1.TeamPosition == position)
+            .Where(p1 => p1.ChampionId == championId)
             .Where(p1 => p1.RiotAccountId == riotAccountId)
             .Where(p1 => games.Any(m => m.Id == p1.MatchId));
+        championRows = string.Equals(position, LanePositions.AllPositions, StringComparison.Ordinal)
+            // Only a real lane position pairs with a role opponent: an unassigned
+            // row would pair with the other team's unassigned one.
+            ? championRows.Where(p1 => LanePositions.All.Contains(p1.TeamPosition))
+            : championRows.Where(p1 => p1.TeamPosition == position);
 
         // Narrow to the requested elo bands (null = every band).
         if (bands is not null)
@@ -314,7 +320,14 @@ public sealed class ChampionMatchupQueryService(
                     p2.MatchId == p1.MatchId
                     && p2.TeamPosition == p1.TeamPosition
                     && p2.TeamId != p1.TeamId),
-                (p1, p2) => new { Opponent = p2.ChampionId, p1.Win });
+                (p1, p2) => new
+                {
+                    p1.MatchId,
+                    SelfParticipantId = p1.ParticipantId,
+                    OpponentParticipantId = p2.ParticipantId,
+                    Opponent = p2.ChampionId,
+                    p1.Win,
+                });
 
         // The player's whole field on this champion and lane, counted rather than
         // summed from the rows below: those are narrowed to one opponent on a search
@@ -324,27 +337,39 @@ public sealed class ChampionMatchupQueryService(
         // which the search here used to skip by reporting a play rate of 0.
         var totalGames = await opponentPairs.LongCountAsync(ct);
 
-        // One SQL round-trip for the rows themselves: narrow to the requested
-        // opponent, group by the opponent champion, and COUNT(*) / SUM(win) per
-        // opponent. The minimum-games floor is applied in SQL (HAVING) so thin
-        // samples never cross the wire.
-        var rows = await opponentPairs
+        // The player's games themselves, narrowed to the requested opponent: one
+        // player on one champion is a few hundred rows at most, so they are read once
+        // and grouped here — the lane half needs each game's pair of participants, which
+        // a SQL GROUP BY would fold away.
+        var pairs = await opponentPairs
             .Where(x => opponentChampionId == null || x.Opponent == opponentChampionId)
-            .GroupBy(x => x.Opponent)
-            .Select(g => new
-            {
-                Opponent = g.Key,
-                Games = g.Count(),
-                Wins = g.Sum(x => x.Win ? 1 : 0),
-            })
-            .Where(x => x.Games >= minGames)
             .ToListAsync(ct);
 
-        // Lane counters stay null. The aggregate covers every tracked account, so
-        // lending them to one player's row would report the population's lane as
-        // theirs; unknown is the honest answer until the fold is player-aware.
-        return ToOrderedEntries(rows.Select(x => (
-            x.Opponent, x.Games, x.Wins, TotalGames: totalGames, LaneOutcome: (LaneOutcome?)null)));
+        // The lane half from the player's own 15-minute snapshots, never the aggregate's
+        // counters: those are folded over every tracked account, and lending them to one
+        // player's row would report the population's lane as theirs.
+        var lanes = await PlayerLaneOutcomes.TallyAsync(
+            db,
+            pairs.Select(x => new PlayerLanePair(x.MatchId, x.SelfParticipantId, x.OpponentParticipantId, x.Opponent))
+                .ToList(),
+            ct);
+
+        // One line per opponent champion — across positions under ALL — and no lane
+        // floor either: like the games, a decided lane is the player's own history
+        // however thin, and the row carries its count.
+        return ToOrderedEntries(
+            pairs
+                .GroupBy(x => x.Opponent)
+                .Select(g => (
+                    Opponent: g.Key,
+                    Games: g.Count(),
+                    Wins: g.Count(x => x.Win),
+                    TotalGames: totalGames,
+                    LaneOutcome: lanes.TryGetValue(g.Key, out var lane)
+                        ? (LaneOutcome?)new LaneOutcome(
+                            lane.Wins, lane.Losses, lane.GoldDiffSum, lane.Measured, lane.XpDiffSum, lane.Measured)
+                        : null)),
+            minDecidedLanes: 1);
     }
 
     /// <summary>
@@ -362,9 +387,10 @@ public sealed class ChampionMatchupQueryService(
     /// </para>
     /// </summary>
     private List<ChampionMatchupEntry> ToOrderedEntries(
-        IEnumerable<(int Opponent, int Games, int Wins, long TotalGames, LaneOutcome? LaneOutcome)> rows)
+        IEnumerable<(int Opponent, int Games, int Wins, long TotalGames, LaneOutcome? LaneOutcome)> rows,
+        int? minDecidedLanes = null)
     {
-        var minDecidedLanes = championsOptions.Value.MinDecidedLaneGames;
+        var laneFloor = minDecidedLanes ?? championsOptions.Value.MinDecidedLaneGames;
 
         return rows
             .Select(x =>
@@ -384,7 +410,7 @@ public sealed class ChampionMatchupQueryService(
                     // settled and we won it" and "the lane is always lost" are three
                     // different facts and must not render alike.
                     DecidedLaneGames = x.LaneOutcome?.Decided ?? 0,
-                    LaneWinRate = x.LaneOutcome is { } outcome && outcome.Decided >= Math.Max(1, minDecidedLanes)
+                    LaneWinRate = x.LaneOutcome is { } outcome && outcome.Decided >= Math.Max(1, laneFloor)
                         ? RateMath.Rate(outcome.Wins, outcome.Decided)
                         : null,
                     // Averaged over the lanes the gap was measured on — never over decided

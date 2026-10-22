@@ -1,0 +1,63 @@
+name: Edge rollout
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      ref:
+        required: false
+        type: string
+        default: ''
+      project_name:
+        required: true
+        type: string
+      compose_file:
+        required: true
+        type: string
+      vm_id:
+        required: true
+        type: string
+    secrets:
+      hostinger_api_key:
+        required: true
+
+jobs:
+  edge:
+    name: Deploy ${{ inputs.environment }} edge
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Compare the edge project with the repository
+        id: drift
+        env:
+          HOSTINGER_API_KEY: ${{ secrets.hostinger_api_key }}
+          VM_ID: ${{ inputs.vm_id }}
+          PROJECT_NAME: ${{ inputs.project_name }}
+          COMPOSE_FILE: ${{ inputs.compose_file }}
+        run: .github/scripts/edge-drift.sh
+
+      - name: Redeploy the edge project
+        if: steps.drift.outputs.deploy == 'true'
+        uses: hostinger/deploy-on-vps@b0868cec74bfa63af6bfa7bdb0dfee2f9bef13ea
+        with:
+          api-key: ${{ secrets.hostinger_api_key }}
+          virtual-machine: ${{ inputs.vm_id }}
+          project-name: ${{ inputs.project_name }}
+          docker-compose-path: ${{ inputs.compose_file }}
+
+      - name: Verify the edge is running
+        env:
+          HOSTINGER_API_KEY: ${{ secrets.hostinger_api_key }}
+          VM_ID: ${{ inputs.vm_id }}
+          PROJECT_NAME: ${{ inputs.project_name }}
+        run: .github/scripts/verify-edge-running.sh

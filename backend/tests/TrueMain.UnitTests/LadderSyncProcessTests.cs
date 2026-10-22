@@ -136,6 +136,59 @@ public sealed class LadderSyncProcessTests
         summary.Tiers.Should().ContainSingle().Which.Should().Be(new LadderSyncTierSummary("DIAMOND", 3));
     }
 
+    [Fact]
+    public async Task RunCoreAsync_RecordsTheLowestLpOfEachGrandmasterAndChallengerLeague()
+    {
+        // The ranked card draws where Grandmaster and Challenger begin from these (#2174): the
+        // lowest LP of the league read that day. Master starts at a fixed 0 LP, so it records none.
+        var client = new RecordingPlatformClient { ApexLeaguePoints = [612, 488, 530] };
+        var harness = new Harness(client);
+
+        await harness.RunAsync(
+            new LadderSyncOptions
+            {
+                Platforms = ["KR", "EUW1"],
+                TierScope = ["Challenger", "GM", "Master"],
+                MaxRequestsPerRun = 0
+            });
+
+        harness.Cutoffs.Should().Equal(
+            ("KR", RankTier.Challenger, 488, 3),
+            ("KR", RankTier.Grandmaster, 488, 3),
+            ("EUW1", RankTier.Challenger, 488, 3),
+            ("EUW1", RankTier.Grandmaster, 488, 3));
+    }
+
+    [Fact]
+    public async Task RunCoreAsync_EstimatesThePastCutoffsOnAnApexRefreshOnly()
+    {
+        // The days before the first measurement are estimated from rank snapshots (#2181): asked
+        // on the apex refresh, which is where the measurements land, and never on a paged-only run.
+        var apexRun = new Harness(new RecordingPlatformClient());
+        await apexRun.RunAsync(new LadderSyncOptions { Platforms = ["KR"], TierScope = ["Challenger"], MaxRequestsPerRun = 0 });
+        apexRun.Estimates.Should().ContainSingle().Which.Should().Be((NowUtc.AddDays(-730), NowUtc));
+
+        var pagedRun = new Harness(new RecordingPlatformClient());
+        await pagedRun.RunAsync(new LadderSyncOptions { Platforms = ["KR"], TierScope = ["Diamond"], MaxRequestsPerRun = 1 });
+        pagedRun.Estimates.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunCoreAsync_RecordsNoCutoffForAnEmptyLeague()
+    {
+        var harness = new Harness(new RecordingPlatformClient());
+
+        await harness.RunAsync(
+            new LadderSyncOptions
+            {
+                Platforms = ["KR"],
+                TierScope = ["Challenger", "GM"],
+                MaxRequestsPerRun = 0
+            });
+
+        harness.Cutoffs.Should().BeEmpty("an empty league has no lowest LP");
+    }
+
     private static RiotAccount NewAccount(string platformId, string puuid)
         => new()
         {
@@ -160,6 +213,11 @@ public sealed class LadderSyncProcessTests
         }
 
         public (string Platform, string Tier, string Division, int Page)? LastCursor { get; private set; }
+
+        public List<(string Platform, RankTier Tier, int MinLeaguePoints, int EntryCount)> Cutoffs { get; } = [];
+
+        /// <summary>The (from, now) windows the past-cutoff estimate was asked for.</summary>
+        public List<(DateTime FromUtc, DateTime NowUtc)> Estimates { get; } = [];
 
         /// <summary>Start of the last run that did its work, as the cadence guard reads it.</summary>
         public DateTime? LastCompletedRunUtc { get; init; }
@@ -201,10 +259,28 @@ public sealed class LadderSyncProcessTests
                     return Task.CompletedTask;
                 });
 
+            var cutoffs = Substitute.For<IApexCutoffSnapshotRepository>();
+            cutoffs.UpsertAsync(
+                    Arg.Any<string>(), Arg.Any<RankTier>(), Arg.Any<int>(), Arg.Any<int>(),
+                    Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+                .Returns(call =>
+                {
+                    Cutoffs.Add((call.ArgAt<string>(0), call.ArgAt<RankTier>(1), call.ArgAt<int>(2), call.ArgAt<int>(3)));
+                    return Task.CompletedTask;
+                });
+
+            cutoffs.EstimateHistoryAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+                .Returns(call =>
+                {
+                    Estimates.Add((call.ArgAt<DateTime>(0), call.ArgAt<DateTime>(1)));
+                    return Task.FromResult(0);
+                });
+
             var session = Substitute.For<IDataSession>();
             session.RiotAccounts.Returns(riotAccounts);
             session.RankSnapshots.Returns(rankSnapshots);
             session.LadderSyncCursors.Returns(cursors);
+            session.ApexCutoffSnapshots.Returns(cutoffs);
             session.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(0));
 
             var sessionFactory = Substitute.For<IDataSessionFactory>();
@@ -259,6 +335,9 @@ public sealed class LadderSyncProcessTests
         public int PagesPerDivision { get; init; } = int.MaxValue;
 
         public int? ThrowOnPage { get; init; }
+
+        /// <summary>The LP of each entry every apex league answers with; none by default.</summary>
+        public IReadOnlyList<int> ApexLeaguePoints { get; init; } = [];
 
         public Task<RiotLeagueListDto> GetChallengerLeagueAsync(PlatformRoute platform, string queue, CancellationToken ct)
             => ApexAsync(platform, "CHALLENGER");
@@ -316,7 +395,10 @@ public sealed class LadderSyncProcessTests
         private Task<RiotLeagueListDto> ApexAsync(PlatformRoute platform, string tier)
         {
             ApexCalls.Add($"{platform}/{tier}");
-            return Task.FromResult(new RiotLeagueListDto { Tier = tier, Entries = [] });
+            var entries = ApexLeaguePoints
+                .Select((leaguePoints, index) => new RiotLeagueEntryDto { Puuid = $"apex-{index}", Rank = "I", LeaguePoints = leaguePoints })
+                .ToList();
+            return Task.FromResult(new RiotLeagueListDto { Tier = tier, Entries = entries });
         }
     }
 }

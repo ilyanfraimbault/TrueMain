@@ -4,7 +4,9 @@
 //! The overlay is a few independent panels, each its own window placed on its
 //! own (#1671's choice over one HUD): the next item, the win probability, the
 //! player's own pace, the item value, which by default shows only while the
-//! scoreboard (TAB) is held. Each panel shows always, while a chord is held,
+//! scoreboard (TAB) is held, the neutral objectives' timers (#2078), and the
+//! lane-gold plates down the scoreboard's middle (#2186), held with TAB too and
+//! placed by the scoreboard rather than by the player. Each panel shows always, while a chord is held,
 //! or toggled by one (#1915, chords in `keys`). The windows are the shell's (`src-tauri/src/overlay`), macOS-only and
 //! impossible to build on the Linux CI box; the decisions they apply live here
 //! so they are tested anywhere. The settings file is read the way the
@@ -20,13 +22,17 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::keys::{Chord, KeysDown};
+use crate::scoreboard::MAX_NUDGE;
 
 /// The settings file's format version, written into it so a later format can
 /// migrate rather than guess. Version 2 reads a dragged place against the
 /// screen's free space rather than as the panel's centre (`OverlayPoint`).
 /// Version 3 adds each panel's trigger; a version 2 file reads as today's
-/// behaviour, which is every panel's default trigger.
-pub const SETTINGS_VERSION: u32 = 3;
+/// behaviour, which is every panel's default trigger. Version 4 adds the
+/// lane-gold plates: a version 3 file turns them on only if the item value,
+/// the scoreboard's other panel, was on — a player who switched the scoreboard
+/// numbers off does not get new ones over it.
+pub const SETTINGS_VERSION: u32 = 4;
 
 pub const MIN_SCALE: f64 = 0.8;
 pub const MAX_SCALE: f64 = 1.4;
@@ -51,14 +57,21 @@ pub enum OverlayPanel {
     ItemValue,
     /// Our CS per minute, with its curve, and gold per minute.
     Stats,
+    /// When the dragon, the grubs, the Herald and Baron are next up.
+    Objectives,
+    /// Each lane's item-gold gap on a plate down the TAB scoreboard's middle,
+    /// one per row (`scoreboard`).
+    LaneGold,
 }
 
 impl OverlayPanel {
-    pub const ALL: [OverlayPanel; 4] = [
+    pub const ALL: [OverlayPanel; 6] = [
         OverlayPanel::NextItem,
         OverlayPanel::WinProbability,
         OverlayPanel::ItemValue,
         OverlayPanel::Stats,
+        OverlayPanel::Objectives,
+        OverlayPanel::LaneGold,
     ];
 
     /// The panel's name in a window label and a route.
@@ -68,6 +81,8 @@ impl OverlayPanel {
             OverlayPanel::WinProbability => "win-probability",
             OverlayPanel::ItemValue => "item-value",
             OverlayPanel::Stats => "stats",
+            OverlayPanel::Objectives => "objectives",
+            OverlayPanel::LaneGold => "lane-gold",
         }
     }
 
@@ -78,10 +93,24 @@ impl OverlayPanel {
     /// The panel's name for the player, as the Overlay page shows it.
     pub fn name(self) -> &'static str {
         match self {
-            OverlayPanel::NextItem => "Next item",
+            OverlayPanel::NextItem => "Build path",
             OverlayPanel::WinProbability => "Win probability",
             OverlayPanel::ItemValue => "Item value",
             OverlayPanel::Stats => "Your pace",
+            OverlayPanel::Objectives => "Objectives",
+            OverlayPanel::LaneGold => "Lane gold",
+        }
+    }
+
+    /// The panel's field in the settings file.
+    fn field(self) -> &'static str {
+        match self {
+            OverlayPanel::NextItem => "nextItem",
+            OverlayPanel::WinProbability => "winProbability",
+            OverlayPanel::ItemValue => "itemValue",
+            OverlayPanel::Stats => "stats",
+            OverlayPanel::Objectives => "objectives",
+            OverlayPanel::LaneGold => "laneGold",
         }
     }
 
@@ -91,7 +120,20 @@ impl OverlayPanel {
             OverlayPanel::WinProbability => 1,
             OverlayPanel::ItemValue => 2,
             OverlayPanel::Stats => 3,
+            OverlayPanel::Objectives => 4,
+            OverlayPanel::LaneGold => 5,
         }
+    }
+
+    /// Read alongside the game's scoreboard: TAB alone, held, may be its
+    /// chord, and the two such panels share it.
+    pub fn with_scoreboard(self) -> bool {
+        matches!(self, OverlayPanel::ItemValue | OverlayPanel::LaneGold)
+    }
+
+    /// Placed by the scoreboard, never by the player: no anchor, no drag.
+    pub fn on_scoreboard(self) -> bool {
+        self == OverlayPanel::LaneGold
     }
 }
 
@@ -115,12 +157,19 @@ pub enum PanelTrigger {
 
 impl PanelTrigger {
     /// Before triggers existed, the item value showed while TAB was held and
-    /// the others always: each panel's default is that.
+    /// the others always: each panel's default is that. The lane gold sits on
+    /// the scoreboard, so it is there exactly while TAB is.
     pub fn default_for(panel: OverlayPanel) -> Self {
-        match panel {
-            OverlayPanel::ItemValue => PanelTrigger::WhileHeld { chord: Chord::TAB },
-            _ => PanelTrigger::Always,
+        if panel.with_scoreboard() {
+            PanelTrigger::WhileHeld { chord: Chord::TAB }
+        } else {
+            PanelTrigger::Always
         }
+    }
+
+    /// TAB alone, held: the scoreboard's own moment.
+    pub fn is_scoreboard(&self) -> bool {
+        *self == PanelTrigger::WhileHeld { chord: Chord::TAB }
     }
 
     pub fn chord(&self) -> Option<Chord> {
@@ -133,7 +182,7 @@ impl PanelTrigger {
 
 /// One flag per panel.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct PanelFlags([bool; 4]);
+pub struct PanelFlags([bool; 6]);
 
 impl PanelFlags {
     pub fn get(&self, panel: OverlayPanel) -> bool {
@@ -164,6 +213,16 @@ pub enum OverlayAnchor {
     TopRight,
     CenterLeft,
     CenterRight,
+}
+
+impl OverlayAnchor {
+    pub const ALL: [OverlayAnchor; 5] = [
+        OverlayAnchor::TopLeft,
+        OverlayAnchor::TopCenter,
+        OverlayAnchor::TopRight,
+        OverlayAnchor::CenterLeft,
+        OverlayAnchor::CenterRight,
+    ];
 }
 
 /// Where the player dragged a panel, as a fraction of the room the screen
@@ -204,6 +263,14 @@ pub struct OverlaySettings {
     pub win_probability: PanelSettings,
     pub item_value: PanelSettings,
     pub stats: PanelSettings,
+    pub objectives: PanelSettings,
+    /// Its anchor and custom place are kept but never read: the scoreboard
+    /// places it (`OverlayPanel::on_scoreboard`).
+    pub lane_gold: PanelSettings,
+    /// The lane-gold plates moved up (negative) or down from where the
+    /// scoreboard's rows are measured to be, in pixels of a 1080p screen, for
+    /// a setup the measure misses (`scoreboard::MAX_NUDGE` either way).
+    pub scoreboard_nudge: f64,
 }
 
 impl Default for OverlaySettings {
@@ -221,10 +288,37 @@ impl Default for OverlaySettings {
             opacity: 0.95,
             next_item: at(OverlayPanel::NextItem, OverlayAnchor::TopRight),
             win_probability: at(OverlayPanel::WinProbability, OverlayAnchor::TopLeft),
-            item_value: at(OverlayPanel::ItemValue, OverlayAnchor::TopCenter),
+            item_value: at(OverlayPanel::ItemValue, OverlayAnchor::CenterRight),
             stats: at(OverlayPanel::Stats, OverlayAnchor::CenterLeft),
+            objectives: at(OverlayPanel::Objectives, OverlayAnchor::TopCenter),
+            lane_gold: at(OverlayPanel::LaneGold, OverlayAnchor::TopCenter),
+            scoreboard_nudge: 0.0,
         }
     }
+}
+
+/// How far down the game's screen the confirmation of a kept mark sits: below
+/// the panels anchored to the top, above the champion.
+const CONFIRMATION_DOWN: f64 = 0.2;
+
+/// Where the confirmation of a kept mark goes (#1767): centred across the
+/// game's screen, a fifth of the way down, in whole points.
+pub fn confirmation_origin(screen: Rect, size: (f64, f64)) -> (f64, f64) {
+    let (width, height) = size;
+    let x = screen.x + (screen.width - width) / 2.0;
+    let y = screen.y + screen.height * CONFIRMATION_DOWN;
+    (
+        clamp_into(x, screen.x, screen.width, width).round(),
+        clamp_into(y, screen.y, screen.height, height).round(),
+    )
+}
+
+/// Whether the confirmation of a kept mark may show now: over the game itself
+/// only, never in the settings' preview, and not once the player hid the
+/// overlay with its shortcut. The panels' own switch does not hide it: it
+/// answers a key the player pressed.
+pub fn shows_confirmation(inputs: &OverlayInputs) -> bool {
+    !inputs.preview && inputs.game_frontmost && !inputs.hidden_by_player
 }
 
 /// What the panels' visibility depends on besides the settings, measured by
@@ -265,6 +359,8 @@ impl OverlaySettings {
             OverlayPanel::WinProbability => &self.win_probability,
             OverlayPanel::ItemValue => &self.item_value,
             OverlayPanel::Stats => &self.stats,
+            OverlayPanel::Objectives => &self.objectives,
+            OverlayPanel::LaneGold => &self.lane_gold,
         }
     }
 
@@ -274,6 +370,8 @@ impl OverlaySettings {
             OverlayPanel::WinProbability => &mut self.win_probability,
             OverlayPanel::ItemValue => &mut self.item_value,
             OverlayPanel::Stats => &mut self.stats,
+            OverlayPanel::Objectives => &mut self.objectives,
+            OverlayPanel::LaneGold => &mut self.lane_gold,
         }
     }
 
@@ -309,19 +407,46 @@ impl OverlaySettings {
     }
 
     /// Why `trigger` cannot be `panel`'s: a chord refused on its own
-    /// (`Chord::refusal`), or one another panel already uses.
+    /// (`Chord::refusal`), or one another panel already uses — except TAB
+    /// held, which the scoreboard's two panels share.
     pub fn refusal(&self, panel: OverlayPanel, trigger: &PanelTrigger) -> Option<String> {
         let chord = trigger.chord()?;
         let tab_alone =
-            panel == OverlayPanel::ItemValue && matches!(trigger, PanelTrigger::WhileHeld { .. });
+            panel.with_scoreboard() && matches!(trigger, PanelTrigger::WhileHeld { .. });
         if let Some(reason) = chord.refusal(tab_alone) {
             return Some(reason.to_string());
         }
         OverlayPanel::ALL
             .into_iter()
             .filter(|other| *other != panel)
-            .find(|other| self.panel(*other).trigger.chord() == Some(chord))
+            .filter(|other| self.panel(*other).trigger.chord() == Some(chord))
+            .find(|other| {
+                let shared = other.with_scoreboard()
+                    && trigger.is_scoreboard()
+                    && self.panel(*other).trigger.is_scoreboard();
+                !shared
+            })
             .map(|other| format!("Already the shortcut of {}.", other.name()))
+    }
+
+    /// The panel `chord` brings on screen, if one does: the mark key (#2079)
+    /// may not be a panel's chord too.
+    pub fn panel_on(&self, chord: &Chord) -> Option<OverlayPanel> {
+        OverlayPanel::ALL
+            .into_iter()
+            .find(|panel| self.panel(*panel).trigger.chord().as_ref() == Some(chord))
+    }
+
+    /// The settings with every panel on `chord` back to its default trigger:
+    /// the chord is the mark key's.
+    pub fn freeing(mut self, chord: &Chord) -> Self {
+        while let Some(panel) = self.panel_on(chord) {
+            self.panel_mut(panel).trigger = PanelTrigger::default_for(panel);
+            if self.panel(panel).trigger.chord().as_ref() == Some(chord) {
+                self.panel_mut(panel).trigger = PanelTrigger::Always;
+            }
+        }
+        self
     }
 
     /// The keys the panels' chords name, for the shell to read and no other.
@@ -417,8 +542,14 @@ impl OverlaySettings {
         };
         // Before version 2 a dragged place was the panel's centre: read as
         // version 2 it would land elsewhere, so the panel goes back to its spot.
-        let current = parse::<u32>(fields.get("version")).is_some_and(|v| v >= 2);
-        Self::from_fields(&fields, current)
+        let version = parse::<u32>(fields.get("version")).unwrap_or(1);
+        let mut settings = Self::from_fields(&fields, version >= 2);
+        // Before version 4 there were no plates: they follow the item value,
+        // on only if the scoreboard's numbers were.
+        if version < 4 {
+            settings.lane_gold.enabled = settings.item_value.enabled;
+        }
+        settings
     }
 
     /// Parse settings the app sends, as leniently as the file. They are
@@ -461,8 +592,45 @@ impl OverlaySettings {
             win_probability: panel("winProbability", defaults.win_probability),
             item_value: panel("itemValue", defaults.item_value),
             stats: panel("stats", defaults.stats),
+            objectives: panel("objectives", defaults.objectives),
+            lane_gold: panel("laneGold", defaults.lane_gold),
+            scoreboard_nudge: parse(fields.get("scoreboardNudge"))
+                .filter(in_range(-MAX_NUDGE, MAX_NUDGE))
+                .unwrap_or(defaults.scoreboard_nudge),
         }
+        .with_new_panels_placed(|panel| fields.contains_key(panel.field()))
         .with_valid_triggers()
+    }
+
+    /// Each panel the file does not know — it predates the panel — on its
+    /// default spot, unless a panel the file places already holds that spot:
+    /// then on the first one no panel holds. The objectives' default is the
+    /// item value's former one (#2184), which a file from before the
+    /// objectives still gives the item value.
+    fn with_new_panels_placed(mut self, known: impl Fn(OverlayPanel) -> bool) -> Self {
+        // The lane gold sits on the scoreboard, never on an anchor: it holds no spot.
+        let anchored = |panel: OverlayPanel| panel != OverlayPanel::LaneGold;
+        for panel in OverlayPanel::ALL
+            .into_iter()
+            .filter(|panel| anchored(*panel) && !known(*panel))
+        {
+            let held = |anchor: OverlayAnchor| {
+                OverlayPanel::ALL
+                    .into_iter()
+                    .filter(|p| anchored(*p))
+                    .any(|other| {
+                        let settings = self.panel(other);
+                        other != panel && settings.custom.is_none() && settings.anchor == anchor
+                    })
+            };
+            if !held(self.panel(panel).anchor) {
+                continue;
+            }
+            if let Some(free) = OverlayAnchor::ALL.into_iter().find(|anchor| !held(*anchor)) {
+                self.panel_mut(panel).anchor = free;
+            }
+        }
+        self
     }
 
     /// Each refused trigger back to its panel's default, in panel order: of
@@ -563,6 +731,38 @@ fn clamp_into(at: f64, start: f64, length: f64, extent: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_confirmation_of_a_mark_shows_centred_over_the_game_alone() {
+        let screen = Rect {
+            x: 1920.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+        };
+        assert_eq!(confirmation_origin(screen, (200.5, 40.0)), (2780.0, 216.0));
+        // Wider than the screen: held against its left edge.
+        assert_eq!(confirmation_origin(screen, (2500.0, 40.0)).0, 1920.0);
+
+        let over_the_game = OverlayInputs {
+            game_frontmost: true,
+            ..OverlayInputs::default()
+        };
+        assert!(shows_confirmation(&over_the_game));
+        for inputs in [
+            OverlayInputs::default(),
+            OverlayInputs {
+                hidden_by_player: true,
+                ..over_the_game
+            },
+            OverlayInputs {
+                preview: true,
+                ..over_the_game
+            },
+        ] {
+            assert!(!shows_confirmation(&inputs), "{inputs:?}");
+        }
+    }
     use crate::keys::KeyCode;
     use OverlayPanel::*;
 
@@ -766,7 +966,7 @@ mod tests {
         };
         assert_eq!(
             settings.refusal(Stats, &toggle).as_deref(),
-            Some("Already the shortcut of Next item.")
+            Some("Already the shortcut of Build path.")
         );
         assert_eq!(settings.refusal(NextItem, &toggle), None);
         // TAB alone is the item value's own, held.
@@ -785,6 +985,97 @@ mod tests {
             )
             .is_some());
         assert_eq!(settings.refusal(Stats, &PanelTrigger::Always), None);
+    }
+
+    #[test]
+    fn the_mark_keys_chord_is_taken_back_from_a_panel() {
+        let mark = Chord::with(true, true, false, KeyCode::Digit0);
+        let mut settings = OverlaySettings::default();
+        settings.panel_mut(Stats).trigger = PanelTrigger::Toggle {
+            chord: mark,
+            start_shown: true,
+        };
+        assert_eq!(settings.panel_on(&mark), Some(Stats));
+        assert_eq!(settings.panel_on(&Chord::TAB), Some(ItemValue));
+
+        let freed = settings.freeing(&mark);
+        assert_eq!(freed.panel_on(&mark), None);
+        assert_eq!(freed.panel(Stats).trigger, PanelTrigger::Always);
+        // A panel whose default is the chord itself is shown always.
+        let freed = OverlaySettings::default().freeing(&Chord::TAB);
+        assert_eq!(freed.panel(ItemValue).trigger, PanelTrigger::Always);
+        assert_eq!(freed.panel(LaneGold).trigger, PanelTrigger::Always);
+    }
+
+    #[test]
+    fn the_plates_come_with_the_scoreboard() {
+        let settings = OverlaySettings::default();
+        assert!(!settings.shows(LaneGold, &in_game()));
+        let held = holding(&settings, &tab());
+        assert!(settings.shows(LaneGold, &held));
+        assert!(settings.shows(ItemValue, &held));
+    }
+
+    #[test]
+    fn the_scoreboards_two_panels_share_tab_and_only_it() {
+        let settings = OverlaySettings::default();
+        let tab = PanelTrigger::WhileHeld { chord: Chord::TAB };
+        assert_eq!(settings.refusal(LaneGold, &tab), None);
+        assert_eq!(settings.refusal(ItemValue, &tab), None);
+        assert!(settings.refusal(Objectives, &tab).is_some());
+        // Toggled, TAB alone is refused as for any panel.
+        assert!(settings
+            .refusal(
+                LaneGold,
+                &PanelTrigger::Toggle {
+                    chord: Chord::TAB,
+                    start_shown: true
+                }
+            )
+            .is_some());
+        // Any other chord stays one panel's.
+        let mut moved = settings;
+        let chord = Chord::with(true, true, false, KeyCode::Digit6);
+        moved.lane_gold.trigger = PanelTrigger::WhileHeld { chord };
+        assert_eq!(
+            moved
+                .refusal(ItemValue, &PanelTrigger::WhileHeld { chord })
+                .as_deref(),
+            Some("Already the shortcut of Lane gold.")
+        );
+        // A file holding both on TAB keeps both.
+        let read = OverlaySettings::from_json(
+            r#"{"version":4,"itemValue":{"trigger":{"kind":"whileHeld","chord":{"tab":true}}},
+                "laneGold":{"trigger":{"kind":"whileHeld","chord":{"tab":true}}}}"#,
+        );
+        assert_eq!(read.item_value.trigger, tab);
+        assert_eq!(read.lane_gold.trigger, tab);
+    }
+
+    #[test]
+    fn a_version_3_file_gets_the_plates_only_with_the_item_value() {
+        let on = OverlaySettings::from_json(r#"{"version":3,"itemValue":{"enabled":true}}"#);
+        assert!(on.lane_gold.enabled);
+        assert_eq!(on.lane_gold.trigger, PanelTrigger::default_for(LaneGold));
+        let off = OverlaySettings::from_json(r#"{"version":3,"itemValue":{"enabled":false}}"#);
+        assert!(!off.lane_gold.enabled);
+        // From version 4 on, the plates' own switch.
+        let own = OverlaySettings::from_json(
+            r#"{"version":4,"itemValue":{"enabled":false},"laneGold":{"enabled":true}}"#,
+        );
+        assert!(own.lane_gold.enabled);
+        assert_eq!(own.scoreboard_nudge, 0.0);
+    }
+
+    #[test]
+    fn reads_the_nudge_within_its_range() {
+        let read = |nudge: &str| {
+            OverlaySettings::from_app(&format!(r#"{{"scoreboardNudge":{nudge}}}"#)).scoreboard_nudge
+        };
+        assert_eq!(read("-12"), -12.0);
+        assert_eq!(read("60"), 60.0);
+        assert_eq!(read("61"), 0.0);
+        assert_eq!(read("\"up\""), 0.0);
     }
 
     #[test]
@@ -984,8 +1275,10 @@ mod tests {
         let path = dir.join("overlay-settings.json");
         let mut settings = OverlaySettings {
             scale: 1.2,
+            scoreboard_nudge: -8.0,
             ..OverlaySettings::default()
         };
+        settings.lane_gold.enabled = false;
         settings.item_value.custom = Some(OverlayPoint { x: 0.25, y: 0.75 });
         settings.stats.trigger = PanelTrigger::Toggle {
             chord: Chord::with(false, false, true, KeyCode::Backquote),
@@ -1002,5 +1295,53 @@ mod tests {
             assert_eq!(OverlayPanel::from_slug(panel.slug()), Some(panel));
         }
         assert_eq!(OverlayPanel::from_slug("hud"), None);
+    }
+
+    #[test]
+    fn the_objectives_strip_sits_top_centre_by_default() {
+        let defaults = OverlaySettings::default();
+        assert_eq!(defaults.objectives.anchor, OverlayAnchor::TopCenter);
+        assert_eq!(defaults.item_value.anchor, OverlayAnchor::CenterRight);
+    }
+
+    #[test]
+    fn a_file_whose_item_value_holds_the_top_centre_puts_the_objectives_on_the_free_spot() {
+        let old = r#"{"version":3,"nextItem":{"enabled":true,"anchor":"top-right"},
+                      "winProbability":{"enabled":true,"anchor":"top-left"},
+                      "itemValue":{"enabled":true,"anchor":"top-center"},
+                      "stats":{"enabled":true,"anchor":"center-left"}}"#;
+        let settings = OverlaySettings::from_json(old);
+        assert_eq!(settings.item_value.anchor, OverlayAnchor::TopCenter);
+        assert_eq!(settings.objectives.anchor, OverlayAnchor::CenterRight);
+        assert!(settings.objectives.enabled);
+
+        // A panel dragged off its spot frees it.
+        let dragged = r#"{"version":3,"itemValue":{"enabled":true,"anchor":"top-center","custom":{"x":0.2,"y":0.3}}}"#;
+        let settings = OverlaySettings::from_json(dragged);
+        assert_eq!(settings.objectives.anchor, OverlayAnchor::TopCenter);
+
+        // A file that places the objectives keeps them where it says, even on a held spot.
+        let both = r#"{"version":3,"itemValue":{"anchor":"top-center"},"objectives":{"anchor":"top-center"}}"#;
+        assert_eq!(
+            OverlaySettings::from_json(both).objectives.anchor,
+            OverlayAnchor::TopCenter
+        );
+    }
+
+    #[test]
+    fn a_file_from_before_the_objectives_panel_gets_it_on_the_free_spot() {
+        let old = r#"{"version":3,"stats":{"enabled":false,"anchor":"top-left"}}"#;
+        let settings = OverlaySettings::from_json(old);
+        assert!(!settings.stats.enabled);
+        assert_eq!(settings.objectives, OverlaySettings::default().objectives);
+        assert!(settings.objectives.enabled);
+        assert_eq!(settings.objectives.trigger, PanelTrigger::Always);
+        let taken: Vec<_> = OverlayPanel::ALL
+            .into_iter()
+            .filter(|panel| *panel != Objectives && *panel != OverlayPanel::LaneGold)
+            .map(|panel| OverlaySettings::default().panel(panel).anchor)
+            .collect();
+        assert!(!taken.contains(&settings.objectives.anchor));
+        assert!(settings.shows(Objectives, &in_game()));
     }
 }

@@ -106,4 +106,22 @@ describe('formTiles', () => {
   it('reads no move on a flat run', () => {
     expect(formTiles(deathsRun([4, 4, 4, 4, 4], [4, 4, 4])).map(entry => entry.delta)).toEqual([null, null, null, null])
   })
+
+  it('sets each tile against its tier median where the benchmark has one, and none elsewhere', () => {
+    const reference = { tier: 'DIAMOND', position: 'MIDDLE', samples: 1234, medians: { kda: 2.9, killParticipation: 0.54 } }
+    const tiles = formTiles(deathsRun([4, 4, 4], [4]), reference)
+
+    expect(tile(tiles, 'kda').reference).toEqual({
+      text: '2.90',
+      tier: 'DIAMOND',
+      hint: 'Median KDA of Diamond players on Mid: 2.90 (1,234 games)',
+    })
+    expect(tile(tiles, 'killParticipation').reference?.text).toBe('54%')
+    expect(tile(tiles, 'csPerMinute').reference).toBeNull()
+    expect(tile(tiles, 'deaths').reference).toBeNull()
+  })
+
+  it('has no reference without a benchmark', () => {
+    expect(formTiles(deathsRun([4, 4, 4], [4])).map(entry => entry.reference)).toEqual([null, null, null, null])
+  })
 })

@@ -3,49 +3,81 @@
 //! the files they touch are only those the store wrote.
 
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
-use capture_helper::media;
 use game_recording::clips::clean_title;
-use game_recording::{ClipMeta, RecordingSettings, StoredClip, StoredRecording};
+use game_recording::{RecordingSettings, StoredClip, StoredRecording};
+use shell_state::keys::Chord;
 use tauri::{AppHandle, State};
 
+use crate::overlay::{SharedOverlay, TriggerCheck};
 use crate::telemetry::{self, Feature};
 
+use super::cut::cut_clip;
 use super::views::{ClipView, GameView, LibraryView, SettingsView, WinProbabilityView};
 use super::{emit_library, emit_status, RecordingStatusView, SharedRecorder};
-
-/// The thumbnail of a clip is taken this far into it — past the lead-in.
-const CLIP_THUMBNAIL_AT_MS: u64 = 3_000;
-const THUMBNAIL_WIDTH: u32 = 640;
-/// A clip shorter than this is a misclick.
-const MIN_CLIP_MS: u64 = 1_000;
-
-fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or_default()
-}
 
 fn text(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
+fn settings_view(recorder: &SharedRecorder, overlay: &SharedOverlay) -> SettingsView {
+    let settings = recorder.settings();
+    let mark_key = settings.mark_key.map(|chord| overlay.chord_view(&chord));
+    SettingsView::new(settings, recorder.folder(), mark_key)
+}
+
 #[tauri::command]
-pub fn recording_settings(recorder: State<'_, SharedRecorder>) -> SettingsView {
-    SettingsView::new(recorder.settings(), recorder.folder())
+pub fn recording_settings(
+    recorder: State<'_, SharedRecorder>,
+    overlay: State<'_, SharedOverlay>,
+) -> SettingsView {
+    settings_view(&recorder, &overlay)
+}
+
+/// Why `chord` cannot be the mark key: refused on its own, like a panel's
+/// (`Chord::refusal`), or a panel's chord already.
+fn mark_key_refusal(chord: &Chord, overlay: &SharedOverlay) -> Option<String> {
+    if let Some(reason) = chord.refusal(false) {
+        return Some(reason.to_string());
+    }
+    overlay
+        .settings()
+        .panel_on(chord)
+        .map(|panel| format!("Already the shortcut of {}.", panel.name()))
+}
+
+/// Whether `chord` can be the mark key, and how it reads, before the page
+/// saves it — the overlay's `overlay_check_trigger` for the mark key (#2079).
+#[tauri::command]
+pub fn recording_check_mark_key(
+    overlay: State<'_, SharedOverlay>,
+    chord: serde_json::Value,
+) -> Result<TriggerCheck, String> {
+    let chord: Chord =
+        serde_json::from_value(chord).map_err(|_| "a key this app does not know".to_string())?;
+    Ok(TriggerCheck {
+        refusal: mark_key_refusal(&chord, &overlay),
+        chord: Some(overlay.chord_view(&chord)),
+    })
 }
 
 /// Replace the settings. Read leniently, like the file: a value out of range
-/// falls back alone. A smaller budget applies at once.
+/// falls back alone. A smaller budget applies at once. A mark key that is a
+/// panel's chord is refused with the reason, as the page's check words it.
 #[tauri::command]
 pub fn set_recording_settings(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
+    overlay: State<'_, SharedOverlay>,
     settings: serde_json::Value,
 ) -> Result<SettingsView, String> {
     let settings = RecordingSettings::from_json(&settings.to_string());
+    if let Some(reason) = settings
+        .mark_key
+        .and_then(|chord| mark_key_refusal(&chord, &overlay))
+    {
+        return Err(reason);
+    }
     recorder.replace_settings(settings).map_err(text)?;
     let protect = recorder
         .activity()
@@ -62,7 +94,7 @@ pub fn set_recording_settings(
         );
     }
     emit_library(&app);
-    Ok(SettingsView::new(recorder.settings(), recorder.folder()))
+    Ok(settings_view(&recorder, &overlay))
 }
 
 #[tauri::command]
@@ -200,6 +232,10 @@ pub(super) fn clip_view(recorder: &SharedRecorder, id: &str) -> Result<ClipView,
 }
 
 /// Cut `start_ms..end_ms` of a recording into its own file, with a thumbnail.
+/// With `replaces`, the range is a saved clip's, adjusted in the recap (a
+/// marked moment's, most often): the new cut takes its favourite and the old
+/// clip goes once the new one is written. A clip published on YouTube is not
+/// replaced — its link is the video's, not the new cut's.
 #[tauri::command]
 pub async fn clip_save(
     app: AppHandle,
@@ -208,6 +244,7 @@ pub async fn clip_save(
     start_ms: u64,
     end_ms: u64,
     title: String,
+    replaces: Option<String>,
 ) -> Result<ClipView, String> {
     let recorder = recorder.inner().clone();
     let helper = recorder
@@ -216,47 +253,36 @@ pub async fn clip_save(
         .ok_or("clips are not available on this platform yet")?;
     let view = tokio::task::spawn_blocking(move || {
         let recording = find(&recorder, &recording_id)?;
-        let duration = recording.meta.duration_ms.unwrap_or(u64::MAX);
-        let end_ms = end_ms.min(duration);
-        if end_ms < start_ms.saturating_add(MIN_CLIP_MS) {
-            return Err("a clip lasts at least a second".to_string());
+        let replaced = replaces
+            .map(|id| find_clip(&recorder, &id))
+            .transpose()?
+            .filter(|old| old.meta.recording_id.as_deref() == Some(recording_id.as_str()));
+        if replaced
+            .as_ref()
+            .is_some_and(|old| old.meta.youtube_url.is_some())
+        {
+            return Err("a clip published on YouTube keeps its range".to_string());
         }
-        let mut meta = ClipMeta::cut_from(
-            &recording.meta,
-            &recording_id,
-            start_ms,
-            end_ms,
-            &title,
-            now_ms(),
-        );
-        let clips = recorder.clips();
-        let dir = clips.create(&meta).map_err(text)?;
-        let cut = media::clip(
+        let id = cut_clip(
+            &recorder,
             &helper,
-            &recording.dir.video_path(),
-            &dir.video_path(),
-            start_ms,
-            end_ms,
-        );
-        match cut {
-            Ok(duration_ms) => meta.duration_ms = duration_ms,
-            Err(error) => {
-                let _ = dir.delete();
-                return Err(error.0);
+            &recording.dir,
+            &recording.meta,
+            (start_ms, end_ms),
+            &title,
+        )?;
+        if let Some(old) = replaced {
+            if old.meta.favorite {
+                let clip = find_clip(&recorder, &id)?;
+                let mut meta = clip.meta;
+                meta.favorite = true;
+                clip.dir.write_meta(&meta).map_err(text)?;
+            }
+            if let Err(error) = old.dir.delete() {
+                tracing::warn!(%error, "the adjusted clip's previous cut stays");
             }
         }
-        let at = CLIP_THUMBNAIL_AT_MS.min(meta.duration_ms / 2);
-        if let Err(error) = media::thumbnail(
-            &helper,
-            &dir.video_path(),
-            &dir.thumbnail_path(),
-            at,
-            THUMBNAIL_WIDTH,
-        ) {
-            tracing::warn!(%error, "no thumbnail for the clip");
-        }
-        dir.write_meta(&meta).map_err(text)?;
-        clip_view(&recorder, &dir.id())
+        clip_view(&recorder, &id)
     })
     .await
     .map_err(text)??;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BuildRunePage } from '~/types/build'
+import type { KitRunePage } from '#shared/types/kit'
 
 /**
  * The rune import button (#1678): a small icon in the corner of the runes,
@@ -7,7 +7,7 @@ import type { BuildRunePage } from '~/types/build'
  * label lives in its tooltip; the toast says how it went.
  */
 const props = defineProps<{
-  page: BuildRunePage
+  page: KitRunePage
   champion: string
 }>()
 

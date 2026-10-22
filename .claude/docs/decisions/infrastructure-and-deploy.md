@@ -82,6 +82,19 @@ Verifying was preferred to moving the rollout onto SSH and dropping Docker Manag
 failure mode, lose the hosting panel's view of the stack, and still need this check to notice the next
 one — #1394, `docs/ci.md`.
 
+**The deploy pre-pulls the images over the CI key before Docker Manager recreates anything (2026-10-05).**
+Docker Manager stops and removes every container before it pulls, so a registry error mid-deploy left preprod
+fully down for twenty minutes behind a green run. The deploy job now asks the host for `pull <tag>` first and
+fails while the old containers still serve. It goes through **the existing CI key**, not a new one: its forced
+command became a dispatcher (`.github/scripts/vps/ci-ssh-command.sh`) that accepts only the migration and
+`pull <tag>`, the tag matched whole against a git sha or semver regex, and refuses everything else — still no
+shell, still no `docker ps`, so the rollout check above keeps reading the Hostinger API. The script is
+versioned in the repo but installed on each host by the owner, and the step stays behind a per-environment
+`*_PREPULL_IMAGES` variable until it is; the client requires the dispatcher's success line, so a host still on
+the old forced command fails the step instead of passing for a pull. Docker Manager's own pull still runs
+(`pull_policy: always`), so this narrows that window to a manifest check rather than closing it — #1089,
+`docs/ci.md`.
+
 **Both deploy pipelines serialise at workflow level, not per job.**
 Preprod needs it because the `-rc.N` counter is read from the remote tags; prod needs it because two
 releases published back to back would interleave their `publish` jobs and race for the moving `:latest`
@@ -271,3 +284,26 @@ at 8 and the API query answers at once.
 
 Source: #1632; `docs/prod.md` (*Connection pools*). Supersedes the "ingestors keep their own caps (40 each)" and
 "capacity is unchanged" notes in `performance-and-incidents.md` (#1570, #1631).
+
+## The edge is its own Docker Manager project and serves a maintenance page while the stack rolls (2026-10-20)
+
+**Caddy runs in a project of its own (`truemain-edge` from `compose.prod.edge.yaml`, `truemain-preprod-edge` from
+`compose.preprod.edge.yaml`), and when it cannot reach web or admin it answers a `503` maintenance page (JSON on
+`/api/*`) instead of a `502`.** Docker Manager recreates every container of a project on each deploy — measured on
+the 1.25.1 release log, Caddy included: the public site answered nothing for ~40 s on prod (~57 s on preprod), then a
+bare `502` until web listened. A maintenance page served by the in-stack Caddy would only have covered the part of
+the window where Caddy happened to be up, so the product owner chose to move the edge out of the stack.
+
+- *The app stack owns the edge network* (`truemain_edge` / `truemain_preprod_edge`); the edge joins it as
+  `external`. The app never depends on the edge being deployed, and the edge sees web, admin and Umami only.
+- *The edge redeploys only when it changes* — missing project, a container not running, or a compose file that
+  differs from the repository's (`edge-drift.sh`) — because a redeploy recreates Caddy.
+- *`503` + `Retry-After`, `no-store`*: crawlers read a temporary outage, and no cache keeps the page afterwards.
+  An app-level `503` passes through; only a failure to reach the upstream is maintenance.
+- *No manual maintenance switch*: the page appears exactly when the upstream is unreachable. A toggle for planned
+  work with the apps still up was not asked for.
+- *Not on `analytics`*: an HTML body in place of the Umami tracker helps nobody.
+
+Source: #2179; `docs/prod.md` (*Maintenance page*, *One-time cutover to the edge project*), `docs/ci.md` (*The edge
+is its own project*). Moves the edge configuration from `compose.prod.yaml` / `compose.preprod.yaml` (2026-10-05
+entry above, #1598; 2026-09-14 entry, #1558) to the edge files; the inline-config rule itself is unchanged.

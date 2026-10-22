@@ -22,10 +22,10 @@ describe('objectiveMarkers', () => {
       { type: 'BUILDING_KILL', ms: 1_200_000, killerId: 6, teamId: 100, buildingType: 'INHIBITOR_BUILDING', laneType: 'BOT_LANE' },
     ]), 100)
     expect(markers).toEqual([
-      { ms: 400_000, kind: 'dragon', teamId: 100, label: 'Your Infernal Drake', count: 1 },
-      { ms: 600_000, kind: 'tower', teamId: 100, label: 'Took the outer turret, mid', count: 1 },
-      { ms: 900_000, kind: 'baron', teamId: 200, label: 'Enemy Baron', count: 1 },
-      { ms: 1_200_000, kind: 'inhibitor', teamId: 200, label: 'Lost the bot inhibitor', count: 1 },
+      { ms: 400_000, kind: 'dragon', teamId: 100, label: 'Your Infernal Drake', count: 1, subType: 'FIRE_DRAGON' },
+      { ms: 600_000, kind: 'tower', teamId: 100, label: 'Took the outer turret, mid', count: 1, subType: null },
+      { ms: 900_000, kind: 'baron', teamId: 200, label: 'Enemy Baron', count: 1, subType: null },
+      { ms: 1_200_000, kind: 'inhibitor', teamId: 200, label: 'Lost the bot inhibitor', count: 1, subType: null },
     ])
   })
 

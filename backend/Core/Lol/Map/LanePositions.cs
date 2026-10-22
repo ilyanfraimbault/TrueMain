@@ -12,6 +12,13 @@ public static class LanePositions
     public static readonly IReadOnlyList<string> All = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
 
     /// <summary>
+    /// The explicit "every position" token a client sends where a read can span all five
+    /// positions at once. Distinct from an absent position, which a champion read resolves
+    /// to the champion's dominant one. Never stored: no row carries it.
+    /// </summary>
+    public const string AllPositions = "ALL";
+
+    /// <summary>
     /// Whether <paramref name="teamPosition"/> is exactly one of <see cref="All"/> — the
     /// stored-data test: no trimming, no case folding, no alias.
     /// </summary>

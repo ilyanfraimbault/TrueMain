@@ -19,6 +19,7 @@ const ICONS: Record<MomentKind, string> = {
   atakhan: 'i-lucide-shield-half',
   tower: 'i-lucide-castle',
   inhibitor: 'i-lucide-gem',
+  marked: 'i-lucide-bookmark',
 }
 </script>
 

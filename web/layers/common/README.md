@@ -57,8 +57,8 @@ What a host must supply rather than a name: the banner art of `PageHero` (`splas
 asks `MATCH_DETAIL_SOURCE` (`utils/match-detail-source.ts`); unprovided it reads TrueMain (`useMatchDetail`), and the
 desktop dashboard provides its own reader, which falls back to the player's client.
 
-Three components are host-provided the same way, because none can draw the site's way in the app: `SkeletonImage`
-(the site's goes through IPX and fades in on `load`, which WKWebView never reports for late images), `RankIcon`
-(IPX) and `ChartsAreaChart` (the site's wraps vue-chrts; the app draws the ranked card's LP curve in plain SVG rather
-than ship that stack in a webview). The site's live in `web/app/components`, the app's in `desktop/app/app/components`;
-the shared components use them by name. Everything else draws from this layer, so it draws the same.
+Two components are host-provided the same way, because neither can draw the site's way in the app: `SkeletonImage`
+(the site's goes through IPX and fades in on `load`, which WKWebView never reports for late images) and `RankIcon`
+(IPX). The site's live in `web/app/components`, the app's in `desktop/app/app/components`; the shared components use
+them by name. Everything else draws from this layer, so it draws the same — the ranked card's LP curve included,
+in plain SVG (`profile/ProfileRankChart.vue`), since it clips the curve per tier band, which vue-chrts can't host.

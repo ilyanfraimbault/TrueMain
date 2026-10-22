@@ -61,6 +61,7 @@ import type {
 import { PERFORMANCE_COMPONENT_KINDS } from '~~/shared/types/performance'
 import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
+import type { ApexCutoffsResponse } from '~~/shared/types/apex-cutoffs'
 import type { SearchPlayer, SearchResponse } from '~~/shared/types/search'
 
 // ─── Deterministic PRNG ──────────────────────────────────────────────────────
@@ -1439,6 +1440,22 @@ function mockProfile(player: MockPlayer): ProfileResponse {
   }
 }
 
+/**
+ * The ranked card's Grandmaster / Challenger lines (#2174): the same flat 500 / 900 LP
+ * the mock histories are labelled with (`apexTierForLp`), one entry per day of the window,
+ * so a mock apex curve changes colour where it crosses them.
+ */
+function mockApexCutoffs(query: Record<string, unknown>): ApexCutoffsResponse {
+  const days = Math.min(Math.max(Number(query.days) || 90, 1), 730)
+  const now = Date.now()
+  const entries = Array.from({ length: days }, (_, i) => ({
+    dateUtc: new Date(now - (days - 1 - i) * DAY_MS).toISOString().slice(0, 10),
+    grandmasterMinLp: 500,
+    challengerMinLp: 900,
+  }))
+  return { entries }
+}
+
 function mockRankHistory(player: MockPlayer): RankHistoryResponse {
   const endLp = player.row.ranked?.leaguePoints ?? 0
   const apex = player.row.ranked?.tier !== 'DIAMOND'
@@ -2510,6 +2527,7 @@ export async function resolveDevApiMock(
     if (!persona) throw createError({ statusCode: 404, statusMessage: 'Unknown player (dev mock)' })
     return persona
   }
+  if (/^\/ladder\/[^/]+\/apex-cutoffs$/.test(path)) return mockApexCutoffs(query)
   if (path === '/truemains/search') return mockSearch(typeof query.q === 'string' ? query.q : '')
 
   // Two segments deep, so it has to come before the single-segment player
@@ -2554,6 +2572,8 @@ export async function resolveDevApiMock(
     // page — it renders no toggle, because its scope is already one account.
     else payload = await mockChampionDetail(id, undefined, undefined, true)
     if (payload === null) throw createError({ statusCode: 404, statusMessage: 'No data (dev mock)' })
+    // "All positions" (#2158): the same sample, labelled as the backend labels it.
+    if (query.position === 'ALL' && sub !== 'performance') return { ...(payload as object), position: 'ALL' }
     return payload
   }
 

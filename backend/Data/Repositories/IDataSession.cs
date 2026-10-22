@@ -12,8 +12,10 @@ public interface IDataSession : IAsyncDisposable
     IRankSnapshotRepository RankSnapshots { get; }
     IDiscoveryCursorRepository DiscoveryCursors { get; }
     ILadderSyncCursorRepository LadderSyncCursors { get; }
+    IApexCutoffSnapshotRepository ApexCutoffSnapshots { get; }
     IPaceBenchmarkStatRepository PaceBenchmarkStats { get; }
     IPaceSampledMatchRepository PaceSampledMatches { get; }
+    IFormBenchmarkStatRepository FormBenchmarkStats { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
     Task<IDataTransaction> BeginTransactionAsync(CancellationToken ct);

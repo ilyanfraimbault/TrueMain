@@ -99,7 +99,10 @@ runtime — #1590.
   Since #1585 the icon tooltips are not mounted until the pointer first passes over the icon
   (`GameTooltip/LazyTooltip.vue`). That keeps this rule: Reka takes its snapshot when the tooltip mounts, once,
   on the element it keeps for good, and it opens on `pointermove`, so the resting pointer opens it on its next
-  move and nothing is opened by hand.
+  move and nothing is opened by hand. Arming does re-create the icon once (Vue cannot move the slot under the
+  trigger), so a re-created icon whose picture was already painted comes back drawn — loaded, no fade,
+  `decoding="sync"` — instead of loading again, which blinked it out and back on the first hover
+  (`utils/icon-repaint.ts`).
 
 - **Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25, #1698).**
   `GameTooltip/LazyTooltip.vue` defaults `content` to `{ side: 'top' }` for every item, rune and spell card.
@@ -587,3 +590,27 @@ and counts were written by hand in ~30 places, and a missing champion name was `
   `useChampionsById`, never a linear `find`.
 - **Positions** — `utils/positions.ts` holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
   names (`positionLabel`; `short` gives the app's `Mid` / `Bot`) and the icons (`getPositionIconUrl`).
+
+## Favorites beyond players: a key per shape, no matchups, the clip flag stays the library's (2026-10-20)
+
+Favorites followed players only (`truemain:favorites:v1`, an array of players, #531). #2080 adds champions (with
+their position) and, in the app, clips.
+
+- **Champions go under a key of their own, `truemain:favorite-champions:v1`**, and the player list keeps its key
+  and shape. A `v2` holding both would have to migrate `v1`, and every shipped build — an open tab during a
+  deploy, an app not yet updated — reads `v1` as players and rewrites it whole on the next follow: the champions
+  would read as unusable records and be written away. A separate key needs no migration; a build that does not
+  know it never touches it.
+- **Same rules as the player list**: `localStorage` only (no account sync before RSO), versioned key, every
+  stored record untrusted on read (`resolveFavoriteChampion` is the one notion of a valid entry for reads and
+  writes), newest first, de-duplicated (a champion once per position), **capped at 30**; the toggle declines a
+  click past the cap rather than evict. No fetch per row: a row is drawn from the static champion list, and the
+  position is its icon, not its name.
+- **Matchups are not starrable.** The issue scoped them in; the product owner dropped them on review — a matchup
+  is something you look up in a draft, not a page you come back to (2026-10-20).
+- **A clip's favourite is the recording library's flag** (#1755), already persisted by the shell and set from the
+  clip's player and its Recordings card; the Favorites page reads it (`FavoritesClips`, through the shared page's
+  `extra` slot) instead of keeping a copy that would drift from it. "Clear all" therefore clears players and
+  champions, never clips.
+- **One star**: `FavoriteStar.vue` draws every star (filled when on), so the players, champions and clips on the
+  page read the same.

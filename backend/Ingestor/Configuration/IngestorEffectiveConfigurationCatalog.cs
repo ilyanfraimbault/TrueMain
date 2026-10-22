@@ -98,6 +98,29 @@ public static class IngestorEffectiveConfigurationCatalog
             + "established mains over freshly queued candidates."
     };
 
+    private static EffectiveConfigurationSectionDescriptor MatchFetchWorkers { get; } = new()
+    {
+        SectionName = MatchFetchWorkersOptions.SectionName,
+        OptionsType = typeof(MatchFetchWorkersOptions),
+        Title = "Match-fetch workers",
+        Description =
+            "The permanent per-region match-fetch workers of the FetchWorkers mode: the staged "
+            + "target rates each holds its Riot calls to and the stage it runs at, the accounts it "
+            + "claims at a time, and how long it waits after a claim that found nothing or a batch "
+            + "that failed."
+    };
+
+    private static EffectiveConfigurationSectionDescriptor IngestionBackpressure { get; } = new()
+    {
+        SectionName = IngestionBackpressureOptions.SectionName,
+        OptionsType = typeof(IngestionBackpressureOptions),
+        Title = "Ingestion backpressure",
+        Description =
+            "The host memory and free-disk thresholds below which the match-fetch workers stop "
+            + "claiming until the resource recovers, the margin it must recover by, the disk "
+            + "watched and how often a held-back worker reads them again."
+    };
+
     private static EffectiveConfigurationSectionDescriptor LaneOutcomeAggregation { get; } = new()
     {
         SectionName = LaneOutcomeAggregationOptions.SectionName,
@@ -128,8 +151,9 @@ public static class IngestorEffectiveConfigurationCatalog
         Description =
             "How outbound Riot API calls are paced against the budget Riot enforces per "
             + "routing value: the limits assumed before Riot advertises its own, whether "
-            + "per-endpoint method limits are enforced too, and the headroom held back so a "
-            + "count we under-tracked does not become a 429."
+            + "per-endpoint method limits are enforced too, the headroom held back so a "
+            + "count we under-tracked does not become a 429, and the shares of each regional "
+            + "route reserved for the callers the match-fetch workers must not starve."
     };
 
     private static EffectiveConfigurationSectionDescriptor Intake { get; } = new()
@@ -170,6 +194,8 @@ public static class IngestorEffectiveConfigurationCatalog
             Harvest,
             MainActivity,
             MatchIngestion,
+            MatchFetchWorkers,
+            IngestionBackpressure,
             Coverage,
             Intake,
             LaneOutcomeAggregation,

@@ -1,25 +1,37 @@
 <script setup lang="ts">
 import type { RegionSlug } from '#shared/types/leaderboard'
-import { FAVORITES_LIMIT, favoriteNameTag } from '#common/utils/favorites'
+import type { FavoriteChampionInput } from '#common/utils/favorites'
+import { FAVORITE_CHAMPIONS_LIMIT, FAVORITES_LIMIT, favoriteNameTag } from '#common/utils/favorites'
 
-// Follow / unfollow a truemain (#531). Used on the leaderboard rows and on the
-// player profile; the list itself lives in `localStorage` behind
-// `useFavoriteTruemains`.
+// Follow / unfollow a truemain (#531) — the leaderboard rows and the player
+// profile — or star / unstar a champion on a position (#2080) when `champion`
+// is given. The lists live in `localStorage` behind `useFavoriteTruemains` and
+// `useFavoriteChampions`.
 const props = withDefaults(defineProps<{
-  gameName: string
-  tagLine: string | null
+  gameName?: string
+  tagLine?: string | null
   /** Region slug for the stored entry (drives the flag on the favorites view). */
   region?: RegionSlug | null
   /** Profile icon id, so the favorites view can draw an avatar before its own fetch lands. */
   profileIconId?: number | null
+  /** A champion on a position to star instead of a player. */
+  champion?: FavoriteChampionInput | null
+  /** How the champion reads in the button's label: `Ahri Middle`. */
+  championLabel?: string
 }>(), {
+  gameName: '',
+  tagLine: null,
   region: null,
   profileIconId: null,
+  champion: null,
+  championLabel: '',
 })
 
 const { isFavorite, toggle, atLimit } = useFavoriteTruemains()
+const { isFavoriteChampion, championsFull, toggleChampion } = useFavoriteChampions()
 
 const nameTag = computed(() => favoriteNameTag(props.gameName, props.tagLine))
+const subject = computed(() => props.champion ? (props.championLabel || 'this champion') : nameTag.value)
 
 /**
  * Hydration guard, scoped to this component instance.
@@ -47,22 +59,33 @@ onMounted(() => {
   mounted.value = true
 })
 
-const active = computed(() => mounted.value && isFavorite(nameTag.value))
+const active = computed(() => mounted.value
+  && (props.champion ? isFavoriteChampion(props.champion) : isFavorite(nameTag.value)))
 
 // The store itself evicts the oldest entry past the cap (one cap policy, shared
 // by reads and writes — see `add`). Declining the click here layers a courtesy
 // on top of that: a user's own click should never silently drop someone they
 // followed earlier. Removing is always allowed. Mount-gated like `active`,
 // since the cap is a property of the stored list.
-const isFull = computed(() => mounted.value && !active.value && atLimit.value)
+const isFull = computed(() => mounted.value && !active.value
+  && (props.champion ? championsFull.value : atLimit.value))
 
 const title = computed(() => {
-  if (isFull.value) return `Favorites are full (${FAVORITES_LIMIT}) — remove one first`
-  return active.value ? `Unfollow ${nameTag.value}` : `Follow ${nameTag.value}`
+  if (isFull.value) {
+    const limit = props.champion ? FAVORITE_CHAMPIONS_LIMIT : FAVORITES_LIMIT
+    return `Favorites are full (${limit}) — remove one first`
+  }
+  // A player is followed; a champion is starred.
+  if (props.champion) return active.value ? `Remove ${subject.value} from favorites` : `Add ${subject.value} to favorites`
+  return active.value ? `Unfollow ${subject.value}` : `Follow ${subject.value}`
 })
 
 function onClick() {
   if (isFull.value) return
+  if (props.champion) {
+    toggleChampion(props.champion)
+    return
+  }
   toggle({
     gameName: props.gameName,
     tagLine: props.tagLine,
@@ -73,36 +96,5 @@ function onClick() {
 </script>
 
 <template>
-  <!-- `relative z-10` lifts the button above the leaderboard row's stretched
-       profile-link overlay, so clicking the star follows the player instead of
-       navigating to their page. -->
-  <span class="relative z-10 inline-flex shrink-0">
-    <button
-      type="button"
-      :aria-pressed="active"
-      :aria-label="title"
-      :title="title"
-      :disabled="isFull"
-      class="inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-      :class="active ? 'text-primary' : 'text-muted hover:text-primary'"
-      @click.stop.prevent="onClick"
-    >
-      <!-- Followed reads as a *filled* star, not as a tinted button: the
-           control is the star, and a pill of background behind it competed
-           with every other chip on the row.
-
-           Two things are load-bearing here. `mode="svg"` inlines the glyph
-           instead of painting it as a CSS mask — a masked icon is a flat
-           silhouette with no interior to fill. And the fill has to target the
-           `<path>`, not the `<svg>`: lucide writes `fill="none"` on the path
-           itself, which a rule on the root element never overrides. -->
-      <UIcon
-        mode="svg"
-        name="i-lucide-star"
-        class="size-4 shrink-0"
-        :class="active ? '[&_path]:fill-current' : undefined"
-        aria-hidden="true"
-      />
-    </button>
-  </span>
+  <FavoriteStar :active="active" :label="title" :disabled="isFull" @toggle="onClick" />
 </template>

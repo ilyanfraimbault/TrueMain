@@ -40,6 +40,7 @@ describe('iterationKind', () => {
     expect(iterationKind(iteration('a', 'FetchLane', '', '')).id).toBe('fetch')
     expect(iterationKind(iteration('a', 'AggregateLane', '', '')).label).toBe('Aggregate')
     expect(iterationKind(iteration('a', 'Full', '', '')).id).toBe('full')
+    expect(iterationKind(iteration('a', 'FetchWorkers', '', '')).id).toBe('fetch')
     expect(iterationKind(iteration('a', 'HarvestOnly', '', ''))).toEqual({ id: 'single', label: 'HarvestOnly' })
   })
 

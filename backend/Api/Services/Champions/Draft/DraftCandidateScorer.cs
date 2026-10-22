@@ -26,7 +26,10 @@ public static class DraftCandidateScorer
     /// </summary>
     internal const int MinGames = 30;
 
-    /// <summary>Most reasons one card carries — one line on the card, the rest on hover.</summary>
+    /// <summary>
+    /// Most score terms one card states — one line on the card, the rest on hover. The
+    /// facts that are not score terms (lane phase, team composition) come on top.
+    /// </summary>
     internal const int MaxReasons = 3;
 
     /// <summary>
@@ -46,9 +49,11 @@ public static class DraftCandidateScorer
         double laneAverageRate,
         IReadOnlyList<DraftAllyInput> allies,
         DraftScoringWeights weights,
-        IReadOnlyList<DraftEnemyInput>? enemies = null)
+        IReadOnlyList<DraftEnemyInput>? enemies = null,
+        DraftTeamFit? teamFit = null)
     {
         enemies ??= [];
+        teamFit ??= DraftTeamFit.Empty;
         var k = weights.ShrinkGames;
         var strength = DraftScoring.Strength(record.Games, record.Wins, laneAverageRate);
         var (lane, laneShrunk, occupied) = DraftScoring.Lane(record.Versus, occupancy, k);
@@ -57,8 +62,10 @@ public static class DraftCandidateScorer
             allies.Select(ally => new DraftAllyPairing(ally.Pairing, ally.Hovered)).ToList(), weights);
         var (enemy, enemyShrunk) = DraftScoring.Enemy(
             enemies.Select(input => new DraftEnemyPairing(input.Pairing, input.Weight)).ToList(), k);
+        var (fit, fitShrunk) = DraftScoring.TeamFit([.. teamFit.Axes.Select(axis => axis.Fit)], k);
         var score = DraftScoring.Score(
-            laneShrunk, occupied, blind.Shrunk, strength.Shrunk(k), synergyShrunk, weights, enemyShrunk);
+            laneShrunk, occupied, blind.Shrunk, strength.Shrunk(k), synergyShrunk, weights,
+            new DraftBoardTerms(enemyShrunk, fitShrunk));
 
         var laneGamesInPlay = occupied >= 0.5d ? lane.Games : blind.Games;
 
@@ -80,9 +87,11 @@ public static class DraftCandidateScorer
             EnemyGames = enemy.Games,
             SynergyDelta = synergy.Delta,
             SynergyGames = synergy.Games,
+            TeamFitDelta = fit.Delta,
+            TeamFitGames = fit.Games,
             Score = score,
             ThinSample = laneGamesInPlay < MinGames && synergy.Games < MinGames,
-            Reasons = Reasons(record, occupancy, occupied, blind, strength, allies, enemies, weights),
+            Reasons = Reasons(record, occupancy, occupied, blind, strength, allies, enemies, teamFit, weights),
             Patch = record.Patch,
         };
     }
@@ -101,6 +110,7 @@ public static class DraftCandidateScorer
         DraftComponent strength,
         IReadOnlyList<DraftAllyInput> allies,
         IReadOnlyList<DraftEnemyInput> enemies,
+        DraftTeamFit teamFit,
         DraftScoringWeights weights)
     {
         var k = weights.ShrinkGames;
@@ -185,6 +195,14 @@ public static class DraftCandidateScorer
             }));
         }
 
+        if (weights.TeamFit > 0d && teamFit.Axes.Count > 0)
+        {
+            foreach (var axis in teamFit.Axes.Where(axis => axis.Fit.Games > 0))
+            {
+                parts.Add((weights.TeamFit / teamFit.Axes.Count * axis.Fit.Shrunk(k), TeamFitReason(axis, teamFit.Tentative)));
+            }
+        }
+
         var reasons = parts
             .Where(part => Math.Abs(part.Contribution) >= MinContribution)
             .OrderByDescending(part => Math.Abs(part.Contribution))
@@ -193,29 +211,47 @@ public static class DraftCandidateScorer
             .Select(part => part.Reason)
             .ToList();
 
-        // The lane phase is a reason, never a score term: it says how the lane
-        // goes, not how the game ends, and the game is what the deltas measure.
-        if (reasons.Count < MaxReasons)
+        // The facts that are not score terms come after the ones that are, each
+        // once measured: the lane phase says how the lane goes, not how the game
+        // ends, and the game is what the deltas measure; the team composition
+        // waits for the back-test to give it a weight (#1906).
+        var likeliest = occupancy
+            .Where(entry => entry.Value >= LanePhaseMinProbability)
+            .OrderByDescending(entry => entry.Value)
+            .Select(entry => (int?)entry.Key)
+            .FirstOrDefault();
+        if (likeliest is { } opponent
+            && record.LanePhase.TryGetValue(opponent, out var phase)
+            && phase.Wins + phase.Losses >= MinGames)
         {
-            var likeliest = occupancy
-                .Where(entry => entry.Value >= LanePhaseMinProbability)
-                .OrderByDescending(entry => entry.Value)
-                .Select(entry => (int?)entry.Key)
-                .FirstOrDefault();
-            if (likeliest is { } enemy
-                && record.LanePhase.TryGetValue(enemy, out var phase)
-                && phase.Wins + phase.Losses >= MinGames)
+            reasons.Add(new DraftReasonReadModel
             {
-                reasons.Add(new DraftReasonReadModel
-                {
-                    Kind = DraftReasonKinds.LanePhase,
-                    ChampionId = enemy,
-                    Rate = (double)phase.Wins / (phase.Wins + phase.Losses),
-                    Games = phase.Wins + phase.Losses,
-                });
-            }
+                Kind = DraftReasonKinds.LanePhase,
+                ChampionId = opponent,
+                Rate = (double)phase.Wins / (phase.Wins + phase.Losses),
+                Games = phase.Wins + phase.Losses,
+            });
+        }
+
+        if (weights.TeamFit <= 0d
+            && teamFit.Axes
+                .Where(axis => axis.Fit.Games >= MinGames && Math.Abs(axis.Fit.Shrunk(k)) >= MinContribution)
+                .OrderByDescending(axis => Math.Abs(axis.Fit.Shrunk(k)))
+                .FirstOrDefault() is { } strongest)
+        {
+            reasons.Add(TeamFitReason(strongest, teamFit.Tentative));
         }
 
         return reasons;
     }
+
+    private static DraftReasonReadModel TeamFitReason(DraftTeamFitAxis axis, bool tentative) => new()
+    {
+        Kind = DraftReasonKinds.TeamFit,
+        Axis = axis.Axis.ToString(),
+        Bucket = axis.Bucket.ToString(),
+        Delta = axis.Fit.Delta,
+        Games = axis.Fit.Games,
+        Tentative = tentative,
+    };
 }

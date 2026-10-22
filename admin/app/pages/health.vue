@@ -56,9 +56,18 @@ const { data: riotUsage, pending: riotPending } = useRiotUsage({ window: '24h' }
 const riotErrorRate = computed(() =>
   riotUsage.value ? formatPercent(riotUsage.value.errorRate, 1) : null,
 )
-// The headroom estimate answers with `sufficientData: false` below 24 h of rollup
-// history — rendered as the sentence it is rather than as a zero.
+// The headroom estimate answers with `sufficientData: false` below 24 h of per-host
+// rollup history — rendered as the sentence it is rather than as a zero. The figure is
+// the binding host's (#1894), the same one the Riot API tab headlines: Riot meters each
+// routing host apart, so no app-wide total exists to print.
 const riotHeadroom = computed(() => riotUsage.value?.headroom ?? null)
+const riotBindingHost = computed(() => {
+  const headroom = riotHeadroom.value
+  if (!headroom?.sufficientData || headroom.additionalAccountsHeadroom === null) {
+    return null
+  }
+  return headroom.routes.find(route => route.route === headroom.bindingRoute) ?? null
+})
 
 const showAllProcesses = ref(false)
 const troubledProcesses = computed(() =>
@@ -195,9 +204,10 @@ const visibleProcesses = computed(() =>
                 {{ riotErrorRate }} error rate over the last 24 h
                 ({{ formatNumber(riotUsage.totalErrors) }} of
                 {{ formatNumber(riotUsage.totalCalls) }} calls)
-                <span v-if="riotHeadroom?.sufficientData && riotHeadroom.spareCallsPerDay !== null">
-                  · {{ formatNumber(Math.round(riotHeadroom.spareCallsPerDay)) }} spare calls/day
-                  against the app limit
+                <span v-if="riotHeadroom && riotBindingHost">
+                  · ≈ {{ formatNumber(riotHeadroom.additionalAccountsHeadroom ?? 0) }} more accounts fit,
+                  bound by <span class="font-mono">{{ riotBindingHost.route }}</span>
+                  ({{ formatNumber(Math.round(riotBindingHost.spareCallsPerDay ?? 0)) }} spare calls/day)
                 </span>
                 <span v-else class="text-dimmed italic">
                   · headroom not measured yet

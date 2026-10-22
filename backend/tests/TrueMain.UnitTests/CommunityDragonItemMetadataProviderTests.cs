@@ -38,8 +38,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 """;
 
         using var handler = new StubHttpMessageHandler(payload);
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         var items = await provider.GetItemsAsync("16.7.1", CancellationToken.None);
 
@@ -77,8 +76,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 """;
 
         using var handler = new StubHttpMessageHandler(payload);
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         var items = await provider.GetItemsAsync("16.7.1", CancellationToken.None);
 
@@ -142,8 +140,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 """;
 
         using var handler = new StubHttpMessageHandler(payload);
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
 
@@ -181,8 +178,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 """;
 
         using var handler = new StubHttpMessageHandler(payload);
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         var items = await provider.GetItemsAsync("14.20.1", CancellationToken.None);
 
@@ -222,8 +218,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 """;
 
         using var handler = new StubHttpMessageHandler(payload);
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         var items = await provider.GetItemsAsync("99.99.1", CancellationToken.None);
 
@@ -269,8 +264,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 """;
 
         using var handler = new StubHttpMessageHandler(payload);
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
 
@@ -325,8 +319,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
 """;
 
         using var handler = new StubHttpMessageHandler(payload);
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
 
@@ -343,9 +336,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
         // CommunityDragon has not mirrored that branch yet (#1107).
         using var handler = new RoutingHttpMessageHandler(branch =>
             branch == "16.16" ? null : OneItemPayload);
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(
-            httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         var items = await provider.GetItemsAsync("16.16.804.9184", CancellationToken.None);
 
@@ -359,10 +350,8 @@ public sealed class CommunityDragonItemMetadataProviderTests
         var published = false;
         using var handler = new RoutingHttpMessageHandler(branch =>
             branch == "16.16" && !published ? null : OneItemPayload);
-        using var httpClient = new HttpClient(handler);
         var clock = new StubTimeProvider(new DateTimeOffset(2026, 8, 12, 3, 0, 0, TimeSpan.Zero));
-        var provider = new CommunityDragonItemMetadataProvider(
-            httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, clock);
+        var provider = CreateProvider(handler, clock);
 
         await provider.GetItemsAsync("16.16.804.9184", CancellationToken.None);
 
@@ -396,9 +385,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
             failNext = false;
             throw new HttpRequestException("connection reset");
         });
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(
-            httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(
             () => provider.GetItemsAsync("16.15.1", CancellationToken.None));
@@ -414,12 +401,38 @@ public sealed class CommunityDragonItemMetadataProviderTests
         // An outage is not an unpublished branch — it must not be papered over
         // with the previous patch's metadata.
         using var handler = new StatusHttpMessageHandler(HttpStatusCode.InternalServerError);
-        using var httpClient = new HttpClient(handler);
-        var provider = new CommunityDragonItemMetadataProvider(
-            httpClient, NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
+        var provider = CreateProvider(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(
             () => provider.GetItemsAsync("16.15.1", CancellationToken.None));
+    }
+
+    /// <summary>Each load takes a fresh client on the shared handler, as the host's factory hands out.</summary>
+    private static CommunityDragonItemMetadataProvider CreateProvider(HttpMessageHandler handler, TimeProvider? clock = null)
+        => new(
+            () => new HttpClient(handler, disposeHandler: false),
+            NullLogger<CommunityDragonItemMetadataProvider>.Instance,
+            clock ?? TimeProvider.System);
+
+    [Fact]
+    public async Task GetItemsAsync_ShouldServeAPatchFromCache_UntilTooManyPatchesHaveBeenAsked()
+    {
+        // The Api holds one provider for its whole life (#2212), and the patch comes from the
+        // request: the cache answers a repeated patch, but cannot grow with every patch named.
+        using var handler = new RoutingHttpMessageHandler(_ => OneItemPayload);
+        var provider = CreateProvider(handler);
+
+        await provider.GetItemsAsync("16.1", CancellationToken.None);
+        await provider.GetItemsAsync("16.1", CancellationToken.None);
+        handler.RequestedBranches.Should().Equal("16.1");
+
+        for (var minor = 2; minor <= 17; minor++)
+        {
+            await provider.GetItemsAsync($"16.{minor}", CancellationToken.None);
+        }
+
+        await provider.GetItemsAsync("16.1", CancellationToken.None);
+        handler.RequestedBranches.Should().HaveCount(18).And.EndWith("16.1");
     }
 
     private const string OneItemPayload = """

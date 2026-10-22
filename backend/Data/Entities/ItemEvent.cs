@@ -15,10 +15,8 @@ namespace Data.Entities;
 /// <c>JsonSerializerOptions</c> of the data source built in
 /// <see cref="DataServiceCollectionExtensions.BuildDataSource"/> — would silently
 /// make every existing row deserialize to defaults instead of failing loudly.
-/// The raw-SQL reads that unnest this column (for example
-/// <c>Api/Services/Champions/ChampionItemTimingsQueryService</c>, which filters on
-/// <c>ev-&gt;&gt;'EventType'</c> and <c>ev-&gt;&gt;'ItemId'</c>) depend on the very
-/// same keys.
+/// Any raw-SQL read that unnests this column (<c>ev-&gt;&gt;'EventType'</c>,
+/// <c>ev-&gt;&gt;'ItemId'</c>) depends on the very same keys.
 /// </remarks>
 public class ItemEvent
 {

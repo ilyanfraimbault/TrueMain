@@ -1,0 +1,486 @@
+{
+  "description": "The performance score's shared vectors (#2075): the site's scorer (backend/Core/Lol/Performance) and the desktop app's port (desktop/app/app/utils/performance-score.ts, match-performance.ts) both run every case and must both produce these figures. 'scores' pins PerformanceScore.Compute; 'matches' pins the match inputs (side totals, lane opponents, leads at the canonical marks) and the ranking into placements, MVP and ACE. Change a figure only together with the model, on both sides.",
+  "scores": [
+    {
+      "name": "the hand-computed MIDDLE reference",
+      "input": {
+        "teamPosition": "MIDDLE",
+        "kills": 10,
+        "deaths": 2,
+        "assists": 10,
+        "teamKills": 30,
+        "damageToChampions": 30000,
+        "teamDamageToChampions": 100000,
+        "goldEarned": 15000,
+        "teamGoldEarned": 60000,
+        "cs": 250,
+        "visionScore": 25,
+        "gameDurationMinutes": 25,
+        "laneLeads": [
+          {"minute": 15, "goldDiff": 750, "csDiff": 15, "xpDiff": 750}
+        ]
+      },
+      "score": 85
+    },
+    {
+      "name": "the reference with no lane mark: laning dropped, not zeroed",
+      "input": {
+        "teamPosition": "MIDDLE",
+        "kills": 10,
+        "deaths": 2,
+        "assists": 10,
+        "teamKills": 30,
+        "damageToChampions": 30000,
+        "teamDamageToChampions": 100000,
+        "goldEarned": 15000,
+        "teamGoldEarned": 60000,
+        "cs": 250,
+        "visionScore": 25,
+        "gameDurationMinutes": 25,
+        "laneLeads": []
+      },
+      "score": 86
+    },
+    {
+      "name": "a TOP game with every mark, deathless",
+      "input": {
+        "teamPosition": "TOP",
+        "kills": 7,
+        "deaths": 0,
+        "assists": 6,
+        "teamKills": 24,
+        "damageToChampions": 24180,
+        "teamDamageToChampions": 92310,
+        "goldEarned": 13420,
+        "teamGoldEarned": 61200,
+        "cs": 262,
+        "visionScore": 21,
+        "gameDurationMinutes": 32.8166,
+        "laneLeads": [
+          {"minute": 5, "goldDiff": 210, "csDiff": 6, "xpDiff": 140},
+          {"minute": 10, "goldDiff": 480, "csDiff": 9, "xpDiff": 390},
+          {"minute": 15, "goldDiff": 920, "csDiff": 17, "xpDiff": 610},
+          {"minute": 20, "goldDiff": 1210, "csDiff": 22, "xpDiff": 880},
+          {"minute": 30, "goldDiff": 1650, "csDiff": 25, "xpDiff": 1320}
+        ]
+      },
+      "score": 76
+    },
+    {
+      "name": "a JUNGLE game behind at every mark, leads saturating low",
+      "input": {
+        "teamPosition": "JUNGLE",
+        "kills": 1,
+        "deaths": 9,
+        "assists": 4,
+        "teamKills": 14,
+        "damageToChampions": 8120,
+        "teamDamageToChampions": 61000,
+        "goldEarned": 7900,
+        "teamGoldEarned": 48000,
+        "cs": 140,
+        "visionScore": 22,
+        "gameDurationMinutes": 28.5,
+        "laneLeads": [
+          {"minute": 5, "goldDiff": -900, "csDiff": -14, "xpDiff": -700},
+          {"minute": 10, "goldDiff": -2100, "csDiff": -30, "xpDiff": -1600},
+          {"minute": 15, "goldDiff": -2600, "csDiff": -41, "xpDiff": -2000},
+          {"minute": 20, "goldDiff": -3900, "csDiff": -60, "xpDiff": -2500}
+        ]
+      },
+      "score": 29
+    },
+    {
+      "name": "a BOTTOM game whose team scored no kill: kill participation dropped",
+      "input": {
+        "teamPosition": "BOTTOM",
+        "kills": 0,
+        "deaths": 3,
+        "assists": 0,
+        "teamKills": 0,
+        "damageToChampions": 9800,
+        "teamDamageToChampions": 40100,
+        "goldEarned": 8200,
+        "teamGoldEarned": 39000,
+        "cs": 198,
+        "visionScore": 11,
+        "gameDurationMinutes": 22.25,
+        "laneLeads": [
+          {"minute": 5, "goldDiff": -120, "csDiff": -3, "xpDiff": -40},
+          {"minute": 10, "goldDiff": -260, "csDiff": -8, "xpDiff": -150},
+          {"minute": 15, "goldDiff": -410, "csDiff": -11, "xpDiff": -300},
+          {"minute": 20, "goldDiff": -300, "csDiff": -9, "xpDiff": -280}
+        ]
+      },
+      "score": 49
+    },
+    {
+      "name": "a UTILITY game carried by vision and kill participation",
+      "input": {
+        "teamPosition": "UTILITY",
+        "kills": 2,
+        "deaths": 5,
+        "assists": 21,
+        "teamKills": 27,
+        "damageToChampions": 9100,
+        "teamDamageToChampions": 88000,
+        "goldEarned": 8800,
+        "teamGoldEarned": 59000,
+        "cs": 38,
+        "visionScore": 96,
+        "gameDurationMinutes": 34.2,
+        "laneLeads": [
+          {"minute": 5, "goldDiff": 60, "csDiff": 1, "xpDiff": 90},
+          {"minute": 10, "goldDiff": -90, "csDiff": -2, "xpDiff": 40},
+          {"minute": 15, "goldDiff": 150, "csDiff": 3, "xpDiff": 210},
+          {"minute": 20, "goldDiff": 220, "csDiff": 2, "xpDiff": 300},
+          {"minute": 30, "goldDiff": 410, "csDiff": 4, "xpDiff": 520}
+        ]
+      },
+      "score": 74
+    },
+    {
+      "name": "an unknown position, trimmed and upper-cased",
+      "input": {
+        "teamPosition": " middle ",
+        "kills": 4,
+        "deaths": 4,
+        "assists": 4,
+        "teamKills": 12,
+        "damageToChampions": 15000,
+        "teamDamageToChampions": 60000,
+        "goldEarned": 9000,
+        "teamGoldEarned": 45000,
+        "cs": 150,
+        "visionScore": 10,
+        "gameDurationMinutes": 20,
+        "laneLeads": [
+          {"minute": 5, "goldDiff": 0, "csDiff": 0, "xpDiff": 0},
+          {"minute": 10, "goldDiff": 0, "csDiff": 0, "xpDiff": 0},
+          {"minute": 15, "goldDiff": 0, "csDiff": 0, "xpDiff": 0}
+        ]
+      },
+      "score": 58
+    },
+    {
+      "name": "a game with no role: neutral weights, no lane",
+      "input": {
+        "teamPosition": "",
+        "kills": 8,
+        "deaths": 6,
+        "assists": 12,
+        "teamKills": 35,
+        "damageToChampions": 21000,
+        "teamDamageToChampions": 70000,
+        "goldEarned": 11000,
+        "teamGoldEarned": 52000,
+        "cs": 40,
+        "visionScore": 18,
+        "gameDurationMinutes": 19.5,
+        "laneLeads": []
+      },
+      "score": 60
+    },
+    {
+      "name": "a half-point score rounds away from zero (12.5 -> 13)",
+      "input": {
+        "teamPosition": "",
+        "kills": 1,
+        "deaths": 4,
+        "assists": 2,
+        "teamKills": 0,
+        "damageToChampions": 0,
+        "teamDamageToChampions": 0,
+        "goldEarned": 0,
+        "teamGoldEarned": 0,
+        "cs": 0,
+        "visionScore": 0,
+        "gameDurationMinutes": 0,
+        "laneLeads": []
+      },
+      "score": 13
+    },
+    {
+      "name": "a mark at minute 0 is ignored; a duplicate minute counts twice",
+      "input": {
+        "teamPosition": "TOP",
+        "kills": 3,
+        "deaths": 3,
+        "assists": 3,
+        "teamKills": 15,
+        "damageToChampions": 12000,
+        "teamDamageToChampions": 60000,
+        "goldEarned": 9000,
+        "teamGoldEarned": 45000,
+        "cs": 170,
+        "visionScore": 12,
+        "gameDurationMinutes": 21,
+        "laneLeads": [
+          {"minute": 0, "goldDiff": 5000, "csDiff": 50, "xpDiff": 5000},
+          {"minute": 10, "goldDiff": 300, "csDiff": 5, "xpDiff": 200},
+          {"minute": 10, "goldDiff": -100, "csDiff": -2, "xpDiff": 0},
+          {"minute": 20, "goldDiff": 800, "csDiff": 10, "xpDiff": 400}
+        ]
+      },
+      "score": 53
+    },
+    {
+      "name": "everything above the caps",
+      "input": {
+        "teamPosition": "MIDDLE",
+        "kills": 25,
+        "deaths": 0,
+        "assists": 20,
+        "teamKills": 40,
+        "damageToChampions": 60000,
+        "teamDamageToChampions": 100000,
+        "goldEarned": 25000,
+        "teamGoldEarned": 60000,
+        "cs": 400,
+        "visionScore": 60,
+        "gameDurationMinutes": 30,
+        "laneLeads": [
+          {"minute": 5, "goldDiff": 9000, "csDiff": 90, "xpDiff": 9000},
+          {"minute": 30, "goldDiff": 9000, "csDiff": 90, "xpDiff": 9000}
+        ]
+      },
+      "score": 100
+    }
+  ],
+  "matches": [
+    {
+      "name": "a ranked game past thirty minutes, every mark on both sides",
+      "durationSeconds": 1969,
+      "participants": [
+        {"participantId": 1, "teamId": 100, "teamPosition": "TOP", "win": true, "kills": 9, "deaths": 5, "assists": 12, "cs": 240, "damageToChampions": 21280, "goldEarned": 14218, "visionScore": 12},
+        {"participantId": 2, "teamId": 100, "teamPosition": "JUNGLE", "win": true, "kills": 1, "deaths": 4, "assists": 13, "cs": 220, "damageToChampions": 6811, "goldEarned": 9145, "visionScore": 10},
+        {"participantId": 3, "teamId": 100, "teamPosition": "MIDDLE", "win": true, "kills": 8, "deaths": 1, "assists": 13, "cs": 232, "damageToChampions": 37794, "goldEarned": 7320, "visionScore": 31},
+        {"participantId": 4, "teamId": 100, "teamPosition": "BOTTOM", "win": true, "kills": 1, "deaths": 9, "assists": 16, "cs": 253, "damageToChampions": 30920, "goldEarned": 10359, "visionScore": 39},
+        {"participantId": 5, "teamId": 100, "teamPosition": "UTILITY", "win": true, "kills": 10, "deaths": 2, "assists": 14, "cs": 9, "damageToChampions": 6216, "goldEarned": 12821, "visionScore": 21},
+        {"participantId": 6, "teamId": 200, "teamPosition": "TOP", "win": false, "kills": 4, "deaths": 4, "assists": 17, "cs": 232, "damageToChampions": 29748, "goldEarned": 13945, "visionScore": 9},
+        {"participantId": 7, "teamId": 200, "teamPosition": "JUNGLE", "win": false, "kills": 2, "deaths": 5, "assists": 20, "cs": 216, "damageToChampions": 40526, "goldEarned": 9300, "visionScore": 29},
+        {"participantId": 8, "teamId": 200, "teamPosition": "MIDDLE", "win": false, "kills": 12, "deaths": 9, "assists": 10, "cs": 267, "damageToChampions": 11710, "goldEarned": 13130, "visionScore": 11},
+        {"participantId": 9, "teamId": 200, "teamPosition": "BOTTOM", "win": false, "kills": 3, "deaths": 1, "assists": 15, "cs": 248, "damageToChampions": 13463, "goldEarned": 7664, "visionScore": 28},
+        {"participantId": 10, "teamId": 200, "teamPosition": "UTILITY", "win": false, "kills": 7, "deaths": 1, "assists": 0, "cs": 9, "damageToChampions": 20066, "goldEarned": 8852, "visionScore": 42}
+      ],
+      "marks": [
+        {"participantId": 1, "minute": 5, "gold": 2528, "cs": 22, "xp": 1731},
+        {"participantId": 1, "minute": 10, "gold": 4229, "cs": 53, "xp": 4152},
+        {"participantId": 1, "minute": 15, "gold": 5615, "cs": 81, "xp": 5801},
+        {"participantId": 1, "minute": 20, "gold": 7508, "cs": 114, "xp": 7664},
+        {"participantId": 1, "minute": 30, "gold": 11170, "cs": 166, "xp": 11622},
+        {"participantId": 2, "minute": 5, "gold": 2109, "cs": 31, "xp": 2070},
+        {"participantId": 2, "minute": 10, "gold": 4294, "cs": 61, "xp": 4200},
+        {"participantId": 2, "minute": 15, "gold": 6402, "cs": 85, "xp": 6091},
+        {"participantId": 2, "minute": 20, "gold": 8023, "cs": 125, "xp": 8454},
+        {"participantId": 2, "minute": 30, "gold": 11919, "cs": 183, "xp": 12743},
+        {"participantId": 3, "minute": 5, "gold": 2216, "cs": 29, "xp": 2092},
+        {"participantId": 3, "minute": 10, "gold": 3827, "cs": 58, "xp": 4137},
+        {"participantId": 3, "minute": 15, "gold": 5760, "cs": 79, "xp": 5958},
+        {"participantId": 3, "minute": 20, "gold": 7739, "cs": 113, "xp": 8006},
+        {"participantId": 3, "minute": 30, "gold": 11119, "cs": 168, "xp": 11634},
+        {"participantId": 4, "minute": 5, "gold": 2354, "cs": 25, "xp": 2186},
+        {"participantId": 4, "minute": 10, "gold": 4104, "cs": 53, "xp": 3759},
+        {"participantId": 4, "minute": 15, "gold": 5648, "cs": 82, "xp": 6125},
+        {"participantId": 4, "minute": 20, "gold": 7936, "cs": 114, "xp": 7690},
+        {"participantId": 4, "minute": 30, "gold": 11510, "cs": 169, "xp": 11939},
+        {"participantId": 5, "minute": 5, "gold": 2669, "cs": 38, "xp": 2419},
+        {"participantId": 5, "minute": 10, "gold": 4358, "cs": 62, "xp": 4195},
+        {"participantId": 5, "minute": 15, "gold": 6649, "cs": 99, "xp": 6292},
+        {"participantId": 5, "minute": 20, "gold": 8216, "cs": 129, "xp": 8815},
+        {"participantId": 5, "minute": 30, "gold": 12061, "cs": 186, "xp": 13194},
+        {"participantId": 6, "minute": 5, "gold": 2546, "cs": 30, "xp": 2028},
+        {"participantId": 6, "minute": 10, "gold": 4448, "cs": 58, "xp": 4145},
+        {"participantId": 6, "minute": 15, "gold": 6241, "cs": 89, "xp": 5944},
+        {"participantId": 6, "minute": 20, "gold": 7992, "cs": 120, "xp": 8126},
+        {"participantId": 6, "minute": 30, "gold": 11714, "cs": 177, "xp": 12317},
+        {"participantId": 7, "minute": 5, "gold": 2315, "cs": 20, "xp": 1765},
+        {"participantId": 7, "minute": 10, "gold": 3901, "cs": 56, "xp": 4018},
+        {"participantId": 7, "minute": 15, "gold": 5475, "cs": 87, "xp": 5941},
+        {"participantId": 7, "minute": 20, "gold": 7589, "cs": 106, "xp": 7862},
+        {"participantId": 7, "minute": 30, "gold": 10663, "cs": 158, "xp": 11683},
+        {"participantId": 8, "minute": 5, "gold": 2585, "cs": 24, "xp": 2244},
+        {"participantId": 8, "minute": 10, "gold": 4203, "cs": 65, "xp": 4117},
+        {"participantId": 8, "minute": 15, "gold": 6550, "cs": 91, "xp": 6682},
+        {"participantId": 8, "minute": 20, "gold": 8465, "cs": 130, "xp": 8681},
+        {"participantId": 8, "minute": 30, "gold": 11987, "cs": 179, "xp": 12708},
+        {"participantId": 9, "minute": 5, "gold": 2428, "cs": 28, "xp": 2140},
+        {"participantId": 9, "minute": 10, "gold": 4021, "cs": 65, "xp": 4093},
+        {"participantId": 9, "minute": 15, "gold": 6271, "cs": 91, "xp": 6114},
+        {"participantId": 9, "minute": 20, "gold": 8356, "cs": 119, "xp": 8413},
+        {"participantId": 9, "minute": 30, "gold": 11878, "cs": 181, "xp": 12595},
+        {"participantId": 10, "minute": 5, "gold": 2633, "cs": 28, "xp": 2058},
+        {"participantId": 10, "minute": 10, "gold": 4843, "cs": 59, "xp": 4409},
+        {"participantId": 10, "minute": 15, "gold": 6362, "cs": 100, "xp": 6771},
+        {"participantId": 10, "minute": 20, "gold": 8914, "cs": 123, "xp": 9023},
+        {"participantId": 10, "minute": 30, "gold": 12922, "cs": 203, "xp": 13413}
+      ],
+      "placements": [
+        {"participantId": 3, "score": 75, "placement": 1, "isMvp": true, "isAce": false},
+        {"participantId": 6, "score": 73, "placement": 2, "isMvp": false, "isAce": true},
+        {"participantId": 7, "score": 71, "placement": 3, "isMvp": false, "isAce": false},
+        {"participantId": 9, "score": 63, "placement": 4, "isMvp": false, "isAce": false},
+        {"participantId": 1, "score": 62, "placement": 5, "isMvp": false, "isAce": false},
+        {"participantId": 4, "score": 59, "placement": 6, "isMvp": false, "isAce": false},
+        {"participantId": 5, "score": 58, "placement": 7, "isMvp": false, "isAce": false},
+        {"participantId": 8, "score": 58, "placement": 8, "isMvp": false, "isAce": false},
+        {"participantId": 2, "score": 53, "placement": 9, "isMvp": false, "isAce": false},
+        {"participantId": 10, "score": 50, "placement": 10, "isMvp": false, "isAce": false}
+      ]
+    },
+    {
+      "name": "a game over at 22 minutes, red missing its 20 mark",
+      "durationSeconds": 1335,
+      "participants": [
+        {"participantId": 1, "teamId": 100, "teamPosition": "TOP", "win": true, "kills": 6, "deaths": 8, "assists": 15, "cs": 250, "damageToChampions": 20167, "goldEarned": 10492, "visionScore": 37},
+        {"participantId": 2, "teamId": 100, "teamPosition": "JUNGLE", "win": true, "kills": 2, "deaths": 3, "assists": 11, "cs": 182, "damageToChampions": 10862, "goldEarned": 15719, "visionScore": 28},
+        {"participantId": 3, "teamId": 100, "teamPosition": "MIDDLE", "win": true, "kills": 11, "deaths": 4, "assists": 7, "cs": 284, "damageToChampions": 39266, "goldEarned": 13682, "visionScore": 17},
+        {"participantId": 4, "teamId": 100, "teamPosition": "BOTTOM", "win": true, "kills": 0, "deaths": 0, "assists": 0, "cs": 254, "damageToChampions": 12995, "goldEarned": 9156, "visionScore": 33},
+        {"participantId": 5, "teamId": 100, "teamPosition": "UTILITY", "win": true, "kills": 12, "deaths": 7, "assists": 20, "cs": 25, "damageToChampions": 36613, "goldEarned": 16301, "visionScore": 30},
+        {"participantId": 6, "teamId": 200, "teamPosition": "TOP", "win": false, "kills": 8, "deaths": 3, "assists": 4, "cs": 243, "damageToChampions": 22905, "goldEarned": 9076, "visionScore": 35},
+        {"participantId": 7, "teamId": 200, "teamPosition": "JUNGLE", "win": false, "kills": 8, "deaths": 1, "assists": 2, "cs": 191, "damageToChampions": 38658, "goldEarned": 13548, "visionScore": 15},
+        {"participantId": 8, "teamId": 200, "teamPosition": "MIDDLE", "win": false, "kills": 6, "deaths": 10, "assists": 5, "cs": 244, "damageToChampions": 21808, "goldEarned": 14232, "visionScore": 38},
+        {"participantId": 9, "teamId": 200, "teamPosition": "BOTTOM", "win": false, "kills": 9, "deaths": 3, "assists": 17, "cs": 256, "damageToChampions": 36524, "goldEarned": 11014, "visionScore": 10},
+        {"participantId": 10, "teamId": 200, "teamPosition": "UTILITY", "win": false, "kills": 6, "deaths": 3, "assists": 8, "cs": 39, "damageToChampions": 14958, "goldEarned": 14153, "visionScore": 36}
+      ],
+      "marks": [
+        {"participantId": 1, "minute": 5, "gold": 2540, "cs": 37, "xp": 2359},
+        {"participantId": 1, "minute": 10, "gold": 4354, "cs": 64, "xp": 4346},
+        {"participantId": 1, "minute": 15, "gold": 6710, "cs": 102, "xp": 6833},
+        {"participantId": 1, "minute": 20, "gold": 8891, "cs": 136, "xp": 9035},
+        {"participantId": 2, "minute": 5, "gold": 2691, "cs": 34, "xp": 2361},
+        {"participantId": 2, "minute": 10, "gold": 4656, "cs": 55, "xp": 4084},
+        {"participantId": 2, "minute": 15, "gold": 6419, "cs": 85, "xp": 6316},
+        {"participantId": 2, "minute": 20, "gold": 8293, "cs": 119, "xp": 8451},
+        {"participantId": 3, "minute": 5, "gold": 2399, "cs": 20, "xp": 1964},
+        {"participantId": 3, "minute": 10, "gold": 4247, "cs": 62, "xp": 3952},
+        {"participantId": 3, "minute": 15, "gold": 5865, "cs": 86, "xp": 5921},
+        {"participantId": 3, "minute": 20, "gold": 7719, "cs": 106, "xp": 7941},
+        {"participantId": 4, "minute": 5, "gold": 2413, "cs": 32, "xp": 2105},
+        {"participantId": 4, "minute": 10, "gold": 4247, "cs": 55, "xp": 4461},
+        {"participantId": 4, "minute": 15, "gold": 6146, "cs": 96, "xp": 6168},
+        {"participantId": 4, "minute": 20, "gold": 8182, "cs": 115, "xp": 8642},
+        {"participantId": 5, "minute": 5, "gold": 2346, "cs": 29, "xp": 2282},
+        {"participantId": 5, "minute": 10, "gold": 4599, "cs": 61, "xp": 4164},
+        {"participantId": 5, "minute": 15, "gold": 6281, "cs": 89, "xp": 6605},
+        {"participantId": 5, "minute": 20, "gold": 8339, "cs": 134, "xp": 8582},
+        {"participantId": 6, "minute": 5, "gold": 2372, "cs": 41, "xp": 2197},
+        {"participantId": 6, "minute": 10, "gold": 4501, "cs": 66, "xp": 4560},
+        {"participantId": 6, "minute": 15, "gold": 7043, "cs": 95, "xp": 6631},
+        {"participantId": 7, "minute": 5, "gold": 2510, "cs": 31, "xp": 2171},
+        {"participantId": 7, "minute": 10, "gold": 4217, "cs": 51, "xp": 3615},
+        {"participantId": 7, "minute": 15, "gold": 5392, "cs": 84, "xp": 5570},
+        {"participantId": 8, "minute": 5, "gold": 2706, "cs": 33, "xp": 2441},
+        {"participantId": 8, "minute": 10, "gold": 4476, "cs": 69, "xp": 4401},
+        {"participantId": 8, "minute": 15, "gold": 6446, "cs": 93, "xp": 6876},
+        {"participantId": 9, "minute": 5, "gold": 2424, "cs": 21, "xp": 2017},
+        {"participantId": 9, "minute": 10, "gold": 4230, "cs": 64, "xp": 4247},
+        {"participantId": 9, "minute": 15, "gold": 6335, "cs": 84, "xp": 6211},
+        {"participantId": 10, "minute": 5, "gold": 2042, "cs": 26, "xp": 1956},
+        {"participantId": 10, "minute": 10, "gold": 3859, "cs": 54, "xp": 4173},
+        {"participantId": 10, "minute": 15, "gold": 5826, "cs": 78, "xp": 6257}
+      ],
+      "placements": [
+        {"participantId": 5, "score": 77, "placement": 1, "isMvp": true, "isAce": false},
+        {"participantId": 9, "score": 77, "placement": 2, "isMvp": false, "isAce": true},
+        {"participantId": 3, "score": 72, "placement": 3, "isMvp": false, "isAce": false},
+        {"participantId": 7, "score": 66, "placement": 4, "isMvp": false, "isAce": false},
+        {"participantId": 2, "score": 63, "placement": 5, "isMvp": false, "isAce": false},
+        {"participantId": 1, "score": 59, "placement": 6, "isMvp": false, "isAce": false},
+        {"participantId": 6, "score": 57, "placement": 7, "isMvp": false, "isAce": false},
+        {"participantId": 10, "score": 55, "placement": 8, "isMvp": false, "isAce": false},
+        {"participantId": 8, "score": 50, "placement": 9, "isMvp": false, "isAce": false},
+        {"participantId": 4, "score": 33, "placement": 10, "isMvp": false, "isAce": false}
+      ]
+    },
+    {
+      "name": "a game with no role where equal scores fall to takedowns, deaths, then participant id",
+      "durationSeconds": 1500,
+      "participants": [
+        {"participantId": 1, "teamId": 100, "teamPosition": "", "win": true, "kills": 3, "deaths": 3, "assists": 6, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15},
+        {"participantId": 2, "teamId": 100, "teamPosition": "", "win": true, "kills": 3, "deaths": 3, "assists": 6, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15},
+        {"participantId": 3, "teamId": 100, "teamPosition": "", "win": true, "kills": 4, "deaths": 3, "assists": 5, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15},
+        {"participantId": 4, "teamId": 100, "teamPosition": "", "win": true, "kills": 3, "deaths": 3, "assists": 6, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15},
+        {"participantId": 5, "teamId": 100, "teamPosition": "", "win": true, "kills": 3, "deaths": 3, "assists": 6, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15},
+        {"participantId": 6, "teamId": 200, "teamPosition": "", "win": false, "kills": 3, "deaths": 3, "assists": 6, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15},
+        {"participantId": 7, "teamId": 200, "teamPosition": "", "win": false, "kills": 3, "deaths": 3, "assists": 7, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15},
+        {"participantId": 8, "teamId": 200, "teamPosition": "", "win": false, "kills": 3, "deaths": 3, "assists": 6, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15},
+        {"participantId": 9, "teamId": 200, "teamPosition": "", "win": false, "kills": 3, "deaths": 2, "assists": 6, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15},
+        {"participantId": 10, "teamId": 200, "teamPosition": "", "win": false, "kills": 3, "deaths": 3, "assists": 6, "cs": 150, "damageToChampions": 15000, "goldEarned": 10000, "visionScore": 15}
+      ],
+      "marks": [],
+      "placements": [
+        {"participantId": 9, "score": 63, "placement": 1, "isMvp": false, "isAce": true},
+        {"participantId": 7, "score": 60, "placement": 2, "isMvp": false, "isAce": false},
+        {"participantId": 6, "score": 57, "placement": 3, "isMvp": false, "isAce": false},
+        {"participantId": 8, "score": 57, "placement": 4, "isMvp": false, "isAce": false},
+        {"participantId": 10, "score": 57, "placement": 5, "isMvp": false, "isAce": false},
+        {"participantId": 1, "score": 56, "placement": 6, "isMvp": true, "isAce": false},
+        {"participantId": 2, "score": 56, "placement": 7, "isMvp": false, "isAce": false},
+        {"participantId": 3, "score": 56, "placement": 8, "isMvp": false, "isAce": false},
+        {"participantId": 4, "score": 56, "placement": 9, "isMvp": false, "isAce": false},
+        {"participantId": 5, "score": 56, "placement": 10, "isMvp": false, "isAce": false}
+      ]
+    },
+    {
+      "name": "red listing two TOPs: their pairings are ambiguous and drop their lanes",
+      "durationSeconds": 1800,
+      "participants": [
+        {"participantId": 1, "teamId": 100, "teamPosition": "TOP", "win": true, "kills": 1, "deaths": 6, "assists": 19, "cs": 264, "damageToChampions": 17871, "goldEarned": 12000, "visionScore": 14},
+        {"participantId": 2, "teamId": 100, "teamPosition": "JUNGLE", "win": true, "kills": 0, "deaths": 7, "assists": 5, "cs": 185, "damageToChampions": 41040, "goldEarned": 12759, "visionScore": 29},
+        {"participantId": 3, "teamId": 100, "teamPosition": "MIDDLE", "win": true, "kills": 6, "deaths": 4, "assists": 2, "cs": 232, "damageToChampions": 15671, "goldEarned": 14313, "visionScore": 28},
+        {"participantId": 4, "teamId": 100, "teamPosition": "BOTTOM", "win": true, "kills": 13, "deaths": 1, "assists": 17, "cs": 300, "damageToChampions": 37309, "goldEarned": 13778, "visionScore": 28},
+        {"participantId": 5, "teamId": 100, "teamPosition": "UTILITY", "win": true, "kills": 8, "deaths": 6, "assists": 0, "cs": 42, "damageToChampions": 9572, "goldEarned": 12509, "visionScore": 40},
+        {"participantId": 6, "teamId": 200, "teamPosition": "TOP", "win": false, "kills": 3, "deaths": 5, "assists": 20, "cs": 218, "damageToChampions": 15138, "goldEarned": 9618, "visionScore": 13},
+        {"participantId": 7, "teamId": 200, "teamPosition": "TOP", "win": false, "kills": 2, "deaths": 8, "assists": 16, "cs": 178, "damageToChampions": 19105, "goldEarned": 13001, "visionScore": 36},
+        {"participantId": 8, "teamId": 200, "teamPosition": "MIDDLE", "win": false, "kills": 3, "deaths": 0, "assists": 19, "cs": 273, "damageToChampions": 9911, "goldEarned": 16115, "visionScore": 33},
+        {"participantId": 9, "teamId": 200, "teamPosition": "BOTTOM", "win": false, "kills": 7, "deaths": 5, "assists": 20, "cs": 293, "damageToChampions": 23472, "goldEarned": 11638, "visionScore": 19},
+        {"participantId": 10, "teamId": 200, "teamPosition": "UTILITY", "win": false, "kills": 4, "deaths": 5, "assists": 5, "cs": 49, "damageToChampions": 35351, "goldEarned": 13213, "visionScore": 38}
+      ],
+      "marks": [
+        {"participantId": 1, "minute": 5, "gold": 2230, "cs": 28, "xp": 1899},
+        {"participantId": 1, "minute": 10, "gold": 4259, "cs": 60, "xp": 4249},
+        {"participantId": 1, "minute": 15, "gold": 6442, "cs": 95, "xp": 6413},
+        {"participantId": 2, "minute": 5, "gold": 2607, "cs": 35, "xp": 2266},
+        {"participantId": 2, "minute": 10, "gold": 4240, "cs": 65, "xp": 4436},
+        {"participantId": 2, "minute": 15, "gold": 6400, "cs": 87, "xp": 6764},
+        {"participantId": 3, "minute": 5, "gold": 2377, "cs": 32, "xp": 2063},
+        {"participantId": 3, "minute": 10, "gold": 4106, "cs": 47, "xp": 3970},
+        {"participantId": 3, "minute": 15, "gold": 5957, "cs": 87, "xp": 6080},
+        {"participantId": 4, "minute": 5, "gold": 2480, "cs": 37, "xp": 2178},
+        {"participantId": 4, "minute": 10, "gold": 4812, "cs": 65, "xp": 4511},
+        {"participantId": 4, "minute": 15, "gold": 6859, "cs": 92, "xp": 7141},
+        {"participantId": 5, "minute": 5, "gold": 2816, "cs": 26, "xp": 2331},
+        {"participantId": 5, "minute": 10, "gold": 4354, "cs": 63, "xp": 4564},
+        {"participantId": 5, "minute": 15, "gold": 6551, "cs": 100, "xp": 6769},
+        {"participantId": 6, "minute": 5, "gold": 2653, "cs": 23, "xp": 2277},
+        {"participantId": 6, "minute": 10, "gold": 4451, "cs": 55, "xp": 4632},
+        {"participantId": 6, "minute": 15, "gold": 6653, "cs": 95, "xp": 6832},
+        {"participantId": 7, "minute": 5, "gold": 2377, "cs": 38, "xp": 2097},
+        {"participantId": 7, "minute": 10, "gold": 4812, "cs": 71, "xp": 4325},
+        {"participantId": 7, "minute": 15, "gold": 6543, "cs": 94, "xp": 6576},
+        {"participantId": 8, "minute": 5, "gold": 2713, "cs": 25, "xp": 2248},
+        {"participantId": 8, "minute": 10, "gold": 4645, "cs": 66, "xp": 4215},
+        {"participantId": 8, "minute": 15, "gold": 6530, "cs": 95, "xp": 6217},
+        {"participantId": 9, "minute": 5, "gold": 2712, "cs": 27, "xp": 2363},
+        {"participantId": 9, "minute": 10, "gold": 4472, "cs": 59, "xp": 4430},
+        {"participantId": 9, "minute": 15, "gold": 6427, "cs": 87, "xp": 6251},
+        {"participantId": 10, "minute": 5, "gold": 2336, "cs": 28, "xp": 2513},
+        {"participantId": 10, "minute": 10, "gold": 4764, "cs": 69, "xp": 4402},
+        {"participantId": 10, "minute": 15, "gold": 6843, "cs": 104, "xp": 7108}
+      ],
+      "placements": [
+        {"participantId": 4, "score": 89, "placement": 1, "isMvp": true, "isAce": false},
+        {"participantId": 8, "score": 79, "placement": 2, "isMvp": false, "isAce": true},
+        {"participantId": 9, "score": 77, "placement": 3, "isMvp": false, "isAce": false},
+        {"participantId": 6, "score": 67, "placement": 4, "isMvp": false, "isAce": false},
+        {"participantId": 7, "score": 63, "placement": 5, "isMvp": false, "isAce": false},
+        {"participantId": 1, "score": 61, "placement": 6, "isMvp": false, "isAce": false},
+        {"participantId": 2, "score": 53, "placement": 7, "isMvp": false, "isAce": false},
+        {"participantId": 10, "score": 52, "placement": 8, "isMvp": false, "isAce": false},
+        {"participantId": 3, "score": 44, "placement": 9, "isMvp": false, "isAce": false},
+        {"participantId": 5, "score": 37, "placement": 10, "isMvp": false, "isAce": false}
+      ]
+    }
+  ]
+}

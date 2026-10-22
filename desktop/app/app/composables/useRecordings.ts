@@ -7,6 +7,7 @@ import type {
   RecordingStatus,
   RecordingWinProbability,
 } from '~/types/recordings'
+import type { Chord, TriggerCheck } from '~/types/overlay'
 
 /**
  * Ask the shell to run one recording command (#1744). In `npm run dev` outside
@@ -166,8 +167,10 @@ export function useRecordings() {
     mutate<GameRecording>('recording_set_kept', { id, kept }, kept ? 'The game could not be kept' : 'The game could not be released')
   const deleteRecording = async (id: string) =>
     (await mutate<null>('recording_delete', { id }, 'The game could not be deleted')) !== undefined
-  const saveClip = (recordingId: string, startMs: number, endMs: number, title: string) =>
-    mutate<Clip>('clip_save', { recordingId, startMs, endMs, title }, 'The clip could not be saved')
+  /** `replaces`: a saved clip of the same game this cut adjusts, deleted once the new one is written. */
+  const saveClip = (recordingId: string, startMs: number, endMs: number, title: string, replaces?: string) =>
+    mutate<Clip>('clip_save', { recordingId, startMs, endMs, title, replaces: replaces ?? null }, 'The clip could not be saved')
+  const checkMarkKey = (chord: Chord) => recordingCall<TriggerCheck>('recording_check_mark_key', { chord })
   const updateClip = (id: string, change: { title?: string, favorite?: boolean }) =>
     mutate<Clip>('clip_update', { id, ...change }, 'The clip could not be updated')
   const deleteClip = async (id: string) =>
@@ -237,6 +240,7 @@ export function useRecordings() {
     setKept,
     deleteRecording,
     saveClip,
+    checkMarkKey,
     updateClip,
     deleteClip,
     reveal,

@@ -55,22 +55,40 @@ export interface RiotBindingLimit {
 }
 
 /**
+ * One routing host's share of the headroom estimate (#1894): its calls/day over the
+ * covered span, that cost per tracked account, and what is left under the binding window
+ * of the limit it advertised. `bindingLimit`, `spareCallsPerDay` and
+ * `additionalAccountsHeadroom` are null when the host returned no parseable limit header.
+ */
+export interface RiotRouteHeadroom {
+  route: string
+  kind: 'regional' | 'platform'
+  observedCallsPerDay: number
+  callsPerAccountPerDay: number
+  bindingLimit: RiotBindingLimit | null
+  spareCallsPerDay: number | null
+  additionalAccountsHeadroom: number | null
+}
+
+/**
  * Budget-headroom estimate (#1035): "how many more tracked accounts fit", always
- * computed over the last 7 days regardless of the panel's selected window.
- * `sufficientData` is `false` — with only `observedWindowHours`/`requiredWindowHours`
- * set — when there isn't enough rollup history yet, no accounts are tracked, or no
- * rate-limit snapshot was seen.
+ * computed over the last 7 days regardless of the panel's selected window, and per
+ * routing host (#1894) — each host against its own advertised limit, `bindingRoute`
+ * being the one with the fewest additional accounts, which sets
+ * `additionalAccountsHeadroom`. `sufficientData` is `false` — with only
+ * `observedWindowHours`/`requiredWindowHours`/`trackedAccounts` set — when the
+ * route-keyed history is shorter than the required window, no accounts are tracked, or
+ * no host returned a rate-limit header.
  */
 export interface RiotApiHeadroom {
   sufficientData: boolean
   observedWindowHours: number
   requiredWindowHours: number
   trackedAccounts: number
-  callsPerAccountPerDay: number | null
-  observedCallsPerDay: number | null
-  bindingLimit: RiotBindingLimit | null
-  spareCallsPerDay: number | null
   additionalAccountsHeadroom: number | null
+  bindingRoute: string | null
+  /** Every host with traffic, the binding one first. */
+  routes: RiotRouteHeadroom[]
 }
 
 /**

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DraftClip } from '~/composables/useRecapDrafts'
-import type { GameRecording, Moment, RecordingWinProbability } from '~/types/recordings'
+import type { Clip, GameRecording, Moment, RecordingWinProbability } from '~/types/recordings'
+import { momentCast } from '~/utils/recording-moments'
 import { recapWinProbability } from '~/utils/recording-win-probability'
 
 /**
@@ -46,19 +47,29 @@ watch(() => [id.value, recording.value?.status] as const, async ([current, statu
   if (current === id.value) curveData.value = data
 }, { immediate: true })
 const winProbability = computed(() => (curveData.value ? recapWinProbability(curveData.value, nameOf) : null))
+/** Who played what: the player's champion, and everyone's from the scoreboard kept with the curve. */
+const cast = computed(() => momentCast(recording.value?.championId ?? null, curveData.value))
 
 const length = computed(() => recording.value?.durationMs ?? 0)
 const saved = computed(() => (library.value?.clips.filter(clip => clip.recordingId === id.value) ?? []).sort((a, b) => a.startMs - b.startMs))
-const savedRanges = computed(() => saved.value.map(clip => ({ id: clip.id, startMs: clip.startMs, endMs: clip.endMs, title: clip.title })))
 
 const player = ref<{ seek: (ms: number) => void, playRange: (start: number, end: number) => void, jumpTo: (moment: Pick<Moment, 'videoMs'>) => void, currentMs: number } | null>(null)
 const playerLength = computed(() => length.value)
-const { drafts, selected, pendingIn, add, resize, rename, remove, setIn, setOut, save, saveAll } = useRecapDrafts(recording, playerLength)
+const { drafts, selected, pendingIn, add, adjust, resize, rename, remove, setIn, setOut, save, saveAll } = useRecapDrafts(recording, playerLength)
+// A clip whose range is being adjusted shows as the range, not twice.
+const savedRanges = computed(() => saved.value
+  .filter(clip => !drafts.value.some(draft => draft.replaces === clip.id))
+  .map(clip => ({ id: clip.id, startMs: clip.startMs, endMs: clip.endMs, title: clip.title })))
 const currentMs = computed(() => player.value?.currentMs ?? 0)
 
 function preview(draft: DraftClip) {
   selected.value = draft.key
   player.value?.playRange(draft.startMs, draft.endMs)
+}
+
+function adjustClip(clip: Clip) {
+  adjust(clip)
+  player.value?.seek(clip.startMs)
 }
 
 const confirming = ref(false)
@@ -107,6 +118,7 @@ const note = computed(() => {
         :saved="savedRanges"
         :pending-in="pendingIn"
         :win-probability="winProbability"
+        :cast="cast"
         @create="add"
         @resize="resize"
         @select="key => (selected = key)"
@@ -126,6 +138,7 @@ const note = computed(() => {
         @remove="remove"
         @save="save"
         @save-all="saveAll"
+        @adjust="adjustClip"
         @jump="moment => player?.jumpTo(moment)"
       />
     </div>

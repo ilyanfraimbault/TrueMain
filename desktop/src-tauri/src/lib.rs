@@ -9,6 +9,7 @@ mod api;
 mod champselect;
 mod game;
 mod itemsets;
+mod kits;
 mod loading;
 mod menu;
 mod overlay;
@@ -155,12 +156,16 @@ const READABLE_PATHS: &[&str] = &[
     "/champions/directory",
     // Every champion's damage profile, for the draft's team damage bars (#1905).
     "/champions/damage-profiles",
+    // The in-game shop's class of every item, for the kit editor's item picker.
+    "/items/classes",
     "/truemains",
     "/truemains/search",
     "/truemains/lookup",
     // The overlay's pace reference (#1912): every tier of one position, so the
     // tier is picked here and never sent.
     "/benchmarks/pace",
+    // The dashboard's form tiles' tier reference (#2076), by the same rule.
+    "/benchmarks/form",
 ];
 
 /// A path the app may read: one of `READABLE_PATHS`, or one true main's
@@ -366,6 +371,7 @@ pub fn run() {
             record::player_game,
             recording::recording_settings,
             recording::set_recording_settings,
+            recording::recording_check_mark_key,
             recording::recording_status,
             recording::request_capture_permission,
             recording::recording_library,
@@ -389,12 +395,17 @@ pub fn run() {
             overlay::overlay_read_binds,
             overlay::overlay_preview,
             overlay::overlay_fit,
+            overlay::overlay_confirmation,
             loading::loading_players,
             runes::import_runes,
             itemsets::import_item_set,
+            itemsets::import_kit_item_set,
+            kits::kits_get,
+            kits::kits_set,
             champselect::champ_select_hover,
             champselect::champ_select_lock,
             champselect::champ_select_choices,
+            champselect::champ_select_spells,
             telemetry::telemetry_page
         ])
         // The overlay's panel is a window too: without this, closing the
@@ -414,6 +425,7 @@ pub fn run() {
             let (recorder, phases) = recording::Recorder::new(&handle);
             app.manage(recorder.clone());
             recording::start(&handle, recorder, phases);
+            app.manage(kits::Kits::new(&handle));
             overlay::setup(&handle)?;
             window_state::restore(&handle);
             tauri::async_runtime::spawn(supervisor::run(handle, shared, client));
@@ -440,7 +452,9 @@ mod tests {
         assert!(readable("/champions/tierlist"));
         assert!(readable("/champions/directory"));
         assert!(readable("/champions/damage-profiles"));
+        assert!(readable("/items/classes"));
         assert!(readable("/benchmarks/pace"));
+        assert!(readable("/benchmarks/form"));
         assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
         assert!(readable("/truemains/Faker-KR1/champions/7"));
         assert!(readable("/truemains/Faker-KR1/profile"));

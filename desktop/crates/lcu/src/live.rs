@@ -65,8 +65,9 @@ pub struct EventData {
 }
 
 /// One event of the game, in the feed's own PascalCase. Only the fields the
-/// recording reads; the others (objectives, multikill announcements) are
-/// skipped.
+/// recording reads — champion kills, and the plays the game announces itself
+/// (a steal, an ace, first blood, #1766); the others (multikill
+/// announcements, turrets) are skipped.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
 pub struct LiveEvent {
@@ -78,10 +79,72 @@ pub struct LiveEvent {
     pub killer_name: String,
     pub victim_name: String,
     pub assisters: Vec<String>,
+    /// An epic monster's kill: whether the killer's side stole it. The game
+    /// sends `"True"` / `"False"`; kept as it came so a boolean cannot fail
+    /// the whole feed.
+    pub stolen: serde_json::Value,
+    /// `Ace`: the side that aced, `ORDER` (blue side) or `CHAOS`.
+    pub acing_team: String,
+    /// `FirstBlood`: who drew it.
+    pub recipient: String,
+    /// `DragonKill`: `Fire`, `Water`, `Earth`, `Air`, `Hextech`, `Chemtech`,
+    /// `Elder`.
+    pub dragon_type: String,
 }
 
 impl LiveEvent {
     pub const CHAMPION_KILL: &'static str = "ChampionKill";
+    pub const FIRST_BLOOD: &'static str = "FirstBlood";
+    pub const ACE: &'static str = "Ace";
+    /// The epic monsters' kills, which may be steals.
+    pub const MONSTER_KILLS: [&'static str; 5] = [
+        "DragonKill",
+        "BaronKill",
+        "HeraldKill",
+        "HordeKill",
+        "AtakhanKill",
+    ];
+
+    /// Whether the feed marks this kill as stolen.
+    pub fn is_stolen(&self) -> bool {
+        match &self.stolen {
+            serde_json::Value::Bool(stolen) => *stolen,
+            serde_json::Value::String(stolen) => stolen.eq_ignore_ascii_case("true"),
+            _ => false,
+        }
+    }
+}
+
+/// One player of `GET /liveclientdata/playerlist`: who plays which champion
+/// on which side, for the plays the feed names players in.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LivePlayer {
+    /// The champion's display name, in the game's language.
+    pub champion_name: String,
+    pub riot_id: String,
+    pub riot_id_game_name: String,
+    pub summoner_name: String,
+    /// `ORDER` (blue side) or `CHAOS` (red side).
+    pub team: String,
+}
+
+impl LivePlayer {
+    /// Whether an event's player name is this player's, under any of their
+    /// names — the Riot ID's game name alone included.
+    pub fn is_named(&self, name: &str) -> bool {
+        let name = name.trim();
+        let game_name = self.riot_id.split('#').next().unwrap_or_default();
+        !name.is_empty()
+            && [
+                self.riot_id.as_str(),
+                &self.riot_id_game_name,
+                &self.summoner_name,
+                game_name,
+            ]
+            .iter()
+            .any(|own| !own.is_empty() && own.eq_ignore_ascii_case(name))
+    }
 }
 
 /// A connection to the running game's local API.
@@ -118,6 +181,11 @@ impl LiveClient {
 
     pub async fn active_player(&self) -> Result<ActivePlayer> {
         self.get_json("/activeplayer").await
+    }
+
+    /// Every player of the game, both sides.
+    pub async fn player_list(&self) -> Result<Vec<LivePlayer>> {
+        self.get_json("/playerlist").await
     }
 
     /// Every event of the game so far, oldest first.
@@ -173,6 +241,40 @@ mod tests {
         assert!(!me.is_named("Someone"));
         assert!(!me.is_named(""));
         assert!(!ActivePlayer::default().is_named(""));
+    }
+
+    #[test]
+    fn reads_the_plays_the_game_announces() {
+        let data: EventData = serde_json::from_str(
+            r#"{ "Events": [
+              { "EventID": 3, "EventName": "FirstBlood", "EventTime": 190.2, "Recipient": "Me" },
+              { "EventID": 9, "EventName": "BaronKill", "EventTime": 1500.0, "Stolen": "True", "KillerName": "Me" },
+              { "EventID": 10, "EventName": "DragonKill", "EventTime": 1600.0, "DragonType": "Elder", "Stolen": "False", "KillerName": "Foe" },
+              { "EventID": 11, "EventName": "HeraldKill", "EventTime": 800.0, "Stolen": true },
+              { "EventID": 12, "EventName": "Ace", "EventTime": 1610.0, "Acer": "Foe", "AcingTeam": "CHAOS" }
+            ] }"#,
+        )
+        .unwrap();
+
+        let stolen: Vec<bool> = data.events.iter().map(LiveEvent::is_stolen).collect();
+        assert_eq!(stolen, vec![false, true, false, true, false]);
+        assert_eq!(data.events[0].recipient, "Me");
+        assert_eq!(data.events[2].dragon_type, "Elder");
+        assert_eq!(data.events[4].acing_team, "CHAOS");
+    }
+
+    #[test]
+    fn a_player_is_named_by_any_of_their_names() {
+        let players: Vec<LivePlayer> = serde_json::from_str(
+            r#"[{ "championName": "Ahri", "riotId": "Sheiden#1234", "riotIdGameName": "", "summonerName": "", "team": "ORDER", "level": 3 }]"#,
+        )
+        .unwrap();
+
+        assert_eq!(players[0].champion_name, "Ahri");
+        assert!(players[0].is_named("Sheiden"));
+        assert!(players[0].is_named("sheiden#1234"));
+        assert!(!players[0].is_named("Sheide"));
+        assert!(!players[0].is_named(" "));
     }
 
     #[test]

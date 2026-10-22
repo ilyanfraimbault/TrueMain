@@ -123,6 +123,26 @@ impl Anchor {
             .unwrap_or(&self.segments[0]);
         (game_ms + segment.offset_ms).max(0)
     }
+
+    /// The game time at a second of the video — `video_ms`'s inverse, never
+    /// before the game's start. Video recorded while the game was paused is
+    /// the game time the pause held.
+    pub fn game_ms(&self, video_ms: i64) -> i64 {
+        let found = self
+            .segments
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(at, segment)| *at == 0 || video_ms - segment.offset_ms >= segment.from_game_ms);
+        let Some((at, segment)) = found else {
+            return 0;
+        };
+        let game_ms = video_ms - segment.offset_ms;
+        let paused_at = self.segments.get(at + 1).map(|next| next.from_game_ms);
+        paused_at
+            .map_or(game_ms, |paused| game_ms.min(paused))
+            .max(0)
+    }
 }
 
 fn median(values: &[i64]) -> i64 {
@@ -199,6 +219,21 @@ mod tests {
         assert_eq!(anchor.segments.len(), 2);
         assert!((anchor.video_ms(300_000) - 312_407).abs() <= 10);
         assert!((anchor.video_ms(900_000) - 1_002_407).abs() <= 10);
+    }
+
+    #[test]
+    fn game_time_is_read_back_from_the_video() {
+        let mut samples = steady(5, 600, 12_400);
+        samples.extend(steady(600, 1200, 102_400));
+        let anchor = Anchor::fit(&samples).unwrap();
+
+        let near = |ms: i64, at: i64| (ms - at).abs() <= 10;
+        assert!(near(anchor.game_ms(312_407), 300_000));
+        assert!(near(anchor.game_ms(1_002_407), 900_000));
+        // Recorded during the pause: the game stood at 10:00.
+        assert!(near(anchor.game_ms(650_000), 600_000));
+        // The loading screen, before the game clock ran.
+        assert_eq!(anchor.game_ms(5_000), 0);
     }
 
     #[test]

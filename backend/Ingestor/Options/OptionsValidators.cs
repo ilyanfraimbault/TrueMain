@@ -20,6 +20,12 @@ internal sealed partial class RiotOptionsValidator : IValidateOptions<RiotOption
 internal sealed partial class RiotRateLimitOptionsValidator : IValidateOptions<RiotRateLimitOptions>;
 
 [OptionsValidator]
+internal sealed partial class MatchFetchWorkersOptionsValidator : IValidateOptions<MatchFetchWorkersOptions>;
+
+[OptionsValidator]
+internal sealed partial class IngestionBackpressureOptionsValidator : IValidateOptions<IngestionBackpressureOptions>;
+
+[OptionsValidator]
 internal sealed partial class CommunityDragonOptionsValidator : IValidateOptions<CommunityDragonOptions>;
 
 [OptionsValidator]
@@ -75,6 +81,9 @@ internal sealed partial class SynergyAggregationOptionsValidator : IValidateOpti
 
 [OptionsValidator]
 internal sealed partial class OpponentAggregationOptionsValidator : IValidateOptions<OpponentAggregationOptions>;
+
+[OptionsValidator]
+internal sealed partial class ScalingAggregationOptionsValidator : IValidateOptions<ScalingAggregationOptions>;
 
 [OptionsValidator]
 internal sealed partial class LaneOutcomeAggregationOptionsValidator : IValidateOptions<LaneOutcomeAggregationOptions>;

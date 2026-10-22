@@ -79,6 +79,12 @@ _Avoid_: elo, rank bracket, rank scope
 **Rank**:
 A player's ranked standing: ranked tier, division and LP, captured at most once a day.
 
+**Apex cutoff**:
+The LP a region's Grandmaster or Challenger tier starts at on a given day: the lowest LP in that league, which
+moves daily (below Master a tier starts at a fixed LP). Measured from the ladder; the days before the first
+measurement are estimated once from the tracked accounts' snapshots (`IsEstimated`).
+_Avoid_: threshold (for the apex tiers), GM line
+
 **Solo/Duo tier**:
 The player's ranked tier in ranked solo/duo, the only queue TrueMain stores.
 
@@ -114,6 +120,11 @@ Refreshing champion aggregates by rebuilding the scopes of live patches only; fr
 **Live patch / frozen patch**:
 A live patch still has its raw matches retained and can be re-folded; a frozen patch has lost them, and its
 aggregates are permanent history.
+
+**Light per-patch record**:
+What a patch keeps once its full aggregates are dropped: games and wins per champion × position × elo bracket
+(`champion_patch_stats`) and the ban pair — enough for the win, pick and ban rates of "Trend by patch".
+_Avoid_: patch summary, light aggregate
 
 **Served patch**:
 The patch the site shows by default: the newest with enough data to fill the champion directory.
@@ -153,6 +164,8 @@ leads), measured from games, never hand-labelled. Its **damage profile** is the 
 **Item context**:
 Why an item is built: each build step is **Core** (nearly always), **Situational** (a measurable situation — a
 **draft axis** such as enemy magic damage — moves its pick rate) or **Preference** (taste, shown as nothing).
+An **in-game axis** is a situation only the game reveals — our gold lead at 15, or what the enemies have **built**
+(completed items, never components) when a decision opens; draft-time findings outrank it.
 
 **Next item**:
 The completed item true mains build next from where the player stands — what mains choose, not the best win rate.
@@ -182,6 +195,10 @@ One named step of the ingestion pipeline; each execution is a **process run**.
 
 **Fetch lane / aggregate lane**:
 The two halves of the pipeline: the fetch lane is bound by Riot calls, the aggregate lane by the database.
+
+**Fetch worker**:
+A permanent per-region loop that claims, fetches and writes matches beside the fetch lane's **maintenance pass** (#1457).
+_Avoid_: ingestion lane, worker lane
 
 **Claim**:
 Match ingestion taking a batch of accounts to fetch; it sizes every upstream budget (**intake capacity**).
@@ -228,7 +245,28 @@ A player's relation to the position they are playing: main role, secondary role,
 The game page's per-lane arrow and chance towards the favoured side.
 
 **Overlay**:
-The in-game panels drawn over League (next item, win probability, pace, item value); click-through.
+The in-game panels drawn over League (next item, win probability, pace, item value, objectives, lane gold — the per-row gap plates on the TAB scoreboard); click-through.
+
+**Kit**:
+A player's own build on one champion, offered on one or several positions, kept by the desktop app: a branching item tree (the first
+branch the default), a rune page, two summoner spells, a starter and boots (several to pick between). Every kit is offered in champion select on its
+positions, beside TrueMain's builds; the one picked there is the one the next item follows in game.
+_Avoid_: build (TrueMain's measured one), my build, loadout
+
+**Highlight**:
+A recorded game's kill, death or assist of the player, placed on its video from the game's timeline (or its live feed).
+Found by the app, never chosen by the player.
+
+**Marked moment**:
+A moment the player kept by pressing the **mark key** while the game recorded; it becomes a clip of the 30 seconds,
+the minute or the two minutes before the press, as chosen in the settings — the app's instant replay (#1767).
+_Avoid_: highlight (the app's own kills, deaths and assists), replay buffer (recording without keeping the full game,
+not offered)
+
+**Automatic clip**:
+A clip the app cut on its own once a game was finalised, of a play the player picked in the settings (a multi-kill, a
+steal, an ace, first blood, a teamfight, kills into an objective), titled from the game's events alone.
+_Avoid_: highlight (the player's kills, deaths and assists on the timeline), auto-highlight
 
 **Win probability**:
 An in-game estimate from lane leads and map objectives; overlay and post-game only.

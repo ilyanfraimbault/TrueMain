@@ -51,6 +51,7 @@ jobs:
             backend:
               - "backend/**"
               - "global.json"
+              - "web/shared/fixtures/performance-score-vectors.json"
             data:
               - "backend/Data/**"
             web:
@@ -68,6 +69,27 @@ jobs:
               - ".github/file-size-baseline.txt"
               - "compose.preprod.yaml"
               - "compose.prod.yaml"
+            backend_image:
+              - "backend/*/Dockerfile"
+              - "backend/.dockerignore"
+              - "backend/Directory.*.props"
+              - "backend/**/*.csproj"
+            web_image:
+              - "web/Dockerfile"
+              - "web/.dockerignore"
+              - "web/package.json"
+              - "web/package-lock.json"
+              - "web/**/nuxt.config.ts"
+            admin_image:
+              - "admin/Dockerfile"
+              - "admin/.dockerignore"
+              - "admin/package.json"
+              - "admin/package-lock.json"
+              - "admin/nuxt.config.ts"
+              - "web/.dockerignore"
+              - "web/layers/nitro/**"
+              - "web/shared/**"
+              - "web/layers/common/tsconfig.json"
 
       - name: Plan the jobs
         id: plan
@@ -79,6 +101,9 @@ jobs:
           ADMIN: ${{ steps.filter.outputs.admin }}
           COMPOSE: ${{ steps.filter.outputs.compose }}
           SCRIPTS: ${{ steps.filter.outputs.scripts }}
+          BACKEND_IMAGE: ${{ steps.filter.outputs.backend_image }}
+          WEB_IMAGE: ${{ steps.filter.outputs.web_image }}
+          ADMIN_IMAGE: ${{ steps.filter.outputs.admin_image }}
         run: |
           set -euo pipefail
           flag() { if [ "$EXHAUSTIVE" = "true" ] || [ "$1" = "true" ]; then echo true; else echo false; fi; }
@@ -98,10 +123,10 @@ jobs:
             images="$(jq -c --arg n "$1" --arg c "$2" --arg f "$3" --arg s "$4" --arg b "${5:-}" \
               '. + [{name: $n, context: $c, file: $f, scope: $s, build_contexts: $b}]' <<< "$images")"
           }
-          [ "$backend" = true ] && add_image API ./backend backend/Api/Dockerfile api
-          [ "$backend" = true ] && add_image Ingestor ./backend backend/Ingestor/Dockerfile ingestor
-          [ "$web" = true ] && add_image Web ./web web/Dockerfile web
-          [ "$admin" = true ] && add_image Admin ./admin admin/Dockerfile admin web=./web
+          [ "$(flag "$BACKEND_IMAGE")" = true ] && add_image API ./backend backend/Api/Dockerfile api
+          [ "$(flag "$BACKEND_IMAGE")" = true ] && add_image Ingestor ./backend backend/Ingestor/Dockerfile ingestor
+          [ "$(flag "$WEB_IMAGE")" = true ] && add_image Web ./web web/Dockerfile web
+          [ "$(flag "$ADMIN_IMAGE")" = true ] && add_image Admin ./admin admin/Dockerfile admin web=./web
 
           {
             echo "backend=$backend"
@@ -272,8 +297,20 @@ jobs:
       - name: Migration over SSH
         run: .github/scripts/apply-migration.test.sh
 
+      - name: Pre-pull over SSH
+        run: .github/scripts/prepull-images.test.sh
+
+      - name: VPS forced command
+        run: .github/scripts/vps/ci-ssh-command.test.sh
+
       - name: Edge verification
         run: .github/scripts/verify-edge.test.sh
+
+      - name: Edge drift
+        run: .github/scripts/edge-drift.test.sh
+
+      - name: Edge running check
+        run: .github/scripts/verify-edge-running.test.sh
 
       - name: Ingestor job mode preflight
         run: .github/scripts/check-job-mode.test.sh
@@ -344,6 +381,13 @@ jobs:
           validate compose.dev.yaml truemain RGAPI-REPLACE_ME
           validate compose.prod.yaml truemain RGAPI-REPLACE_ME
           validate compose.preprod.yaml truemain_preprod RGAPI-REPLACE_ME_PREPROD
+          validate compose.prod.edge.yaml truemain RGAPI-REPLACE_ME
+          validate compose.preprod.edge.yaml truemain_preprod RGAPI-REPLACE_ME_PREPROD
+          page() { docker compose -f "$1" config --format json | jq -r '.configs.maintenance_page.content'; }
+          if ! diff <(page compose.prod.edge.yaml) <(page compose.preprod.edge.yaml) > /dev/null; then
+            echo "::error file=compose.preprod.edge.yaml::the maintenance page differs between compose.prod.edge.yaml and compose.preprod.edge.yaml"
+            failed="${failed} maintenance_page"
+          fi
           if [ -n "$failed" ]; then
             echo "::error::Invalid compose files:${failed}"
             exit 1

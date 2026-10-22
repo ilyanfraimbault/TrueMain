@@ -1,3 +1,4 @@
+using Ingestor.FetchWorkers;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -47,6 +48,11 @@ public sealed class Worker(
         using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         var heartbeatLoop = RunHeartbeatLoopAsync(heartbeatCts.Token);
 
+        // FetchWorkers (#1457): match fetching runs beside the loop below, as permanent
+        // workers, rather than as one of its steps. Started before the first maintenance pass
+        // and on the host's token, so they stop when the host does, never when a pass ends.
+        var fetchWorkers = RunFetchWorkersAsync(mode, options.RunOnce, stoppingToken);
+
         try
         {
             do
@@ -55,6 +61,10 @@ public sealed class Worker(
 
                 if (options.RunOnce)
                 {
+                    // RunOnce is one pass of everything the lane owns: for FetchWorkers that
+                    // is one batch per worker too, so the exit waits for them.
+                    await fetchWorkers;
+
                     // A single scheduled run completed successfully; ask the host to
                     // shut down so the process exits with a success code. Any failure
                     // is left to propagate from ExecuteAsync so the host's exit code
@@ -75,10 +85,39 @@ public sealed class Worker(
         }
         finally
         {
+            // The workers stop on the host's token; this joins them, so their cancelled
+            // batches have released their claims before the host goes.
+            await fetchWorkers;
             await heartbeatCts.CancelAsync();
             // The loop never throws (it catches everything internally), so this just
             // joins it before the worker returns.
             await heartbeatLoop;
+        }
+    }
+
+    private async Task RunFetchWorkersAsync(JobMode mode, bool runOnce, CancellationToken stoppingToken)
+    {
+        if (!JobModeSequence.RunsPermanentFetchWorkers(mode))
+        {
+            return;
+        }
+
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<MatchFetchWorkerPool>().RunAsync(runOnce, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutdown: the workers have released their claims on the way out.
+        }
+        catch (Exception ex)
+        {
+            // Each worker catches its own batch failures, so reaching here is a wiring fault
+            // (no pool registered, no process for MatchIngestionOnly). Logged and counted like
+            // a failed pass; the maintenance lane keeps running rather than taking the host down.
+            logger.LogError(ex, "The match-fetch workers stopped on an unexpected failure.");
+            metrics.RecordRunFailure(IngestorMetrics.WholeRunProcess, mode);
         }
     }
 
@@ -257,7 +296,9 @@ public sealed class Worker(
 
     private async Task RunModeAsync(JobMode mode, CancellationToken stoppingToken)
     {
-        var sequence = JobModeSequence.For(mode);
+        // Less the steps permanent workers run on their own (#1457), so a FetchWorkers pass
+        // is the fetch lane's maintenance: every step but match fetching.
+        var sequence = JobModeSequence.SequencedStepsFor(mode);
 
         // Open a fresh iteration for this whole pass so every ProcessRun recorded
         // below (across the per-process scopes) is stamped with the same id and the

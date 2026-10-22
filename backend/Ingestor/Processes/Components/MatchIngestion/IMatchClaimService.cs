@@ -27,6 +27,17 @@ public interface IMatchClaimService
     Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct);
 
     /// <summary>
+    /// <see cref="ReleaseExpiredClaimsAsync(TimeSpan, CancellationToken)"/> narrowed to the
+    /// claims of <paramref name="platforms"/>: what a permanent match-fetch worker, which owns
+    /// those platforms and no others, may reap without touching another worker's live claims
+    /// (#1457).
+    /// </summary>
+    Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(
+        TimeSpan lease,
+        IReadOnlyCollection<string> platforms,
+        CancellationToken ct);
+
+    /// <summary>
     /// Releases every claim there is, regardless of how much of its lease was left.
     /// Called once at startup, before the first pass (#1513).
     /// </summary>
@@ -40,6 +51,14 @@ public interface IMatchClaimService
     /// pass is running: it cannot tell a live claim from a dead one.
     /// </remarks>
     Task<ExpiredClaimRelease> ReleaseOrphanedClaimsAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Releases every claim on <paramref name="platforms"/>, whatever is left of its lease.
+    /// What a permanent match-fetch worker calls on its way out of a cancelled batch (#1457):
+    /// between batches it holds nothing, and it is the only claimant of its platforms, so
+    /// every claim on them is the batch it just abandoned.
+    /// </summary>
+    Task<ExpiredClaimRelease> ReleaseOrphanedClaimsAsync(IReadOnlyCollection<string> platforms, CancellationToken ct);
 }
 
 /// <summary>What one reap freed, counted on both sides because they are not the same

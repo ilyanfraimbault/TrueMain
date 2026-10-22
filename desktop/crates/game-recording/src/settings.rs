@@ -16,6 +16,10 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use shell_state::keys::{Chord, KeyCode};
+
+use crate::auto_clips::AutoClipKind;
+use crate::marks::MarkLength;
 
 /// The settings file's format version, written into it so a later format can
 /// migrate rather than guess.
@@ -34,6 +38,11 @@ pub const MIN_BUDGET_BYTES: u64 = 2 * GB;
 /// H.264 bits per pixel per frame. One constant rather than a table per
 /// preset, so every resolution and frame rate gets a consistent quality.
 const BITS_PER_PIXEL: f64 = 0.1;
+
+/// The mark key's default, ⌥⇧0 / Alt+Shift+0: in the overlay's Alt+Shift
+/// and digit family, at the far end of the digits it suggests for its panels
+/// — counted up from 1, one per panel — and on no default League bind (#2079).
+pub const DEFAULT_MARK_KEY: Chord = Chord::with(true, true, false, KeyCode::Digit0);
 
 /// One keyframe a second: a jump to a highlight lands on a keyframe within a
 /// second, and a fragment is never longer than that if the app dies mid-game.
@@ -178,6 +187,16 @@ fn parse<T: DeserializeOwned>(value: Option<&Value>) -> Option<T> {
     serde_json::from_value(value?.clone()).ok()
 }
 
+/// The kinds a settings file lists, in [`AutoClipKind::ALL`]'s order: one
+/// this build does not know is dropped alone, a repeated one kept once.
+fn auto_clip_kinds(listed: &[Value]) -> Vec<AutoClipKind> {
+    let listed: Vec<AutoClipKind> = listed.iter().filter_map(|kind| parse(Some(kind))).collect();
+    AutoClipKind::ALL
+        .into_iter()
+        .filter(|kind| listed.contains(kind))
+        .collect()
+}
+
 fn even(value: u32) -> u32 {
     value & !1
 }
@@ -200,6 +219,15 @@ pub struct RecordingSettings {
     pub budget_bytes: u64,
     /// `None` is the app's own data folder, decided by the shell.
     pub folder: Option<PathBuf>,
+    /// The chord that marks the moment while a game records (#2079); `None`
+    /// turns marking off.
+    pub mark_key: Option<Chord>,
+    /// How much of the game before a press of the mark key its clip keeps
+    /// (#1767).
+    pub mark_length: MarkLength,
+    /// The plays cut as clips of their own once a game is finalised (#1766);
+    /// empty turns automatic clips off. In [`AutoClipKind::ALL`]'s order.
+    pub auto_clips: Vec<AutoClipKind>,
 }
 
 impl Default for RecordingSettings {
@@ -215,6 +243,9 @@ impl Default for RecordingSettings {
             },
             budget_bytes: 50 * GB,
             folder: None,
+            mark_key: Some(DEFAULT_MARK_KEY),
+            mark_length: MarkLength::default(),
+            auto_clips: AutoClipKind::ALL.to_vec(),
         }
     }
 }
@@ -258,6 +289,18 @@ impl RecordingSettings {
                 .filter(|budget| *budget >= MIN_BUDGET_BYTES)
                 .unwrap_or(defaults.budget_bytes),
             folder: parse::<PathBuf>(fields.get("folder")).filter(|folder| folder.is_absolute()),
+            mark_key: match fields.get("markKey") {
+                None => defaults.mark_key,
+                Some(Value::Null) => None,
+                key => parse::<Chord>(key)
+                    .filter(|chord| chord.refusal(false).is_none())
+                    .or(defaults.mark_key),
+            },
+            mark_length: parse(fields.get("markLength")).unwrap_or(defaults.mark_length),
+            auto_clips: match fields.get("autoClips") {
+                Some(Value::Array(kinds)) => auto_clip_kinds(kinds),
+                _ => defaults.auto_clips,
+            },
         }
     }
 
@@ -356,6 +399,9 @@ mod tests {
             quality: quality(Resolution::P1440, FrameRate::Fps60),
             budget_bytes: 10 * GB,
             folder: Some(dir.path().join("videos")),
+            mark_key: Some(Chord::with(false, true, false, KeyCode::F9)),
+            mark_length: MarkLength::Minute1,
+            auto_clips: vec![AutoClipKind::Steal, AutoClipKind::Combo],
         };
         settings.save(&path).unwrap();
 
@@ -363,6 +409,7 @@ mod tests {
         assert!(body.contains("\"version\": 1"), "{body}");
         assert!(body.contains("\"frameRate\": 60"), "{body}");
         assert!(body.contains("\"resolution\": \"1440p\""), "{body}");
+        assert!(body.contains("\"markLength\": 60"), "{body}");
         assert_eq!(RecordingSettings::load(&path), settings);
     }
 
@@ -389,6 +436,81 @@ mod tests {
         assert_eq!(settings.quality.frame_rate, FrameRate::Fps60);
         assert_eq!(settings.budget_bytes, defaults.budget_bytes);
         assert_eq!(settings.folder, None);
+    }
+
+    #[test]
+    fn the_mark_key_is_on_by_default_and_can_be_turned_off() {
+        let defaults = RecordingSettings::from_json("{}");
+        assert_eq!(defaults.mark_key, Some(DEFAULT_MARK_KEY));
+        assert_eq!(DEFAULT_MARK_KEY.label(false), "Alt+Shift+0");
+        assert_eq!(
+            RecordingSettings::from_json(r#"{ "markKey": null }"#).mark_key,
+            None
+        );
+        let chosen =
+            RecordingSettings::from_json(r#"{ "markKey": { "ctrl": true, "key": "KeyM" } }"#);
+        assert_eq!(
+            chosen.mark_key.map(|chord| chord.label(false)),
+            Some("Ctrl+M".to_string())
+        );
+    }
+
+    #[test]
+    fn a_marks_length_is_thirty_seconds_unless_another_offered_one_is_chosen() {
+        assert_eq!(
+            RecordingSettings::from_json("{}").mark_length,
+            MarkLength::Seconds30
+        );
+        assert_eq!(
+            RecordingSettings::from_json(r#"{ "markLength": 120 }"#).mark_length,
+            MarkLength::Minutes2
+        );
+        assert_eq!(
+            RecordingSettings::from_json(r#"{ "markLength": 300 }"#).mark_length,
+            MarkLength::Seconds30
+        );
+    }
+
+    #[test]
+    fn a_mark_key_that_cannot_be_a_shortcut_falls_back_to_the_default() {
+        for refused in [
+            r#"{ "markKey": { "alt": true } }"#,
+            r#"{ "markKey": { "tab": true } }"#,
+            r#"{ "markKey": { "key": "Escape" } }"#,
+            r#"{ "markKey": { "alt": true, "shift": true, "key": "KeyO" } }"#,
+            r#"{ "markKey": { "meta": true, "key": "KeyQ" } }"#,
+            r#"{ "markKey": { "key": "NumpadEnter" } }"#,
+            r#"{ "markKey": 5 }"#,
+        ] {
+            assert_eq!(
+                RecordingSettings::from_json(refused).mark_key,
+                Some(DEFAULT_MARK_KEY),
+                "{refused}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_play_is_clipped_by_default_and_each_can_be_turned_off() {
+        assert_eq!(
+            RecordingSettings::from_json("{}").auto_clips,
+            AutoClipKind::ALL.to_vec()
+        );
+        assert!(RecordingSettings::from_json(r#"{ "autoClips": [] }"#)
+            .auto_clips
+            .is_empty());
+        // Unknown kinds dropped alone, repeats kept once, in the settings' order.
+        assert_eq!(
+            RecordingSettings::from_json(
+                r#"{ "autoClips": ["combo", "flashCharm", "steal", 3, "combo"] }"#
+            )
+            .auto_clips,
+            vec![AutoClipKind::Steal, AutoClipKind::Combo]
+        );
+        assert_eq!(
+            RecordingSettings::from_json(r#"{ "autoClips": "all" }"#).auto_clips,
+            AutoClipKind::ALL.to_vec()
+        );
     }
 
     #[test]

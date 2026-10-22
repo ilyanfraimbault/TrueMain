@@ -99,8 +99,20 @@ ranking signal, not a population, and stays as it was — #1365.
 It forwarded position and elo but never patch, and its aggregate outlives the matches it was folded from, so the
 panel spanned **16.12→16.15 (53 739 games) under a header reading 4 603** — two contradicting numbers a few
 centimetres apart. The player-scoped slice stays cross-patch on purpose, for the opposite reason the global one
-needed scoping: one player meets the same lane opponent a handful of times *in total*, so a patch filter would put
-nearly every opponent under the 3-game per-player floor and empty the panel — #1087.
+needed scoping: one player meets the same lane opponent a handful of times *in total*, so a patch filter would cut
+an already thin history to a game or two per opponent — #1087.
+
+**One player's matchups carry no games floor, and the player champion page can read every position at once.**
+The per-player floor (`MinPlayerMatchupGames`, 3) left a typical truemain's card with one line: a player with ~20
+games on a champion meets ~15 distinct opponents, almost all of them once or twice, and the global page's reason
+for a floor — variance outranking real matchups in a population read — does not hold for a reader looking up their
+own history against a pick, where each row already shows its game count. The setting is gone; the global
+leaderboard keeps both of its floors. The same page's position picker offers "All positions" — an explicit
+`?position=ALL`, distinct from no position, which still resolves to the dominant one — on the build, performance
+and matchups routes of `/truemains/{nameTag}/champions/{id}` only: the build folds every position's scopes at the
+resolved patch, and the matchups pair each game with the role opponent of the position the player held in it,
+one line per opponent champion. The global champion page stays one position at a time (its spread and the
+server-rendered best/worst are per-lane by construction) — 2026-10-20, #2158.
 
 **The champion page shows its matchups as a spread on the lane win rate at 15 min, and the sidebar list is gone.**
 The best/worst panel in the sidebar ranked opponents by *game* win rate in a column too narrow for more than ten
@@ -110,7 +122,16 @@ Centred on 50%, not on the champion's own average: "ahead at 15 against this pic
 average would move the centre line every time the opponent pool shifts. Opponents with no lane rate (under
 `MinDecidedLaneGames`) are left off rather than drawn on the centre line, which would read as "dead even". The
 role picker is the panel's own and selects the lane on both sides, as the aggregate is keyed. The player-scoped
-champion page keeps the list: its live route has no lane data — 2026-10-18, #2094.
+champion page kept the list at first (its live route had no lane data) — 2026-10-18, #2094.
+**The player champion page shows the same spread, on the player's own lanes.** The list sat in the sidebar under
+the performance card, the one place on the site where matchups still read as best/worst rows. The player route now
+judges each of the player's games at 15 minutes from their own timeline snapshots, with the fold's rule
+(`LaneOutcomeRules`, 300 gold) — never the population-wide aggregate, which is not one player's lane — and with no
+decided-lane floor, as it has no games floor: one decided lane places an icon, and the tooltip states how many
+lanes the rate rests on. The spread sits in the main column between the build and the games, cross-patch like the
+list was, and its role picker offers All positions there — product call, 2026-10-22.
+The strip carries no caption, band labels, ring colours, counts or hardest/easiest summary: the icons' positions
+say it, and each icon's tooltip reads only the opponent and its lane win rate. The card is titled "Matchups" — product call after seeing it live, 2026-10-20, #2159.
 
 **Lane win rate stores three counters and divides by the *decided* lanes, not by games played.**
 A gold *threshold* at 15 min (`LaneOutcomeAggregation:GoldLeadThreshold`, 300) is what defines a won lane, and
@@ -339,8 +360,27 @@ allies outweigh the lane, and bet the matchup on the solver's top placement even
   grade binned from these deltas would still be a derived number);
 - **reasons** — the 2–3 parts of the score that move it most, either way, as text-free data the client words
   (`laneMatchup`, `blindSafety`, `synergy`, plus the lane phase at 15 minutes as a reason that is never a score
-  term). Still missing: the enemy team beyond our lane (#1713) and the damage mix (#1905, #1907).
+  term). The enemy team beyond our lane (#1713) and the team composition (below) are measured and returned, weight 0
+  until a back-test sets them.
 `DraftCandidateScorer`, `Core/Lol/Draft/DraftScoring.cs` — #1906.
+
+**The team composition is measured on the item-context fold's counters, and stated before it is scored
+(2026-10-21).** The issue asked for "the candidate's win rate when its allies' magic share (and frontline count) falls
+in the band the current draft is in, minus its overall rate" on a new champion-level aggregate. None was needed:
+`champion_item_context_totals` already counts games and wins per champion, lane, `AllyMagicDamage` /
+`AllyFrontline` band and unconditioned (`Overall`), on the root branch of the build slot — every game that completed
+a first item. Both rates come from that one cohort, so what it leaves out cancels in the difference; it has no elo
+dimension, so the term pools every rank. The board is placed by the fold's own `DraftAxisEvaluator`, profile snapshot
+and thresholds; an ally not picked yet counts as an unprofiled member, so the axes appear with three allies on the
+board. The term is the mean over the placed axes, shrunk like the others, and **weighs 0** like the enemy team: the
+back-test (`Tools/DraftEvaluation`, now exporting the totals and the profiles) sets it on preprod data. First run
+(training 16.20, test 16.21, 7,549 main picks, every one placed): lane known 0.5200 at weight 0, rising with the
+weight to 0.5255 at 1 — inside the AUC's noise at that size (≈ 0.006), so it stays 0 until a mature patch or prod
+volume confirms it; the same run had the enemy team falling with its weight (0.5200 → 0.5134 at 1). Meanwhile the
+axis that moves the pick most is a `teamFit` reason (≥ 30 games, ≥ 0.1 pt once shrunk) — a measured figure with its
+games, like the lane phase. Facts that are not score terms (lane phase, team composition) are stated after the
+up-to-three score terms rather than only when one of the three slots is free: with a full card they would never show.
+`DraftTeamFitReader` — #1906, #1905, #1907.
 
 **The enemy team is measured on its own opposing-pair aggregate, folded behind its own flag, and enters the score
 only once a back-test sets its weight.** `champion_opponent_stats` pairs a tracked seat with each enemy, and the
@@ -364,7 +404,9 @@ team beyond the lane waits for #1713's opposing-pair aggregate. `DraftBanQuerySe
 
 **Draft reads use the current patch, with the previous one as a per-champion fallback.** The app sent no patch, so
 every draft figure averaged every stored patch — several balance states at once. Without a requested patch the
-draft reads the two newest patches of the synergy baselines; a champion's matchup record comes from the current
+draft reads the two newest patches of the synergy baselines — the app still sends none on purpose: on patch day the
+client is on a patch the tables have barely seen, and the server knows which patch holds data (the bracket is sent:
+the player's tier and above, `decisions/desktop.md`). A champion's matchup record comes from the current
 patch when it has 200 games at the lane there, from both summed otherwise (lane shares: 2,000 games), and a pairing
 the current patch lacks is looked up on the previous one. Per champion, not per draft: on patch day the popular
 picks are measured hours before a niche one. `DraftPatchScopeResolver`, `DraftLaneReader` — #1906, #1467.

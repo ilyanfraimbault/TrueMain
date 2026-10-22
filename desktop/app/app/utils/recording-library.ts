@@ -125,6 +125,11 @@ export function latestClips(library: RecordingLibrary | null, count: number): Li
     .map(clipItem)
 }
 
+/** The favourite clips, for the Favorites page (#2080): the most recently saved first, as the library lists them. */
+export function favouriteClips(library: RecordingLibrary | null): Clip[] {
+  return library?.clips.filter(clip => clip.favorite) ?? []
+}
+
 /** What a card is called: a clip's title, else the game — "Ahri · Victory". */
 export function itemTitle(item: LibraryItem, championName: (id: number) => string): string {
   if (item.title) return item.title

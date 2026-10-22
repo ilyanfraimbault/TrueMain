@@ -28,8 +28,8 @@ export function useChampionSliceControls(options: {
     normalizeEloBracket(champion.value?.eloBracket || filters.value.eloBracket),
   )
 
-  // The elo filter forwarded to every live panel (matchups / scaling /
-  // item-timings). Always a concrete bracket now that the page default is
+  // The elo filter forwarded to every panel read beside the header (matchups /
+  // scaling). Always a concrete bracket now that the page default is
   // Master+ rather than the server's ALL: a panel left to its own default would
   // quietly render every tier beside a header that says Master+.
   const eloBracketParam = computed(() => filters.value.eloBracket)

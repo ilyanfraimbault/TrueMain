@@ -11,7 +11,15 @@ public class ItemContextAggregationOptions
 {
     public const string SectionName = "ItemContextAggregation";
 
-    /// <summary>Pending matches folded per transaction. Each one loads ten slim participant rows plus the item timelines of its cohort members.</summary>
+    /// <summary>
+    /// Pending matches folded per transaction. Each one loads ten slim participant rows plus the
+    /// item timelines of its cohort members and, since the in-game axes (#1750), of the five
+    /// enemies each of them faced — five timelines more per match with a member on one side.
+    /// </summary>
+    /// <remarks>
+    /// Unchanged by #1750 pending a measurement: re-size it from the fold duration and memory a
+    /// preprod re-fold records, not from an estimate.
+    /// </remarks>
     [Range(1, int.MaxValue)]
     public int MatchBatchSize { get; set; } = 300;
 
@@ -21,6 +29,9 @@ public class ItemContextAggregationOptions
 
     /// <summary>The bands each draft axis is cut into.</summary>
     public DraftAxisThresholds Axes { get; set; } = new();
+
+    /// <summary>The bands of the in-game axes of what the enemies have built (#1750).</summary>
+    public BuiltAxisThresholds BuiltAxes { get; set; } = new();
 
     /// <summary>
     /// Games a champion profile must hold before a draft may be qualified against it.

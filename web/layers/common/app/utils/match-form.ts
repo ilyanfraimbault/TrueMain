@@ -2,6 +2,9 @@ import type { MatchSummaryResponse } from '#shared/types/matches'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { formatPointDelta } from '#shared/utils/deltas'
 import { formatKdaRatio, kdaRatio } from '#shared/utils/kda'
+import { formatCount } from '#shared/utils/counts'
+import { positionLabel } from '#common/utils/positions'
+import { formatTierName } from '#common/utils/tiers'
 
 /** How many of the newest games a form tile weighs against the whole sample. */
 export const RECENT_GAMES = 5
@@ -16,6 +19,24 @@ export interface FormTile {
   delta: { text: string, direction: 'up' | 'down', good: boolean | null } | null
   /** Game by game, oldest first — the tile's sparkline. */
   series: number[]
+  /** The median of the player's tier on their main role (#2076); null where it has no sample. */
+  reference: { text: string, tier: string, hint: string } | null
+}
+
+/**
+ * The tier the tiles are set against (#2076): the median game of `tier`
+ * players on `position`, per tile, from the form benchmark. A metric is absent
+ * where the benchmark is under its sample floor, and its tile shows no
+ * reference: no figure is ever made up to fill the slot.
+ */
+export interface FormReference {
+  /** As Riot spells it (`DIAMOND`). */
+  tier: string
+  /** A canonical `TeamPosition` (`MIDDLE`). */
+  position: string
+  /** The games the medians were read from. */
+  samples: number
+  medians: Partial<Record<FormTile['key'], number>>
 }
 
 interface Metric {
@@ -70,10 +91,11 @@ const average = (values: number[]) => values.reduce((sum, value) => sum + value,
  * profile and the app's dashboard, so the two pages tell the same story.
  * `matches` is newest first, as every history is served.
  */
-export function formTiles(matches: MatchSummaryResponse[]): FormTile[] {
+export function formTiles(matches: MatchSummaryResponse[], benchmark: FormReference | null = null): FormTile[] {
   if (!matches.length) return []
   const oldestFirst = [...matches].reverse()
   return METRICS.map((metric) => {
+    const median = benchmark?.medians[metric.key]
     const series = oldestFirst.map(metric.read)
     const mean = average(series)
     const recent = series.length >= MIN_GAMES_FOR_DELTA ? average(series.slice(-RECENT_GAMES)) : null
@@ -90,6 +112,17 @@ export function formTiles(matches: MatchSummaryResponse[]): FormTile[] {
             good: (diff > 0) === metric.higherIsBetter,
           },
       series,
+      reference: benchmark && median !== undefined ? tierReference(benchmark, metric, median) : null,
     }
   })
+}
+
+function tierReference(benchmark: FormReference, metric: Metric, median: number): NonNullable<FormTile['reference']> {
+  const tier = formatTierName(benchmark.tier)
+  const lane = positionLabel(benchmark.position, { short: true }) ?? benchmark.position
+  return {
+    text: metric.format(median),
+    tier: benchmark.tier,
+    hint: `Median ${metric.label} of ${tier} players on ${lane}: ${metric.format(median)} (${formatCount(benchmark.samples)} games)`,
+  }
 }

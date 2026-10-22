@@ -51,6 +51,14 @@ public sealed record DraftScoringWeights
     public double Enemy { get; init; } = 0d;
 
     /// <summary>
+    /// Weight of the team-composition term (#1906): how the candidate's win rate moves
+    /// when its allies' damage mix and frontline sit where the board puts them. Zero
+    /// until the back-test sets it, like <see cref="Enemy"/> — until then the reading is
+    /// stated as a reason and never moves the order.
+    /// </summary>
+    public double TeamFit { get; init; } = 0d;
+
+    /// <summary>
     /// The <c>k</c> of <see cref="DraftComponent.Shrunk"/>: the games at which a
     /// delta keeps half its value.
     /// </summary>
@@ -62,6 +70,12 @@ public sealed record DraftScoringWeights
     /// </summary>
     public double HoveredAlly { get; init; } = 0.5d;
 }
+
+/// <summary>
+/// The terms read off the rest of the board — the enemy team beyond our lane (#1713) and
+/// our team's composition (#1906) — each shrunk; both weigh 0 until the back-test sets them.
+/// </summary>
+public readonly record struct DraftBoardTerms(double EnemyShrunk = 0d, double TeamFitShrunk = 0d);
 
 /// <summary>An ally on the board, as the synergy term sees it.</summary>
 public readonly record struct DraftAllyPairing(DraftComponent Pairing, bool Hovered);
@@ -297,7 +311,8 @@ public static class DraftScoring
     /// <summary>
     /// The ranking key: the lane term — the resolved opponent where the board
     /// shows one, the blind expectation for the share of the lane still unknown —
-    /// then the champion's own strength at the lane, the enemy team, and the allies.
+    /// then the champion's own strength at the lane, the enemy team, the team's
+    /// composition and the allies.
     /// </summary>
     public static double Score(
         double laneShrunk,
@@ -306,14 +321,45 @@ public static class DraftScoring
         double strengthShrunk,
         double synergyShrunk,
         DraftScoringWeights weights,
-        double enemyShrunk = 0d)
+        DraftBoardTerms board = default)
     {
         var occupied = Math.Clamp(laneOccupied, 0d, 1d);
         var lane = (occupied * laneShrunk) + ((1d - occupied) * blindShrunk);
         return (weights.Lane * lane)
             + (weights.Strength * strengthShrunk)
-            + (weights.Enemy * enemyShrunk)
+            + (weights.Enemy * board.EnemyShrunk)
+            + (weights.TeamFit * board.TeamFitShrunk)
             + (weights.Synergy * synergyShrunk);
+    }
+
+    /// <summary>
+    /// One axis of the team-composition term (#1906): the candidate's win rate in the
+    /// games whose allies sat in the board's band of that axis, minus its win rate over
+    /// every game of the same cohort, over the band's games.
+    /// </summary>
+    public static DraftComponent Fit(int bandGames, int bandWins, int overallGames, int overallWins)
+        => bandGames <= 0 || overallGames <= 0
+            ? DraftComponent.None
+            : new DraftComponent(((double)bandWins / bandGames) - ((double)overallWins / overallGames), bandGames);
+
+    /// <summary>
+    /// The team-composition term: the mean over the axes the board can place, each
+    /// shrunk by its games — the axes describe the same games, so their games are not
+    /// summed: the measured figure carries the largest band's.
+    /// </summary>
+    public static (DraftComponent Measured, double Shrunk) TeamFit(
+        IReadOnlyList<DraftComponent> axes,
+        double shrinkGames)
+    {
+        var measured = axes.Where(axis => axis.Games > 0).ToList();
+        if (measured.Count == 0)
+        {
+            return (DraftComponent.None, 0d);
+        }
+
+        return (
+            new DraftComponent(measured.Average(axis => axis.Delta), measured.Max(axis => axis.Games)),
+            axes.Average(axis => axis.Shrunk(shrinkGames)));
     }
 
     /// <summary>

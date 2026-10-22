@@ -9,8 +9,18 @@ using Microsoft.Extensions.Logging;
 
 namespace Data.BuildFacts;
 
+/// <summary>
+/// Reads the client's item metadata (<c>items.json</c>) from CommunityDragon, once per patch per
+/// instance.
+/// </summary>
+/// <remarks>
+/// The Api holds a singleton, so the per-patch cache and the fallback-recheck clock outlive a
+/// request (#2212); the ingestor resolves one per process run. Either way each load takes a fresh
+/// client from <paramref name="createClient"/> (the host's <c>IHttpClientFactory</c>), so no client
+/// outlives its handler's rotation. The cache is bounded (<see cref="MaxCachedPatches"/>).
+/// </remarks>
 public sealed class CommunityDragonItemMetadataProvider(
-    HttpClient httpClient,
+    Func<HttpClient> createClient,
     ILogger<CommunityDragonItemMetadataProvider> logger,
     TimeProvider timeProvider) : IItemMetadataProvider
 {
@@ -29,6 +39,12 @@ public sealed class CommunityDragonItemMetadataProvider(
     /// </summary>
     private static readonly TimeSpan FallbackRecheckInterval = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// More patches than a corpus or a running app ever spans: past it the cache is emptied, so a
+    /// caller naming patch after patch cannot grow it without bound.
+    /// </summary>
+    private const int MaxCachedPatches = 16;
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly IReadOnlySet<int> TierTwoBootIds = LolItemIds.TierTwoBoots.All;
     private readonly ConcurrentDictionary<string, Lazy<Task<PatchItems>>> _cache = new(StringComparer.Ordinal);
@@ -41,11 +57,7 @@ public sealed class CommunityDragonItemMetadataProvider(
         // created, which cannot itself be a stale fallback, so the loop terminates.
         for (var attempt = 0; ; attempt++)
         {
-            var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
-                new Lazy<Task<PatchItems>>(
-                    () => provider.LoadPatchItemsAsync(normalizedPatch, CancellationToken.None),
-                    LazyThreadSafetyMode.ExecutionAndPublication),
-                this);
+            var lazyTask = Entry(patch);
 
             PatchItems patchItems;
             try
@@ -72,6 +84,20 @@ public sealed class CommunityDragonItemMetadataProvider(
             // published the real branch by now — drop it and load once more.
             Evict(patch, lazyTask);
         }
+    }
+
+    private Lazy<Task<PatchItems>> Entry(string patch)
+    {
+        if (!_cache.ContainsKey(patch) && _cache.Count >= MaxCachedPatches)
+        {
+            _cache.Clear();
+        }
+
+        return _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
+            new Lazy<Task<PatchItems>>(
+                () => provider.LoadPatchItemsAsync(normalizedPatch, CancellationToken.None),
+                LazyThreadSafetyMode.ExecutionAndPublication),
+            this);
     }
 
     private void Evict(string patch, Lazy<Task<PatchItems>> entry)
@@ -118,7 +144,8 @@ public sealed class CommunityDragonItemMetadataProvider(
                     IsSupportQuestCompletion = supportFamily.IsCompletion(item.Id),
                     IsStarterClassItem = IsStarterClassItem(item, isBootsItem),
                     Categories = categories.ToFrozenSet(StringComparer.Ordinal),
-                    GrantsGrievousWounds = item.Description.Contains("Grievous Wounds", StringComparison.OrdinalIgnoreCase)
+                    GrantsGrievousWounds = item.Description.Contains("Grievous Wounds", StringComparison.OrdinalIgnoreCase),
+                    Components = [.. item.From ?? []],
                 };
             });
 
@@ -167,6 +194,7 @@ public sealed class CommunityDragonItemMetadataProvider(
     private async Task<List<CommunityDragonItem>?> TryFetchBranchAsync(string branch, CancellationToken ct)
     {
         var url = $"https://raw.communitydragon.org/{branch}/plugins/rcp-be-lol-game-data/global/default/v1/items.json";
+        using var httpClient = createClient();
         using var response = await httpClient.GetAsync(url, ct);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {

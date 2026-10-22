@@ -22,6 +22,7 @@ using TrueMain.Services.Champions.Matchups;
 using TrueMain.Services.Champions.Progression;
 using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Draft;
+using TrueMain.Services.Champions.ItemRoutes;
 using TrueMain.Services.Champions.NextItem;
 using TrueMain.Services.Champions.Profiles;
 using TrueMain.Services.Champions.Synergies;
@@ -37,12 +38,7 @@ using TrueMain.Services.Ops.Health;
 using TrueMain.Services.Ops.Processes;
 using TrueMain.Services.Ops.Stats;
 using TrueMain.Services.Personas;
-using TrueMain.Services.Truemains.Identity;
-using TrueMain.Services.Truemains.Leaderboard;
-using TrueMain.Services.Truemains.Lookup;
-using TrueMain.Services.Truemains.Matches;
-using TrueMain.Services.Truemains.PlayerChampions;
-using TrueMain.Services.Truemains.Profile;
+using TrueMain.Services.Truemains;
 using AspNetCorsOptions = Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -292,7 +288,7 @@ builder.Services.AddScoped<IChampionOverviewQueryService, ChampionOverviewQueryS
 builder.Services.AddScoped<IChampionDirectoryQueryService, ChampionDirectoryQueryService>();
 builder.Services.AddScoped<IChampionBuildsQueryService, ChampionBuildsQueryService>();
 builder.Services.AddScoped<IChampionMatchupQueryService, ChampionMatchupQueryService>();
-builder.Services.AddScoped<IPaceBenchmarkQueryService, PaceBenchmarkQueryService>();
+builder.Services.AddTrueMainBenchmarks();
 builder.Services.AddScoped<IChampionItemContextQueryService, ChampionItemContextQueryService>();
 builder.Services.AddScoped<IChampionSynergyQueryService, ChampionSynergyQueryService>();
 builder.Services.AddScoped<ICompositionMatchQueryService, CompositionMatchQueryService>();
@@ -313,44 +309,47 @@ builder.Services.AddScoped<IDraftRecommendationQueryService, DraftRecommendation
 builder.Services.AddScoped<IDraftPatchScopeResolver, DraftPatchScopeResolver>();
 builder.Services.AddScoped<IDraftLaneReader, DraftLaneReader>();
 builder.Services.AddScoped<IDraftEnemyReader, DraftEnemyReader>();
+builder.Services.AddScoped<IDraftTeamFitReader, DraftTeamFitReader>();
 builder.Services.AddScoped<IDraftBanQueryService, DraftBanQueryService>();
 // The in-game next-item panel (#1749): a lookup in the model the item-context fold
 // derives, combined with the game's situation; reuses the draft's lane priors.
 builder.Services.AddScoped<INextItemQueryService, NextItemQueryService>();
+builder.Services.AddScoped<IItemRouteQueryService, ItemRouteQueryService>();
 // The champion damage profiles (#1905) behind the desktop draft's team damage bars:
 // the item-context fold's profile snapshot, plus a Data Dragon class for the champions
-// it does not resolve. The statics provider caches per patch inside the instance, and
-// the whole answer sits in the champion read cache, so Data Dragon is asked once per
-// aggregation cycle at most.
+// it does not resolve.
 builder.Services.AddScoped<IChampionDamageProfileQueryService, ChampionDamageProfileQueryService>();
+// The Data Dragon providers are typed clients, so their per-patch cache dies with the request:
+// Data Dragon is asked once per aggregation cycle only because every caller reads them inside
+// the champion read cache. Per request on purpose: they keep a patch-day fallback for good,
+// which a singleton would serve for the life of the Api (the item metadata re-probes, #1107).
 builder.Services.AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>();
+// The next item's in-game axes (#1750) place the live game with the fold's own item stats.
+builder.Services.AddHttpClient<IItemStatsProvider, DataDragonItemStatsProvider>();
 // Same CommunityDragon item-metadata source as the ingestor's pattern
 // aggregation, so the composition recommender reads a game's items
-// identically. Patch-cached inside the provider, which clocks how long a
-// not-yet-published patch has been served from the fallback branch (#1107).
+// identically. A singleton, so its per-patch cache and the clock of how long a
+// not-yet-published patch has been served from the fallback branch (#1107)
+// outlive a request: the build paths read it outside the champion read cache on
+// every next-item call (#2212).
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>();
+builder.Services.AddHttpClient(nameof(CommunityDragonItemMetadataProvider));
+builder.Services.AddSingleton<IItemMetadataProvider>(services => new CommunityDragonItemMetadataProvider(
+    () => services.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(CommunityDragonItemMetadataProvider)),
+    services.GetRequiredService<ILogger<CommunityDragonItemMetadataProvider>>(),
+    services.GetRequiredService<TimeProvider>()));
+// The shop classes of the game's items, for the desktop kit editor's picker: read from
+// CommunityDragon's dump of the game data (about 16 MB), so a singleton whose per-patch
+// cache outlives a request.
+builder.Services.AddHttpClient(nameof(CommunityDragonItemClassProvider));
+builder.Services.AddSingleton<IItemClassProvider>(services => new CommunityDragonItemClassProvider(
+    () => services.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(CommunityDragonItemClassProvider)),
+    services.GetRequiredService<ILogger<CommunityDragonItemClassProvider>>(),
+    services.GetRequiredService<TimeProvider>()));
 builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQueryService>();
-builder.Services.AddScoped<IChampionItemTimingsQueryService, ChampionItemTimingsQueryService>();
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
-// The single name-tag -> account lookup shared by every player-scoped route
-// (#1230), so they cannot disagree on which account a Riot ID means.
-builder.Services.AddScoped<TruemainAccountResolver>();
-// Shared by the truemain match feed and the composition provenance drawer (#940),
-// so a game renders as the same row on both.
-builder.Services.AddScoped<MatchSummaryHydrator>();
-builder.Services.AddScoped<IMatchSummariesQueryService, MatchSummariesQueryService>();
-builder.Services.AddScoped<IMatchDetailQueryService, MatchDetailQueryService>();
-builder.Services.AddScoped<IProfileQueryService, ProfileQueryService>();
-builder.Services.AddScoped<IPlayerChampionBuildsQueryService, PlayerChampionBuildsQueryService>();
-builder.Services.AddScoped<IPlayerChampionMatchupQueryService, PlayerChampionMatchupQueryService>();
-builder.Services.AddScoped<IPlayerChampionPerformanceQueryService, PlayerChampionPerformanceQueryService>();
-builder.Services.AddScoped<IRankHistoryQueryService, RankHistoryQueryService>();
-builder.Services.AddScoped<ITruemainActivityQueryService, TruemainActivityQueryService>();
-builder.Services.AddScoped<ITruemainsLeaderboardQueryService, TruemainsLeaderboardQueryService>();
-builder.Services.AddScoped<ISearchQueryService, SearchQueryService>();
-builder.Services.AddScoped<ITruemainLookupQueryService, TruemainLookupQueryService>();
+builder.Services.AddTrueMainTruemains();
 // The cockpit is re-asked every 30 s by every open admin tab (#1411): callers get the cached,
 // single-flighted payload, and only the decorator reaches the evaluation itself (#1427).
 builder.Services.AddScoped<PipelineHealthQueryService>();

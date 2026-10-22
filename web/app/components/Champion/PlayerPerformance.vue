@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '#common/utils/positions'
+import type { PositionFilter } from '#common/utils/positions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { isLoadingStatus } from '#common/utils/async-data'
 
@@ -15,7 +15,7 @@ const props = defineProps<{
   /** Champion display name; null while the client-only statics are still loading. */
   championName: string | null
   patch?: string | null
-  position?: ChampionPosition | null
+  position?: PositionFilter | null
 }>()
 
 const { data, status, error } = usePlayerChampionPerformance(

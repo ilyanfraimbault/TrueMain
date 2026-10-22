@@ -2,6 +2,7 @@
 
 use serde::de::DeserializeOwned;
 
+use crate::champ_select::SpellSelection;
 use crate::credentials::Credentials;
 use crate::detail::GameTimeline;
 use crate::error::{Error, Result};
@@ -107,6 +108,13 @@ impl LcuClient {
     /// `evtName → "[Ctrl][q],[F5]"`, parsed by `shell_state::keys`.
     pub async fn input_settings(&self) -> Result<String> {
         self.get_raw("/lol-game-settings/v1/input-settings").await
+    }
+
+    /// The player's game settings as the client keeps them: sections of
+    /// typed values (`HUD.GlobalScale`, `HUD.MirroredScoreboard`…), parsed
+    /// by `shell_state::scoreboard`.
+    pub async fn game_settings(&self) -> Result<String> {
+        self.get_raw("/lol-game-settings/v1/game-settings").await
     }
 
     /// Who is logged in. This is how the app knows whose dashboard to open,
@@ -359,6 +367,24 @@ impl LcuClient {
             reqwest::Method::POST,
             &format!("/lol-champ-select/v1/session/actions/{action_id}/complete"),
             None,
+        )
+        .await?;
+        Ok(())
+    }
+}
+
+/// The write path, continued: a kit's summoner spells (#2185).
+impl LcuClient {
+    /// Set the player's two summoner spells in champion select.
+    ///
+    /// Call this from an explicit user action only, like the rune and item set
+    /// imports: the spells are part of champion select's own state, which the
+    /// app writes on a click and never on a pick, a lock or a timer.
+    pub async fn set_summoner_spells(&self, selection: &SpellSelection) -> Result<()> {
+        self.send(
+            reqwest::Method::PATCH,
+            "/lol-champ-select/v1/session/my-selection",
+            Some(selection),
         )
         .await?;
         Ok(())

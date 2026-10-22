@@ -2,7 +2,8 @@
 import { formatPercentage } from '#shared/utils/ddragon'
 import type { OverlayPanel, OverlayPanelSettings, OverlaySettings, OverlayShow, PanelTrigger } from '~/types/overlay'
 import type { Point } from '~/utils/overlay-layout'
-import { OVERLAY_OPACITY, OVERLAY_PANELS, OVERLAY_SCALE, PANEL_KEY } from '~/types/overlay'
+import { OVERLAY_OPACITY, OVERLAY_PANELS, OVERLAY_SCALE, PANEL_KEY, SCOREBOARD_NUDGE } from '~/types/overlay'
+import { nudgeLabel } from '~/utils/scoreboard-geometry'
 
 /**
  * The in-game overlay (#1795), set up out of game (#1819): which panels show
@@ -48,8 +49,10 @@ function resetPositions() {
 // Sliders save once they settle, not on every step of a drag.
 const scale = ref(1)
 const opacity = ref(0.95)
+const nudge = ref(0)
 watch(() => current.value?.scale, value => (scale.value = value ?? 1), { immediate: true })
 watch(() => current.value?.opacity, value => (opacity.value = value ?? 0.95), { immediate: true })
+watch(() => current.value?.scoreboardNudge, value => (nudge.value = value ?? 0), { immediate: true })
 let timer: ReturnType<typeof setTimeout> | undefined
 function settle(change: Partial<OverlaySettings>) {
   clearTimeout(timer)
@@ -75,9 +78,6 @@ onBeforeUnmount(() => void preview(false))
         @update:model-value="apply({ enabled: $event })"
       />
     </div>
-    <p class="-mt-2 text-sm text-muted">
-      Over the game only — never over the client or another app. Click-through: the game keeps every click and every key.
-    </p>
 
     <UAlert
       v-if="view && !view.supported"
@@ -94,6 +94,7 @@ onBeforeUnmount(() => void preview(false))
       v-else
       :settings="current"
       :chords="view?.chords"
+      :hud="view?.hud"
       :class="!current.enabled && 'opacity-60'"
       @place="place"
       @show="show"
@@ -119,7 +120,7 @@ onBeforeUnmount(() => void preview(false))
       </section>
 
       <section v-if="current.nextItem.enabled" class="flex flex-col gap-2">
-        <h3 class="stat-label">Next item shows</h3>
+        <h3 class="stat-label">Build path shows</h3>
         <RecordingsSegmented :model-value="current.show" :items="SHOWS" @update:model-value="apply({ show: $event })" />
       </section>
 
@@ -133,10 +134,21 @@ onBeforeUnmount(() => void preview(false))
           :chord="view?.chords[panel] ?? null"
           @change="setTrigger(panel, $event)"
         />
-        <p class="text-xs text-dimmed">
-          The game gets the keys too: a shortcut never stops what they do in game.
-          {{ view?.ownBinds ? 'Checked against your League keybindings.' : 'Checked against League\'s default keybindings.' }}
-        </p>
+      </section>
+
+      <section v-if="current.laneGold.enabled" class="flex flex-col gap-2">
+        <div class="flex items-baseline justify-between">
+          <h3 class="stat-label">Lane gold nudge</h3>
+          <span class="stat-value text-sm">{{ nudgeLabel(nudge) }}</span>
+        </div>
+        <USlider
+          :model-value="nudge"
+          :min="-SCOREBOARD_NUDGE"
+          :max="SCOREBOARD_NUDGE"
+          :step="2"
+          size="sm"
+          @update:model-value="(value) => { nudge = value ?? nudge; settle({ scoreboardNudge: nudge }) }"
+        />
       </section>
 
       <section class="flex flex-col gap-2">

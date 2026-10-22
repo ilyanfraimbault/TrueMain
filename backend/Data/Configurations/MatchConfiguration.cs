@@ -108,6 +108,10 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
             .IsRequired()
             .HasDefaultValue(false);
 
+        entity.Property(e => e.ScalingAggregated)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         entity.Property(e => e.BansAggregated)
             .IsRequired()
             .HasDefaultValue(false);
@@ -173,6 +177,11 @@ public sealed class MatchConfiguration : IEntityTypeConfiguration<Match>
         // the pending tail once the backlog has drained.
         entity.HasIndex(e => e.QueueId, "IX_matches_opponent_pending")
             .HasFilter("\"OpponentAggregated\" = false");
+
+        // Same shape for the scaling fold (#1368): every retained match at first, the
+        // pending tail once the backlog has drained.
+        entity.HasIndex(e => e.QueueId, "IX_matches_scaling_pending")
+            .HasFilter("\"ScalingAggregated\" = false");
 
         // Same shape for the ban fold (#920). Unlike the synergy one this index
         // starts out empty — the flag is backfilled to true everywhere, since

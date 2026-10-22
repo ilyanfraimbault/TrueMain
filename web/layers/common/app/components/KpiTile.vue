@@ -9,6 +9,9 @@
  * (the previous patch, the player's own average); its `good` says which way
  * the data axis reads it, null for a move worth no colour. `series` draws the
  * run of form under the figure; without one the tile ends on its `foot` line.
+ * `reference` is a second yardstick beside the move: the median of the
+ * player's tier on their main role (#2076), the tier's emblem and the figure,
+ * with what it was read from in its tooltip.
  */
 const props = defineProps<{
   label: string
@@ -18,6 +21,7 @@ const props = defineProps<{
   series?: number[]
   foot?: string
   loading?: boolean
+  reference?: { text: string, tier: string, hint: string } | null
 }>()
 
 const tone = computed(() => {
@@ -29,7 +33,26 @@ const tone = computed(() => {
 
 <template>
   <div class="flex min-w-0 flex-col gap-1.5 rounded-lg bg-ink-950/55 px-3 pb-2 pt-2.5 ring-1 ring-white/5 backdrop-blur-md">
-    <span class="stat-label truncate">{{ label }}</span>
+    <div class="flex min-w-0 items-center justify-between gap-2">
+      <span class="stat-label truncate">{{ label }}</span>
+      <UTooltip
+        v-if="reference && !loading"
+        :text="reference.hint"
+        :delay-duration="150"
+      >
+        <span
+          class="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium tabular-nums text-muted"
+          data-testid="kpi-reference"
+          :aria-label="reference.hint"
+        >
+          <RankIcon
+            :tier="reference.tier"
+            :size="14"
+          />
+          {{ reference.text }}
+        </span>
+      </UTooltip>
+    </div>
     <USkeleton
       v-if="loading"
       class="h-5 w-16 bg-ink-950/55"

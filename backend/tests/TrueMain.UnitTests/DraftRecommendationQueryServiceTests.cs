@@ -1,4 +1,5 @@
 using Core.Lol.Draft;
+using Data.ItemContext;
 using Microsoft.Extensions.Caching.Memory;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions.Draft;
@@ -21,10 +22,11 @@ public sealed class DraftRecommendationQueryServiceTests
     private readonly StubLanes lanes = new();
     private readonly StubSynergies synergies = new();
     private readonly StubEnemies enemies = new();
+    private readonly StubTeamFits teamFits = new();
     private readonly DraftPatchScope scope = new("16.19", "16.18");
 
     private DraftRecommendationQueryService Service(IChampionReadCache? cache = null)
-        => new(priors, new StubScopes(scope), lanes, synergies, enemies, cache ?? TestChampionReadCache.PassThrough());
+        => new(priors, new StubScopes(scope), lanes, synergies, enemies, teamFits, cache ?? TestChampionReadCache.PassThrough());
 
     [Fact]
     public async Task UnavailableChampionsAreNeverScored()
@@ -125,6 +127,45 @@ public sealed class DraftRecommendationQueryServiceTests
         Assert.Equal("MIDDLE", request.Position);
         Assert.Equal([10, 11], request.Enemies.Order());
         Assert.Equal("GOLD_PLUS", request.EloBracket);
+        Assert.Equal(scope, request.Scope);
+    }
+
+    [Fact]
+    public async Task TheTeamCompositionIsStatedButDoesNotMoveTheOrderYet()
+    {
+        teamFits.Fits[5] = new DraftTeamFit(
+            [new DraftTeamFitAxis(ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low, new DraftComponent(0.05, 2_000))],
+            Tentative: true,
+            "16.19");
+
+        var response = await Service().GetAsync(
+            new DraftCriteria
+            {
+                Position = "MIDDLE",
+                Candidates = [5, 3],
+                Allies = new Dictionary<string, int> { ["JUNGLE"] = 64 },
+                HoveredAllies = new Dictionary<string, int> { ["utility"] = 40, ["JUNGLE"] = 77 },
+            },
+            CancellationToken.None);
+
+        // Weight 0 (DraftScoringWeights.TeamFit): a tie at zero, broken by id.
+        Assert.Equal([3, 5], response.Candidates.Select(c => c.ChampionId));
+        var fitted = response.Candidates.Single(c => c.ChampionId == 5);
+        Assert.Equal(0d, fitted.Score);
+        Assert.Equal(0.05, fitted.TeamFitDelta, 9);
+        Assert.Equal(2_000, fitted.TeamFitGames);
+        var reason = Assert.Single(fitted.Reasons);
+        Assert.Equal(DraftReasonKinds.TeamFit, reason.Kind);
+        Assert.Equal("AllyMagicDamage", reason.Axis);
+        Assert.Equal("Low", reason.Bucket);
+        Assert.True(reason.Tentative);
+
+        var request = Assert.Single(teamFits.Requests);
+        Assert.Equal("MIDDLE", request.Position);
+        Assert.Equal([5, 3], request.Candidates);
+        Assert.Equal(
+            [new DraftBoardAlly(64, "JUNGLE", Hovered: false), new DraftBoardAlly(40, "UTILITY", Hovered: true)],
+            request.Allies);
         Assert.Equal(scope, request.Scope);
     }
 
@@ -374,6 +415,24 @@ public sealed class DraftRecommendationQueryServiceTests
             Requests.Add((candidates.ToList(), position, enemies.ToList(), scope, eloBracket));
             return Task.FromResult<IReadOnlyDictionary<int, IReadOnlyDictionary<int, DraftComponent>>>(
                 new Dictionary<int, IReadOnlyDictionary<int, DraftComponent>>(Pairings));
+        }
+    }
+
+    private sealed class StubTeamFits : IDraftTeamFitReader
+    {
+        public Dictionary<int, DraftTeamFit> Fits { get; } = [];
+
+        public List<(List<int> Candidates, string Position, List<DraftBoardAlly> Allies, DraftPatchScope Scope)> Requests { get; } = [];
+
+        public Task<IReadOnlyDictionary<int, DraftTeamFit>> ReadAsync(
+            IReadOnlyCollection<int> candidates,
+            string position,
+            IReadOnlyList<DraftBoardAlly> allies,
+            DraftPatchScope scope,
+            CancellationToken ct)
+        {
+            Requests.Add((candidates.ToList(), position, allies.ToList(), scope));
+            return Task.FromResult<IReadOnlyDictionary<int, DraftTeamFit>>(new Dictionary<int, DraftTeamFit>(Fits));
         }
     }
 }

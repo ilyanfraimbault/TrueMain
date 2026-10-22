@@ -30,7 +30,13 @@ withDefaults(defineProps<{
    * "truemains or everyone" is not a question it can ask.
    */
   truemainsOnly?: boolean
-}>(), { truemainsOnly: undefined })
+  /**
+   * Offer the picker's "All positions" button (#2158), emitted as `null`. Only the
+   * player-scoped page sums a champion across positions; the global page's
+   * aggregates answer for one position, so it keeps the button hidden.
+   */
+  allPositions?: boolean
+}>(), { truemainsOnly: undefined, allPositions: false })
 
 const emit = defineEmits<{
   'update:patch': [value: string]
@@ -50,7 +56,7 @@ function onPatchChange(value: unknown) {
   <div class="flex flex-wrap items-center gap-2">
     <RolePicker
       :position="selectedPosition"
-      hide-all
+      :hide-all="!allPositions"
       @update:position="value => emit('update:position', value)"
     />
     <ChampionEloFilter

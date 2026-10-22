@@ -54,6 +54,32 @@ public static class OptionsConfigurationExtensions
             .Validate(
                 options => !options.Enabled || RiotRateLimitOptionsValidation.HasParsableWindow(options.AppLimits),
                 "RiotRateLimit:AppLimits must contain at least one \"requests:seconds\" window, e.g. \"20:1,100:120\".")
+            .Validate(
+                options => RiotRateLimitOptionsValidation.HasBoundedReservations(options.ReservedShares),
+                "RiotRateLimit:ReservedShares must each be between 0 and 0.5, and sum to at most 0.5.")
+            .ValidateOnStart();
+
+        services.AddOptionsWithValidator<MatchFetchWorkersOptions, MatchFetchWorkersOptionsValidator>(
+                configuration, MatchFetchWorkersOptions.SectionName)
+            .PostConfigure(options =>
+            {
+                if (options.RampStages.Count == 0)
+                {
+                    options.RampStages = [.. MatchFetchWorkersOptions.DefaultRampStages];
+                }
+            })
+            .Validate(
+                options => options.RampStages.Count > 0
+                           && options.RampStages.All(stage => stage > 0)
+                           && options.RampStages.Zip(options.RampStages.Skip(1)).All(pair => pair.First < pair.Second),
+                "MatchFetchWorkers:RampStages must list at least one target rate, each above 0, in strictly ascending order.")
+            .Validate(
+                options => options.RampStage <= options.RampStages.Count,
+                "MatchFetchWorkers:RampStage must name one of MatchFetchWorkers:RampStages (counted from 1).")
+            .ValidateOnStart();
+
+        services.AddOptionsWithValidator<IngestionBackpressureOptions, IngestionBackpressureOptionsValidator>(
+                configuration, IngestionBackpressureOptions.SectionName)
             .ValidateOnStart();
 
         services.AddOptionsWithValidator<CommunityDragonOptions, CommunityDragonOptionsValidator>(
@@ -159,6 +185,10 @@ public static class OptionsConfigurationExtensions
 
         services.AddOptionsWithValidator<OpponentAggregationOptions, OpponentAggregationOptionsValidator>(
                 configuration, OpponentAggregationOptions.SectionName)
+            .ValidateOnStart();
+
+        services.AddOptionsWithValidator<ScalingAggregationOptions, ScalingAggregationOptionsValidator>(
+                configuration, ScalingAggregationOptions.SectionName)
             .ValidateOnStart();
 
         services.AddOptionsWithValidator<LaneOutcomeAggregationOptions, LaneOutcomeAggregationOptionsValidator>(

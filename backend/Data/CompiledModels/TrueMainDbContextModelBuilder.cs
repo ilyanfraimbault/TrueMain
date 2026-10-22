@@ -12,12 +12,13 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("02d4a8b1-9386-4aa2-ad2d-a67af1872e99"), entityTypeCount: 38)
+            : base(skipDetectChanges: false, modelId: new Guid("d22c6c48-197b-4091-b2a4-0b98fa5ab563"), entityTypeCount: 43)
         {
         }
 
         partial void Initialize()
         {
+            var apexCutoffSnapshot = ApexCutoffSnapshotEntityType.Create(this);
             var banScopeTotal = BanScopeTotalEntityType.Create(this);
             var championAggregatePattern = ChampionAggregatePatternEntityType.Create(this);
             var championAggregateScope = ChampionAggregateScopeEntityType.Create(this);
@@ -29,6 +30,7 @@ namespace Data.CompiledModels
             var championDimSpellPair = ChampionDimSpellPairEntityType.Create(this);
             var championDimStarterItems = ChampionDimStarterItemsEntityType.Create(this);
             var championGameCount = ChampionGameCountEntityType.Create(this);
+            var championItemComponentOrder = ChampionItemComponentOrderEntityType.Create(this);
             var championItemContextStat = ChampionItemContextStatEntityType.Create(this);
             var championItemContextTotal = ChampionItemContextTotalEntityType.Create(this);
             var championItemContextVerdict = ChampionItemContextVerdictEntityType.Create(this);
@@ -36,10 +38,13 @@ namespace Data.CompiledModels
             var championNextItemTerm = ChampionNextItemTermEntityType.Create(this);
             var championOpponentBaselineStat = ChampionOpponentBaselineStatEntityType.Create(this);
             var championOpponentStat = ChampionOpponentStatEntityType.Create(this);
+            var championPatchStat = ChampionPatchStatEntityType.Create(this);
             var championProfileStat = ChampionProfileStatEntityType.Create(this);
+            var championScalingStat = ChampionScalingStatEntityType.Create(this);
             var championSynergyBaselineStat = ChampionSynergyBaselineStatEntityType.Create(this);
             var championSynergyStat = ChampionSynergyStatEntityType.Create(this);
             var discoveryCursor = DiscoveryCursorEntityType.Create(this);
+            var formBenchmarkStat = FormBenchmarkStatEntityType.Create(this);
             var ladderSyncCursor = LadderSyncCursorEntityType.Create(this);
             var mainCandidate = MainCandidateEntityType.Create(this);
             var mainChampionStat = MainChampionStatEntityType.Create(this);
@@ -75,6 +80,7 @@ namespace Data.CompiledModels
             PersonaLinkEntityType.CreateForeignKey1(personaLink, persona);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
 
+            ApexCutoffSnapshotEntityType.CreateAnnotations(apexCutoffSnapshot);
             BanScopeTotalEntityType.CreateAnnotations(banScopeTotal);
             ChampionAggregatePatternEntityType.CreateAnnotations(championAggregatePattern);
             ChampionAggregateScopeEntityType.CreateAnnotations(championAggregateScope);
@@ -86,6 +92,7 @@ namespace Data.CompiledModels
             ChampionDimSpellPairEntityType.CreateAnnotations(championDimSpellPair);
             ChampionDimStarterItemsEntityType.CreateAnnotations(championDimStarterItems);
             ChampionGameCountEntityType.CreateAnnotations(championGameCount);
+            ChampionItemComponentOrderEntityType.CreateAnnotations(championItemComponentOrder);
             ChampionItemContextStatEntityType.CreateAnnotations(championItemContextStat);
             ChampionItemContextTotalEntityType.CreateAnnotations(championItemContextTotal);
             ChampionItemContextVerdictEntityType.CreateAnnotations(championItemContextVerdict);
@@ -93,10 +100,13 @@ namespace Data.CompiledModels
             ChampionNextItemTermEntityType.CreateAnnotations(championNextItemTerm);
             ChampionOpponentBaselineStatEntityType.CreateAnnotations(championOpponentBaselineStat);
             ChampionOpponentStatEntityType.CreateAnnotations(championOpponentStat);
+            ChampionPatchStatEntityType.CreateAnnotations(championPatchStat);
             ChampionProfileStatEntityType.CreateAnnotations(championProfileStat);
+            ChampionScalingStatEntityType.CreateAnnotations(championScalingStat);
             ChampionSynergyBaselineStatEntityType.CreateAnnotations(championSynergyBaselineStat);
             ChampionSynergyStatEntityType.CreateAnnotations(championSynergyStat);
             DiscoveryCursorEntityType.CreateAnnotations(discoveryCursor);
+            FormBenchmarkStatEntityType.CreateAnnotations(formBenchmarkStat);
             LadderSyncCursorEntityType.CreateAnnotations(ladderSyncCursor);
             MainCandidateEntityType.CreateAnnotations(mainCandidate);
             MainChampionStatEntityType.CreateAnnotations(mainChampionStat);

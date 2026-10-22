@@ -45,17 +45,17 @@ export function chordOf(event: Pick<KeyboardEvent, 'altKey' | 'shiftKey' | 'ctrl
   }
 }
 
-/** TAB alone: the item value's default, the game's scoreboard. */
+/** TAB alone: the game's scoreboard, the item value's and the lane gold's default. */
 export const TAB_CHORD: Chord = { alt: false, shift: false, ctrl: false, meta: false, tab: true, key: null }
 
 /**
  * The chord offered when a panel is first put on one: Alt+Shift and a digit,
  * away from the game's default binds (the items are on the bare digits).
- * The item value keeps TAB, held.
+ * The scoreboard's two panels keep TAB, held.
  */
 export function suggestedChord(panel: OverlayPanel, kind: 'whileHeld' | 'toggle'): Chord {
-  if (panel === 'item-value' && kind === 'whileHeld') return TAB_CHORD
-  const digit = { 'next-item': 1, 'win-probability': 2, 'stats': 3, 'item-value': 4 }[panel]
+  if ((panel === 'item-value' || panel === 'lane-gold') && kind === 'whileHeld') return TAB_CHORD
+  const digit = { 'next-item': 1, 'win-probability': 2, 'stats': 3, 'item-value': 4, 'objectives': 5, 'lane-gold': 6 }[panel]
   return { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: `Digit${digit}` }
 }
 

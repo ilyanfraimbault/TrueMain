@@ -2,6 +2,7 @@ name: Desktop
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths: ["desktop/**", "web/layers/common/**", "web/shared/**", ".github/workflows/desktop.yml"]
   push:
     branches: [develop, master]
@@ -15,8 +16,78 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      crates: ${{ steps.plan.outputs.crates }}
+      shell: ${{ steps.plan.outputs.shell }}
+      macos: ${{ steps.plan.outputs.macos }}
+      overlay: ${{ steps.plan.outputs.overlay }}
+      app: ${{ steps.plan.outputs.app }}
+
+    steps:
+      - name: Filter changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          filters: |
+            workflow:
+              - ".github/workflows/desktop.yml"
+            cargo:
+              - "desktop/Cargo.toml"
+              - "desktop/Cargo.lock"
+            crates:
+              - "desktop/crates/**"
+              - "desktop/capture/windows/**"
+            shell:
+              - "desktop/src-tauri/**"
+            macos:
+              - "desktop/capture/macos/**"
+            overlay:
+              - "desktop/app/**"
+              - "desktop/tools/overlay-smoke-windows.ps1"
+              - "desktop/fixtures/**"
+            app:
+              - "desktop/app/**"
+              - "web/layers/common/**"
+              - "web/shared/**"
+
+      - name: Plan the jobs
+        id: plan
+        env:
+          EXHAUSTIVE: ${{ github.event_name != 'pull_request' || steps.filter.outputs.workflow == 'true' }}
+          CARGO: ${{ steps.filter.outputs.cargo }}
+          CRATES: ${{ steps.filter.outputs.crates }}
+          SHELL_CHANGED: ${{ steps.filter.outputs.shell }}
+          MACOS: ${{ steps.filter.outputs.macos }}
+          OVERLAY: ${{ steps.filter.outputs.overlay }}
+          APP: ${{ steps.filter.outputs.app }}
+        run: |
+          set -euo pipefail
+          any() {
+            [ "$EXHAUSTIVE" = "true" ] && { echo true; return; }
+            for v in "$@"; do [ "$v" = "true" ] && { echo true; return; }; done
+            echo false
+          }
+          {
+            echo "crates=$(any "$CARGO" "$CRATES")"
+            echo "shell=$(any "$CARGO" "$CRATES" "$SHELL_CHANGED")"
+            echo "macos=$(any "$CARGO" "$CRATES" "$SHELL_CHANGED" "$MACOS")"
+            echo "overlay=$(any "$CARGO" "$CRATES" "$SHELL_CHANGED" "$OVERLAY")"
+            echo "app=$(any "$APP")"
+          } | tee -a "$GITHUB_OUTPUT"
+
   lcu:
     name: Rust crates
+    needs: changes
+    if: needs.changes.outputs.crates == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -34,6 +105,8 @@ jobs:
 
   capture-macos:
     name: macOS capture spike
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -74,6 +147,8 @@ jobs:
 
   capture-windows:
     name: Windows capture helper and shell
+    needs: changes
+    if: needs.changes.outputs.shell == 'true'
     runs-on: windows-2025
     timeout-minutes: 30
     steps:
@@ -103,6 +178,8 @@ jobs:
 
   overlay-windows:
     name: Windows overlay
+    needs: changes
+    if: needs.changes.outputs.overlay == 'true'
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
@@ -141,6 +218,8 @@ jobs:
 
   app:
     name: Nuxt app
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:

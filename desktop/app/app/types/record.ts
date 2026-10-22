@@ -16,6 +16,8 @@ export interface RankedQueue {
 /** Mirrors `PlayerGame` in `crates/lcu/src/record.rs`. */
 export interface PlayerGame {
   gameId: number
+  /** The player's slot in the game, to find them among `participants`. */
+  participantId: number
   /** Epoch milliseconds. */
   playedAt: number
   durationSeconds: number
@@ -54,13 +56,36 @@ export interface PlayerGame {
   participants: GameParticipant[]
 }
 
-/** Mirrors `GameParticipant` in `crates/lcu/src/record.rs`. */
+/** Mirrors `TimelineMark` in `crates/lcu/src/marks.rs`: one player at one of the timeline's canonical marks. */
+export interface TimelineMark {
+  minute: number
+  gold: number
+  cs: number
+  xp: number
+}
+
+/**
+ * Mirrors `GameParticipant` in `crates/lcu/src/record.rs`: who played what, and
+ * the scoreboard line and timeline marks the performance score grades (#2075).
+ */
 export interface GameParticipant {
+  participantId: number
   championId: number
   teamId: number
   position: string | null
   gameName: string | null
   tagLine: string | null
+  win: boolean
+  kills: number
+  deaths: number
+  assists: number
+  /** Lane minions and jungle camps together. */
+  cs: number
+  goldEarned: number
+  damageToChampions: number
+  visionScore: number
+  /** Ascending; empty when the game's timeline could not be read. */
+  marks: TimelineMark[]
 }
 
 /** Mirrors `PlayerRecord` in `crates/lcu/src/record.rs`. */

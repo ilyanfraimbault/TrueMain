@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import tapeText from '../../../../fixtures/ranked-game.jsonl?raw'
 import { formatDuration } from '#common/utils/relativeTime'
+import { gameOfReading } from '~/utils/sim-reading'
 
 /**
  * The game simulator — development only, dropped from builds (nuxt.config).
@@ -35,6 +36,8 @@ const phase = ref<Phase>('Lobby')
 const position = ref(-1)
 const playing = ref(false)
 const failed = ref<string | null>(null)
+/** The game the last reading sent describes, for the lane-gold plates (#2186). */
+const shown = computed(() => (phase.value === 'InProgress' ? gameOfReading(readings[position.value]?.data) : null))
 
 const PACES = [
   { label: 'Every second', value: 1000 },
@@ -140,6 +143,14 @@ onBeforeUnmount(() => clearTimeout(timer))
         <code class="text-xs text-muted">desktop/fixtures/ranked-game.jsonl</code>
         <span class="text-xs text-dimmed">· {{ readings.length }} readings, synthetic</span>
         <USelect v-model="pace" :items="PACES" size="xs" icon="i-lucide-timer" class="ml-auto w-44" />
+      </section>
+
+      <section v-if="shown" class="flex flex-col gap-2">
+        <div class="flex items-baseline justify-between">
+          <span class="stat-label">Lane gold on the scoreboard</span>
+          <span class="text-xs text-dimmed">The reading sent, at 1920 × 1080 and League's default HUD scale.</span>
+        </div>
+        <OverlayScoreboardPreview :game="shown" />
       </section>
 
       <section class="surface overflow-hidden rounded-xl">

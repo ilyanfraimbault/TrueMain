@@ -34,6 +34,10 @@ const length = computed(() => formatClock(props.draft.endMs - props.draft.startM
       @update:model-value="emit('rename', String($event))"
       @keydown.enter="($event.target as HTMLInputElement).blur()"
     />
+    <p v-if="draft.replaces" class="flex items-center gap-1 text-[11px] text-muted">
+      <UIcon name="i-lucide-replace" class="size-3 shrink-0" />
+      Saving replaces the saved clip.
+    </p>
     <div class="flex items-center gap-1">
       <span class="text-[11px] tabular-nums text-muted">
         {{ formatClock(draft.startMs) }} → {{ formatClock(draft.endMs) }}

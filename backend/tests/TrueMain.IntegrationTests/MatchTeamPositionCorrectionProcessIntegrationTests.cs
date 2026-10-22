@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Data;
 using Data.Entities;
 using Ingestor.Processes;
 using Microsoft.EntityFrameworkCore;
@@ -103,9 +104,63 @@ public sealed class MatchTeamPositionCorrectionProcessIntegrationTests : IAsyncL
         positions[6].Should().Be("TOP");
     }
 
+    [Fact]
+    public async Task CandidateScan_ReadsThePendingPartialIndex_NotTheTable()
+    {
+        // A table where unresolved lanes are the rare exception, as in production: 300
+        // complete matches and three teams with a blank lane. Planner statistics come
+        // from VACUUM ANALYZE, so the plan below is the one the cost model actually picks
+        // — no enable_* switch forces it (#2095).
+        await using (var db = _fixture.CreateDbContext())
+        {
+            string[] lanes = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+            for (var match = 0; match < 300; match++)
+            {
+                var blankParticipant = match % 100 == 0 ? 3 : 0;
+                AddMatch(
+                    db,
+                    $"m-plan-{match:D4}",
+                    Enumerable.Range(1, 10)
+                        .Select(id => (id, id <= 5 ? 100 : 200, id == blankParticipant ? "" : lanes[(id - 1) % 5]))
+                        .ToArray());
+            }
+
+            await db.SaveChangesAsync();
+            await db.Database.ExecuteSqlRawAsync("VACUUM ANALYZE match_participants;");
+        }
+
+        string plan;
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // The command EF itself sends, parameters included, so the test cannot drift
+            // from the query the process runs.
+            await using var command = MatchTeamPositionCorrectionProcess.CandidateTeamsQuery(db).CreateDbCommand();
+            command.CommandText = "EXPLAIN " + command.CommandText;
+            await db.Database.OpenConnectionAsync();
+            await using var reader = await command.ExecuteReaderAsync();
+            var lines = new List<string>();
+            while (await reader.ReadAsync())
+            {
+                lines.Add(reader.GetString(0));
+            }
+            plan = string.Join('\n', lines);
+        }
+
+        plan.Should().Contain("IX_match_participants_team_position_pending");
+        plan.Should().NotContain("Seq Scan");
+        plan.Should().NotContain("IX_match_participants_champion_position_full");
+    }
+
     private async Task<string> SeedMatchAsync(string matchId, params (int ParticipantId, int TeamId, string TeamPosition)[] participants)
     {
         await using var db = _fixture.CreateDbContext();
+        AddMatch(db, matchId, participants);
+        await db.SaveChangesAsync();
+        return matchId;
+    }
+
+    private static void AddMatch(TrueMainDbContext db, string matchId, (int ParticipantId, int TeamId, string TeamPosition)[] participants)
+    {
         db.Matches.Add(new MatchBuilder().WithId(matchId).Build());
 
         foreach (var (participantId, teamId, teamPosition) in participants)
@@ -129,9 +184,6 @@ public sealed class MatchTeamPositionCorrectionProcessIntegrationTests : IAsyncL
                 SkillEvents = []
             });
         }
-
-        await db.SaveChangesAsync();
-        return matchId;
     }
 
     private async Task<Dictionary<int, string>> PositionsByParticipantAsync(string matchId)

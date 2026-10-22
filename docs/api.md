@@ -301,6 +301,8 @@ patch actif, sans filtre — la home n'a ni sélecteur de patch ni sélecteur d'
   toujours, pas celui du patch. Un chiffre affiché sans qualificatif ne doit pas
   chuter à chaque rotation de patch. Il compte aussi les scopes sous le plancher et
   sans position, donc ce n'est **pas** la somme des `topRows` (une courte tranche).
+  Lu dans l'enregistrement léger par patch (`champion_patch_stats`, #1957) — les
+  scopes sommés par patch, qui survivent à la purge des agrégats complets (#1958).
 - `patchVersion` est le patch que le site sert, pas forcément le plus récent avec
   des données : un patch trop mince pour remplir un annuaire est sauté (#1109).
 - Lit la même entrée de cache qu'un `GET /champions` non filtré : les deux surfaces
@@ -415,9 +417,18 @@ La réponse a exactement la même forme que sans le filtre. Deux différences de
 ## `GET /champions/{championId}/trend`
 
 Évolution winrate/pickrate/banrate sur les ~5 derniers patchs, pour une position.
-Volontairement **cross-patch** (ignore tout filtre de patch).
+Volontairement **cross-patch** (ignore tout filtre de patch). Lue dans
+l'enregistrement léger par patch (`champion_patch_stats` + `champion_ban_stats` /
+`ban_scope_totals`, #1957), le seul niveau qu'un patch garde une fois ses agrégats
+complets purgés.
 
-**Query** — `position` (string, optionnel ; défaut = lane dominante du champion).
+**Query**
+
+| Param        | Type   | Requis | Défaut         | Description |
+|--------------|--------|--------|----------------|-------------|
+| `position`   | string | non    | lane dominante | Lane dominante du champion sur son dernier patch. |
+| `eloBracket` | string | non    | `ALL`          | Filtre de palier (`GOLD`, `GOLD_PLUS`…), comme `GET /champions`. |
+
 Une valeur non vide qui ne canonicalise pas est un **`400`** : elle n'est pas
 silencieusement ramenée à « pas de filtre ».
 
@@ -436,8 +447,8 @@ silencieusement ramenée à « pas de filtre ».
 ```
 
 - `banRate` : `null` sur tout patch antérieur à la collecte des bans (#920), donc une
-  série partiellement nulle est le cas normal au début. Toutes tranches d'elo confondues
-  (l'endpoint n'a pas de filtre de rang).
+  série partiellement nulle est le cas normal au début. Sans `eloBracket`, la bande `ALL`
+  stockée ; avec, la somme des bandes du filtre, comme l'annuaire.
 
 ## `GET /champions/{championId}/patch-diff`
 
@@ -707,30 +718,9 @@ games longues − winrate des games courtes ; positif = scale late).
 
 `scalingIndex` est `null` s'il n'y a pas assez de buckets qualifiés.
 
-## `GET /champions/{championId}/item-timings`
-
-Heure d'achat moyenne (premier achat) de chaque item, ordonnée du plus précoce
-au plus tardif.
-
-**Query** — `position` (**requis**, `400` sinon), `patch` (optionnel),
-`eloBracket` (optionnel)
-
-**Réponse `200`** — `ChampionItemTimingsResponse`
-
-```json
-{
-  "championId": 103,
-  "position": "MIDDLE",
-  "patch": "16.4",
-  "items": [
-    { "itemId": 1056, "games": 1800, "avgSeconds": 35.0 },
-    { "itemId": 6653, "games": 1500, "avgSeconds": 980.4 },
-    { "itemId": 3020, "games": 1400, "avgSeconds": 1120.7 }
-  ]
-}
-```
-
-`avgSeconds` = temps de jeu moyen du premier achat de l'item, en secondes.
+Lu depuis l'agrégat `champion_scaling_stats` (#1368), que l'ingestor alimente match
+par match : le patch omis somme donc tous les patchs de l'agrégat, y compris les
+patchs gelés dont les matchs ont été purgés.
 
 ## `GET /champions/{championId}/mains-comparison`
 
@@ -990,13 +980,21 @@ candidats — ne tient pas dans une query string, et qu'elle change à chaque pi
   change de lane ; **0,5 est un pile ou face** entre deux lectures, pas "à moitié
   juste". `laneOpponentChampionId` est `null` tant qu'aucun ennemi n'est placé sur
   la lane du joueur — état normal en début de draft, pas une erreur.
-- `score` = `matchupDelta` + `synergyDelta`, deux **différences mesurées** (win rate
-  contre l'adversaire résolu moins win rate à la lane ; observé moins attendu avec
-  les alliés verrouillés) gardées séparées jusqu'au client, qui peut dire *laquelle*
-  porte un pick. Ce n'est pas une probabilité de victoire. `thinSample` signale
-  qu'aucune moitié n'atteint son plancher de parties : le candidat est renvoyé
-  quand même, chiffres compris, pour être affiché comme non prouvé plutôt que
-  retiré en silence.
+- `score` est une clé de tri, jamais une probabilité de victoire : des **différences
+  mesurées** (en points de win rate, avec leurs parties) gardées séparées jusqu'au
+  client — lane (`matchupDelta`, pondérée par la probabilité de chaque adversaire),
+  `blind` pour la part de lane encore inconnue, force à la lane (`strengthDelta`),
+  équipe ennemie (`enemyDelta`), composition de l'équipe (`teamFitDelta` : win rate du
+  pick quand la part magique et la frontline de ses alliés sont dans la bande du
+  board, moins son win rate global, dès trois alliés posés) et synergie moyenne
+  (`synergyDelta`) — chacune réduite vers 0 selon ses parties (#1906). Équipe ennemie
+  et composition pèsent 0 tant qu'un back-test ne les a pas fixées. `reasons` donne
+  les 2–3 termes qui portent le pick, puis les faits hors score (`lanePhase`,
+  `teamFit` avec ses codes `axis` / `bucket`), en données sans texte. `thinSample`
+  signale qu'aucune lecture n'atteint son plancher de parties : le candidat est
+  renvoyé quand même, pour être affiché comme non prouvé plutôt que retiré en
+  silence. L'app desktop envoie la tranche du joueur et au-dessus (`GOLD_PLUS`), pas
+  de patch : le serveur lit son patch le plus récent, le précédent en repli.
 
 ---
 
@@ -2198,11 +2196,22 @@ Métriques d'usage de la Riot API sur une fenêtre relative.
     "observedWindowHours": 168.0,
     "requiredWindowHours": 24.0,
     "trackedAccounts": 10400,
-    "callsPerAccountPerDay": 42.5,
-    "observedCallsPerDay": 442000.0,
-    "bindingLimit": { "limit": 100, "windowSeconds": 120, "maxCallsPerDay": 72000.0 },
-    "spareCallsPerDay": 18000.0,
-    "additionalAccountsHeadroom": 423
+    "additionalAccountsHeadroom": 5200,
+    "bindingRoute": "europe",
+    "routes": [
+      {
+        "route": "europe", "kind": "regional",
+        "observedCallsPerDay": 48000.0, "callsPerAccountPerDay": 4.615,
+        "bindingLimit": { "limit": 100, "windowSeconds": 120, "maxCallsPerDay": 72000.0 },
+        "spareCallsPerDay": 24000.0, "additionalAccountsHeadroom": 5200
+      },
+      {
+        "route": "euw1", "kind": "platform",
+        "observedCallsPerDay": 9000.0, "callsPerAccountPerDay": 0.865,
+        "bindingLimit": { "limit": 100, "windowSeconds": 120, "maxCallsPerDay": 72000.0 },
+        "spareCallsPerDay": 63000.0, "additionalAccountsHeadroom": 72799
+      }
+    ]
   }
 }
 ```
@@ -2215,13 +2224,26 @@ Métriques d'usage de la Riot API sur une fenêtre relative.
   (#1035) : « qui consomme le budget » n'est pas la même question que « quel endpoint ».
 - `headroom` (#1035) estime « combien de comptes suivis en plus tiendraient », et est
   **toujours calculé sur 7 jours**, indépendamment de `window` — un budget ne se juge
-  pas sur une heure. `sufficientData` à `false` (avec seulement `observedWindowHours` /
-  `requiredWindowHours` renseignés, le reste `null`) quand l'historique est trop mince,
-  qu'aucun compte n'est suivi ou qu'aucun snapshot de rate-limit n'a été vu : l'estimation
-  rend cet état absent au lieu d'extrapoler d'une fenêtre trop courte.
-- `headroom.bindingLimit` est la fenêtre de rate-limit applicatif dont le plafond
+  pas sur une heure. Il est calculé **par host de routage** (#1894) : Riot compte chaque
+  host à part, donc chaque entrée de `routes` met les appels/jour de ce host (rollups
+  `routeKeyed` seulement) face à la limite que **ce host** a annoncée — jamais deux hosts
+  additionnés ni comparés à la limite d'un autre. `bindingRoute` est le host qui accepte le
+  moins de comptes en plus, et `additionalAccountsHeadroom` est son chiffre ; `routes`
+  commence par lui. Les nouveaux comptes sont supposés coûter à chaque host ce que coûtent
+  les actuels (mix régional courant). Les appels sans host lisible (`unknown`) ne relèvent
+  d'aucun budget et sont exclus.
+- `sufficientData` à `false` (avec seulement `observedWindowHours` /
+  `requiredWindowHours` / `trackedAccounts` renseignés, `routes` vide) quand l'historique
+  découpé par route fait moins de 24 h, qu'aucun compte n'est suivi ou qu'aucun host n'a
+  renvoyé d'en-tête de limite : l'estimation rend cet état absent au lieu d'extrapoler
+  d'une fenêtre trop courte. `observedWindowHours` est la période réellement couverte (la
+  rétention ou la bascule #1458 peuvent couper les 7 jours) : tous les débits divisent par
+  elle.
+- `routes[].bindingLimit` est la fenêtre de rate-limit applicatif du host dont le plafond
   journalier soutenu est le **plus petit** — celle qui contraint en premier sous charge
-  continue, pas celle dont le ratio instantané est le plus haut.
+  continue, pas celle dont le ratio instantané est le plus haut. `bindingLimit`,
+  `spareCallsPerDay` et `additionalAccountsHeadroom` valent `null` pour un host qui n'a
+  renvoyé aucun en-tête de limite exploitable : il garde son coût mais ne peut pas lier.
 
 ## `GET /ops/riot-quota`
 
@@ -2270,7 +2292,7 @@ les hosts régionaux.
 - `routes` : hosts régionaux (`americas`/`europe`/`asia`/`sea`) d'abord, puis plateformes,
   chacun par `calls` décroissant — deux budgets indépendants, jamais additionnés.
 - `calls` compte chaque tentative physique, 429 compris. `utilisation` = appels sur la
-  période couverte / ce que la limite liante (même règle que `headroom.bindingLimit`)
+  période couverte / ce que la limite liante (même règle que `headroom.routes[].bindingLimit`)
   autorise sur cette période ; `currentUtilisation` = le dernier `X-App-Rate-Limit-Count`
   du host sur cette fenêtre liante, à `observedAtUtc`. Les deux valent `null` si le host
   n'a renvoyé aucun en-tête de limite exploitable : sans limite annoncée, pas de ratio.

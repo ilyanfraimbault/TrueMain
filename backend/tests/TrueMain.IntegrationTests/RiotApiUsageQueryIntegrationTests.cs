@@ -281,39 +281,4 @@ public sealed class RiotApiUsageQueryIntegrationTests : IAsyncLifetime
         league.MethodRateLimit.Should().Be("50:10");
         league.MethodRateLimitCount.Should().Be("2:10");
     }
-
-    [Fact]
-    public async Task GetSaturationInputsAsync_CoversSevenDays_IgnoringEndpointConcept()
-    {
-        await SeedAsync(
-            Call("match-v5.match", 200, 100, minutesAgo: 60),
-            Call("league-v4.challenger", 200, 100, minutesAgo: 3 * 24 * 60, appLimit: "20:1,100:120", appCount: "5:1,80:120"),
-            // Nine days ago: outside the 7-day saturation window, must be excluded.
-            Call("match-v5.match", 200, 100, minutesAgo: 9 * 24 * 60));
-
-        using var context = BuildContext();
-        var query = new RiotApiUsageQuery(context);
-        var inputs = await query.GetSaturationInputsAsync(CancellationToken.None);
-
-        // Only the two calls within 7 days count, across both endpoints — the
-        // saturation estimate is deliberately not endpoint-scoped.
-        inputs.TotalCalls.Should().Be(2);
-        inputs.EarliestBucketUtc.Should().NotBeNull();
-        inputs.EarliestBucketUtc!.Value.Should().BeCloseTo(
-            DateTime.UtcNow.AddDays(-3), TimeSpan.FromMinutes(2));
-        inputs.RateLimit.Should().NotBeNull();
-        inputs.RateLimit!.AppRateLimit.Should().Be("20:1,100:120");
-    }
-
-    [Fact]
-    public async Task GetSaturationInputsAsync_EmptyCollection_ReturnsNoEarliestBucketOrRateLimit()
-    {
-        using var context = BuildContext();
-        var query = new RiotApiUsageQuery(context);
-        var inputs = await query.GetSaturationInputsAsync(CancellationToken.None);
-
-        inputs.TotalCalls.Should().Be(0);
-        inputs.EarliestBucketUtc.Should().BeNull();
-        inputs.RateLimit.Should().BeNull();
-    }
 }

@@ -3,6 +3,7 @@ import type { DraftClip } from '~/composables/useRecapDrafts'
 import type { Clip, Moment } from '~/types/recordings'
 import type { RecapTurningPoint } from '~/utils/recording-win-probability'
 import { formatClock } from '~/utils/recording-moments'
+import { clipOrigin } from '~/utils/auto-clips'
 
 /**
  * Beside the recap's video: the clips — those being cut, each named and saved
@@ -25,6 +26,8 @@ const emit = defineEmits<{
   remove: [key: string]
   save: [key: string]
   saveAll: []
+  /** A saved clip's range back on the timeline, to move its ends (#2079). */
+  adjust: [clip: Clip]
   jump: [moment: Pick<Moment, 'videoMs'>]
 }>()
 
@@ -75,17 +78,27 @@ const savingAny = computed(() => props.drafts.some(draft => draft.saving))
 
       <template v-if="saved.length">
         <h3 class="stat-label mt-2 px-1">Saved clips · {{ saved.length }}</h3>
-        <NuxtLink
-          v-for="clip in saved"
-          :key="clip.id"
-          :to="`/recordings/clips/${encodeURIComponent(clip.id)}`"
-          class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accented"
-        >
-          <UIcon name="i-lucide-scissors" class="size-3.5 shrink-0 text-primary" />
-          <span class="truncate text-default">{{ clip.title }}</span>
-          <UIcon v-if="clip.favorite" name="i-lucide-star" class="size-3 shrink-0 text-gold" />
-          <span class="ml-auto shrink-0 tabular-nums text-dimmed">{{ formatClock(clip.durationMs) }}</span>
-        </NuxtLink>
+        <div v-for="clip in saved" :key="clip.id" class="group flex items-center gap-0.5">
+          <NuxtLink
+            :to="`/recordings/clips/${encodeURIComponent(clip.id)}`"
+            class="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accented"
+          >
+            <UIcon :name="clipOrigin(clip).icon" class="size-3.5 shrink-0 text-primary" :title="clipOrigin(clip).label" />
+            <span class="truncate text-default">{{ clip.title }}</span>
+            <UIcon v-if="clip.favorite" name="i-lucide-star" class="size-3 shrink-0 text-gold" />
+            <span class="ml-auto shrink-0 tabular-nums text-dimmed">{{ formatClock(clip.durationMs) }}</span>
+          </NuxtLink>
+          <UButton
+            v-if="!clip.youtubeUrl"
+            icon="i-lucide-move-horizontal"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            :aria-label="`Adjust the range of ${clip.title}`"
+            title="Adjust its range on the timeline"
+            @click="emit('adjust', clip)"
+          />
+        </div>
       </template>
     </div>
 

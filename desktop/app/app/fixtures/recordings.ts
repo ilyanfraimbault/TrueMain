@@ -9,6 +9,9 @@ import type {
   RecordingSettingsView,
   RecordingStatus,
 } from '~/types/recordings'
+import type { Chord, ChordView } from '~/types/overlay'
+import { chordLabel } from '~/utils/overlay-keys'
+import { MARK_WINDOW_MS } from '~/utils/recording-moments'
 
 /**
  * A recordings library for `npm run dev` in a browser (dev only, imported from
@@ -56,6 +59,8 @@ interface GameSpec {
   runs: number[]
   status: GameRecording['status']
   kept?: boolean
+  /** Presses of the mark key, in minutes of video (#2079). */
+  marks?: number[]
 }
 
 function momentsOf(spec: GameSpec): Moment[] {
@@ -63,7 +68,7 @@ function momentsOf(spec: GameSpec): Moment[] {
   const at = () => Math.round(90_000 + next() * (spec.durationMs - 120_000))
   const moments: Moment[] = []
   const add = (kind: MomentKind, videoMs: number, kills = 0, ally: boolean | null = null, endVideoMs = videoMs) =>
-    moments.push({ kind, videoMs, endVideoMs, kills, ally })
+    moments.push({ kind, videoMs, endVideoMs, kills, ally, killerId: null, victimIds: [], dragon: null })
 
   for (const run of spec.runs) {
     const start = at()
@@ -80,12 +85,13 @@ function momentsOf(spec: GameSpec): Moment[] {
     const videoMs = Math.round(minute * MINUTE + next() * 40_000)
     if (videoMs < spec.durationMs - 30_000) add(kind, videoMs, 0, next() < (spec.win ? 0.7 : 0.35))
   }
+  for (const minute of spec.marks ?? []) add('marked', Math.round(minute * MINUTE))
   return moments.sort((a, b) => a.videoMs - b.videoMs)
 }
 
 const GAMES: GameSpec[] = [
   { id: 'game-7212000021', gameId: 7212000021, queueId: 420, agoMs: 36 * MINUTE, durationMs: 27 * MINUTE + 41_000, championId: null, win: null, kda: null, runs: [1, 2, 1], status: 'processing' },
-  { id: 'game-7212000020', gameId: 7212000020, queueId: 420, agoMs: 2 * HOUR, durationMs: 1_969_000, championId: 103, win: true, kda: [5, 4, 16], runs: [2, 1, 1, 1], status: 'ready' },
+  { id: 'game-7212000020', gameId: 7212000020, queueId: 420, agoMs: 2 * HOUR, durationMs: 1_969_000, championId: 103, win: true, kda: [5, 4, 16], runs: [2, 1, 1, 1], status: 'ready', marks: [14.04, 22.7] },
   { id: 'game-7212000017', gameId: 7212000017, queueId: 420, agoMs: DAY + 3 * HOUR, durationMs: 1_824_000, championId: 103, win: true, kda: [8, 2, 12], runs: [3, 1, 2, 1, 1], status: 'ready', kept: true },
   { id: 'game-7212000016', gameId: 7212000016, queueId: 420, agoMs: 3 * DAY, durationMs: 2_192_000, championId: 238, win: false, kda: [3, 6, 6], runs: [1, 1, 1], status: 'ready' },
 ]
@@ -157,6 +163,7 @@ export function cutClip(
       .map(moment => ({ ...moment, videoMs: moment.videoMs - startMs, endVideoMs: moment.endVideoMs - startMs })),
     youtubeUrl: null,
     videoOnDisk: true,
+    automatic: [],
   }
 }
 
@@ -167,20 +174,57 @@ function runClip(game: GameRecording, recordingId: string | null, size: number, 
   return cutClip(game, recordingId, Math.max(0, moment.videoMs - 8_000), moment.endVideoMs + 6_000, title, game.startedAtMs + (game.durationMs ?? 0) + 5 * MINUTE, favorite)
 }
 
+/** The clips the shell cuts for a game's marks once its video is closed: the 30 s before each press. */
+function markClips(game: GameRecording): Clip[] {
+  return game.moments.filter(moment => moment.kind === 'marked').map((moment) => {
+    // The fixture's game clock runs a minute behind its video, as after a loading screen.
+    const gameClock = formatClockOf(moment.videoMs - MINUTE)
+    const createdAtMs = game.startedAtMs + (game.durationMs ?? 0) + MINUTE
+    return cutClip(game, game.id, Math.max(0, moment.videoMs - MARK_WINDOW_MS), moment.videoMs, `Ahri at ${gameClock}`, createdAtMs)
+  })
+}
+
+function formatClockOf(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000))
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 export function devLibrary(now = Date.now()) {
   const games = GAMES.map(spec => toRecording(spec, now))
   const [ahriToday, ahriYesterday] = [games[1]!, games[2]!]
   const [ahriGone, syndraGone] = GONE.map(spec => toRecording(spec, now))
   const clips: Clip[] = [
     runClip(ahriToday, ahriToday.id, 2, 'Double kill on Ahri', true),
+    ...markClips(ahriToday),
     runClip(ahriGone!, null, 4, 'Quadra kill on Ahri', true),
     runClip(ahriGone!, null, 3, 'Triple kill on Ahri'),
-    runClip(ahriYesterday, ahriYesterday.id, 3, 'Triple kill on Ahri'),
+    // Cut by the shell once the game was finalised (#1766).
+    { ...runClip(ahriYesterday, ahriYesterday.id, 3, 'Triple kill on Ahri'), automatic: ['multiKill' as const] },
     runClip(ahriYesterday, ahriYesterday.id, 2, 'Double kill'),
     // Published, then its file deleted: it plays from YouTube.
     { ...runClip(syndraGone!, null, 5, 'Pentakill on Syndra', true), youtubeUrl: 'https://www.youtube.com/watch?v=jNQXAC9IVRw', videoOnDisk: false, sizeBytes: 64_000 },
   ].sort((a, b) => b.gameStartedAtMs - a.gameStartedAtMs || b.startMs - a.startMs)
   return { games, clips }
+}
+
+const DEV_MARK_KEY: Chord = { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: 'Digit0' }
+
+/** The shell's answer about a mark key, reduced for the browser: its label, and the bind the dev game has on Alt+Q. */
+export function devChordView(chord: Chord): ChordView {
+  const warning = chord.alt && !chord.shift && !chord.ctrl && chord.key === 'KeyQ'
+    ? 'Self-cast your Q ability in game: the shortcut will also self-cast your Q ability.'
+    : null
+  return { label: chordLabel(chord, navigator.platform.startsWith('Mac')), warning }
+}
+
+/** The shell's refusals (`Chord::refusal`, a panel's chord), the few a browser session can hit. */
+export function devMarkKeyRefusal(chord: Chord): string | null {
+  if (!chord.key) return chord.tab ? 'TAB alone opens the scoreboard: add a key to it.' : 'Press a key: modifiers alone are not a shortcut.'
+  if (chord.key === 'Escape' || chord.key === 'Enter') return 'Esc and Enter open the game\'s menu and chat.'
+  if (chord.meta) return '⌘ and the Windows key belong to the system.'
+  if (chord.alt && chord.shift && !chord.ctrl && !chord.tab && chord.key === 'KeyO') return 'This is the shortcut that hides the whole overlay.'
+  if (chord.alt && chord.shift && !chord.ctrl && !chord.tab && chord.key === 'Digit1') return 'Already the shortcut of Build path.'
+  return null
 }
 
 export function devSettings(): RecordingSettingsView {
@@ -192,7 +236,11 @@ export function devSettings(): RecordingSettingsView {
       quality: { resolution: '1080p', frameRate: 30 },
       budgetBytes: 20_000_000_000,
       folder: null,
+      markKey: DEV_MARK_KEY,
+      markLength: 30,
+      autoClips: ['multiKill', 'steal', 'ace', 'firstBlood', 'teamfight', 'combo'],
     },
+    markKey: devChordView(DEV_MARK_KEY),
     folder: DEV_FOLDER,
     minBudgetBytes: 5_000_000_000,
     estimates: presets.flatMap(resolution => ([30, 60] as const).map(frameRate => ({

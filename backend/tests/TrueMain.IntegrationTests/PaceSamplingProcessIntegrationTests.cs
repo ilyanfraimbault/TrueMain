@@ -63,6 +63,10 @@ public sealed class PaceSamplingProcessIntegrationTests : IAsyncLifetime
         var stats = await db.PaceBenchmarkStats.AsNoTracking().ToListAsync();
         stats.Sum(stat => stat.Count).Should().Be(10 * GameMinutes * 2);
         stats.Should().OnlyContain(stat => stat.Tier == RankTier.Gold && stat.Patch == "16.19");
+        // The same game's end-of-game lines, at the same tier (#2076): ten laners, five metrics.
+        var form = await db.FormBenchmarkStats.AsNoTracking().ToListAsync();
+        form.Sum(stat => stat.Count).Should().Be(10 * 5);
+        form.Should().OnlyContain(stat => stat.Tier == RankTier.Gold && stat.Patch == "16.19");
         (await db.PaceSampledMatches.Select(match => match.MatchId).ToListAsync()).Should().BeEquivalentTo(["EUW1_1", "EUW1_2"]);
         (await db.Matches.AnyAsync()).Should().BeFalse();
         (await db.MatchParticipants.AnyAsync()).Should().BeFalse();

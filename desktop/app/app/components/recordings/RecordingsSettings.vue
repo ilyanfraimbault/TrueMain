@@ -4,8 +4,8 @@ import { RESOLUTION_LABELS, formatBytes, revealLabel } from '~/utils/recording-l
 
 /**
  * Recording settings — the product owner's short list and nothing more (no
- * OBS): on/off, the queues, resolution and frame rate, the disk budget and
- * the folder. Each change is saved as it is made; the shell clamps and
+ * OBS): on/off, the queues, resolution and frame rate, the mark key (#2079),
+ * the plays clipped automatically (#1766), the disk budget and the folder. Each change is saved as it is made; the shell clamps and
  * normalises, and its answer is what the panel then shows. The size of an
  * hour is the shell's own estimate for the preset, labelled as one.
  */
@@ -96,6 +96,21 @@ const availability = computed(() => {
           <RecordingsSegmented :model-value="current.quality.frameRate" :items="FRAME_RATES" @update:model-value="applyQuality({ frameRate: $event })" />
           <p class="text-xs text-muted">{{ estimate }} Never recorded larger than your game window.</p>
         </section>
+
+        <RecordingsMarkKey
+          :class="!current.enabled && 'opacity-50'"
+          :mark-key="current.markKey"
+          :chord="settings?.markKey ?? null"
+          :length="current.markLength"
+          @change="apply({ markKey: $event })"
+          @length="apply({ markLength: $event })"
+        />
+
+        <RecordingsAutoClips
+          :class="!current.enabled && 'opacity-50'"
+          :kinds="current.autoClips"
+          @change="apply({ autoClips: $event })"
+        />
 
         <section class="flex flex-col gap-2">
           <div class="flex items-baseline justify-between">

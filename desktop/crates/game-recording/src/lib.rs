@@ -14,27 +14,40 @@
 //! - [`moments`]: the game's objectives, and every moment placed on the video.
 //! - [`store`]: the recordings on disk and the disk budget.
 //! - [`clips`]: the clips the player cut from a recording, each its own file.
+//! - [`marks`]: the moments the player marked with the mark key, and the
+//!   clip each one becomes.
+//! - [`plays`]: the steals, aces and first blood the live feed announces.
+//! - [`teamfights`]: the bursts of kills the player took part in.
+//! - [`auto_clips`]: the plays the player chose, cut as clips of their own.
 //! - [`session`]: one game's recording, driven by the gameflow phase.
 //! - [`win_probability`]: what the recap's win-probability curve is drawn
 //!   from, kept beside the video.
 
 pub mod anchor;
+pub mod auto_clips;
 pub mod clips;
 pub mod highlights;
+pub mod marks;
 pub mod moments;
+pub mod plays;
 pub mod session;
 pub mod settings;
 pub mod store;
+pub mod teamfights;
 pub mod win_probability;
 
 pub use anchor::{Anchor, ClockSample};
+pub use auto_clips::{auto_clips, AutoClip, AutoClipKind};
 pub use clips::{
     same_youtube_title, youtube_video_id, youtube_video_url, ClipDir, ClipMeta, ClipStore,
     StoredClip,
 };
 pub use highlights::{Highlight, HighlightKind, HighlightSource};
-pub use moments::{Moment, MomentKind, Objective, ObjectiveKind};
+pub use marks::{Mark, MarkLength, MARK_WINDOW_MS};
+pub use moments::{DragonKind, Moment, MomentKind, Objective, ObjectiveKind};
+pub use plays::{Play, PlayKind};
 pub use session::{Capture, CaptureError, Change, GameInfo, GameOutcome, Session, SessionError};
 pub use settings::{FrameRate, OutputSpec, Quality, Queues, RecordingSettings, Resolution};
 pub use store::{RecordingDir, RecordingMeta, RecordingStatus, Store, StoredRecording};
+pub use teamfights::Teamfight;
 pub use win_probability::{ParticipantChampion, RecordedWinProbability};

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ICON_FETCH_SIZE } from '#common/utils/icon-fetch'
 import { iconPlaceholderClass, isIconUnresolved } from '#common/utils/icon-placeholder'
+import { ICON_REMOUNT_KEY, isIconRepaint, markIconPainted } from '#common/utils/icon-repaint'
 
 defineOptions({ inheritAttrs: false })
 
@@ -107,17 +108,29 @@ const FETCH_SIZE = ICON_FETCH_SIZE
 const canonicalIcon = useCanonicalIcon()
 const optimizedSrc = computed(() => canonicalIcon(props.src))
 
+// Re-created under the pointer by its tooltip's first hover, with a picture this
+// document has already drawn: shown from the first render, decoded synchronously,
+// instead of loading again — that blinked the icon out and back (utils/icon-repaint.ts).
+const repaint = isIconRepaint(inject(ICON_REMOUNT_KEY, null)?.value === true, optimizedSrc.value)
+if (repaint) loaded.value = true
+
+function onLoad() {
+  loaded.value = true
+  markIconPainted(optimizedSrc.value)
+}
+
 // A cached image can finish loading before hydration attaches the @load
 // listener; without this check the skeleton would cover it forever.
 const imgEl = ref<HTMLImageElement | null>(null)
 // An image already complete at mount (served from memory: a cached icon, or the same
 // icon re-created when a hover arms its tooltip, #1585) is shown at once, without the
 // fade-in: the fade exists to soften an image arriving, not to replay on a remount.
-const instant = ref(false)
+const instant = ref(repaint)
 onMounted(() => {
   if (imgEl.value?.complete && imgEl.value.naturalWidth > 0) {
     instant.value = true
     loaded.value = true
+    markIconPainted(optimizedSrc.value)
   }
 })
 </script>
@@ -179,6 +192,7 @@ onMounted(() => {
       <img
         v-if="src"
         ref="imgEl"
+        :decoding="repaint ? 'sync' : undefined"
         :src="optimizedSrc"
         :alt="alt"
         :title="title"
@@ -187,7 +201,7 @@ onMounted(() => {
         :loading="loading"
         class="size-full"
         :class="[loaded && !failed ? 'opacity-100' : 'opacity-0', instant ? '' : 'transition-opacity duration-150']"
-        @load="loaded = true"
+        @load="onLoad"
         @error="failed = true"
       >
     </span>

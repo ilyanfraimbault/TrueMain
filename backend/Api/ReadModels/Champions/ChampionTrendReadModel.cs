@@ -14,7 +14,7 @@ public sealed record ChampionTrendReadModel
 
     /// <summary>
     /// Position every point is computed for. Empty string when the champion
-    /// has no positioned scopes (the series is then empty too).
+    /// has no positioned rows in the record (the series is then empty too).
     /// </summary>
     public string Position { get; init; } = string.Empty;
 
@@ -27,11 +27,12 @@ public sealed record ChampionTrendReadModel
 }
 
 /// <summary>
-/// A single patch's aggregated rates for the champion trend series. Both
-/// rates are fractions in <c>[0, 1]</c>, derived from the same
-/// <c>champion_aggregate_scopes</c> rows the directory and detail endpoints
-/// read — never synthesised. <see cref="Games"/> is surfaced so the
-/// frontend can flag thin patches.
+/// A single patch's aggregated rates for the champion trend series. Every
+/// rate is a fraction in <c>[0, 1]</c>, derived from the light per-patch record
+/// (<c>champion_patch_stats</c> + the ban pair, #1957) — the scopes the directory
+/// and detail endpoints read, summed per patch, and still there once a patch's
+/// full aggregates are purged; never synthesised. <see cref="Games"/> is surfaced
+/// so the frontend can flag thin patches.
 /// </summary>
 public sealed record ChampionTrendPoint
 {
@@ -48,7 +49,7 @@ public sealed record ChampionTrendPoint
 
     /// <summary>
     /// Share of the patch's observed matches that banned this champion, across all
-    /// elo bands (the trend endpoint carries no rank filter). <see langword="null"/>
+    /// elo bands unless the request carries a rank filter. <see langword="null"/>
     /// on any patch older than ban ingestion (#920) — see
     /// <see cref="ChampionSummaryReadModel.BanRate"/>. Early on, most of the series
     /// is null, so consumers must handle a partly-null series rather than assume the

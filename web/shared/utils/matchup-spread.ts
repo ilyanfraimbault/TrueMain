@@ -9,61 +9,32 @@ import type { ChampionMatchupEntry } from '../types/champions'
  * centre line every time the opponent pool shifts.
  */
 
-/** Lane win rates inside ±this of 50% read as even. */
-export const MATCHUP_SPREAD_EVEN_BAND = 0.025
-
 /** Narrowest half-width of the axis, so a flat field is not stretched edge to edge. */
 const MIN_HALF_WIDTH = 0.05
 
 /** The axis half-width is rounded up to a multiple of this. */
 const HALF_WIDTH_STEP = 0.05
 
-export type MatchupSpreadBand = 'favourable' | 'even' | 'hard'
-
 export interface MatchupSpreadPoint {
   entry: ChampionMatchupEntry
   laneWinRate: number
   /** `laneWinRate - 0.5`, signed from the champion's side. */
   delta: number
-  band: MatchupSpreadBand
 }
 
 export interface MatchupSpread {
   /** Opponents with a lane win rate, ordered hardest → easiest. */
   points: MatchupSpreadPoint[]
-  /** Opponents on the list whose decided lanes are under the floor (null rate). */
-  unmeasured: number
   /** Half-width of the symmetric axis around 50%, in rate units. */
   halfWidth: number
-  /** Decided-lane-weighted lane win rate over the measured opponents. */
-  averageLaneWinRate: number | null
-  counts: Record<MatchupSpreadBand, number>
-  hardest: MatchupSpreadPoint | null
-  easiest: MatchupSpreadPoint | null
-}
-
-export function matchupSpreadBand(delta: number): MatchupSpreadBand {
-  if (delta > MATCHUP_SPREAD_EVEN_BAND) return 'favourable'
-  if (delta < -MATCHUP_SPREAD_EVEN_BAND) return 'hard'
-  return 'even'
 }
 
 export function buildMatchupSpread(entries: readonly ChampionMatchupEntry[]): MatchupSpread {
-  const points: MatchupSpreadPoint[] = []
-  let unmeasured = 0
-  let wonLanes = 0
-  let decidedLanes = 0
-
-  for (const entry of entries) {
-    if (entry.laneWinRate === null) {
-      unmeasured++
-      continue
-    }
-    const delta = entry.laneWinRate - 0.5
-    points.push({ entry, laneWinRate: entry.laneWinRate, delta, band: matchupSpreadBand(delta) })
-    wonLanes += entry.laneWinRate * entry.decidedLaneGames
-    decidedLanes += entry.decidedLaneGames
-  }
+  // An opponent under the decided-lane floor (null rate) stays off the axis:
+  // placed at 50% it would read as "dead even".
+  const points: MatchupSpreadPoint[] = entries
+    .filter((entry): entry is ChampionMatchupEntry & { laneWinRate: number } => entry.laneWinRate !== null)
+    .map(entry => ({ entry, laneWinRate: entry.laneWinRate, delta: entry.laneWinRate - 0.5 }))
 
   // Opponent id breaks ties so the same data always lays out the same way.
   points.sort((a, b) => a.delta - b.delta || a.entry.opponentChampionId - b.entry.opponentChampionId)
@@ -71,18 +42,7 @@ export function buildMatchupSpread(entries: readonly ChampionMatchupEntry[]): Ma
   const widest = points.reduce((max, p) => Math.max(max, Math.abs(p.delta)), 0)
   const halfWidth = Math.max(MIN_HALF_WIDTH, Math.ceil(widest / HALF_WIDTH_STEP - 1e-9) * HALF_WIDTH_STEP)
 
-  const counts: Record<MatchupSpreadBand, number> = { favourable: 0, even: 0, hard: 0 }
-  for (const p of points) counts[p.band]++
-
-  return {
-    points,
-    unmeasured,
-    halfWidth,
-    averageLaneWinRate: decidedLanes > 0 ? wonLanes / decidedLanes : null,
-    counts,
-    hardest: points[0] ?? null,
-    easiest: points.at(-1) ?? null,
-  }
+  return { points, halfWidth }
 }
 
 /** Where a delta sits on the axis, 0 (left edge) → 1 (right edge). */

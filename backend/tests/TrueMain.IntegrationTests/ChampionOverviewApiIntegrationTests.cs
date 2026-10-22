@@ -11,7 +11,8 @@ namespace TrueMain.IntegrationTests;
 /// <summary>
 /// Covers <c>GET /champions/overview</c> (#972) — specifically the concern a
 /// unit test can't: that <c>gamesAnalyzed</c> is a true SQL-level sum over
-/// every <c>champion_aggregate_scopes</c> row, on every patch, including rows the
+/// every <c>champion_aggregate_scopes</c> row, on every patch — read from the light
+/// per-patch record they fold into (#1957) — including rows the
 /// ranked directory itself drops (below the sample floor, or with no
 /// <c>Position</c>). Ordering/limit/tier-fallback logic is covered by
 /// <c>ChampionOverviewQueryServiceTests</c> against a mocked summaries result.
@@ -81,6 +82,8 @@ public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
             await seeder.SaveAsync(db);
         }
 
+        await LightRecordSeed.BackfillFromScopesAsync(_fixture);
+
         await using var factory = new ApiWebApplicationFactory(_fixture, minSampleGames: 20);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -136,6 +139,8 @@ public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
             }
             await seeder.SaveAsync(db);
         }
+
+        await LightRecordSeed.BackfillFromScopesAsync(_fixture);
 
         await using var factory = new ApiWebApplicationFactory(_fixture, minSampleGames: 0);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -230,6 +235,8 @@ public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
             await seeder.SaveAsync(db);
         }
 
+        await LightRecordSeed.BackfillFromScopesAsync(_fixture);
+
         await using var factory = new ApiWebApplicationFactory(
             _fixture, minSampleGames: 20, minServablePatchLines: 5);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -312,6 +319,7 @@ public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
         }
 
         await seeder.SaveAsync(db);
+        await LightRecordSeed.BackfillFromScopesAsync(_fixture);
     }
 
     private static void Add(

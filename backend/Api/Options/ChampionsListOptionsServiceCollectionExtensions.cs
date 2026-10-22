@@ -38,7 +38,6 @@ public static class ChampionsListOptionsServiceCollectionExtensions
             .Validate(
                 options => options.MinSynergyPartnerLanePlayRate is >= 0d and <= 1d,
                 "ChampionsList:MinSynergyPartnerLanePlayRate must be in [0, 1].")
-            .Validate(options => options.MinPlayerMatchupGames >= 0, "ChampionsList:MinPlayerMatchupGames must be >= 0.")
             .Validate(
                 options => options.MinPlayerBuildGames is >= 1 and <= PlayerChampionPerformanceQueryService.Window,
                 $"ChampionsList:MinPlayerBuildGames must be in [1, {PlayerChampionPerformanceQueryService.Window}].")

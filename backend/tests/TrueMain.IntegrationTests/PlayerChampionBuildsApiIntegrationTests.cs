@@ -179,7 +179,58 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
         payload.TotalGames.Should().Be(8, "the thin latest patch is skipped for the newest one above the floor");
     }
 
-    private async Task SeedAsync()
+    [Fact]
+    public async Task GetPlayerChampion_AllPositionsFoldsEveryPositionAtTheResolvedPatch()
+    {
+        // Phantasm also played 157 in TOP on 16.5: 4 games on another build.
+        await SeedAsync(seeder => seeder
+            .AddPatternWithRune(AccountOneId, 157, "16.5", "EUW1", 420, "TOP",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [6673, 3047, 3071], bootsItemId: 3047,
+                primaryStyleId: 8000, primaryKeystoneId: 8010, secondaryStyleId: 8400,
+                games: 4, wins: 1, aggregatedAtUtc: DateTime.UtcNow.AddMinutes(-7)));
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // No position: still the dominant one, MIDDLE's 8 games alone.
+        var dominant = await client.GetFromJsonAsync<ChampionResponse>("/truemains/Phantasm-EUW1/champions/157");
+        dominant!.Position.Should().Be("MIDDLE");
+        dominant.TotalGames.Should().Be(8);
+
+        // ALL: both positions summed, each build kept — and still only Phantasm's.
+        var all = await client.GetFromJsonAsync<ChampionResponse>(
+            "/truemains/Phantasm-EUW1/champions/157?position=ALL");
+        all!.Position.Should().Be("ALL");
+        all.Patch.Should().Be("16.5");
+        all.TotalGames.Should().Be(12, "MIDDLE's 8 and TOP's 4; Rival's MIDDLE games never count");
+        all.TotalWins.Should().Be(6);
+        all.Builds.Select(build => build.FirstItemId).Should().BeEquivalentTo([3153, 6673]);
+    }
+
+    [Fact]
+    public async Task GetPlayerChampionPerformance_ReadsAllAsEveryPosition()
+    {
+        await SeedAsync();
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // The score has no dominant-position default: ALL is every position, like
+        // an absent value — accepted, and echoed back as no position filter.
+        var all = await client.GetAsync("/truemains/Phantasm-EUW1/champions/157/performance?position=ALL");
+        all.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await all.Content.ReadAsStringAsync());
+        var echoed = document.RootElement.TryGetProperty("position", out var position)
+            ? position.ValueKind
+            : JsonValueKind.Null;
+        echoed.Should().Be(JsonValueKind.Null);
+
+        var invalid = await client.GetAsync("/truemains/Phantasm-EUW1/champions/157/performance?position=NOTALANE");
+        invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private async Task SeedAsync(Func<ChampionAggregateSeeder, ChampionAggregateSeeder>? extra = null)
     {
         var now = DateTime.UtcNow;
 
@@ -190,7 +241,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
             BuildAccount(AccountTwoId, "EUW1", "rival-puuid", "Rival", "EUW1", now));
         await db.SaveChangesAsync();
 
-        await new ChampionAggregateSeeder()
+        var seeder = new ChampionAggregateSeeder()
             // Phantasm on 157: 8 games, 5 wins, all 3153 + Lethal Tempo (8008).
             .AddPatternWithRune(AccountOneId, 157, "16.5", "EUW1", 420, "MIDDLE",
                 summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-E-W",
@@ -209,8 +260,9 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
                 summoner1Id: 4, summoner2Id: 7, skillOrderKey: "Q-W-E",
                 buildItems: [6655, 3020, 3157], bootsItemId: 3020,
                 primaryStyleId: 8200, primaryKeystoneId: 8214, secondaryStyleId: 8100,
-                games: 1, wins: 1, aggregatedAtUtc: now.AddMinutes(-8))
-            .SaveAsync(db);
+                games: 1, wins: 1, aggregatedAtUtc: now.AddMinutes(-8));
+
+        await (extra?.Invoke(seeder) ?? seeder).SaveAsync(db);
     }
 
     private static RiotAccount BuildAccount(

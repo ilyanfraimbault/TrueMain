@@ -88,12 +88,18 @@ public sealed class ItemContextAccumulator
     /// </param>
     /// <param name="gameAxes">Where this game sits on every axis that could be evaluated.</param>
     /// <param name="win">Whether the participant won.</param>
+    /// <param name="branchAxes">
+    /// Where the game sat on the in-game axes when each branch's decision opened (#1750), by
+    /// parent item: unlike <paramref name="gameAxes"/>, these differ from one branch of the
+    /// same game to the next. A branch absent from it carries none of them.
+    /// </param>
     public void Add(
         ItemContextScope scope,
         ItemContextSlot slot,
         IReadOnlyList<ItemContextEdge> edges,
         IReadOnlyDictionary<ItemContextAxis, ItemContextBucket> gameAxes,
-        bool win)
+        bool win,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<ItemContextAxis, ItemContextBucket>>? branchAxes = null)
     {
         ArgumentNullException.ThrowIfNull(edges);
         ArgumentNullException.ThrowIfNull(gameAxes);
@@ -106,7 +112,7 @@ public sealed class ItemContextAccumulator
         foreach (var parentItemId in edges.Select(edge => edge.ParentItemId).Distinct())
         {
             AddTotal(scope, slot, parentItemId, ItemContextAxis.Overall, ItemContextBucket.All, win);
-            foreach (var (axis, bucket) in gameAxes)
+            foreach (var (axis, bucket) in AxesOf(parentItemId, gameAxes, branchAxes))
             {
                 AddTotal(scope, slot, parentItemId, axis, bucket, win);
             }
@@ -121,15 +127,25 @@ public sealed class ItemContextAccumulator
 
             AddStat(scope, slot, edge, ItemContextAxis.Overall, ItemContextBucket.All, win);
 
+            var branch = branchAxes?.GetValueOrDefault(edge.ParentItemId);
             foreach (var axis in edge.EligibleAxes)
             {
-                if (gameAxes.TryGetValue(axis, out var bucket))
+                if (gameAxes.TryGetValue(axis, out var bucket)
+                    || (branch is not null && branch.TryGetValue(axis, out bucket)))
                 {
                     AddStat(scope, slot, edge, axis, bucket, win);
                 }
             }
         }
     }
+
+    private static IEnumerable<KeyValuePair<ItemContextAxis, ItemContextBucket>> AxesOf(
+        int parentItemId,
+        IReadOnlyDictionary<ItemContextAxis, ItemContextBucket> gameAxes,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<ItemContextAxis, ItemContextBucket>>? branchAxes)
+        => branchAxes is not null && branchAxes.TryGetValue(parentItemId, out var branch)
+            ? gameAxes.Concat(branch.Where(entry => !gameAxes.ContainsKey(entry.Key)))
+            : gameAxes;
 
     private void AddTotal(
         ItemContextScope scope,

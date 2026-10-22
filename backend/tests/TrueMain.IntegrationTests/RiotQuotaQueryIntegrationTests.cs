@@ -90,6 +90,41 @@ public sealed class RiotQuotaQueryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetHeadroomInputsAsync_SumsSevenDaysPerRoute_WithEachHostsFreshestLimit()
+    {
+        var minute = TruncateToMinute(DateTime.UtcNow.AddMinutes(-10));
+        await SeedAsync(
+            Rollup(minute, "europe", "MatchIngestion", "match-v5.match", 200, 40, appCount: "2:1,60:120"),
+            Rollup(minute.AddDays(-3), "europe", "AccountRefresh", "account-v1.byPuuid", 429, 5),
+            Rollup(minute, "euw1", "Discovery", "summoner-v4.byPuuid", 200, 7),
+            // A legacy rollup inside the window: never credited to a host.
+            Rollup(minute.AddMinutes(-2), "asia", "MatchIngestion", "match-v5.match", 200, 1000, routeKeyed: false),
+            // Route-keyed but nine days old: outside the 7 days, still the oldest one counted.
+            Rollup(minute.AddDays(-9), "europe", "MatchIngestion", "match-v5.match", 200, 500));
+
+        using var context = BuildContext();
+        var inputs = await new RiotQuotaQuery(context).GetHeadroomInputsAsync(CancellationToken.None);
+
+        inputs.SinceUtc.Should().BeCloseTo(DateTime.UtcNow.AddDays(-7), TimeSpan.FromMinutes(1));
+        inputs.OldestRouteKeyedBucketUtc.Should().Be(minute.AddDays(-9));
+        inputs.Routes.Select(r => (r.Route, r.Calls, r.AppRateLimit)).Should().BeEquivalentTo(
+        [
+            ("europe", 45L, (string?)"20:1,100:120"),
+            ("euw1", 7L, (string?)null)
+        ]);
+    }
+
+    [Fact]
+    public async Task GetHeadroomInputsAsync_EmptyCollection_ReturnsNoRoutesAndNoOldestBucket()
+    {
+        using var context = BuildContext();
+        var inputs = await new RiotQuotaQuery(context).GetHeadroomInputsAsync(CancellationToken.None);
+
+        inputs.Routes.Should().BeEmpty();
+        inputs.OldestRouteKeyedBucketUtc.Should().BeNull();
+    }
+
+    [Fact]
     public async Task ProcessRunIntervals_ReturnRunsOverlappingTheWindow_EndingRunningOnesAtTheirHeartbeat()
     {
         var now = DateTime.UtcNow;

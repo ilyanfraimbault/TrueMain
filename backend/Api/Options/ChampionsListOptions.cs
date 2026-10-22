@@ -161,18 +161,6 @@ public sealed class ChampionsListOptions
     public int MinDecidedLaneGames { get; set; } = 10;
 
     /// <summary>
-    /// Minimum games a champion-vs-opponent matchup needs in a
-    /// <em>player-scoped</em> slice (one truemain's games) before the leaderboard
-    /// includes it. A single player rarely meets the same lane opponent ten
-    /// times, so reusing the global <see cref="MinMatchupGames"/> floor would
-    /// empty almost every player's matchups list; this lower floor keeps the
-    /// best/worst ranking meaningful without erasing it. The opponent search
-    /// ignores both floors — a deliberate lookup shows the head-to-head from a
-    /// single game up. Set to 0 to disable.
-    /// </summary>
-    public int MinPlayerMatchupGames { get; set; } = 3;
-
-    /// <summary>
     /// Preferred minimum games a player needs on a champion (at a single patch +
     /// position) on the player-scoped champion page. The builds read picks the
     /// most recent patch that clears this floor, so a thin newest patch doesn't

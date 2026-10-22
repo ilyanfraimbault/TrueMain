@@ -3,7 +3,7 @@ import type { StaticItemData } from '#shared/types/static-data'
 import type { LandingOverlayPanelKind } from './LandingOverlayPanel.vue'
 
 /**
- * The in-game moment: the overlay's four panels arrive on the screen one by
+ * The in-game moment: the overlay's panels (under TAB, the lane-gold plates) arrive on the screen one by
  * one as the visitor scrolls through what each does. On a wide screen the
  * screen stays pinned beside the steps and the step crossing the middle of the
  * viewport is the one drawn; on a narrow one, or without motion, the screen
@@ -24,13 +24,18 @@ const STEPS: { panel: LandingOverlayPanelKind, title: string, body: string, keys
   },
   {
     panel: 'next-item',
-    title: 'What to buy next',
-    body: 'The legendary the true mains of your champion complete next from where your build stands, and the gold it still takes — with the whole build in a row underneath, so you see where you stand and when the boots come. The starter until you have one.',
+    title: 'What to buy next, part by part',
+    body: 'The legendary the true mains of your champion complete next from where your build stands, and its components in the order they buy them: what you hold, what your gold buys on this back, what waits for the next. The whole build in a row underneath, so you see when the boots come. The starter until you have one — and your own kit\'s path, on the branch your items took, if you made one.',
   },
   {
-    panel: 'item-value',
+    panel: 'objectives',
+    title: 'The next objectives, timed',
+    body: 'When the dragon, the Voidgrubs, the Rift Herald and Baron are next up, in one strip above the game, and the race to the soul under it — from the game clock and the kills the game announces: what every player can see, kept for you.',
+  },
+  {
+    panel: 'lane-gold',
     title: 'Who has the gold',
-    body: 'Each team\'s item gold and each lane\'s, while you hold the key. Every panel can be always on, held or toggled by a key of your choice.',
+    body: 'On the scoreboard\'s own rows, each lane\'s item-gold gap, pointing at the side ahead — while you hold the key. Every panel can be always on, held or toggled by a key of your choice.',
     keys: 'TAB',
   },
 ]

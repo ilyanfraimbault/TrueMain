@@ -1,3 +1,4 @@
+import type { StaticItemData } from '#shared/types/static-data'
 import { winProbability } from '#common/utils/win-probability'
 
 /**
@@ -22,8 +23,22 @@ export const SAMPLE_ITEMS: Record<'ally' | 'enemy', number[][]> = {
   enemy: [[3068, 3047, 3075], [3153, 3006, 6610], [3118, 3020, 3089], [3042, 3078, 3158, 6694], [3870, 3047, 3190, 3109]],
 }
 
-/** The next item the sample shows, and the gold it still needs. */
-export const SAMPLE_NEXT_ITEM = { itemId: 3031, missing: 650 } as const
+/**
+ * The next item the sample shows, the gold in hand, and what it still needs:
+ * Infinity Edge (3500) less the Cloak of Agility held (600) less 1500 in hand.
+ */
+export const SAMPLE_NEXT_ITEM = { itemId: 3031, gold: 1500, missing: 1400 } as const
+
+/**
+ * Its build path (#2183): the components in the order the mains buy them, each
+ * owned, bought now with the gold in hand, or later — the Cloak held, the B. F.
+ * Sword (1300) within the 1500, the Pickaxe (875) past it. Prices are the shop's.
+ */
+export const SAMPLE_BUILD_PATH: readonly { itemId: number, cost: number, state: 'owned' | 'buy' | 'later' }[] = [
+  { itemId: 1018, cost: 600, state: 'owned' },
+  { itemId: 1038, cost: 1300, state: 'buy' },
+  { itemId: 1037, cost: 875, state: 'later' },
+]
 
 /**
  * The build row under it (#2101), as the app's sample draws it: an item and the boots
@@ -56,16 +71,51 @@ export const SAMPLE_PACE_REFERENCE = {
 } as const
 
 /**
+ * The objectives strip's sample at 13:23 (#2078's rules, #2184's strip): a drake
+ * each side, the Rift turned Infernal so the next one is named, due at 16:00; the
+ * grubs gone, so the Herald counts down to 15:00, and Baron, due at 20:00, waits
+ * on the Herald. Each spawn is a game time, in seconds, as the shell sends it.
+ */
+export const SAMPLE_OBJECTIVES = {
+  drakes: { ally: ['cloud'], enemy: ['infernal'] },
+  next: 'infernal',
+  spawns: { dragon: 960, herald: 900, baron: 1200 },
+} as const
+
+/**
  * Our side's chance to win in the sample, from the model the overlay itself
- * runs (`#common/utils/win-probability`): every lane even, three turrets and
- * two drakes against one and one.
+ * runs (`#common/utils/win-probability`): every lane even, three turrets against
+ * one, a drake each.
  */
 export function sampleWinProbability(): number {
-  const side = (turrets: number, dragons: number) => ({ turrets, inhibitorsDown: 0, dragons, baron: false, elder: false })
-  return winProbability({ leads: [], ours: side(3, 2), theirs: side(1, 1), clock: SAMPLE_CLOCK })
+  const dragons = (side: 'ally' | 'enemy') => SAMPLE_OBJECTIVES.drakes[side].length
+  const side = (turrets: number, count: number) => ({ turrets, inhibitorsDown: 0, dragons: count, baron: false, elder: false })
+  return winProbability({ leads: [], ours: side(3, dragons('ally')), theirs: side(1, dragons('enemy')), clock: SAMPLE_CLOCK })
 }
 
 /** A champion's square icon on Data Dragon, from its key (`Ahri`); null until the patch is known. */
 export function championIconUrl(key: string, patch: string | null | undefined): string | null {
   return patch ? `https://ddragon.leagueoflegends.com/cdn/${patch}/img/champion/${key}.png` : null
+}
+
+/** One lane's item gold in the sample, ours then theirs. */
+export interface SampleLaneGold { ally: string, enemy: string, ours: number, theirs: number }
+
+/** Item gold per lane, consumables and trinkets out (#1752's rule); null until the item map is read. */
+export function sampleLaneGold(items: Record<number, StaticItemData> | null): SampleLaneGold[] | null {
+  if (!items) return null
+  const gold = (ids: number[]) => ids.reduce((total, id) => {
+    const item = items[id]
+    return !item || item.tags?.includes('Consumable') || item.tags?.includes('Trinket') ? total : total + item.totalGold
+  }, 0)
+  return SAMPLE_ALLIES.map((ally, index) => ({
+    ally, enemy: SAMPLE_ENEMIES[index]!, ours: gold(SAMPLE_ITEMS.ally[index]!), theirs: gold(SAMPLE_ITEMS.enemy[index]!),
+  }))
+}
+
+/** A lane-gold plate's figure, as the app prints it (`plateGold`): 850, 1.4k, 12k. */
+export function plateGold(gold: number): string {
+  if (gold < 1000) return String(Math.round(gold))
+  const thousands = Math.round(gold / 100) / 10
+  return `${thousands >= 10 ? Math.round(thousands) : thousands}k`
 }

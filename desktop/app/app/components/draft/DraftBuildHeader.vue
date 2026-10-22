@@ -2,7 +2,10 @@
 import { getPositionIconUrl } from '#shared/utils/ddragon'
 import { isChampionPosition, positionLabel } from '#common/utils/positions'
 
-/** Whose build the draft's build pane shows: the champion, its lane, and the way back to ours. */
+/**
+ * Whose build the draft's build pane shows: the champion, its lane, and the way back to ours. The player's kits
+ * are rows of the pane's list (#2205), not a switch here.
+ */
 defineProps<{
   championId: number
   position: string
@@ -16,17 +19,19 @@ const { nameOf } = useChampionStatics()
 </script>
 
 <template>
-  <div class="flex items-center gap-2.5">
-    <ChampionPortrait :champion-id="championId" size="sm" class="size-10! rounded-lg!" />
-    <p class="min-w-0 truncate text-sm font-semibold text-highlighted">{{ nameOf(championId) }}</p>
-    <img
-      v-if="isChampionPosition(position)"
-      :src="getPositionIconUrl(position)"
-      :alt="positionLabel(position, { short: true })"
-      :title="positionLabel(position, { short: true })"
-      class="size-4 shrink-0"
-    >
-    <span class="flex-1" />
-    <UButton v-if="canGoBack" size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-left" aria-label="Back" @click="emit('back')" />
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center gap-2.5">
+      <ChampionPortrait :champion-id="championId" size="sm" class="size-10! rounded-lg!" />
+      <p class="min-w-0 truncate text-sm font-semibold text-highlighted">{{ nameOf(championId) }}</p>
+      <img
+        v-if="isChampionPosition(position)"
+        :src="getPositionIconUrl(position)"
+        :alt="positionLabel(position, { short: true })"
+        :title="positionLabel(position, { short: true })"
+        class="size-4 shrink-0"
+      >
+      <span class="flex-1" />
+      <UButton v-if="canGoBack" size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-left" aria-label="Back" @click="emit('back')" />
+    </div>
   </div>
 </template>

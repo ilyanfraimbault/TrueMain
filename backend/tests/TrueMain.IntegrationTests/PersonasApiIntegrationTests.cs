@@ -67,6 +67,8 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
                     links = new[]
                     {
                         new { kind = "twitch", url = "https://www.twitch.tv/irelking/" },
+                        // The same channel in its legacy form, listed first: the handle still leads (#2177).
+                        new { kind = "youtube", url = "https://www.youtube.com/c/Irelking" },
                         new { kind = "youtube", url = "https://www.youtube.com/@Irelking" },
                         new { kind = "carrier-pigeon", url = "https://example.com" },
                     },
@@ -101,7 +103,8 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         page!.DisplayName.Should().Be("Irelking");
         page.Links.Select(l => (l.Kind, l.Url)).Should().Equal(
             ("twitch", "https://www.twitch.tv/irelking"),
-            ("youtube", "https://www.youtube.com/@Irelking"));
+            ("youtube", "https://www.youtube.com/@Irelking"),
+            ("youtube", "https://www.youtube.com/c/Irelking"));
 
         // The seeded IrelSmurf stays off the page until it is tracked: it has no profile to open.
         var tracked = page.Accounts.Should().ContainSingle().Subject;

@@ -45,11 +45,11 @@ public sealed class ProcessRunSummaryJsonTests
                 """);
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
-            3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 8, 9,
+            3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 8,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]))
             .Should().Be(
                 """
-                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"demotedQueuedCandidates":42,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedSynergyStats":8,"deletedBanStats":9,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
+                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"demotedQueuedCandidates":42,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedSynergyStats":8,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
                 """);
     }
 
@@ -297,6 +297,12 @@ public sealed class ProcessRunSummaryJsonTests
             new OpponentAggregationSummary(4000, 4, 18000, 1100),
             new { matches = 4000, batches = 4, pairRows = 18000, baselineRows = 1100 });
 
+        // ChampionScalingAggregationProcess (#1368) — matches and batches, the cohort
+        // members folded and the bucket rows they touched.
+        yield return (
+            new ScalingAggregationSummary(4000, 4, 9000, 2500),
+            new { matches = 4000, batches = 4, participants = 9000, rows = 2500 });
+
         // ChampionMatchupLeadAggregationProcess (#919, one fold since #1445).
         yield return (
             new MatchupAggregationSummary(4000, 4, 3600, 900, 300),
@@ -322,7 +328,7 @@ public sealed class ProcessRunSummaryJsonTests
             });
 
         yield return (
-            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 8, 9,
+            new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 8,
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]),
             new
             {
@@ -338,7 +344,6 @@ public sealed class ProcessRunSummaryJsonTests
                 deletedAggregateScopes = 1,
                 deletedMatchupStats = 2,
                 deletedSynergyStats = 8,
-                deletedBanStats = 9,
                 retainedPatchesByPlatform = new[]
                 {
                     new { platformId = "KR", patches = new[] { "16.3", "16.4" } }

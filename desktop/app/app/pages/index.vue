@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import type { GameflowPhase } from '~/types/lcu'
 import type { QueueFilter } from '~/utils/player-form'
-import type { GoalDraft } from '~/utils/goals'
-import { QUEUE_FILTERS, championLines, counted, gamesIn, laneLines } from '~/utils/player-form'
+import { QUEUE_FILTERS, championLines, counted, gamesIn, laneLines, mainLane } from '~/utils/player-form'
 import { toMatchSummary, toProfileRanked } from '~/utils/match-summary'
 import { activityFromGames } from '~/utils/activity-from-games'
+import { dailyStandings, latestLpMoves } from '~/utils/lp-history'
 
 /**
  * Home: the player, read from their own client, on the profile page the site
  * shows for a true main (`PagePlayerProfile`): the banner on the skin they chose
  * in the client, their form over the latest games, a match history whose rows
- * open the shared detail panel, and their ranked card, activity, goals,
- * champions and roles beside it. The banner and the tiles read the latest page
+ * open the shared detail panel with their latest clips under it, and their
+ * ranked card, day, activity, champions and roles beside it. The banner and the tiles read the latest page
  * of games; the history pages further back. It needs no account on TrueMain:
  * the client knows every player, TrueMain only the true mains (#1682). With no
  * client there is nothing personal to show, so the patch's best picks stand in.
@@ -30,12 +30,22 @@ const pending = computed(() => !record.value && (status.value === 'pending' || s
 
 const champions = computed(() => [...championsById.value.values()])
 const ranked = computed(() => toProfileRanked(record.value?.ranked.find(queue => queue.queueType === 'RANKED_SOLO_5x5') ?? null))
+const flex = computed(() => record.value?.ranked.find(queue => queue.queueType === 'RANKED_FLEX_SR') ?? null)
+const lpMoves = computed(() => latestLpMoves(loadedGames.value, rankHistory.value))
+const rankCurve = computed(() => dailyStandings(rankHistory.value))
+// The region's GM / Challenger lines on the LP curve, from TrueMain (#2174).
+const apexCutoffs = useApexCutoffs(() => record.value?.platformId)
 const nameTag = computed(() => state.value.riotId?.replace('#', '-') ?? '')
 const historyGames = computed(() => gamesIn(loadedGames.value, filter.value))
 const filterLabel = computed(() => QUEUE_FILTERS.find(option => option.value === filter.value)?.label ?? 'All')
 const activity = computed(() => activityFromGames(loadedGames.value))
 
 const today = useToday(historyGames, loadedGames, rankHistory)
+
+// The form tiles' second yardstick (#2076): the median game of the player's
+// Solo/Duo tier on the lane they played most of the games on screen.
+const mainRole = computed(() => mainLane(games.value))
+const { reference: formReference } = useFormBenchmark(mainRole, computed(() => ranked.value?.tier ?? null))
 
 const identity = computed(() => ({
   gameName: state.value.riotId?.split('#')[0] ?? 'Logging in…',
@@ -54,14 +64,6 @@ const splashUrl = computed(() => {
 })
 
 const queueTabs = QUEUE_FILTERS.map(option => ({ label: option.label, value: option.value }))
-
-const { goals, evaluations, canAdd, create, abandon, suggestions } = useGoals()
-const editing = ref(false)
-const editingFrom = ref<GoalDraft | null>(null)
-function editGoal(draft: GoalDraft | null) {
-  editingFrom.value = draft
-  editing.value = true
-}
 
 onMounted(() => refresh())
 watch(() => state.value.riotId, () => refresh())
@@ -84,6 +86,7 @@ watch(() => state.value.phase, (next, previous) => {
         :ranked="ranked"
         :splash-url="splashUrl"
         :matches="formMatches"
+        :form-reference="formReference"
         :loading="pending"
       >
         <template #header>
@@ -138,13 +141,21 @@ watch(() => state.value.phase, (next, previous) => {
             :name-tag="nameTag"
             @load-older="loadOlder"
           />
+          <!-- Under the history rather than in the column: it evens out the two sides. -->
+          <DashboardClipsCard v-if="!pending" />
         </template>
 
         <template #aside>
           <ProfileRankedCardSkeleton v-if="pending" />
-          <ProfileRankedCard v-else :ranked="ranked" :history="rankHistory" />
+          <ProfileRankedCard v-else :ranked="ranked" :history="rankCurve" :history-loading="apexCutoffs.loading" :cutoffs="apexCutoffs.cutoffs">
+            <template #standing>
+              <DashboardFlexStanding :queue="flex" />
+            </template>
+            <template #moves>
+              <DashboardLpMoves :moves="lpMoves" />
+            </template>
+          </ProfileRankedCard>
           <DashboardTodayCard v-if="!pending" :summary="today" />
-          <DashboardClipsCard />
           <template v-if="pending">
             <USkeleton class="h-40 rounded-lg" />
             <USkeleton class="h-56 rounded-lg" />
@@ -154,22 +165,11 @@ watch(() => state.value.phase, (next, previous) => {
             <!-- Folded from the client's games: the patch window needs a patch
                  they do not carry, so the dashboard offers day, week and month. -->
             <ProfileActivityHeatmap :data="activity" :modes="['day', 'week', 'month']" />
-            <DashboardGoalsCard
-              :goals="goals"
-              :evaluations="evaluations"
-              :suggestions="suggestions(filter)"
-              :can-add="canAdd"
-              :latest-game-id="latest[0]?.gameId ?? null"
-              @edit="editGoal"
-              @abandon="abandon"
-            />
             <DashboardChampionsCard :lines="championLines(games)" :champions="champions" />
             <DashboardRolesCard :lanes="laneLines(games)" />
           </template>
         </template>
       </PagePlayerProfile>
-
-      <DashboardGoalEditor v-model:open="editing" :games="loadedGames" :initial="editingFrom" @save="create" />
     </template>
 
     <template v-else>
@@ -196,6 +196,5 @@ watch(() => state.value.phase, (next, previous) => {
       <DashboardMeta />
     </template>
 
-    <RiotDisclaimer class="mt-auto pt-2" />
   </div>
 </template>

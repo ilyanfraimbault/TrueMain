@@ -16,7 +16,14 @@ import type { TooltipProps } from '@nuxt/ui'
  * `pointermove`, not `pointerenter`, so the pointer already resting on the icon
  * opens it on its next move, with the usual delay — nothing is opened by hand,
  * so a fast sweep across a row of icons cannot leave one stuck open.
+ *
+ * Arming does re-create the icon, though: Vue cannot move the slot from the bare
+ * span to the trigger, so the icon's `<img>` is replaced under the pointer. The
+ * `ICON_REMOUNT_KEY` it provides lets `SkeletonImage` draw the new one at once
+ * rather than load it again, which blinked the icon out and back (utils/icon-repaint.ts).
  */
+import { ICON_REMOUNT_KEY } from '#common/utils/icon-repaint'
+
 defineOptions({ inheritAttrs: false })
 
 // Above by default (#1698): Nuxt UI prefers below, and Reka flips a card that does
@@ -35,6 +42,7 @@ withDefaults(defineProps<{
 // no second `mouseover`. Once armed, `UTooltip` owns `disabled` and opens on the next
 // move after the data is there.
 const armed = ref(false)
+provide(ICON_REMOUNT_KEY, readonly(armed))
 
 function arm() {
   armed.value = true

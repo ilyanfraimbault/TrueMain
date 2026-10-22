@@ -1,6 +1,7 @@
 using System.Globalization;
 using Core.Lol.Draft;
 using Core.Lol.Synergy;
+using DraftEvaluation;
 
 // Offline back-test of the draft suggestions (#1906). Reads the matchup and synergy
 // aggregates of the training patches, then replays the test patch's games: for every
@@ -9,7 +10,8 @@ using Core.Lol.Synergy;
 // above a lost one (0.5 = no signal). "A higher-ranked pick wins more often than a lower
 // one", measured, for the old scoring (#1675: raw matchup + summed synergy) and the new one
 // (#1906: shrunk lane term + the champion's strength at the lane + mean synergy), over a
-// grid of shrinkage k, strength weight and synergy weight.
+// grid of shrinkage k, strength weight and synergy weight; then the weights still at 0 —
+// the enemy team (#1713) and the team composition — one at a time.
 //
 // Two moments of the draft are replayed:
 //   - lane known: the whole board is visible (the real lane opponent, the four allies);
@@ -26,6 +28,11 @@ var data = EvaluationData.Load(File("matchups.csv"), File("baselines.csv"), File
 // export the enemy-team section is skipped.
 var opponents = System.IO.File.Exists(File("opponents.csv"))
     ? OpponentData.Load(File("opponents.csv"), File("opponentbaselines.csv"))
+    : null;
+// The team-composition term (#1906) reads the item-context fold's totals and the champion
+// profiles; without both exports its section is skipped.
+var teamFit = System.IO.File.Exists(File("teamfit.csv")) && System.IO.File.Exists(File("profiles.csv"))
+    ? TeamFitData.Load(File("teamfit.csv"), File("profiles.csv"))
     : null;
 var games = Roster.Load(File("roster.csv"));
 var samples = games.SelectMany(game => game.Samples()).ToList();
@@ -71,6 +78,9 @@ double EnemyShrunk(Sample sample, double k)
     return DraftScoring.Enemy(enemies, k).Shrunk;
 }
 
+double TeamFitShrunk(Sample sample, double k)
+    => teamFit is null ? 0d : DraftScoring.TeamFit(teamFit.Axes(sample), k).Shrunk;
+
 double NewLaneKnownScore(Sample sample, DraftScoringWeights weights)
 {
     var record = data.Record(sample.ChampionId, sample.Position);
@@ -85,7 +95,9 @@ double NewLaneKnownScore(Sample sample, DraftScoringWeights weights)
     var (_, synergyShrunk) = DraftScoring.Synergy(allies, weights);
     return DraftScoring.Score(
         laneShrunk, occupied, 0d, StrengthOf(sample).Shrunk(weights.ShrinkGames), synergyShrunk, weights,
-        weights.Enemy > 0d ? EnemyShrunk(sample, weights.ShrinkGames) : 0d);
+        new DraftBoardTerms(
+            weights.Enemy > 0d ? EnemyShrunk(sample, weights.ShrinkGames) : 0d,
+            weights.TeamFit > 0d ? TeamFitShrunk(sample, weights.ShrinkGames) : 0d));
 }
 
 double NewBlindScore(Sample sample, DraftScoringWeights weights)
@@ -137,6 +149,17 @@ if (opponents is not null)
     var row = new[] { 0d, 0.25d, 0.5d, 1d }.Select(enemy => F(Auc.Of(known, sample => NewLaneKnownScore(
         sample, DraftScoringWeights.Default with { Enemy = enemy }))));
     Console.WriteLine($"  k=400 strength .5 synergy .25, enemy 0/.25/.5/1 : {string.Join("  ", row)}");
+}
+
+if (teamFit is not null)
+{
+    Console.WriteLine();
+    Console.WriteLine("Lane known + team composition (#1906) — AUC of the score against the result");
+    var placed = known.Count(sample => teamFit.Axes(sample).Count > 0);
+    Console.WriteLine($"  picks whose allies the evaluator could place   : {placed:N0} of {known.Count:N0}");
+    var row = new[] { 0d, 0.25d, 0.5d, 1d }.Select(fit => F(Auc.Of(known, sample => NewLaneKnownScore(
+        sample, DraftScoringWeights.Default with { TeamFit = fit }))));
+    Console.WriteLine($"  k=400 strength .5 synergy .25, team 0/.25/.5/1 : {string.Join("  ", row)}");
 }
 
 /// <summary>

@@ -32,6 +32,42 @@ of a patch is written before any of its full aggregates is dropped (never purge 
 history would be gone), and patch N-2 is purged only once patch N has enough matches to be live. This reverses the
 production half of #466/#711 ("old patches are frozen and must never be wiped") on purpose — #1467.
 
+**The light per-patch record is `champion_patch_stats` plus the ban pair, folded with every scope replacement (2026-10-21).**
+Step 1 of the two-level retention above. `champion_patch_stats` holds games and wins per queue × patch × champion ×
+position × elo bracket × population — `champion_aggregate_scopes` summed over the account and the platform, a few
+thousand rows a patch. The pick-rate denominator is the same sum over every champion of the lane, so nothing else is
+stored for it; `ALL` is the sum of the brackets, as on the scopes. Three calls:
+- **Bans stay where they are and join the light level.** `champion_ban_stats` + `ban_scope_totals` are already at the
+  light grain (patch × champion × band, no position) with their stored `ALL` band (#920); copying them onto
+  per-position rows would repeat each count up to five times. So aggregate retention no longer deletes them — on
+  preprod either, which only keeps a few thousand rows a patch more.
+- **Folded, not recomputed.** The pattern aggregation is the only writer of the scopes, so the persister subtracts a
+  batch's slices from the record before deleting them and adds the rebuilt ones back, in the same transaction, then
+  drops the rows a replacement emptied. The record therefore agrees with the scopes on every patch that still has
+  them, at the cost of a grouped read over the batch's own slices — not a rescan of the patch. A derivation from
+  the scopes after each run was rejected: it reads a whole patch per run, and a run cut short between its steps and
+  the derivation would leave a patch stale with nothing to notice it.
+- **Backfilled in-process, once.** The first run after it ships finds the table empty and fills it from every scope
+  present, in one statement (15 min command timeout) before any fold — the backfill of every patch whose full
+  aggregates still exist. A migration could not do it: migrations apply while the previous ingestor still runs, and
+  the scopes it replaced in between would be missing from the record.
+
+The subtraction is floored at zero so a record that drifted from hand-edited scopes is rewritten by the next
+replacement instead of failing every run on the row's wins-within-games check — #1956, #1467.
+
+**"Trend by patch" and the lifetime games total read the light record; the other cross-patch readers cannot (2026-10-21).**
+Step 2 of the two-level retention. `ChampionTrendQueryService` reads `champion_patch_stats` (numerators and the
+lane total, mains only as before) and the ban pair, and the homepage's `gamesAnalyzed` sums the record instead
+of the scopes — the same figures while the scopes exist, since the record is their per-patch sum, and the only
+ones left once #1958 purges them. The trend endpoint gains the optional `eloBracket` filter the record keeps its
+bracket grain for (tiers and `TIER_PLUS`, bans summed over the filter's bands as in the directory); the web does
+not forward the page's rank filter yet, so the chart and the banner's moves still read every rank. The audit of
+every full-aggregate reader found the rest single-patch except account-level reads the record cannot answer —
+the truemains leaderboard's games / W-L / KDA cells, its Games/KDA sorts and its per-account top build (every
+patch summed), the persona "last game" fallback (`MAX(LastGameStartTimeUtc)`) — and the ops views of the
+aggregates themselves (account explorer, aggregation stats, patch coverage). Those change meaning under the purge
+and are #1958's to settle before it ships — #1957, #1467.
+
 **Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid.**
 The dense per-minute grid grew to ~13 GB / 55.6M rows for exactly one consumer (power spikes); every other
 reader uses only those five marks. It was first pruned once a match was powerspike-aggregated (#772, #694);
@@ -50,13 +86,16 @@ Third case, `matches.BansAggregated` (#920): backfilled to `true` like #811 but 
 source rows don't exist. Riot payloads aren't kept, so a match ingested before #920 has no `match_bans` rows at
 all; folding it would add to the ban *denominator* while contributing no bans and deflate every rate.
 
-**The operator champion game counts are a per-slice recompute of the raw rows, not a fold (2026-10-19).**
+**The operator champion game counts are a whole-table recompute of the raw rows, not a fold (2026-10-19, one statement since 2026-10-21).**
 `champion_game_counts` (#2132) is the count of what `match_participants` holds now, so it must lose a patch
 retention deletes and move a game the lane fix re-positions; a fold-once counter would keep both, and would need a
 decrement in retention and in every participant rewriter. `ChampionGameCountRefreshProcess` therefore replaces
-each `(queue, patch, platform)` slice — the grain of `IX_matches_queue_patch_platform` — in its own transaction and
-drops the slices no stored match belongs to. It is one grouped pass over the retained window with no self-join,
-throttled to 30 minutes and run after retention, which is why it does not repeat #811's cost — #2132, #811.
+the whole table from one grouped `INSERT … SELECT` in a single transaction, so slices no stored match belongs to
+vanish with it. It first ran one statement per `(queue, patch, platform)` slice, but the slice columns live on
+`matches` only: every large slice hash-joined against a full scan of the participant index, so a run read
+`match_participants` once per large slice and single slices hit the 300 s command timeout under load (#2217). One
+pass over the retained window with no self-join, under a 15 min command timeout, throttled to 30 minutes and run
+after retention, which is why it does not repeat #811's cost — #2132, #2217, #811.
 
 **The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back (2026-10-19).**
 `champion_aggregate_scopes` was the last full recompute — every live scope rebuilt every run, about an hour on prod
@@ -193,6 +232,42 @@ common child", and where the two disagree the model is right 400 times to the ba
 against 54.9 %, a coin flip where they disagree (534 to 509). The draft composition moves the mains' boots, barely
 their items — what the enemies have *built* (#1750) is the lever the in-game panel needs. Grouping correlated axes
 so each group spoke once was measured too and did no better than plain summing, so the model sums — #1749.
+
+**The next item reacts to what the enemies have built: seven in-game axes, measured when each decision opened (2026-10-21).**
+The draft axes read the enemies' *usual* profile; in game the board says more — a Kai'Sa gone ability power, a top
+laner on two armour items. A final inventory cannot measure that, because item *k* was chosen against the enemies'
+inventories at the time, so the item-context fold replays the five enemies' `ItemEvents` (stored for all ten) to the
+**completion of the parent item** — the instant the decision opened. The first component bought towards the child was
+the alternative; it leaks the decision into its own context (which component comes first is part of the choice), so
+the parent's completion is the last instant every sibling was still open. Only **completed** items count (the build
+path's own eligibility, completed boots, an inventory transform's source); components are replayed past and count from
+the event that completed them. Armour and magic resist are **Data Dragon's stats** (`item.json`, a new
+`IItemStatsProvider` beside the champion statics: CommunityDragon's catalogue has categories, not figures), summed over
+the enemy team and over the lane opponent; healing is life steal or omnivamp (Data Dragon's `SpellVamp` tag — omnivamp
+has no stat key), counted per enemy; the damage built is the magic share of the enemies' completed damage items (two
+at least); crit counts completed crit items. The whitelist extends under the same rule — penetration answers the
+resistances built, armour the crit built, either resistance the damage type built, Grievous Wounds the healing built —
+on the build slot only. The **root branch carries none**: at 0:00 nobody has built anything, so every game would share a
+bucket. A branch whose parent the timeline never shows completing is not guessed. The axes are marked `[InGame]` in the
+axis enum, so draft-time findings still outrank them. The bands are **provisional**, set in item units (an armour item
+is 40–80 armour): no distribution of "armour held when this decision opened" existed to put quantiles on, so every run's
+summary reports the quantiles it measured (`builtAxes`), and the bands move onto them after the preprod re-fold, as the
+gold lead's did. Counters stay additive per match, so a backfill is a re-fold of the retained window; no migration
+re-arms it — the axes fill from the matches folded after the deploy, both ends of a bucket from the same games, and the
+next patch has them whole (the #2101 / #2183 rule) — #1750.
+
+**The site does not show the in-game axes of what the enemies built; the overlay alone reads them (2026-10-05).**
+They are marked `OverlayOnly`: the fold counts them and the next-item model derives terms from them, but the verdict
+builder never judges them, so the champion page's hover cards and their vitest mirror stay as they are. The app words
+them itself, as game states ("once the enemies have built armor") — product owner's call on #1750.
+
+**The fold loads the enemies' timelines one query per side, and the batch size waits for a measurement (2026-10-21).**
+The item-context fold read the cohort member's timeline only; it now also needs the enemies'. They are asked for by
+team — every match of the batch that needs that side in one array — and only for untracked participants (a tracked
+one came with the builds), so a batch costs two more round trips and five more timelines per match with a member on
+one side, never a query per match: the bound the pattern fold lacked when it was OOM-killed (#600).
+`MatchBatchSize` stays at 300 until a preprod re-fold measures the batch; resizing it from an estimate is what the
+issue ruled out — #1750.
 
 **No pick+ban "presence" figure, despite it being standard elsewhere.**
 Pick rate's denominator is tracked mains' games at a lane; ban rate's is every observed match. The two are not
@@ -344,4 +419,18 @@ median when several tracked accounts disagree); counting only tracked rows would
 owner excludes. A lobby with no ranked tracked account, a remake or a minute the game did not reach adds nothing.
 The read pools the newest three patches (pace barely moves between patches, and pooling fills the thin tiers) and
 serves no quartile under 50 samples. The table joins `AggregateRetention` — #1912.
+
+## The form benchmark is a whole-game histogram folded with the pace benchmark, from the same games (2026-10-20)
+
+**`form_benchmark_stats` holds, per (patch, tier, position, metric), a fixed-width histogram of a laner's end-of-game
+KDA, kill participation, CS/min, deaths and vision/min** — the figures of the dashboard's form tiles, each computed the
+way the tiles compute it (`kdaRatio`'s deaths floored at one; kill participation over the team's kills). It is folded in
+the pace benchmark's pass and under its claim (`matches.PaceBenchmarkAggregated`), at the same lobby tier, and the
+low-tier `PaceSampling` folds the same game's lines beside its timeline — so both benchmarks describe one sample, and
+Iron → Platinum come without a call more. A separate table rather than a `Minute = 0` row in `pace_benchmark_stats`:
+the grain differs and a sentinel minute would be read by every pace query. Matches folded before it shipped are not
+back-filled — the pace claim is already spent on them — so it fills from the deploy on; the read serves nothing under
+the floor meanwhile. Same read rules as the pace benchmark: newest three patches, 50 samples per tier, bins in
+`Core/Lol/Benchmarks/FormHistogram.cs` (0.1 KDA, 1 % KP, 0.1 CS/min, one death, 0.05 vision/min, clamped to a ceiling)
+— #2076.
 

@@ -60,6 +60,23 @@ each app's job — #1440.
   not re-imported (the build owns them, #294), and Vue components count toward the 80 % new-code coverage —
   an owner's call (2026-10-13): component logic comes with component tests.
 
+## Every PR workflow runs only what the diff can break, and the review posts blocking points only (2026-10-21)
+
+**Decision:** `ci.yml`'s rule — plan the jobs from the changed paths, stay exhaustive on pushes — extends to
+`sonar.yml` and `desktop.yml`, and the image builds on PRs — #2218. Measured before: 16–20 jobs per PR, ~26–29
+runner minutes, a desktop-only PR still paying the full .NET analysis.
+
+- **Sonar** runs coverage only for the apps a PR touches and the backend test suites only when the backend
+  changed: a PR analysis rates new code, so an untouched area needs no coverage. It keeps the .NET scanner and
+  its build on every PR, so the analysis reads the same files whatever changed and no second scanner is added.
+- **Desktop** gates each job on its own paths: a change to the site's shared layer runs the Nuxt app job, not
+  the Windows and macOS jobs, which only compile Rust.
+- **Images build on PRs only when their packaging changes** (Dockerfile, `.dockerignore`, manifests and lock
+  files, project files, `nuxt.config.ts`, the admin's second context); the `develop` push builds all four
+  before preprod deploys, so a missed break surfaces there, before any release.
+- **The Claude review posts blocking points only**, an owner's call: a clean PR gets a bare approval, no inline
+  comment and no suggestion, so a review that says something is one to act on.
+
 ## Third-party GitHub Actions are pinned by commit SHA (2026-10-13)
 
 **Decision:** every action not published by GitHub (`actions/*`, `github/*`) is referenced by a full commit SHA,
@@ -111,7 +128,8 @@ GitHub-hosted runner, against preprod — #1559.
   root, so the knowledge base stays in one place.
 - **The review gained his two axes**: `claude-review.yml` reviews **Spec** (the linked issue's scope and
   acceptance) apart from **Standards** (our written rules), so a change that follows every rule but builds the
-  wrong thing is still caught; Fowler code smells are `NIT:` only, so they never block a merge.
+  wrong thing is still caught; Fowler code smells were `NIT:` only, so they never blocked a merge. Since
+  2026-10-21 the review posts blocking points only, smells and nits included in what it never posts (#2218).
 - **PR bodies** follow `ship/PR-BODY.md`: the smallest visual of the change, before/after evidence, and a merge
   danger call (one-way or two-way door, blast radius), because migrations and aggregate wipes are one-way doors
   and the body is where a reviewer should see it.

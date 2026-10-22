@@ -91,7 +91,16 @@ public sealed class MatchIngestionProcessIntegrationTests : IAsyncLifetime
         public Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(TimeSpan lease, CancellationToken ct)
             => Task.FromResult(new ExpiredClaimRelease(0, 0));
 
+        public Task<ExpiredClaimRelease> ReleaseExpiredClaimsAsync(
+            TimeSpan lease,
+            IReadOnlyCollection<string> platforms,
+            CancellationToken ct)
+            => Task.FromResult(new ExpiredClaimRelease(0, 0));
+
         public Task<ExpiredClaimRelease> ReleaseOrphanedClaimsAsync(CancellationToken ct)
+            => Task.FromResult(new ExpiredClaimRelease(0, 0));
+
+        public Task<ExpiredClaimRelease> ReleaseOrphanedClaimsAsync(IReadOnlyCollection<string> platforms, CancellationToken ct)
             => Task.FromResult(new ExpiredClaimRelease(0, 0));
     }
 

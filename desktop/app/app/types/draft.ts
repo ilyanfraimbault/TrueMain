@@ -16,6 +16,7 @@ export type DraftReasonKind =
   | 'blindSafety'
   | 'laneStrength'
   | 'synergy'
+  | 'teamFit'
   | 'laneThreat'
   | 'banRate'
 
@@ -41,6 +42,10 @@ export interface DraftReason {
   of: number | null
   /** Rests on an ally's hover rather than a lock. */
   tentative: boolean
+  /** A `teamFit` reason's composition axis (`AllyMagicDamage`, `AllyFrontline`)… */
+  axis?: string | null
+  /** …and the band the board puts our team in (`Low`, `Mid`, `High`). */
+  bucket?: string | null
 }
 
 /** Mirrors `DraftBlindReadModel`. */
@@ -61,6 +66,9 @@ export interface DraftCandidate {
   strengthGames?: number
   synergyDelta: number
   synergyGames: number
+  /** The pick's win rate in the board's composition band minus its overall one (#1906); unscored for now. */
+  teamFitDelta?: number
+  teamFitGames?: number
   /** A ranking key, never displayed: not a chance to win. */
   score: number
   thinSample: boolean

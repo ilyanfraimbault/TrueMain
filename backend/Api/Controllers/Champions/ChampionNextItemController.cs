@@ -20,6 +20,9 @@ public sealed class ChampionNextItemController(INextItemQueryService nextItem) :
     /// <summary>An inventory is seven slots; a purchase history longer than this is not a League game.</summary>
     private const int MaxItems = 30;
 
+    /// <summary>What another participant holds: an inventory is seven slots.</summary>
+    private const int MaxHeldItems = 7;
+
     /// <summary>
     /// Rank the items this game's champion could complete next, from where its build stands
     /// and against the game it is in.
@@ -66,7 +69,10 @@ public sealed class ChampionNextItemController(INextItemQueryService nextItem) :
             .Where(participant => participant.ChampionId > 0)
             .DistinctBy(participant => participant.ChampionId)
             .Take(max)
-            .Select(participant => new NextItemParticipant(participant.ChampionId, Lane(participant.Position)))];
+            .Select(participant => new NextItemParticipant(
+                participant.ChampionId,
+                Lane(participant.Position),
+                participant.Items?.Take(MaxHeldItems).ToList()))];
 
     /// <summary>The game state, as posted by the client.</summary>
     public sealed record NextItemRequest
@@ -88,11 +94,14 @@ public sealed class ChampionNextItemController(INextItemQueryService nextItem) :
         public double? GoldLeadAt15 { get; init; }
     }
 
-    /// <summary>Another participant: a champion and, when known, its lane.</summary>
+    /// <summary>Another participant: a champion and, when known, its lane and what it holds.</summary>
     public sealed record NextItemRequestParticipant
     {
         public int ChampionId { get; init; }
 
         public string? Position { get; init; }
+
+        /// <summary>The items it holds, as the live game reports them — sent for the enemies in game (#1750), never in champion select.</summary>
+        public IReadOnlyList<int>? Items { get; init; }
     }
 }

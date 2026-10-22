@@ -1,4 +1,4 @@
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { ALL_POSITIONS, POSITION_BY_VALUE } from '#common/utils/positions'
 
 type ChampionFilterState = ReturnType<typeof useChampionFilters>
 
@@ -24,7 +24,8 @@ export function usePlayerChampionEmptySlice(options: {
     const labels: string[] = []
     if (filters.value.patch) labels.push(filters.value.patch)
     const position = filters.value.position
-    if (position) labels.push(POSITION_BY_VALUE.get(position)?.label ?? position)
+    if (position === ALL_POSITIONS) labels.push('All positions')
+    else if (position) labels.push(POSITION_BY_VALUE.get(position)?.label ?? position)
     return labels
   })
 
@@ -37,8 +38,8 @@ export function usePlayerChampionEmptySlice(options: {
   watch(selectedPatch, (patch) => { if (patch) lastResolvedPatch.value = patch }, { immediate: true })
   const pickerPatch = computed(() => selectedPatch.value || lastResolvedPatch.value)
 
-  // The position picker hides its "all positions" button (the API always answers
-  // for one lane), so clearing is the only way back from an empty lane.
+  // Clearing goes back to the resting slice: the latest patch the player has games
+  // on, at their dominant position.
   function clearFilters() {
     void setFilter({ patch: null, position: null })
   }

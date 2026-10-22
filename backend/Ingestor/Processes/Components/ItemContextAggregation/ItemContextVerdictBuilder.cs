@@ -181,7 +181,9 @@ public static class ItemContextVerdictBuilder
     {
         var findings = new List<ItemContextAxisFinding>();
 
-        foreach (var axis in ItemContextAxes.Situational)
+        // The overlay-only axes (#1750) are folded and read by the next-item model, never
+        // judged into a verdict: the site has no sentence for them.
+        foreach (var axis in ItemContextAxes.OnSite)
         {
             var finding = Judge(slot, parentItemId, itemId, axis, statsByKey, totalsByKey, patchWindow, maxWindow, options);
             if (finding is not null)

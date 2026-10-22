@@ -87,6 +87,45 @@ public sealed class MatchClaimServiceTests
     }
 
     [Fact]
+    public async Task ReleaseClaims_NarrowedToPlatforms_NeverReachesAnotherWorkersPlatforms()
+    {
+        // A permanent fetch worker owns its routing value's platforms and nothing else
+        // (#1457): its reap and its release on shutdown run while the other workers hold
+        // live claims, so both must reach the repositories narrowed — never unscoped.
+        var nowUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        IReadOnlyCollection<string> europe = ["EUW1", "EUN1"];
+
+        var riotAccounts = Substitute.For<IRiotAccountRepository>();
+        var mainCandidates = Substitute.For<IMainCandidateRepository>();
+        mainCandidates.ReleaseExpiredClaimsAsync(Arg.Any<DateTime>(), europe, Arg.Any<CancellationToken>()).Returns(4);
+        riotAccounts.ReleaseExpiredMatchIngestClaimsAsync(Arg.Any<DateTime>(), europe, Arg.Any<CancellationToken>()).Returns(1);
+
+        var session = Substitute.For<IDataSession>();
+        session.RiotAccounts.Returns(riotAccounts);
+        session.MainCandidates.Returns(mainCandidates);
+
+        var sessionFactory = Substitute.For<IDataSessionFactory>();
+        sessionFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(session));
+
+        var service = new MatchClaimService(
+            sessionFactory,
+            Substitute.For<IChampionCoverageProvider>(),
+            new FixedTimeProvider(nowUtc),
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()),
+            NullLogger<MatchClaimService>.Instance);
+
+        var reaped = await service.ReleaseExpiredClaimsAsync(TimeSpan.FromMinutes(30), europe, CancellationToken.None);
+        var released = await service.ReleaseOrphanedClaimsAsync(europe, CancellationToken.None);
+
+        reaped.Should().Be(new ExpiredClaimRelease(4, 1));
+        released.Should().Be(new ExpiredClaimRelease(4, 1));
+        await mainCandidates.Received(1).ReleaseExpiredClaimsAsync(nowUtc.AddMinutes(-30), europe, Arg.Any<CancellationToken>());
+        await mainCandidates.Received(1).ReleaseExpiredClaimsAsync(nowUtc, europe, Arg.Any<CancellationToken>());
+        await mainCandidates.DidNotReceive().ReleaseExpiredClaimsAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await riotAccounts.DidNotReceive().ReleaseExpiredMatchIngestClaimsAsync(Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ClaimAsync_PassesLeaseToRepositoryAndUpdatesCandidateStatus()
     {
         var lease = TimeSpan.FromMinutes(30);

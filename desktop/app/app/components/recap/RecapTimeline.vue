@@ -1,23 +1,28 @@
 <script setup lang="ts">
 import type { Moment } from '~/types/recordings'
+import type { MomentCast } from '~/utils/recording-moments'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
-import { isPlayerMoment, isStructure, PLAYER_LANES } from '~/utils/recording-moments'
+import { isMarked } from '~/utils/recording-moments'
 import {
+  TIMELINE_BARE_HEIGHT as BARE_HEIGHT,
   TIMELINE_CURVE_HEIGHT as CURVE_HEIGHT,
-  TIMELINE_LANE_HEIGHT as LANE_HEIGHT,
-  TIMELINE_LANES_HEIGHT as LANES_HEIGHT,
+  clusterMoments,
+  clusterNear,
+  EVENT_CLUSTER_PX,
   TIMELINE_PANEL_TOP as PANEL_TOP,
   viewTicks,
 } from '~/utils/recording-timeline'
 
 /**
- * The recap's timeline (#1777): the video's length with the player's kills,
- * assists and deaths each on a lane of their own — named by the glyph beside
- * it — and the game's objectives above them, the playhead, and the ranges
- * being cut. A click seeks, a click on a moment seeks
- * a few seconds before it. Under the lanes, when the game has one, the
- * win-probability curve (#1911) on a lane of its own, its turning points
- * seeking like moments. When `editable`, a drag across the track draws a new
+ * The recap's timeline (#1777): the video's length, the game's events as dots
+ * above it — blue the player's side's way, red the enemy's, rose gold a
+ * moment the player marked with the mark key (#2079), which also draws a line
+ * across the panel; listed in a tooltip when the pointer passes over them
+ * anywhere on the track (#2171) — the playhead, and the ranges being cut. A
+ * click seeks, a click on an event's dot seeks a few seconds before it (to
+ * the start of a marked moment's 30 s). Under the dots, when the game has
+ * one, the win-probability curve (#1911), its turning points seeking like
+ * events. When `editable`, a drag across the track draws a new
  * range and a range's handles move its ends. Read-only (a clip's player), a
  * drag scrubs.
  *
@@ -39,7 +44,9 @@ const props = withDefaults(defineProps<{
   saved?: { id: string, startMs: number, endMs: number, title: string }[]
   pendingIn?: number | null
   winProbability?: RecapWinProbability | null
-}>(), { editable: false, drafts: () => [], selected: null, saved: () => [], pendingIn: null, winProbability: null })
+  /** The game's champions, to draw who killed whom in the events' tooltip. */
+  cast?: MomentCast
+}>(), { editable: false, drafts: () => [], selected: null, saved: () => [], pendingIn: null, winProbability: null, cast: () => ({ playerChampionId: null, champions: new Map() }) })
 
 const emit = defineEmits<{
   seek: [ms: number]
@@ -60,18 +67,24 @@ const { view, zoomed, pct, inView, msAt, setView, zoomStep, onWheel, scrollPastE
   dragging: () => drag.value !== null,
 })
 
-const visible = computed(() => props.moments.filter(moment => moment.videoMs <= props.lengthMs && inView(moment.videoMs)))
-const lanes = computed(() => PLAYER_LANES.map(lane => ({
-  lane,
-  // Bigger multi-kills drawn last, so a penta is never hidden under a single kill.
-  moments: visible.value.filter(moment => moment.kind === lane).sort((a, b) => a.kills - b.kills),
-})))
-// Structures first, so an epic monster's badge is drawn over a tower that fell at the same time.
-const objectives = computed(() => visible.value.filter(moment => !isPlayerMoment(moment))
-  .sort((a, b) => Number(!isStructure(a)) - Number(!isStructure(b))))
+/** The track's width, px: how many ms one dot covers at the current zoom. */
+const trackWidth = ref(0)
+let resizeObserver: ResizeObserver | null = null
+onMounted(() => {
+  // Read now too: an observer reports only once the page renders, which a hidden window never does.
+  trackWidth.value = track.value?.getBoundingClientRect().width ?? 0
+  resizeObserver = new ResizeObserver(([entry]) => { trackWidth.value = entry?.contentRect.width ?? 0 })
+  if (track.value) resizeObserver.observe(track.value)
+})
+onBeforeUnmount(() => resizeObserver?.disconnect())
+const msPerPx = computed(() => (trackWidth.value ? view.value.spanMs / trackWidth.value : 0))
 
-/** The lanes' panel, and the curve's lane under it when the game has one. */
-const panelHeight = computed(() => LANES_HEIGHT + (props.winProbability ? CURVE_HEIGHT : 0))
+const visible = computed(() => props.moments.filter(moment => moment.videoMs <= props.lengthMs && inView(moment.videoMs)))
+const clusters = computed(() => clusterMoments(visible.value, EVENT_CLUSTER_PX * msPerPx.value))
+const marks = computed(() => visible.value.filter(isMarked))
+
+/** The curve's lane when the game has one, a bare strip otherwise. */
+const panelHeight = computed(() => (props.winProbability ? CURVE_HEIGHT : BARE_HEIGHT))
 const trackHeight = computed(() => `${PANEL_TOP + panelHeight.value}px`)
 
 // Clock labels: the smallest step that keeps about eight across the window.
@@ -85,6 +98,10 @@ type Drag =
 
 const drag = ref<Drag | null>(null)
 const hoverMs = ref<number | null>(null)
+/** The events under the pointer, wherever it is on the track: its column, a dot's width either side. */
+const hovered = computed(() => (hoverMs.value === null || drag.value
+  ? null
+  : clusterNear(clusters.value, hoverMs.value, EVENT_CLUSTER_PX * msPerPx.value)))
 const ghost = computed(() => (drag.value?.mode === 'create'
   ? { startMs: Math.min(drag.value.anchor, drag.value.ms), endMs: Math.max(drag.value.anchor, drag.value.ms) }
   : null))
@@ -159,13 +176,13 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
         @pointercancel="drag = null"
         @pointerleave="hoverMs = null"
       >
-        <RecapTimelineObjectives :objectives="objectives" :view="view" @moment="onMoment" />
+        <RecapTimelineEvents :clusters="clusters" :view="view" :hovered="hovered" :cast="cast" @moment="onMoment" />
 
         <div class="absolute inset-x-0 overflow-hidden rounded-md bg-muted ring-1 ring-default" :style="{ top: `${PANEL_TOP}px`, height: `${panelHeight}px` }">
           <div class="absolute inset-y-0 left-0 bg-white/[0.035]" :style="{ width: pct(currentMs) }" />
           <div v-for="at in ticks" :key="`grid-${at}`" class="absolute inset-y-0 w-px bg-white/[0.04]" :style="{ left: pct(at) }" />
-          <div v-for="index in PLAYER_LANES.length - (winProbability ? 0 : 1)" :key="`lane-${index}`" class="absolute inset-x-0 h-px bg-white/[0.05]" :style="{ top: `${index * LANE_HEIGHT}px` }" />
-          <div v-if="hoverMs !== null && !drag" class="absolute inset-y-0 w-px bg-white/15" :style="{ left: pct(hoverMs) }" />
+          <div v-if="hoverMs !== null && !drag" class="absolute inset-y-0 w-px" :class="hovered ? 'bg-white/30' : 'bg-white/15'" :style="{ left: pct(hoverMs) }" />
+          <div v-for="mark in marks" :key="`mark-${mark.videoMs}`" class="absolute inset-y-0 w-px bg-primary/60" :style="{ left: pct(mark.videoMs) }" />
           <div
             v-for="clip in saved"
             :key="clip.id"
@@ -195,7 +212,7 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
         <RecapWinProbabilityLane
           v-if="winProbability"
           class="absolute inset-x-0"
-          :style="{ top: `${PANEL_TOP + LANES_HEIGHT}px`, height: `${CURVE_HEIGHT}px` }"
+          :style="{ top: `${PANEL_TOP}px`, height: `${CURVE_HEIGHT}px` }"
           :curve="winProbability.curve"
           :turning-points="winProbability.turningPoints"
           :length-ms="lengthMs"
@@ -203,8 +220,6 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
           :height="CURVE_HEIGHT"
           @jump="onMoment"
         />
-
-        <RecapTimelineLaneMoments :lanes="lanes" :view="view" @moment="onMoment" />
 
         <div v-if="inView(currentMs)" data-playhead class="absolute bottom-0 z-20 w-0.5 -translate-x-1/2 cursor-ew-resize bg-inverted" :style="{ top: `${PANEL_TOP - 6}px`, left: pct(currentMs) }">
           <span class="absolute -left-[5px] -top-1.5 size-3 rounded-full bg-inverted ring-2 ring-(--ui-bg)" />

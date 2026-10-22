@@ -106,6 +106,10 @@ public sealed class RiotRateLimitHandlerTests
         }
 
         public IReadOnlyList<RiotRateLimitSnapshot> Snapshot() => [];
+
+        public void SetCallerCeiling(string caller, int? requestsPerMinute)
+        {
+        }
     }
 
     private sealed class RecordingRateLimiter : IRiotRateLimiter
@@ -124,6 +128,10 @@ public sealed class RiotRateLimitHandlerTests
             => Observed.Add((routingValue, endpoint));
 
         public IReadOnlyList<RiotRateLimitSnapshot> Snapshot() => [];
+
+        public void SetCallerCeiling(string caller, int? requestsPerMinute)
+        {
+        }
     }
 
     // Builds a fresh response per call so ownership passes to the caller's `using`,

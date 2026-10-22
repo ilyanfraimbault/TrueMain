@@ -2,8 +2,9 @@
 import { isLoadingStatus } from '#common/utils/async-data'
 import { parseRouteParam } from '#common/utils/route-params'
 import { ELO_BRACKET_ALL } from '#common/utils/elo-brackets'
-import type { ChampionPosition } from '#common/utils/positions'
+import { ALL_POSITIONS, type ChampionPosition, type PositionFilter } from '#common/utils/positions'
 import { platformIdToRegion } from '~~/shared/utils/region'
+import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[slug].vue: same static fetches,
 // loading bar and build tabs; the ONLY difference is that useChampion is given
@@ -94,6 +95,14 @@ const {
 
 const splashUrl = useChampionSplash(displayIconUrl)
 
+// "All positions" (#2158) is an explicit `?position=ALL`, distinct from no filter,
+// which the API resolves to the player's dominant position. `selectedPosition` has
+// no value for it, so the slice the page reads carries it on its own; the picker
+// lights its All button on `null`.
+const isAllPositions = computed(() => filters.value.position === ALL_POSITIONS)
+const slicePosition = computed<PositionFilter | null>(() =>
+  isAllPositions.value ? ALL_POSITIONS : selectedPosition.value)
+
 // SSR-safe champion name for `<head>` — same composable, same cache key as the
 // global champion page, so the two pages share the entry. See
 // useChampionSeoName for why `displayName` can't serve `<head>`.
@@ -114,6 +123,14 @@ const isRefetching = computed(() =>
 // truemain it names is the account's, whichever champion the page is on).
 const latestPatch = computed(() => versions.value?.[0] ?? null)
 const { truemainChampion, identity: heroIdentity } = useTruemainBanner(profile, staticList, playerLabel)
+
+// Frozen prop bundle for the lazy (hydrate-on-visible) matchup spread: `staticList`
+// is client-only (`server: false`), so it stays out of the SSR markup until the
+// child actually mounts (#834/#837).
+const matchupsSnapshot = useLazyHydrationSnapshot(
+  { champions: [] as ChampionStaticListItem[] },
+  () => ({ champions: staticList.value ?? [] }),
+)
 
 // This player's games on the champion: the list under the build and the
 // banner's form tiles read the same page, as on the profile. Its lane filter is
@@ -148,8 +165,7 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
     <!-- The profile's page (`PagePlayerProfile`), scoped to one champion: the
          player's banner on this champion's splash with the form tiles read
          from their games on it, the champion's build and those games in the
-         main column, and the player's cards beside them — 21rem rather than the
-         profile's 18, so the matchups table keeps its champion names. -->
+         main column, and the player's cards beside them. -->
     <PagePlayerProfile
       :identity="heroIdentity"
       :patch="latestPatch"
@@ -159,7 +175,6 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
       :persona="profile?.persona ?? null"
       :splash-url="splashUrl"
       splash-position="60% 20%"
-      aside-width="21rem"
       :matches="matches"
       :loading="matchesLoading"
     >
@@ -173,10 +188,11 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
             v-if="!championError"
             class="ml-auto"
             :selected-patch="pickerPatch"
-            :selected-position="selectedPosition"
+            :selected-position="isAllPositions ? null : selectedPosition"
             :patch-options="patchOptions"
+            all-positions
             @update:patch="value => setFilter({ patch: value })"
-            @update:position="value => setFilter({ position: value })"
+            @update:position="value => setFilter({ position: value ?? ALL_POSITIONS })"
           />
           <UProgress
             v-if="isRefetching"
@@ -224,7 +240,7 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
             :champion-name="seoDisplayName"
             :display-name="displayName"
             :display-icon-url="displayIconUrl"
-            :position="selectedPosition"
+            :position="slicePosition"
             :player-label="playerLabel"
             :global-build-path="pathFor(championId)"
             :filter-labels="activeFilterLabels"
@@ -235,6 +251,19 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
             :rune-tree="runeTree"
             @retry="refreshChampion()"
             @clear="clearFilters"
+          />
+
+          <!-- The player's own lanes on one axis (#2094's spread), in the main column
+               like the champion page's: the whole field at once needs its width.
+               Cross-patch on purpose — one player meets an opponent a handful of times
+               in total — and `:champions` frozen until it mounts (#834/#837). -->
+          <LazyChampionMatchupSpread
+            hydrate-on-visible
+            :champion-id="championId"
+            :position="slicePosition"
+            :name-tag="nameTag"
+            v-bind="matchupsSnapshot.value"
+            @vue:mounted="matchupsSnapshot.reveal"
           />
 
           <ChampionPlayerMatchHistory
@@ -257,21 +286,21 @@ await Promise.all([championReady, profileReady, rankHistoryReady])
 
       <!-- The player's cards: the ranked card the profile opens its column on
            (it renders even when the champion aggregate failed — it never
-           depended on it), their performance on the champion, its matchups. -->
+           depended on it) and their performance on the champion. -->
       <template #aside>
         <ChampionPlayerAside
           :ranked="profile?.ranked"
           :profile-loaded="!!profile"
           :history="rankHistory?.entries ?? []"
           :history-loading="rankHistoryLoading"
+          :platform-id="profile?.identity.platformId ?? null"
           :champion-failed="!!championError"
           :name-tag="nameTag"
           :champion-id="championId"
           :patch="selectedPatch"
-          :position="selectedPosition"
+          :position="slicePosition"
           :player-name="playerName"
           :champion-name="displayName ?? null"
-          :champions="staticList"
         />
       </template>
     </PagePlayerProfile>

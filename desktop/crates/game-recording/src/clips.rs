@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::auto_clips::AutoClipKind;
 use crate::moments::Moment;
 use crate::store::RecordingMeta;
 
@@ -56,6 +57,10 @@ pub struct ClipMeta {
     /// back to the app (#1815). Absent from a clip saved before then.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub youtube_url: Option<String>,
+    /// The plays an automatic clip holds (#1766); empty for one the player
+    /// cut or marked.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub automatic: Vec<AutoClipKind>,
 }
 
 impl ClipMeta {
@@ -95,6 +100,7 @@ impl ClipMeta {
             favorite: false,
             moments,
             youtube_url: None,
+            automatic: Vec::new(),
         }
     }
 }
@@ -469,13 +475,17 @@ mod tests {
         let mut meta = ClipMeta::cut_from(&recording(), "7100000001", 0, 5_000, "Old", 10);
         let mut body = serde_json::to_value(&meta).unwrap();
         assert!(body.get("youtubeUrl").is_none());
+        // Nor the automatic clips' plays, absent from a clip of the player's own.
+        assert!(body.get("automatic").is_none());
         body.as_object_mut().unwrap().remove("youtubeUrl");
         let read: ClipMeta = serde_json::from_value(body).unwrap();
         assert_eq!(read, meta);
 
         meta.youtube_url = youtube_video_url("https://youtu.be/dQw4w9WgXcQ");
+        meta.automatic = vec![AutoClipKind::Steal];
         let read: ClipMeta = serde_json::from_value(serde_json::to_value(&meta).unwrap()).unwrap();
         assert_eq!(read.youtube_url, meta.youtube_url);
+        assert_eq!(read.automatic, meta.automatic);
     }
 
     #[test]

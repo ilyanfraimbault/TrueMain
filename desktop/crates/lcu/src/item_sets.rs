@@ -72,6 +72,22 @@ pub struct ItemSetDraft {
     pub blocks: Vec<ItemSetBlock>,
 }
 
+/// One block of a kit's set (#2185), titled by the app: the starter, the
+/// boots, then one per path of the kit's tree.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NamedBlock {
+    pub title: String,
+    #[serde(default)]
+    pub items: Vec<i64>,
+}
+
+/// The longest block title kept, in characters: the shop truncates past it.
+const MAX_BLOCK_TITLE: usize = 40;
+
+/// The most blocks a kit's set carries: a starter, the boots, and its paths.
+const MAX_BLOCKS: usize = 16;
+
 impl ItemSetDraft {
     /// The set for `champion`'s build: Starter, Boots, Core, Situational, each
     /// only when it has items. `None` when the build has none at all — an
@@ -86,7 +102,28 @@ impl ItemSetDraft {
         .into_iter()
         .filter_map(|(title, ids)| block(title, ids))
         .collect();
+        Self::titled(champion, champion_id, blocks)
+    }
 
+    /// The set for a kit (#2185): the blocks as the app titled them, in its
+    /// order, each only when it has items — the same one `TrueMain: ` set the
+    /// build's import writes, so a kit replaces it rather than adding one.
+    pub fn from_blocks(champion: &str, champion_id: i64, named: &[NamedBlock]) -> Option<Self> {
+        let blocks: Vec<ItemSetBlock> = named
+            .iter()
+            .take(MAX_BLOCKS)
+            .filter_map(|named| {
+                let title: String = named.title.trim().chars().take(MAX_BLOCK_TITLE).collect();
+                block(
+                    if title.is_empty() { "Items" } else { &title },
+                    &named.items,
+                )
+            })
+            .collect();
+        Self::titled(champion, champion_id, blocks)
+    }
+
+    fn titled(champion: &str, champion_id: i64, blocks: Vec<ItemSetBlock>) -> Option<Self> {
         (champion_id > 0 && !blocks.is_empty()).then(|| Self {
             title: format!("{OWNED_SET_PREFIX}{}", champion.trim()),
             associated_champions: vec![champion_id],
@@ -235,6 +272,40 @@ mod tests {
             "someFieldWeDoNotModel": { "nested": [1, 2, 3] },
             "blocks": [{ "type": "Mine", "items": [{ "id": "1055", "count": 1 }] }],
         })
+    }
+
+    #[test]
+    fn writes_a_kits_blocks_in_its_order_under_the_one_set_title() {
+        let named = vec![
+            NamedBlock {
+                title: "Starter".into(),
+                items: vec![1056, 2003, 2003],
+            },
+            NamedBlock {
+                title: "Boots".into(),
+                items: vec![3020],
+            },
+            NamedBlock {
+                title: "  ".into(),
+                items: vec![6655, 4645],
+            },
+            NamedBlock {
+                title: "Empty".into(),
+                items: vec![],
+            },
+            NamedBlock {
+                title: "x".repeat(80),
+                items: vec![6655, 3157],
+            },
+        ];
+        let draft = ItemSetDraft::from_blocks("Ahri", 103, &named).expect("a kit with items");
+        assert_eq!(draft.title, "TrueMain: Ahri");
+        let titles: Vec<&str> = draft.blocks.iter().map(|b| b.title.as_str()).collect();
+        assert_eq!(titles[..3], ["Starter", "Boots", "Items"]);
+        assert_eq!(draft.blocks.len(), 4);
+        assert_eq!(draft.blocks[3].title.chars().count(), MAX_BLOCK_TITLE);
+        assert_eq!(draft.blocks[0].items[1].count, 2);
+        assert!(ItemSetDraft::from_blocks("Ahri", 103, &[]).is_none());
     }
 
     #[test]

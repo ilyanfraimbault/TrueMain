@@ -6,8 +6,10 @@ using Data;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
+using Data.Statics;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.TestKit;
@@ -37,6 +39,9 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
     private const int MagicResistItem = 3065;
     private const int ArmourItem = 3068;
     private const int CoreItem = 6632;
+    private const int Ruby = 1028;
+    private const int Kindlegem = 3067;
+    private const int LethalityItem = 3142;
 
     // Two enemy rosters with opposite damage profiles, and one ally roster.
     private static readonly int[] MagicEnemies = [99, 103, 134, 143, 63];
@@ -148,6 +153,22 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
     }
 
     [Fact]
+    public async Task RunAsync_CountsTheOrderTheComponentsWereBoughtIn()
+    {
+        await SeedAsync(magicGames: 12, physicalGames: 12);
+
+        await CreateProcess().RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        var orders = await db.ChampionItemComponentOrders.AsNoTracking().ToListAsync();
+
+        orders.Should().OnlyContain(row => row.ChampionId == Champion && row.Position == Position && row.Patch == Patch);
+        orders.Select(row => (row.ItemId, row.ComponentId, row.Rank, row.Games)).Should().BeEquivalentTo(
+            [(CoreItem, Kindlegem, 1, 24), (CoreItem, Ruby, 2, 24)],
+            "every game bought the Kindlegem before the Ruby, whatever the recipe lists first");
+    }
+
+    [Fact]
     public async Task RunAsync_IsANoOpOnASecondRun()
     {
         await SeedAsync(magicGames: 12, physicalGames: 12);
@@ -226,6 +247,57 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             "an unqualifiable draft leaves an honest 'nothing moves this', not a guess");
     }
 
+    [Fact]
+    public async Task RunAsync_PlacesEachBranchOnWhatTheEnemiesHadBuiltWhenItOpened()
+    {
+        // #1750. In half the games every enemy has completed an armour item by the time the
+        // main completes its core item (10:00), and the main goes on to the lethality item; in
+        // the other half they hold a component only, and it goes on to its own armour item.
+        await SeedAsync(magicGames: 0, physicalGames: 0);
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var account = await db.RiotAccounts.SingleAsync();
+            Seed(db, account, "armoured", 12, MagicEnemies, LethalityItem, enemyItems: [ArmourItem]);
+            Seed(db, account, "bare", 12, PhysicalEnemies, ArmourItem, enemyComponents: [Ruby]);
+            await db.SaveChangesAsync();
+        }
+
+        var summary = (ChampionItemContextAggregationSummary)(await CreateProcess().RunCoreAsync(CancellationToken.None))!;
+
+        await using var assertions = _fixture.CreateDbContext();
+        var totals = await assertions.ChampionItemContextTotals.AsNoTracking()
+            .Where(row => row.Axis == ItemContextAxis.EnemyArmorBuilt)
+            .ToListAsync();
+
+        totals.Should().OnlyContain(row => row.ParentItemId == CoreItem,
+            "the root decision opens at 0:00, before anybody has built anything");
+        totals.Single(row => row.Bucket == ItemContextBucket.High).Games.Should().Be(12);
+        totals.Single(row => row.Bucket == ItemContextBucket.Low).Games.Should().Be(12);
+
+        var lethality = await assertions.ChampionItemContextStats.AsNoTracking()
+            .Where(row => row.ItemId == LethalityItem && row.Axis == ItemContextAxis.EnemyArmorBuilt)
+            .ToListAsync();
+        lethality.Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new { Bucket = ItemContextBucket.High, Games = 12 }, o => o.ExcludingMissingMembers());
+
+        (await assertions.ChampionItemContextStats.AsNoTracking()
+                .AnyAsync(row => row.ItemId == ArmourItem && row.Axis == ItemContextAxis.EnemyArmorBuilt))
+            .Should().BeFalse("armour does not answer the enemies' armour — only penetration does");
+
+        // The overlay reads it; the site does not.
+        var terms = await assertions.ChampionNextItemTerms.AsNoTracking()
+            .Where(term => term.ItemId == LethalityItem && term.Axis == ItemContextAxis.EnemyArmorBuilt)
+            .ToListAsync();
+        terms.Should().ContainSingle(term => term.Bucket == ItemContextBucket.High).Which.Weight.Should().BePositive();
+        (await assertions.ChampionItemContextVerdicts.AsNoTracking().ToListAsync())
+            .SelectMany(verdict => verdict.Axes)
+            .Should().NotContain(finding => ItemContextAxes.IsOverlayOnly(finding.Axis));
+
+        summary.BuiltAxes.Should().NotBeNull();
+        summary.BuiltAxes![nameof(ItemContextAxis.EnemyArmorBuilt)].Should().BeEquivalentTo(
+            new { Decisions = 24L, P10 = 0d, P90 = 300d }, o => o.ExcludingMissingMembers());
+    }
+
     private ChampionItemContextAggregationProcess CreateProcess(
         int? maxMatchesPerRun = null,
         int? batchSize = null)
@@ -243,6 +315,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
                 MatchBatchSize = batchSize ?? new ItemContextAggregationOptions().MatchBatchSize,
             }),
             new FakeItemMetadataProvider(),
+            new FakeItemStatsProvider(),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
 
@@ -317,7 +390,9 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
         IReadOnlyList<int> enemies,
         int situationalItemId,
         string version = Version,
-        DateTime? startedAtUtc = null)
+        DateTime? startedAtUtc = null,
+        int[]? enemyItems = null,
+        int[]? enemyComponents = null)
     {
         string[] positions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
 
@@ -333,7 +408,9 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             db.MatchParticipants.Add(Participant(
                 matchId, 1, Champion, 100, Position, win: i % 2 == 0,
                 riotAccountId: account.Id, puuid: account.Puuid,
-                items: [CoreItem, situationalItemId]));
+                items: [CoreItem, situationalItemId],
+                // The core item's components, the second of its recipe bought first (#2183).
+                components: [Kindlegem, Ruby]));
 
             for (var slot = 1; slot < 5; slot++)
             {
@@ -344,7 +421,8 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             for (var slot = 0; slot < 5; slot++)
             {
                 db.MatchParticipants.Add(Participant(
-                    matchId, slot + 6, enemies[slot], 200, positions[slot], win: i % 2 != 0, items: []));
+                    matchId, slot + 6, enemies[slot], 200, positions[slot], win: i % 2 != 0,
+                    items: enemyItems ?? [], components: enemyComponents));
             }
 
             // Both sides of the played lane get a 15-minute reading, so the in-game axis is
@@ -374,7 +452,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
 
     private static MatchParticipant Participant(
         string matchId, int participantId, int championId, int teamId, string position, bool win,
-        Guid? riotAccountId = null, string? puuid = null, int[]? items = null)
+        Guid? riotAccountId = null, string? puuid = null, int[]? items = null, int[]? components = null)
         => new()
         {
             MatchId = matchId,
@@ -399,7 +477,12 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             // the branch grain is read off (#1496). Without them `FinalBuildResolver` falls
             // back to sorting by item id, and the fixture's "first item" would be whichever
             // of the three has the smallest number.
-            ItemEvents = [.. (items ?? []).Select((itemId, order) => new ItemEvent
+            ItemEvents = [.. (components ?? []).Select((itemId, order) => new ItemEvent
+            {
+                TimestampMs = 100_000 * (order + 1),
+                EventType = ItemEventTypes.Purchased,
+                ItemId = itemId,
+            }), .. (items ?? []).Select((itemId, order) => new ItemEvent
             {
                 TimestampMs = 600_000 * (order + 1),
                 EventType = ItemEventTypes.Purchased,
@@ -414,7 +497,10 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
         {
             [MagicResistItem] = Final(MagicResistItem, "SpellBlock", "Health", "HealthRegen"),
             [ArmourItem] = Final(ArmourItem, "Armor", "Health", "AbilityHaste"),
-            [CoreItem] = Final(CoreItem, "Damage", "AbilityHaste"),
+            [LethalityItem] = Final(LethalityItem, "Damage", "ArmorPenetration"),
+            [CoreItem] = Final(CoreItem, "Damage", "AbilityHaste") with { Components = [Ruby, Kindlegem] },
+            [Ruby] = new(Ruby, 400, true, false, false, false, false, false),
+            [Kindlegem] = new(Kindlegem, 800, true, false, false, false, false, false),
         };
 
         public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
@@ -425,5 +511,19 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             {
                 Categories = categories.ToFrozenSet(StringComparer.Ordinal),
             };
+    }
+
+    private sealed class FakeItemStatsProvider : IItemStatsProvider
+    {
+        private static readonly IReadOnlyDictionary<int, ItemStats> Stats = new Dictionary<int, ItemStats>
+        {
+            [MagicResistItem] = new(MagicResistItem, 0, 50, 0, 0, 0, 0, 0, FrozenSet<string>.Empty),
+            [ArmourItem] = new(ArmourItem, 60, 0, 0, 0, 0, 0, 0, FrozenSet<string>.Empty),
+            [LethalityItem] = new(LethalityItem, 0, 0, 55, 0, 0, 0, 0, FrozenSet<string>.Empty),
+            [CoreItem] = new(CoreItem, 0, 0, 40, 0, 0, 0, 0, FrozenSet<string>.Empty),
+        };
+
+        public Task<IReadOnlyDictionary<int, ItemStats>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(Stats);
     }
 }

@@ -1,7 +1,8 @@
 //! The in-game overlay: panels drawn over the game itself — the next item to
 //! buy, the win probability, and the item value while TAB is held (#1795) —
 //! configured from the app, each panel shown always, while a chord is held or
-//! toggled by one (#1915).
+//! toggled by one (#1915). The lane-gold plates (#2186) sit on the game's own
+//! scoreboard, placed from the client's HUD settings read at game start.
 //!
 //! One window per panel, driven the same way on both platforms
 //! (`panels.rs`): never focused, click-through outside the preview, shown
@@ -16,6 +17,10 @@
 //! What shows when and where comes from `shell_state::overlay`, tested on any
 //! platform; this module owns the settings file, the runtime flags the rule
 //! reads, and the commands the webviews call.
+//!
+//! One window is no panel: the confirmation that a press of the mark key was
+//! kept (#1767, `confirm`), shown a moment over the game, built the first
+//! time it is needed and closed with the game.
 
 #[cfg(any(target_os = "macos", windows))]
 mod panels;
@@ -30,16 +35,19 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use shell_state::keys::{GameBinds, KeysDown};
 use shell_state::overlay::{
     OverlayInputs, OverlayPanel, OverlayPoint, OverlaySettings, PanelKeys, PanelTrigger,
 };
+use shell_state::scoreboard::HudSettings;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::game::SharedGame;
 use crate::record::SharedClient;
+use crate::recording::SharedRecorder;
 
 /// A panel's window, and the route its webview loads.
 pub fn label(panel: OverlayPanel) -> String {
@@ -72,6 +80,16 @@ const NOTICE: Option<&str> = None;
 /// A panel's size before its page has measured itself, in points.
 const INITIAL_SIZE: (f64, f64) = (232.0, 64.0);
 
+/// The confirmation's window, and the route its webview loads (#1767).
+pub const CONFIRMATION_LABEL: &str = "overlay-confirmation";
+/// Its page's name in `overlay_fit`.
+const CONFIRMATION_SLUG: &str = "confirmation";
+/// Its text changed: the payload is the new text.
+pub const CONFIRMATION_EVENT: &str = "overlay://confirmation";
+/// Long enough to be read at a glance, short enough to leave the game alone.
+const CONFIRMATION_FOR: Duration = Duration::from_millis(2_500);
+const CONFIRMATION_SIZE: (f64, f64) = (180.0, 36.0);
+
 pub struct Overlay {
     settings_path: PathBuf,
     settings: Mutex<OverlaySettings>,
@@ -87,8 +105,15 @@ pub struct Overlay {
     keys: Mutex<PanelKeys>,
     /// The player's League keybindings, Riot's defaults until the client is read.
     binds: Mutex<GameBinds>,
+    /// The player's HUD scale and scoreboard layout, Riot's defaults until the
+    /// client is read: where the lane-gold plates go.
+    hud: Mutex<HudSettings>,
     /// Each page's measured size, in points, scale included.
     sizes: Mutex<HashMap<OverlayPanel, (f64, f64)>>,
+    /// What the confirmation says, and until when it shows.
+    confirmation: Mutex<Option<(String, Instant)>>,
+    /// The confirmation page's measured size, in points.
+    confirmation_size: Mutex<(f64, f64)>,
 }
 
 pub type SharedOverlay = Arc<Overlay>;
@@ -109,6 +134,8 @@ pub struct OverlayView {
     pub chords: BTreeMap<&'static str, ChordView>,
     /// The warnings come from the player's own keybindings, not Riot's defaults.
     pub own_binds: bool,
+    /// The HUD settings the lane-gold plates are placed by.
+    pub hud: HudSettings,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -145,7 +172,10 @@ impl Overlay {
             game_frontmost: AtomicBool::new(false),
             keys: Mutex::new(PanelKeys::default()),
             binds: Mutex::new(GameBinds::defaults()),
+            hud: Mutex::new(HudSettings::DEFAULTS),
             sizes: Mutex::new(HashMap::new()),
+            confirmation: Mutex::new(None),
+            confirmation_size: Mutex::new(CONFIRMATION_SIZE),
         })
     }
 
@@ -177,7 +207,35 @@ impl Overlay {
             notice: NOTICE,
             chords,
             own_binds: binds.own,
+            hud: self.hud(),
         }
+    }
+
+    pub fn hud(&self) -> HudSettings {
+        *self.hud.lock().expect("overlay hud poisoned")
+    }
+
+    /// How `chord` reads and what it also does in game, from the binds read.
+    pub fn chord_view(&self, chord: &shell_state::keys::Chord) -> ChordView {
+        chord_view(&self.binds.lock().expect("overlay binds poisoned"), chord)
+    }
+
+    /// The confirmation's text while it should show, `None` once its moment
+    /// is over.
+    pub fn confirmation(&self, now: Instant) -> Option<String> {
+        self.confirmation
+            .lock()
+            .expect("overlay confirmation poisoned")
+            .as_ref()
+            .filter(|(_, until)| now < *until)
+            .map(|(text, _)| text.clone())
+    }
+
+    pub fn confirmation_size(&self) -> (f64, f64) {
+        *self
+            .confirmation_size
+            .lock()
+            .expect("overlay confirmation poisoned")
     }
 
     pub fn size(&self, panel: OverlayPanel) -> (f64, f64) {
@@ -280,6 +338,22 @@ fn chord_view(binds: &GameBinds, chord: &shell_state::keys::Chord) -> ChordView 
     }
 }
 
+/// Say over the game that a press was kept (#1767): `text` shows a moment at
+/// the top of the game's screen, the first press of a game building its
+/// window. Nothing shows where there is no window layer. Safe from any thread.
+pub fn confirm(app: &AppHandle, text: String) {
+    let overlay = app.state::<SharedOverlay>();
+    *overlay
+        .confirmation
+        .lock()
+        .expect("overlay confirmation poisoned") =
+        Some((text.clone(), Instant::now() + CONFIRMATION_FOR));
+    #[cfg(any(target_os = "macos", windows))]
+    panels::confirm(app, text);
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let _ = text;
+}
+
 /// Bring the panels in line with the settings and the game. Cheap when nothing
 /// changed; safe from any thread.
 pub fn apply(app: &AppHandle) {
@@ -296,6 +370,36 @@ pub fn follow(app: &AppHandle, running: bool) {
     let overlay = app.state::<SharedOverlay>();
     if overlay.game_running.swap(running, Ordering::SeqCst) != running {
         rebuild(app);
+        if running {
+            // The HUD as the game about to start was set up, for the plates.
+            let handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let overlay = handle.state::<SharedOverlay>().inner().clone();
+                let Some(client) = handle.try_state::<SharedClient>() else {
+                    return;
+                };
+                read_hud(&overlay, client.inner()).await;
+                let _ = handle.emit(VIEW_EVENT, overlay.view());
+                apply(&handle);
+            });
+        }
+    }
+}
+
+/// The player's HUD settings from the client, into `overlay`. Without a
+/// client, or with an answer this build cannot read, the last read stays —
+/// Riot's defaults before any.
+async fn read_hud(overlay: &Overlay, client: &SharedClient) {
+    let client = client.read().expect("client lock poisoned").clone();
+    let Some(client) = client else {
+        return;
+    };
+    match client.game_settings().await {
+        Ok(body) => match HudSettings::from_game_settings(&body) {
+            Some(hud) => *overlay.hud.lock().expect("overlay hud poisoned") = hud,
+            None => tracing::warn!("the client's game settings are not in a known shape"),
+        },
+        Err(error) => tracing::debug!(%error, "no game settings from the client"),
     }
 }
 
@@ -311,8 +415,14 @@ pub fn overlay_view(overlay: State<'_, SharedOverlay>) -> OverlayView {
     overlay.view()
 }
 
+/// The mark key's chord (#2079), which no panel may have.
+fn mark_key(app: &AppHandle) -> Option<shell_state::keys::Chord> {
+    app.try_state::<SharedRecorder>()?.settings().mark_key
+}
+
 /// Replace the settings. Read leniently, like the file: a value out of range
-/// falls back alone, and the answer is what was kept.
+/// falls back alone — a panel on the mark key's chord too — and the answer is
+/// what was kept.
 #[tauri::command]
 pub fn set_overlay_settings(
     app: AppHandle,
@@ -320,6 +430,10 @@ pub fn set_overlay_settings(
     settings: serde_json::Value,
 ) -> Result<OverlayView, String> {
     let settings = OverlaySettings::from_app(&settings.to_string());
+    let settings = match mark_key(&app) {
+        Some(chord) => settings.freeing(&chord),
+        None => settings,
+    };
     overlay
         .replace_settings(settings)
         .map_err(|error| error.to_string())?;
@@ -330,6 +444,7 @@ pub fn set_overlay_settings(
 /// page saves it: the page shows the refusal by the field that recorded it.
 #[tauri::command]
 pub fn overlay_check_trigger(
+    app: AppHandle,
     overlay: State<'_, SharedOverlay>,
     panel: String,
     trigger: serde_json::Value,
@@ -337,22 +452,27 @@ pub fn overlay_check_trigger(
     let panel = OverlayPanel::from_slug(&panel).ok_or("no such panel")?;
     let trigger: PanelTrigger =
         serde_json::from_value(trigger).map_err(|_| "a key this app does not know".to_string())?;
-    let binds = overlay.binds.lock().expect("overlay binds poisoned");
+    let refusal = overlay.settings().refusal(panel, &trigger).or_else(|| {
+        let marks = trigger.chord().is_some() && trigger.chord() == mark_key(&app);
+        marks.then(|| "Already the key that marks a moment while a game records.".to_string())
+    });
     Ok(TriggerCheck {
-        refusal: overlay.settings().refusal(panel, &trigger),
-        chord: trigger.chord().map(|chord| chord_view(&binds, &chord)),
+        refusal,
+        chord: trigger.chord().map(|chord| overlay.chord_view(&chord)),
     })
 }
 
 /// Read the player's League keybindings from the client, for the chords'
-/// warnings. Without a client, or with an answer this build cannot read,
-/// Riot's defaults stay.
+/// warnings, and their HUD settings, for the plates the Overlay page draws.
+/// Without a client, or with an answer this build cannot read, Riot's defaults
+/// stay.
 #[tauri::command]
 pub async fn overlay_read_binds(
     app: AppHandle,
     overlay: State<'_, SharedOverlay>,
     client: State<'_, SharedClient>,
 ) -> Result<OverlayView, String> {
+    read_hud(&overlay, &client).await;
     let client = client.read().expect("client lock poisoned").clone();
     if let Some(client) = client {
         match client.input_settings().await {
@@ -393,16 +513,31 @@ pub fn overlay_fit(
     width: f64,
     height: f64,
 ) {
-    let Some(panel) = OverlayPanel::from_slug(&panel) else {
-        return;
-    };
     if !(width.is_finite() && height.is_finite()) || width < 1.0 || height < 1.0 {
         return;
     }
+    if panel == CONFIRMATION_SLUG {
+        *overlay
+            .confirmation_size
+            .lock()
+            .expect("overlay confirmation poisoned") = (width.ceil(), height.ceil());
+        apply(&app);
+        return;
+    }
+    let Some(panel) = OverlayPanel::from_slug(&panel) else {
+        return;
+    };
     overlay
         .sizes
         .lock()
         .expect("overlay sizes poisoned")
         .insert(panel, (width.ceil(), height.ceil()));
     apply(&app);
+}
+
+/// What the confirmation's page shows when it opens: the text of the press
+/// that built its window, emitted before the page listened.
+#[tauri::command]
+pub fn overlay_confirmation(overlay: State<'_, SharedOverlay>) -> Option<String> {
+    overlay.confirmation(Instant::now())
 }

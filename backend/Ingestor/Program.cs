@@ -1,4 +1,3 @@
-using Data.BuildFacts;
 using Data.Statics;
 using Data;
 using Data.Configuration;
@@ -8,6 +7,7 @@ using Data.Repositories;
 using Ingestor;
 using Ingestor.BuildFacts;
 using Ingestor.Configuration;
+using Ingestor.FetchWorkers;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Coverage;
@@ -89,6 +89,13 @@ builder.Services.AddScoped<IMatchClaimService, MatchClaimService>();
 builder.Services.AddScoped<IMatchSnapshotWriter, MatchSnapshotWriter>();
 builder.Services.AddScoped<ITimelineIngestionService, TimelineIngestionService>();
 builder.Services.AddScoped<IAccountValidationService, AccountValidationService>();
+// Narrowed by a permanent match-fetch worker in the scope it runs a batch from (#1457), left
+// unrestricted everywhere else; the pool itself only holds singletons and the scope factory.
+builder.Services.AddScoped<MatchIngestionScope>();
+builder.Services.AddSingleton<MatchFetchWorkerPool>();
+// One brake for every worker, so a backpressure transition is announced once (#1459).
+builder.Services.AddSingleton<IHostResourceProbe, HostResourceProbe>();
+builder.Services.AddSingleton<IngestionBackpressure>();
 
 builder.Services.AddScoped<IMainStatsCalculator, MainStatsCalculator>();
 builder.Services.AddScoped<IMainDemotionPolicy, MainDemotionPolicy>();
@@ -99,7 +106,7 @@ builder.Services.AddScoped<IChampionCoverageProvider, ChampionCoverageProvider>(
 // CancellationToken.None (it caches the in-flight task per patch), so the pipeline's
 // total timeout — and the client timeout above it — are the only bounds on the call.
 builder.Services
-    .AddHttpClient<IItemMetadataProvider, CommunityDragonItemMetadataProvider>(ConfigureCommunityDragonClient)
+    .AddCommunityDragonItemMetadata(ConfigureCommunityDragonClient)
     .AcceptCompressedResponses()
     .AddCommunityDragonResilienceHandler();
 // Data Dragon has the same profile as CommunityDragon for our purposes — a static-file
@@ -108,6 +115,11 @@ builder.Services
 // options and resilience pipeline rather than a third tuning of the standard handler.
 builder.Services
     .AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>(ConfigureCommunityDragonClient)
+    .AcceptCompressedResponses()
+    .AddCommunityDragonResilienceHandler();
+// Item stats for the item-context fold's in-game axes (#1750): the same Data Dragon profile.
+builder.Services
+    .AddHttpClient<IItemStatsProvider, DataDragonItemStatsProvider>(ConfigureCommunityDragonClient)
     .AcceptCompressedResponses()
     .AddCommunityDragonResilienceHandler();
 builder.Services.AddScoped<ChampionPatternSourceRowReader>();
