@@ -42,5 +42,11 @@ public sealed class PersonaConfiguration : IEntityTypeConfiguration<Persona>
 
         entity.HasIndex(e => e.Slug)
             .IsUnique();
+
+        // Restrict: a persona others were merged into is never deleted from under them.
+        entity.HasOne(e => e.MergedInto)
+            .WithMany()
+            .HasForeignKey(e => e.MergedIntoPersonaId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

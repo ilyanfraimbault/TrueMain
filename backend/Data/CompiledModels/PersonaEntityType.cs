@@ -2,6 +2,7 @@
 using System;
 using System.Reflection;
 using Data.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -20,9 +21,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Persona",
                 typeof(Persona),
                 baseEntityType,
-                propertyCount: 6,
-                navigationCount: 2,
-                unnamedIndexCount: 1,
+                propertyCount: 7,
+                navigationCount: 3,
+                foreignKeyCount: 1,
+                unnamedIndexCount: 2,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -52,6 +54,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(Persona).GetField("<DisplayName>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 64);
             displayName.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var mergedIntoPersonaId = runtimeEntityType.AddProperty(
+                "MergedIntoPersonaId",
+                typeof(Guid?),
+                propertyInfo: typeof(Persona).GetProperty("MergedIntoPersonaId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Persona).GetField("<MergedIntoPersonaId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            mergedIntoPersonaId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var slug = runtimeEntityType.AddProperty(
                 "Slug",
@@ -86,10 +96,30 @@ namespace Data.CompiledModels
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
+                new[] { mergedIntoPersonaId });
+
+            var index0 = runtimeEntityType.AddIndex(
                 new[] { slug },
                 unique: true);
 
             return runtimeEntityType;
+        }
+
+        public static RuntimeForeignKey CreateForeignKey1(RuntimeEntityType declaringEntityType, RuntimeEntityType principalEntityType)
+        {
+            var runtimeForeignKey = declaringEntityType.AddForeignKey(new[] { declaringEntityType.FindProperty("MergedIntoPersonaId") },
+                principalEntityType.FindKey(new[] { principalEntityType.FindProperty("Id") }),
+                principalEntityType,
+                deleteBehavior: DeleteBehavior.Restrict);
+
+            var mergedInto = declaringEntityType.AddNavigation("MergedInto",
+                runtimeForeignKey,
+                onDependent: true,
+                typeof(Persona),
+                propertyInfo: typeof(Persona).GetProperty("MergedInto", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Persona).GetField("<MergedInto>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly));
+
+            return runtimeForeignKey;
         }
 
         public static void CreateAnnotations(RuntimeEntityType runtimeEntityType)

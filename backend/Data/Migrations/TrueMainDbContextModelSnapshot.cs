@@ -2189,6 +2189,9 @@ namespace Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<Guid?>("MergedIntoPersonaId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -2205,6 +2208,8 @@ namespace Data.Migrations
                         .HasDefaultValueSql("now()");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("MergedIntoPersonaId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -2261,6 +2266,121 @@ namespace Data.Migrations
                         .HasFilter("\"RiotAccountId\" IS NOT NULL");
 
                     b.ToTable("persona_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaAccountConflict", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClaimantPersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FirstSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GameName")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("LastSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OwnerPersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PlatformId")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("Resolution")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RiotAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("TagLine")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<int>("TimesSeen")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaimantPersonaId");
+
+                    b.HasIndex("OwnerPersonaId");
+
+                    b.HasIndex("RiotAccountId");
+
+                    b.HasIndex("Status", "LastSeenAtUtc");
+
+                    b.ToTable("persona_account_conflicts", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaAccountExclusion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ConflictId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("GameName")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("PersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PlatformId")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<Guid?>("RiotAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TagLine")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConflictId");
+
+                    b.HasIndex("RiotAccountId");
+
+                    b.HasIndex("PersonaId", "RiotAccountId");
+
+                    b.ToTable("persona_account_exclusions", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.PersonaLink", b =>
@@ -2567,6 +2687,16 @@ namespace Data.Migrations
                     b.Navigation("Catalog");
                 });
 
+            modelBuilder.Entity("Data.Entities.Persona", b =>
+                {
+                    b.HasOne("Data.Entities.Persona", "MergedInto")
+                        .WithMany()
+                        .HasForeignKey("MergedIntoPersonaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("MergedInto");
+                });
+
             modelBuilder.Entity("Data.Entities.PersonaAccount", b =>
                 {
                     b.HasOne("Data.Entities.Persona", "Persona")
@@ -2579,6 +2709,57 @@ namespace Data.Migrations
                         .WithMany()
                         .HasForeignKey("RiotAccountId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Persona");
+
+                    b.Navigation("RiotAccount");
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaAccountConflict", b =>
+                {
+                    b.HasOne("Data.Entities.Persona", "Claimant")
+                        .WithMany()
+                        .HasForeignKey("ClaimantPersonaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.Persona", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerPersonaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
+                        .WithMany()
+                        .HasForeignKey("RiotAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Claimant");
+
+                    b.Navigation("Owner");
+
+                    b.Navigation("RiotAccount");
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaAccountExclusion", b =>
+                {
+                    b.HasOne("Data.Entities.PersonaAccountConflict", "Conflict")
+                        .WithMany()
+                        .HasForeignKey("ConflictId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Data.Entities.Persona", "Persona")
+                        .WithMany()
+                        .HasForeignKey("PersonaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.RiotAccount", "RiotAccount")
+                        .WithMany()
+                        .HasForeignKey("RiotAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Conflict");
 
                     b.Navigation("Persona");
 
