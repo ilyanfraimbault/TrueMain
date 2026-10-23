@@ -24,7 +24,7 @@ definition anything reading purchases as a *build* must apply. Ids are mapped th
 `GetDisplayedBuildItemId` for the same reason the build path does it, or a transform item would be named one way
 by a fold and another by the dim tables and never match.
 
-**The "why this item" card is a rate and a situation, and nothing else.**
+**The "why this item" card is the situation, and nothing else.**
 It shipped with the contrast rate, the sample size and a scope footnote on every line — *"62% against a
 magic-damage team · 18% otherwise · 1,106 games / across all ranks"* — and read as a paragraph where a glance was
 wanted. #1465 cut all three. The contrast is what makes 62% mean something, so dropping it is a real trade: what
@@ -32,6 +32,10 @@ carries the meaning instead is the `Situational` class above the lines, which by
 axis moved the pick by at least ten points *and* cleared significance. The scope footnote went with it, including
 the `all matchups` clause shown when `?vs=` was pinned — worth knowing, and worth restoring if a reader is ever
 seen to misread a pinned matchup, but not worth a permanent line on every card — #1451, #1465.
+#2256 then cut the rate itself: without its contrast, *"41% against a frontline"* read as a probability nobody could
+place — 41% of what? — and the `Situational` class above already says the pick moves. A line is now just the
+situation, capitalised (*"Against a frontline"*). The ally axes say *your* team, because *"when the team has little
+magic damage"* was read as the enemy team — #2256.
 
 **The key term is coloured with the item tooltip's vocabulary, not a new one.**
 The card sits directly under an item description where magic damage is already cyan and physical damage already

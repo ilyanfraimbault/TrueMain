@@ -139,7 +139,7 @@ public sealed class ChampionItemContextAggregationProcess(
         // are rebuilt too, from counters already folded.
         touched.UnionWith(await ScopesWithoutTermsAsync(ct));
 
-        var verdicts = await RebuildVerdictsAsync(touched, settings, aggregatedAtUtc, ct);
+        var verdicts = await RebuildVerdictsAsync(touched, patchData, settings, aggregatedAtUtc, ct);
         var builtAxes = distribution.Quantiles();
 
         logger.LogInformation(
@@ -308,6 +308,7 @@ public sealed class ChampionItemContextAggregationProcess(
     /// </summary>
     private async Task<int> RebuildVerdictsAsync(
         IReadOnlyCollection<ItemContextScope> scopes,
+        ItemContextPatchData patchData,
         ItemContextAggregationOptions settings,
         DateTime aggregatedAtUtc,
         CancellationToken ct)
@@ -345,8 +346,11 @@ public sealed class ChampionItemContextAggregationProcess(
                     .ToList();
 
                 var window = PatchWindow(scopeStats, scope.Patch, settings.MaxPatchLookback);
+                // Which end of an axis an item answers reads its categories (#1450), from the
+                // served patch's metadata — a verdict describes that patch alone.
+                var items = await patchData.MetadataAsync(scope.Patch, scope.Patch, ct);
                 var verdicts = ItemContextVerdictBuilder.Build(
-                    scope, scopeStats, scopeTotals, window, settings, aggregatedAtUtc);
+                    scope, scopeStats, scopeTotals, window, items, settings, aggregatedAtUtc);
                 var terms = NextItemTermBuilder.Build(
                     scope, scopeStats, scopeTotals, window, settings.NextItem, aggregatedAtUtc);
 

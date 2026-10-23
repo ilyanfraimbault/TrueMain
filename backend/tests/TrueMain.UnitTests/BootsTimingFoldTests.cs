@@ -70,7 +70,7 @@ public sealed class BootsTimingFoldTests
     public void NoVerdictIsEverWrittenForTheTiming()
     {
         var verdicts = ItemContextVerdictBuilder.Build(
-            Scope, [Stat(1, 300), Stat(2, 700)], [Total(1000)], [Patch], new ItemContextAggregationOptions(), Now);
+            Scope, [Stat(1, 300), Stat(2, 700)], [Total(1000)], [Patch], new Dictionary<int, ItemMetadata>(), new ItemContextAggregationOptions(), Now);
 
         verdicts.Should().BeEmpty("a step number is not an item a card could name");
     }

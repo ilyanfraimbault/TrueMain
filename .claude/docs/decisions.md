@@ -40,7 +40,7 @@ Last verified against `develop` on 2026-09-02.
 
 ## Champion page — builds, SSR prose — [`decisions/product-champion-page.md`](decisions/product-champion-page.md)
 
-- The "why this item" card is a rate and a situation, nothing else: no contrast rate, no sample, no scope footnote — #1451, #1465
+- The "why this item" card is the situation alone: no rate, no contrast rate, no sample, no scope footnote — #1451, #1465, #2256
 - The card's key term uses the item tooltip's colour vocabulary (damage coloured by the resistance that blocks it); untinted where no stat answers it — #1465
 - A `Preference` verdict renders nothing on the card — #1465
 - An item-context axis the front end has no wording for is dropped, never printed raw; a test mirrors the backend's axis list — #1451
@@ -225,6 +225,7 @@ Last verified against `develop` on 2026-09-02.
 - Damage profiles are served through the fold's own snapshot rule; the per-build split is a sibling table filled forward (no backfill); an unprofiled champion gets a Data Dragon class, never a share (2026-10-05) — #1905
 - An item-context verdict is about an *edge* of the build tree: rates are branch-relative, a step with no real alternative is `Core`, and the gold-lead confounder dies with the flat grain — #1496, #1450
 - A situation may only explain an item it could mechanically answer: the item-context whitelist is derived from the item's own categories, and three floors (bucket games, absolute lift, significance) decide a finding — #1450
+- A finding is kept only on the end of the axis the item itself answers; the mirror of a rival's finding is dropped — #2256
 - Item-context verdicts are derived and rebuilt per run while the counters stay additive per match, so the API read carries no statistics — #1450
 - A thin item-context bucket widens backwards through patches, both ends together, and records the window it used — #1450
 - The item context carries no elo dimension: splitting by rank would starve the buckets the feature rests on — #1450

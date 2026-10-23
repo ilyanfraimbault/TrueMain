@@ -191,6 +191,18 @@ also what keeps the table at the scale of the matchup pre-aggregation. Three flo
 (games in both buckets, absolute lift, two-proportion significance): a large sample makes a two-point gap
 significant and a spectacular gap over ten games is noise, so no single floor is enough — #1450.
 
+**An item is explained only by the end of an axis it answers, not by the axis.** The fold counts both ends of
+every eligible axis — it needs both to measure a lift — and the builder kept whichever end took the step more. On a
+two-item branch, whatever pushes the rival out pushes the item in, so an item lit up at the end of its *rival's*
+situation: *"Lord Dominik's Regards, when the team has little magic damage"*, magic resistance *"against a team with
+little magic damage"*. True, and nonsense as a reason to build it. `ItemContextWhitelist.Answers` now names the
+end: the threat end of every threat axis; both ends of the axes whose two ends are both situations (the lane
+opponent's range and lane pressure, the gold lead at 15); an ability-power item the "team short of magic damage"
+end of the ally axis and any other damage item the "already deals magic damage" end; a team-facing item the "no
+frontline" end. A finding on the other end is dropped, not inverted — the same gap stays readable on the rival,
+whose reason it is. It is applied when the verdicts are built, never at fold time, so it costs a verdict rebuild and
+no re-fold — #2256.
+
 **An item-context verdict is about an edge of the build tree, not about an item.**
 The first grain measured an item against every game of its slot — "how often does this champion ever finish this
 item". That is not a decision anybody makes, and it is confounded by game length: being ahead at 15 minutes means

@@ -1,4 +1,6 @@
+using System.Collections.Frozen;
 using AwesomeAssertions;
+using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
 using Ingestor.Options;
@@ -28,6 +30,18 @@ public sealed class ItemContextVerdictBuilderTests
     private const int Rival = 3153;
 
     private static readonly DateTime Now = new(2026, 9, 3, 12, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>
+    /// The items' categories, which decide the end of an axis each one answers: the tested item
+    /// carries magic resistance, tenacity, magic penetration and ability power, so it answers
+    /// the threat ends of the axes below and the "short of magic damage" end of the ally one.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<int, ItemMetadata> Items = new Dictionary<int, ItemMetadata>
+    {
+        [Item] = Metadata(Item, "SpellBlock", "Tenacity", "MagicPenetration", "SpellDamage"),
+        [Rival] = Metadata(Rival, "Damage", "ArmorPenetration"),
+        [Rival + 1] = Metadata(Rival + 1, "Damage"),
+    };
 
     [Fact]
     public void AStepNoSiblingCompetesWithIsCore_HoweverStronglyAnAxisWouldMoveIt()
@@ -129,18 +143,68 @@ public sealed class ItemContextVerdictBuilderTests
     [Fact]
     public void TheFindingPointsAtWhicheverEndTakesTheStepMore()
     {
-        // Built against ranged lanes, i.e. at the Low end of the melee-count axis.
+        // An ability-power item built when the team is short of magic damage, i.e. at the Low
+        // end of the ally magic-damage axis.
         var verdict = Single(
             options: Options(),
             stats: [Overall(400), Overall(600, item: Rival),
-                    Stat(ItemContextAxis.EnemyMelee, ItemContextBucket.High, 90),
-                    Stat(ItemContextAxis.EnemyMelee, ItemContextBucket.Low, 310)],
-            totals: [OverallTotal(1000), Total(ItemContextAxis.EnemyMelee, ItemContextBucket.High, 500),
-                     Total(ItemContextAxis.EnemyMelee, ItemContextBucket.Low, 500)]);
+                    Stat(ItemContextAxis.AllyMagicDamage, ItemContextBucket.High, 90),
+                    Stat(ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low, 310)],
+            totals: [OverallTotal(1000), Total(ItemContextAxis.AllyMagicDamage, ItemContextBucket.High, 500),
+                     Total(ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low, 500)]);
 
         var finding = verdict.Axes.Should().ContainSingle().Subject;
         finding.Bucket.Should().Be(ItemContextBucket.Low);
         finding.Lift.Should().BePositive("the lift is oriented, so a sentence never has to invert itself");
+    }
+
+    [Fact]
+    public void AnEndTheItemDoesNotAnswerIsNotItsReason()
+    {
+        // The Lord Dominik's case: on a two-item branch, whatever pushes the rival out pushes
+        // this item in, so the item lights up at the end of the rival's situation. Taken more
+        // against a team with little magic damage is that mirror, not a reason to buy magic
+        // resistance — the finding is dropped, and the same gap on the rival's side is kept.
+        var mirror = Single(
+            options: Options(),
+            stats: [Overall(400), Overall(600, item: Rival),
+                    Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 90),
+                    Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 310)],
+            totals: [OverallTotal(1000), Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 500),
+                     Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 500)]);
+
+        mirror.Class.Should().Be(ItemContextClass.Preference);
+        mirror.Axes.Should().BeEmpty();
+
+        var rival = Build(
+                Options(),
+                [Overall(600), Overall(400, item: Rival),
+                 Stat(ItemContextAxis.AllyMagicDamage, ItemContextBucket.High, 310, item: Rival),
+                 Stat(ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low, 90, item: Rival)],
+                [OverallTotal(1000), Total(ItemContextAxis.AllyMagicDamage, ItemContextBucket.High, 500),
+                 Total(ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low, 500)],
+                [Patch])
+            .Single(verdict => verdict.ItemId == Rival);
+
+        rival.Axes.Should().ContainSingle().Which.Bucket.Should().Be(ItemContextBucket.High,
+            "an attack-damage item answers a team that already deals magic damage");
+    }
+
+    [Fact]
+    public void AnItemTheMetadataDoesNotKnowGetsNoSentence()
+    {
+        var verdict = Build(
+                Options(),
+                [Overall(400, item: 9999), Overall(600, item: Rival),
+                 Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 310, item: 9999),
+                 Stat(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 90, item: 9999)],
+                [OverallTotal(1000), Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High, 500),
+                 Total(ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low, 500)],
+                [Patch])
+            .Single(verdict => verdict.ItemId == 9999);
+
+        verdict.Class.Should().Be(ItemContextClass.Preference);
+        verdict.Axes.Should().BeEmpty();
     }
 
     [Fact]
@@ -361,7 +425,13 @@ public sealed class ItemContextVerdictBuilderTests
         IReadOnlyList<ChampionItemContextTotal> totals,
         IReadOnlyList<string> patchWindow)
         => ItemContextVerdictBuilder.Build(
-            new ItemContextScope(Champion, Position, Patch), stats, totals, patchWindow, options, Now);
+            new ItemContextScope(Champion, Position, Patch), stats, totals, patchWindow, Items, options, Now);
+
+    private static ItemMetadata Metadata(int id, params string[] categories)
+        => new(id, 3000, true, false, false, false, true, false)
+        {
+            Categories = categories.ToFrozenSet(StringComparer.Ordinal),
+        };
 
     private static ChampionItemContextStat Overall(int games, int item = Item, int parent = Root)
         => Stat(ItemContextAxis.Overall, ItemContextBucket.All, games, item: item, parent: parent);

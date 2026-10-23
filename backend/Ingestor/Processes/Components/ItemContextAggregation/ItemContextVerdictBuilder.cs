@@ -1,4 +1,5 @@
 using Core.Lol.ItemContext;
+using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
 using Ingestor.Options;
@@ -55,7 +56,10 @@ namespace Ingestor.Processes.Components.ItemContextAggregation;
 /// that needs the opponent as a dimension of the counters, which multiplies them by the
 /// number of opponents a champion meets (~70 on production) — prohibitive at this grain, so
 /// it is deliberately not done here (#1462). What blocks the absurd cases meanwhile is the
-/// mechanical whitelist upstream: an item is only ever offered situations it could answer.
+/// mechanical whitelist upstream: an item is only ever offered situations it could answer,
+/// and a finding is only kept on the end of the axis the item itself answers — the mirror of
+/// a rival's finding ("Lord Dominik's, when the team has little magic damage") is dropped
+/// (<see cref="ItemContextWhitelist.Answers"/>).
 /// </para>
 /// </remarks>
 public static class ItemContextVerdictBuilder
@@ -75,12 +79,14 @@ public static class ItemContextVerdictBuilder
         IReadOnlyList<ChampionItemContextStat> stats,
         IReadOnlyList<ChampionItemContextTotal> totals,
         IReadOnlyList<string> patchWindow,
+        IReadOnlyDictionary<int, ItemMetadata> items,
         ItemContextAggregationOptions options,
         DateTime aggregatedAtUtc)
     {
         ArgumentNullException.ThrowIfNull(stats);
         ArgumentNullException.ThrowIfNull(totals);
         ArgumentNullException.ThrowIfNull(patchWindow);
+        ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(options);
 
         if (patchWindow.Count == 0)
@@ -138,8 +144,10 @@ public static class ItemContextVerdictBuilder
                     other.ItemId != sibling.ItemId && other.Share >= options.MinAlternativeShare);
                 var isDecision = hasAlternative && sibling.Share < options.CoreRate;
 
-                var findings = isDecision
-                    ? BuildFindings(slot, parentItemId, sibling.ItemId, statsByKey, totalsByKey, patchWindow, maxWindow, options)
+                // An item the served patch's metadata no longer knows cannot be told which end
+                // of an axis it answers, so it gets no sentence rather than a blind one.
+                var findings = isDecision && items.TryGetValue(sibling.ItemId, out var item)
+                    ? BuildFindings(slot, parentItemId, item, statsByKey, totalsByKey, patchWindow, maxWindow, options)
                     : [];
 
                 verdicts.Add(new ChampionItemContextVerdict
@@ -172,7 +180,7 @@ public static class ItemContextVerdictBuilder
     private static List<ItemContextAxisFinding> BuildFindings(
         ItemContextSlot slot,
         int parentItemId,
-        int itemId,
+        ItemMetadata item,
         IReadOnlyDictionary<StatKey, Counts> statsByKey,
         IReadOnlyDictionary<TotalKey, Counts> totalsByKey,
         IReadOnlyList<string> patchWindow,
@@ -185,7 +193,7 @@ public static class ItemContextVerdictBuilder
         // judged into a verdict: the site has no sentence for them.
         foreach (var axis in ItemContextAxes.OnSite)
         {
-            var finding = Judge(slot, parentItemId, itemId, axis, statsByKey, totalsByKey, patchWindow, maxWindow, options);
+            var finding = Judge(slot, parentItemId, item, axis, statsByKey, totalsByKey, patchWindow, maxWindow, options);
             if (finding is not null)
             {
                 findings.Add(finding);
@@ -202,7 +210,7 @@ public static class ItemContextVerdictBuilder
     private static ItemContextAxisFinding? Judge(
         ItemContextSlot slot,
         int parentItemId,
-        int itemId,
+        ItemMetadata item,
         ItemContextAxis axis,
         IReadOnlyDictionary<StatKey, Counts> statsByKey,
         IReadOnlyDictionary<TotalKey, Counts> totalsByKey,
@@ -222,8 +230,8 @@ public static class ItemContextVerdictBuilder
                 continue;
             }
 
-            var highGames = SumStats(statsByKey, slot, parentItemId, itemId, axis, ItemContextBucket.High, patchWindow, window);
-            var lowGames = SumStats(statsByKey, slot, parentItemId, itemId, axis, ItemContextBucket.Low, patchWindow, window);
+            var highGames = SumStats(statsByKey, slot, parentItemId, item.Id, axis, ItemContextBucket.High, patchWindow, window);
+            var lowGames = SumStats(statsByKey, slot, parentItemId, item.Id, axis, ItemContextBucket.Low, patchWindow, window);
 
             var highRate = highGames / (double)highTotal;
             var lowRate = lowGames / (double)lowTotal;
@@ -232,6 +240,13 @@ public static class ItemContextVerdictBuilder
             var (bucket, gamesIn, totalIn, gamesOut, totalOut) = highIsIn
                 ? (ItemContextBucket.High, highGames, highTotal, lowGames, lowTotal)
                 : (ItemContextBucket.Low, lowGames, lowTotal, highGames, highTotal);
+
+            // The end that takes the step more is not the item's reason when the item does not
+            // answer it: that is the rival's finding seen in a mirror.
+            if (!ItemContextWhitelist.Answers(item, slot, axis, bucket))
+            {
+                return null;
+            }
 
             var lift = (gamesIn / (double)totalIn) - (gamesOut / (double)totalOut);
             if (lift < options.MinAbsoluteLift)
