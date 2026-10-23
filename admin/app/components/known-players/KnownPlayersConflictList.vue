@@ -42,8 +42,12 @@ const emit = defineEmits<{ open: [conflict: PersonaConflict] }>()
           v-for="conflict in conflicts"
           :key="conflict.id"
           data-row
-          class="border-b border-default last:border-0 cursor-pointer hover:bg-elevated/40"
+          tabindex="0"
+          :aria-label="`Open the conflict over ${riotId(conflict.account)}`"
+          class="border-b border-default last:border-0 cursor-pointer hover:bg-elevated/40 focus-visible:outline-2 focus-visible:outline-primary"
           @click="emit('open', conflict)"
+          @keydown.enter.prevent="emit('open', conflict)"
+          @keydown.space.prevent="emit('open', conflict)"
         >
           <td class="px-4 py-2">
             <p class="font-medium text-highlighted">

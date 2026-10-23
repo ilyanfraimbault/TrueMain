@@ -49,6 +49,12 @@ describe('KnownPlayersConflictList', () => {
 
     await rows[1]!.trigger('click')
     expect(wrapper.emitted('open')![0]![0]).toMatchObject({ id: 'c2' })
+
+    // Reachable without a mouse: focusable, opened with Enter or Space.
+    expect(rows[2]!.attributes('tabindex')).toBe('0')
+    await rows[2]!.trigger('keydown', { key: 'Enter' })
+    await rows[3]!.trigger('keydown', { key: ' ' })
+    expect(wrapper.emitted('open')!.map(([c]) => (c as { id: string }).id)).toEqual(['c2', 'c3', 'c4'])
   })
 
   it('says why the list is empty, but not while it loads', () => {
