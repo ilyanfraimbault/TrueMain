@@ -149,6 +149,7 @@ Last verified against `develop` on 2026-09-02.
 - A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04) — #1545
 - OG image URLs are signed with a secret regenerated at every build, and that is left as the default — #926
 - The sitemap advertises champions, not truemain profiles; known players with a tracked account are in it, their page being server-rendered (2026-09-01, extended 2026-10-14) — #862, #1337, #551, #2018
+- The sitemap is an index over one sitemap per family (pages, champions, players); a player's `lastmod` moves only when the page changes (2026-10-23) — #1538
 
 ## Web frontend rules (hydration, fetches, icons, tooltips) — [`decisions/web-frontend-rules.md`](decisions/web-frontend-rules.md)
 
