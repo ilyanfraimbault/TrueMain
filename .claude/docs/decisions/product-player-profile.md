@@ -221,7 +221,15 @@ such accounts mostly ended on a summoner-v4 404 (#2133). The row still links on 
 ingested. The batch reports those accounts in one log line, and placeholder names a source serialises for a missing
 value (`undefined`, `null`) are rejected as `invalid`.
 
-**Source.** #2016, #2134.
+**Conflicts are the operator's, and decisions outlive the scrapers (2026-10-23, #2253).** Every claim on an account
+another persona holds is recorded, and the admin's Known players page settles it: move the account, keep it, detach it
+from both, or merge the two personas. The intake still never decides on its own — a source's weekly listing is not
+evidence against another source's. A decision is written where the next run cannot undo it: the persona that lost the
+account gets an exclusion (its claim is answered `excluded`), and a merged persona stays as an empty row pointing at the
+kept one rather than being deleted, so its slug keeps redirecting (301 on the web page), the intake folds its source's
+entry into the kept persona instead of recreating it, and the conflict history keeps both names.
+
+**Source.** #2016, #2134, #2253.
 
 **A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
 each main's name, so the count would name its denominator next to the champion page's per-patch count. On the

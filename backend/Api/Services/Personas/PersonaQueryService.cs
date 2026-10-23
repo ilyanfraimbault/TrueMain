@@ -45,8 +45,19 @@ public sealed class PersonaQueryService(TrueMainDbContext db) : IPersonaQuerySer
         var persona = await db.Personas
             .AsNoTracking()
             .Where(p => p.Slug == key)
-            .Select(p => new { p.Id, p.Slug, p.DisplayName })
+            .Select(p => new { p.Id, p.Slug, p.DisplayName, p.MergedIntoPersonaId })
             .FirstOrDefaultAsync(ct);
+        if (persona?.MergedIntoPersonaId is { } keptId)
+        {
+            // Merged into another persona by an operator (#2253): answer that one — its own slug tells
+            // the page to redirect. A merge always points at a live persona, so one hop is enough.
+            persona = await db.Personas
+                .AsNoTracking()
+                .Where(p => p.Id == keptId)
+                .Select(p => new { p.Id, p.Slug, p.DisplayName, p.MergedIntoPersonaId })
+                .FirstOrDefaultAsync(ct);
+        }
+
         if (persona is null)
         {
             return null;

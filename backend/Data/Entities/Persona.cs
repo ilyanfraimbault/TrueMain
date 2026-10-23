@@ -26,6 +26,17 @@ public class Persona
 
     public DateTime UpdatedAtUtc { get; set; }
 
+    /// <summary>
+    /// The persona an operator merged this one into (#2253); null for a live persona. A merged
+    /// persona keeps its row and slug but no account or link: <c>GET /players/{slug}</c> answers the
+    /// persona it points to, so the page redirects there, and the intake feeds that persona when a
+    /// source sends the old slug — the scrapers never recreate it. Always points at a live persona:
+    /// a merge re-points the personas already merged into the one it absorbs.
+    /// </summary>
+    public Guid? MergedIntoPersonaId { get; set; }
+
+    public Persona? MergedInto { get; set; }
+
     public ICollection<PersonaLink> Links { get; set; } = new List<PersonaLink>();
 
     public ICollection<PersonaAccount> Accounts { get; set; } = new List<PersonaAccount>();
