@@ -116,12 +116,12 @@ const AXIS_PHRASES: Record<string, { high: ItemContextPhraseToken[], low: ItemCo
     low: phrase('against a lane opponent with no ', ['sustain', 'heal']),
   },
   AllyMagicDamage: {
-    high: phrase('when the team already deals ', ['magic damage', 'magic']),
-    low: phrase('when the team has little ', ['magic damage', 'magic']),
+    high: phrase('when your team already deals ', ['magic damage', 'magic']),
+    low: phrase('when your team lacks ', ['magic damage', 'magic']),
   },
   AllyFrontline: {
-    high: phrase('when the team already has a ', ['frontline', 'armor']),
-    low: phrase('when the team has no ', ['frontline', 'armor']),
+    high: phrase('when your team already has a ', ['frontline', 'armor']),
+    low: phrase('when your team has no ', ['frontline', 'armor']),
   },
   OwnGoldLeadAt15: {
     high: phrase('when ', ['ahead', 'gold'], ' at 15 min'),
@@ -144,6 +144,12 @@ export function itemContextAxisPhrase(axis: ChampionItemContextAxis): ItemContex
 /** The same phrase as flat text — for tests, and for anywhere prose is needed without markup. */
 export function itemContextAxisText(axis: ChampionItemContextAxis): string | null {
   return itemContextAxisPhrase(axis)?.map(token => token.text).join('') ?? null
+}
+
+/** A phrase that opens a line — the card's, where no rate precedes it — with its first letter capitalised. */
+export function capitalizePhrase(phrase: ItemContextPhraseToken[]): ItemContextPhraseToken[] {
+  const [first, ...rest] = phrase
+  return first ? [{ ...first, text: first.text.charAt(0).toUpperCase() + first.text.slice(1) }, ...rest] : phrase
 }
 
 /** Only the findings this build can word — the card renders nothing it cannot explain. */

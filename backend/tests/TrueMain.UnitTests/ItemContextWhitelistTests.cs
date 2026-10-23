@@ -140,6 +140,58 @@ public sealed class ItemContextWhitelistTests
             .Should().BeEmpty();
     }
 
+    [Fact]
+    public void ADefensiveItemAnswersOnlyTheThreatEnd()
+    {
+        var magicResist = Item(9001, "SpellBlock", "Health");
+
+        Answers(magicResist, ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High).Should().BeTrue();
+        Answers(magicResist, ItemContextAxis.EnemyMagicDamage, ItemContextBucket.Low).Should().BeFalse(
+            "magic resistance is never the answer to a team with little magic damage");
+        Answers(Item(9002, "Armor"), ItemContextAxis.EnemyMelee, ItemContextBucket.Low).Should().BeFalse();
+    }
+
+    [Fact]
+    public void LordDominiksNeverAnswersATeamShortOfMagicDamage()
+    {
+        // The card that read "Lord Dominik's, when the team has little magic damage".
+        var dominiks = Item(3036, "Damage", "ArmorPenetration", "CriticalStrike");
+
+        Answers(dominiks, ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low).Should().BeFalse();
+        Answers(dominiks, ItemContextAxis.AllyMagicDamage, ItemContextBucket.High).Should().BeTrue();
+        Answers(dominiks, ItemContextAxis.EnemyFrontline, ItemContextBucket.High).Should().BeTrue();
+        Answers(dominiks, ItemContextAxis.EnemyFrontline, ItemContextBucket.Low).Should().BeFalse();
+    }
+
+    [Fact]
+    public void AnAbilityPowerItemAnswersATeamShortOfMagicDamage()
+    {
+        var nashors = Item(3115, "SpellDamage", "AttackSpeed", "OnHit");
+
+        Answers(nashors, ItemContextAxis.AllyMagicDamage, ItemContextBucket.Low).Should().BeTrue();
+        Answers(nashors, ItemContextAxis.AllyMagicDamage, ItemContextBucket.High).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TwoSidedAxesAnswerBothEnds_AndAnIneligibleAxisNeither()
+    {
+        var item = Item(9001, "Damage");
+
+        Answers(item, ItemContextAxis.OwnGoldLeadAt15, ItemContextBucket.Low).Should().BeTrue();
+        Answers(item, ItemContextAxis.OwnGoldLeadAt15, ItemContextBucket.High).Should().BeTrue();
+        Answers(item, ItemContextAxis.EnemyMagicDamage, ItemContextBucket.High).Should().BeFalse(
+            "the end rule never widens what the item is eligible for");
+
+        var doransShield = Item(1054, "Health", "Lane");
+        ItemContextWhitelist.Answers(doransShield, ItemContextSlot.Starter, ItemContextAxis.OpponentRanged, ItemContextBucket.Low)
+            .Should().BeTrue();
+        ItemContextWhitelist.Answers(doransShield, ItemContextSlot.Starter, ItemContextAxis.OpponentRanged, ItemContextBucket.High)
+            .Should().BeTrue();
+    }
+
+    private static bool Answers(ItemMetadata item, ItemContextAxis axis, ItemContextBucket bucket)
+        => ItemContextWhitelist.Answers(item, ItemContextSlot.Build, axis, bucket);
+
     private static IReadOnlySet<ItemContextAxis> Build(params string[] categories)
         => ItemContextWhitelist.For(Item(9001, categories), ItemContextSlot.Build);
 

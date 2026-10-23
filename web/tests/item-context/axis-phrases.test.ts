@@ -1,6 +1,7 @@
 import type { ChampionItemContextAxis, ChampionItemContextItem } from '~~/shared/types/item-context'
 import { describe, expect, it } from 'vitest'
 import {
+  capitalizePhrase,
   indexItemContext,
   ITEM_CONTEXT_TONE_CLASS,
   itemContextAxisPhrase,
@@ -52,6 +53,18 @@ function axis(partial: Partial<ChampionItemContextAxis> & { axis: string }): Cha
 }
 
 describe('itemContextAxisPhrase', () => {
+  it('says whose team an ally axis is about, so it never reads as the enemy one', () => {
+    expect(itemContextAxisText(axis({ axis: 'AllyMagicDamage', bucket: 'Low' })))
+      .toBe('when your team lacks magic damage')
+  })
+
+  it('capitalises the opening word of a line and leaves the tones alone', () => {
+    const tokens = capitalizePhrase(itemContextAxisPhrase(axis({ axis: 'EnemyFrontline', bucket: 'High' }))!)
+    expect(tokens.map(token => token.text).join('')).toBe('Against a frontline')
+    expect(tokens.find(token => token.tone)).toEqual({ text: 'frontline', tone: 'armor' })
+    expect(capitalizePhrase([])).toEqual([])
+  })
+
   it('words every axis the backend can send, at both ends', () => {
     for (const name of BACKEND_AXES) {
       for (const bucket of ['High', 'Low'] as const) {
