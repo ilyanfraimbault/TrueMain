@@ -46,6 +46,7 @@ typecheck.
 | `useApiFetch()` | `composables/useApi.ts` — the Nitro `/api` proxy, visitor forwarded during SSR | `composables/useApi.ts` — TrueMain reads through the shell (`api_get`, and `api_post` for the composition build), each path allow-listed in `desktop/src-tauri/src/lib.rs`; `/static/*` answered from Data Dragon (`utils/static-endpoints.ts`) |
 | `useChampionSlugs()` | `composables/useChampionSlugs.ts` — slugged `/champions/{slug}` | `composables/useSiteShims.ts` — the app's `/champions/{id}` |
 | `useCanonicalIcon()` | `composables/useCanonicalIcon.ts` — IPX | `composables/useSiteShims.ts` — the CDN URL as given |
+| `useCanonicalLoadingArt()` | `composables/useCanonicalIcon.ts` — IPX, at Data Dragon's own width | `composables/useSiteShims.ts` — the CDN URL as given |
 
 Shared pages link to the site's routes as they are (`truemainProfilePath`, …). A route the app does not have — a
 player's champion page — opens on truemain.lol in the browser (`desktop/app/app/plugins/site-routes.ts`), so the

@@ -45,6 +45,27 @@ public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ListChampionsAsync_AnswersAPurgedPatchAsEmpty()
+    {
+        await SeedSummariesAcrossManyChampionsAsync();
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // The purge keeps the scopes (#1958): only the marker says the builds are gone.
+            db.ChampionBuildPurgedPatches.Add(new ChampionBuildPurgedPatch { Patch = "16.5", PurgedAtUtc = DateTime.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var summaries = await client.GetFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>("/champions?patch=16.5");
+        summaries.Should().BeEmpty("a purged patch would otherwise list totals and tiers over builds that are gone");
+    }
+
+    [Fact]
     public async Task ListChampionsAsync_ComputesAggregatedFieldsForKnownSlice()
     {
         var seededAtUtc = await SeedSummariesAcrossManyChampionsAsync();

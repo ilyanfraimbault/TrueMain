@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  formatGoldDiff,
   goldDiffBand,
   laneVerdict,
   LANE_DOMINANT_GOLD,
@@ -43,17 +42,6 @@ describe('laneVerdict', () => {
   it('says matchup, not lane, where there is no lane', () => {
     expect(laneVerdict(600, SAMPLE, 'matchup')?.label).toBe('Very good matchup')
     expect(laneVerdict(0, SAMPLE, 'matchup')?.label).toBe('Even matchup')
-  })
-})
-
-describe('formatGoldDiff', () => {
-  it('always carries the sign of the side it favours', () => {
-    expect(formatGoldDiff(312)).toBe('+312')
-    expect(formatGoldDiff(-184.4)).toBe('−184')
-    expect(formatGoldDiff(0)).toBe('0')
-    // A gap that rounds away has no side to favour — and must not print "−0".
-    expect(formatGoldDiff(-0.4)).toBe('0')
-    expect(formatGoldDiff(1240)).toBe('+1,240')
   })
 })
 

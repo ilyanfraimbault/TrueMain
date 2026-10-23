@@ -195,6 +195,32 @@ public sealed class CompositionBuildAggregatorTests
     }
 
     [Fact]
+    public void Aggregate_CorePath_VotesEachSlotSoALoneShortGameCannotTakeIt()
+    {
+        // Every three-item prefix here is unique. Voted whole, the first game —
+        // a win that ended on one item — took the tie and the path was [6610]
+        // over 1 game. Voted slot by slot, the opening most games share wins.
+        var facts = new[]
+        {
+            Facts(win: true, buildItems: [6610]),
+            Facts(win: true, buildItems: [6692, 3071, 3053]),
+            Facts(win: false, buildItems: [6692, 3071]),
+            Facts(win: false, buildItems: [6692, 3161]),
+            Facts(win: true, buildItems: [6333, 6692]),
+        };
+
+        var result = CompositionBuildAggregator.Aggregate(facts, WinWeight);
+
+        // 3053 is a single game: below the step's minimum support, so the path
+        // stops at two items rather than following one game.
+        result.CorePath!.ItemIds.Should().Equal(6692, 3071);
+        result.CorePath.Games.Should().Be(2);
+        result.CorePath.WinRate.Should().BeApproximately(0.5d, 1e-9);
+        result.FirstItemId.Should().Be(6692);
+        result.BuildTree.Select(n => n.ItemId).Should().Equal(3071);
+    }
+
+    [Fact]
     public void Aggregate_ShortBuild_StillFormsACorePath()
     {
         var facts = new[]

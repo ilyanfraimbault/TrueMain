@@ -29,6 +29,7 @@ const NAV_GROUPS: NavigationMenuItem[][] = [
   [
     { label: 'Accounts', type: 'label' },
     { label: 'Accounts', icon: 'i-lucide-users-round', to: '/accounts' },
+    { label: 'Known players', icon: 'i-lucide-badge-check', to: '/known-players' },
   ],
   [
     { label: 'System', type: 'label' },

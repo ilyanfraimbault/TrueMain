@@ -156,7 +156,7 @@ const tiles = computed(() => {
         size="lg"
         class="gap-2 bg-ink-950/60 ring ring-inset ring-white/10 backdrop-blur-md"
       >
-        <TierBadge :tier="tier" />
+        <TierBadge :tier="tier" class="min-w-0!" />
         <span class="text-[10px] font-medium uppercase tracking-[0.1em] text-muted">Tier</span>
       </UBadge>
       <slot name="actions" />

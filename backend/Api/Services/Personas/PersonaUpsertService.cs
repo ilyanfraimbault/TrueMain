@@ -22,7 +22,9 @@ public interface IPersonaUpsertService
 /// Write side of <c>POST /ops/personas/batch</c> (#2016): one known player at a time, keyed on its
 /// slug. It only ever adds — links and accounts a source stops listing are kept, because a
 /// scraper missing a page must not unlink anyone — and it never moves an account that already
-/// belongs to another persona: that is reported as a conflict for an operator to settle.
+/// belongs to another persona: that is reported as a conflict and recorded for an operator to
+/// settle from the admin (#2253). What the operator settled holds against the next runs: a claim
+/// the persona lost is answered <c>excluded</c>, and a merged persona's slug folds into the kept one.
 /// </summary>
 /// <remarks>
 /// Each listed Riot ID is resolved against the tracked accounts on its platform, with the same
@@ -34,6 +36,7 @@ public interface IPersonaUpsertService
 public sealed partial class PersonaUpsertService(
     TrueMainDbContext db,
     ISeedRequestService seedRequestService,
+    PersonaConflictRecorder conflicts,
     ILogger<PersonaUpsertService> logger) : IPersonaUpsertService
 {
     // What a source serialises when it has no value: a JavaScript `undefined` or `null` printed as
@@ -82,10 +85,16 @@ public sealed partial class PersonaUpsertService(
             return new PersonaUpsertResult { Slug = slug, Error = error };
         }
 
-        var persona = await db.Personas
-            .Include(p => p.Links)
-            .Include(p => p.Accounts)
-            .FirstOrDefaultAsync(p => p.Slug == slug, ct);
+        var persona = await LoadAsync(p => p.Slug == slug, ct);
+        var mergedInto = default(string);
+        if (persona?.MergedIntoPersonaId is { } keptId)
+        {
+            // An operator merged this persona into another: its source keeps sending it under the
+            // old slug, which now feeds the kept persona — under the kept persona's own name.
+            persona = await LoadAsync(p => p.Id == keptId, ct);
+            mergedInto = persona?.Slug;
+        }
+
         var created = persona is null;
         if (persona is null)
         {
@@ -94,20 +103,25 @@ public sealed partial class PersonaUpsertService(
         }
         else
         {
-            persona.DisplayName = displayName;
+            if (mergedInto is null)
+            {
+                persona.DisplayName = displayName;
+            }
+
             persona.UpdatedAtUtc = DateTime.UtcNow;
         }
 
         MergeLinks(persona, entry.Links ?? [], source);
 
+        var exclusions = created ? PersonaExclusions.None : await conflicts.LoadExclusionsAsync(persona, ct);
         var pendingBefore = persona.Accounts.Where(a => a.RiotAccountId is null).ToList();
         var results = new List<PersonaAccountUpsertResult>();
         foreach (var account in entry.Accounts ?? [])
         {
-            results.Add(await MergeAccountAsync(persona, account, source, entry.SeedMissing, ct));
+            results.Add(await MergeAccountAsync(persona, account, source, entry.SeedMissing, exclusions, ct));
         }
 
-        await ResolvePendingAsync(persona, pendingBefore, ct);
+        await ResolvePendingAsync(persona, pendingBefore, exclusions, ct);
 
         try
         {
@@ -124,15 +138,22 @@ public sealed partial class PersonaUpsertService(
         }
 
         logger.LogInformation(
-            "Persona {Slug} {Outcome} from {Source}: {Accounts} accounts, {Linked} linked.",
+            "Persona {Slug} {Outcome} from {Source}: {Accounts} accounts, {Linked} linked, {Conflicts} in conflict.",
             slug,
-            created ? "created" : "updated",
+            created ? "created" : mergedInto is null ? "updated" : $"folded into {mergedInto}",
             source,
             results.Count,
-            results.Count(r => r.Status == AccountStatus.Linked));
+            results.Count(r => r.Status == AccountStatus.Linked),
+            results.Count(r => r.Status == AccountStatus.Conflict));
 
-        return new PersonaUpsertResult { Slug = slug, Created = created, Accounts = results };
+        return new PersonaUpsertResult { Slug = slug, Created = created, MergedInto = mergedInto, Accounts = results };
     }
+
+    private Task<Persona?> LoadAsync(System.Linq.Expressions.Expression<Func<Persona, bool>> match, CancellationToken ct) =>
+        db.Personas
+            .Include(p => p.Links)
+            .Include(p => p.Accounts)
+            .FirstOrDefaultAsync(match, ct);
 
     private static string? Validate(string slug, string displayName, string? sourceRaw, out PersonaSource source)
     {
@@ -191,6 +212,7 @@ public sealed partial class PersonaUpsertService(
         PersonaAccountEntry entry,
         PersonaSource source,
         bool seedMissing,
+        PersonaExclusions exclusions,
         CancellationToken ct)
     {
         var gameName = entry.GameName?.Trim() ?? string.Empty;
@@ -212,6 +234,10 @@ public sealed partial class PersonaUpsertService(
         var platform = platformId.Value;
         var nameLower = gameName.ToLowerInvariant();
         var tagLower = tagLine.ToLowerInvariant();
+        if (exclusions.Excludes(platform, gameName, tagLine))
+        {
+            return result with { Status = AccountStatus.Excluded };
+        }
 
         var listed = persona.Accounts.FirstOrDefault(a =>
             a.PlatformId == platform
@@ -222,8 +248,14 @@ public sealed partial class PersonaUpsertService(
             if (listed.RiotAccountId is null
                 && await ResolveAsync(persona, platform, nameLower, tagLower, ct) is { } resolved)
             {
-                if (await IsLinkedElsewhereAsync(persona, resolved, ct))
+                if (exclusions.Excludes(resolved))
                 {
+                    return result with { Status = AccountStatus.Excluded };
+                }
+
+                if (await HolderAsync(persona, resolved, ct) is { } holder)
+                {
+                    await conflicts.RecordAsync(persona, holder, listed.GameName, listed.TagLine, platform, resolved, source, ct);
                     return result with { Status = AccountStatus.Conflict };
                 }
 
@@ -234,19 +266,34 @@ public sealed partial class PersonaUpsertService(
             return result with { Status = listed.RiotAccountId is not null ? AccountStatus.Linked : UnlinkedStatus(platform) };
         }
 
-        var ownedElsewhere = await db.PersonaAccounts.AnyAsync(
-            a => a.PlatformId == platform
-                 && a.GameName.ToLower() == nameLower
-                 && a.TagLine.ToLower() == tagLower,
-            ct);
-        if (ownedElsewhere)
+        var ownedElsewhere = await db.PersonaAccounts
+            .AsNoTracking()
+            .Where(a => a.PlatformId == platform
+                        && a.GameName.ToLower() == nameLower
+                        && a.TagLine.ToLower() == tagLower)
+            .Select(a => new { a.PersonaId, a.RiotAccountId })
+            .FirstOrDefaultAsync(ct);
+        if (ownedElsewhere is not null)
         {
+            if (ownedElsewhere.RiotAccountId is { } heldId && exclusions.Excludes(heldId))
+            {
+                return result with { Status = AccountStatus.Excluded };
+            }
+
+            await conflicts.RecordAsync(
+                persona, ownedElsewhere.PersonaId, gameName, tagLine, platform, ownedElsewhere.RiotAccountId, source, ct);
             return result with { Status = AccountStatus.Conflict };
         }
 
         var accountId = await ResolveAsync(persona, platform, nameLower, tagLower, ct);
-        if (accountId is { } id && await IsLinkedElsewhereAsync(persona, id, ct))
+        if (accountId is { } id && exclusions.Excludes(id))
         {
+            return result with { Status = AccountStatus.Excluded };
+        }
+
+        if (accountId is { } heldElsewhere && await HolderAsync(persona, heldElsewhere, ct) is { } owner)
+        {
+            await conflicts.RecordAsync(persona, owner, gameName, tagLine, platform, heldElsewhere, source, ct);
             return result with { Status = AccountStatus.Conflict };
         }
 
@@ -286,17 +333,29 @@ public sealed partial class PersonaUpsertService(
     /// Retries the accounts of the persona no tracked account answered to before this call — the
     /// ones the payload did not list again, since <see cref="MergeAccountAsync"/> resolved those.
     /// </summary>
-    private async Task ResolvePendingAsync(Persona persona, List<PersonaAccount> pendingBefore, CancellationToken ct)
+    private async Task ResolvePendingAsync(
+        Persona persona, List<PersonaAccount> pendingBefore, PersonaExclusions exclusions, CancellationToken ct)
     {
         foreach (var pending in pendingBefore.Where(a => a.RiotAccountId is null))
         {
             var id = await ResolveAsync(
                 persona, pending.PlatformId, pending.GameName.ToLowerInvariant(), pending.TagLine.ToLowerInvariant(), ct);
-            if (id is not null && !await IsLinkedElsewhereAsync(persona, id.Value, ct))
+            if (id is not { } resolved || exclusions.Excludes(resolved))
             {
-                pending.RiotAccountId = id;
-                pending.ResolvedAtUtc = DateTime.UtcNow;
+                continue;
             }
+
+            if (await HolderAsync(persona, resolved, ct) is { } holder)
+            {
+                // The account this Riot ID now answers to was renamed into it while another persona
+                // held it under its former name: the same decision as a fresh claim.
+                await conflicts.RecordAsync(
+                    persona, holder, pending.GameName, pending.TagLine, pending.PlatformId, resolved, pending.Source, ct);
+                continue;
+            }
+
+            pending.RiotAccountId = resolved;
+            pending.ResolvedAtUtc = DateTime.UtcNow;
         }
     }
 
@@ -324,8 +383,13 @@ public sealed partial class PersonaUpsertService(
     private static string UnlinkedStatus(string platform) =>
         SeedRequestService.IsTrackedPlatform(platform) ? AccountStatus.Pending : AccountStatus.Untracked;
 
-    private Task<bool> IsLinkedElsewhereAsync(Persona persona, Guid accountId, CancellationToken ct) =>
-        db.PersonaAccounts.AnyAsync(a => a.RiotAccountId == accountId && a.PersonaId != persona.Id, ct);
+    /// <summary>The other persona holding the tracked account, or null when none does.</summary>
+    private Task<Guid?> HolderAsync(Persona persona, Guid accountId, CancellationToken ct) =>
+        db.PersonaAccounts
+            .AsNoTracking()
+            .Where(a => a.RiotAccountId == accountId && a.PersonaId != persona.Id)
+            .Select(a => (Guid?)a.PersonaId)
+            .FirstOrDefaultAsync(ct);
 
     [GeneratedRegex("^[a-z0-9]+(?:-[a-z0-9]+)*$")]
     private static partial Regex SlugPattern();
@@ -337,6 +401,7 @@ public sealed partial class PersonaUpsertService(
         public const string Untracked = "untracked";
         public const string Seeded = "seeded";
         public const string Conflict = "conflict";
+        public const string Excluded = "excluded";
         public const string Invalid = "invalid";
     }
 }

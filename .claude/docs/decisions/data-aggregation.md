@@ -20,7 +20,7 @@ the next run instead of being rebuilt without its cleanup — #1549.
 
 **Aggregate retention is opt-in per environment: `AggregateRetainedPatchCount` defaults to 0 (frozen forever); preprod sets 2.**
 The freeze is right for production history but preprod must stay tiny — #711. *Superseded for production by the
-two-level retention below (2026-10-06, #1467); stays in force until its implementation ships.*
+two-level retention below (2026-10-06, #1467), shipped by #1958 (2026-10-22).*
 
 **Build aggregates live for two patches; the long tail keeps a light per-patch record (2026-10-06).** Nobody reads
 a build from four patches ago — items have been reworked and the build misleads rather than merely ages — while those
@@ -67,6 +67,19 @@ the truemains leaderboard's games / W-L / KDA cells, its Games/KDA sorts and its
 patch summed), the persona "last game" fallback (`MAX(LastGameStartTimeUtc)`) — and the ops views of the
 aggregates themselves (account explorer, aggregation stats, patch coverage). Those change meaning under the purge
 and are #1958's to settle before it ships — #1957, #1467.
+
+**Build retention purges a patch's patterns and panels, never its scopes (2026-10-22).** Step 3 of the two-level
+retention, and a narrowing of it: in prod the patterns are 95% of the full aggregates' weight (3.8 GB against 177 MB of
+scopes), while the scopes are what the truemains leaderboard (games, W/L, KDA, their sorts) and the persona "last game"
+sum over every patch at account level, which the light record cannot answer. So `MatchDataRetention:
+BuildAggregateRetainedPatchCount` (prod and preprod 2) purges, for a patch outside every platform's live window
+(`RetainedPatchWindow`, the pattern aggregation's own rule; it is read from `matches`, so it is never wider than the raw match window either — on preprod, `RetainedPatchCount` 1, that is one patch, measured 2026-10-22 when 16.20 lost 2.3M patterns the run after its last matches were retired), its patterns
+(chunked per 5,000 scopes) and every per-patch panel table the full purge drops (one shared list), and keeps its scopes,
+its light record and its bans. A patch without a light record is skipped, never purged. Each purge writes
+`champion_build_purged_patches`, and every build reader (`WithBuilds`: the scope loader, the builds query, the
+directory's patch list and its explicit `?patch=`) skips those patches, so a purged patch is never resolved or served with totals and no build.
+The per-account top build of the leaderboard naturally reads the live patches only. The global `champion_dim_*` rows
+are left alone: the aggregation inserts them concurrently. Product call, 2026-10-22, #1958.
 
 **Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid.**
 The dense per-minute grid grew to ~13 GB / 55.6M rows for exactly one consumer (power spikes); every other
