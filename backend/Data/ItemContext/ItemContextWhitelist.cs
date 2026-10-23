@@ -161,6 +161,57 @@ public static class ItemContextWhitelist
     }
 
     /// <summary>
+    /// Whether <paramref name="item"/> may be explained by <paramref name="bucket"/>, one end of
+    /// <paramref name="axis"/> — eligibility for the axis (<see cref="For"/>) is not enough.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The fold has to count both ends of an axis to measure a lift, so <see cref="For"/> can
+    /// only say which axes an item takes part in. But only one end is ever the reason to buy it:
+    /// magic resistance answers a magic-damage team, not a team with little magic damage. On a
+    /// real branch the other end still lights up — when Lord Dominik's Regards and its rival
+    /// split the games, whatever pushes the rival out pushes Lord Dominik's in — and the card
+    /// then printed "Lord Dominik's, when the team has little magic damage": a mirror of the
+    /// rival's finding, statistically true and nonsense as advice. So a finding is kept only on
+    /// the end the item itself answers.
+    /// </para>
+    /// <para>
+    /// Most axes measure a threat, and the item answers its presence: the High end. The
+    /// exceptions are the axes whose two ends are both situations — a melee or a ranged lane
+    /// opponent, a strong or a weak laner, ahead or behind at 15 minutes — and the two
+    /// team-composition axes: an ability-power item answers a team short of magic damage and
+    /// any other damage item one that already has it, and a team-facing item answers a team
+    /// with no frontline.
+    /// </para>
+    /// </remarks>
+    public static bool Answers(ItemMetadata item, ItemContextSlot slot, ItemContextAxis axis, ItemContextBucket bucket)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (bucket is not (ItemContextBucket.Low or ItemContextBucket.High) || !For(item, slot).Contains(axis))
+        {
+            return false;
+        }
+
+        return axis switch
+        {
+            ItemContextAxis.OpponentRanged
+                or ItemContextAxis.OpponentLanePressure
+                or ItemContextAxis.OwnGoldLeadAt15 => true,
+            ItemContextAxis.AllyMagicDamage => bucket == (item.Categories.Contains(SpellDamage)
+                ? ItemContextBucket.Low
+                : ItemContextBucket.High),
+            ItemContextAxis.AllyFrontline => bucket == ItemContextBucket.Low,
+
+            // One share, two answers (#1750): magic resistance the magic end, armour the physical one.
+            ItemContextAxis.EnemyMagicDamageBuilt => bucket == ItemContextBucket.High
+                ? item.Categories.Contains(SpellBlock) || item.Categories.Contains(MagicResist)
+                : item.Categories.Contains(Armor),
+            _ => bucket == ItemContextBucket.High,
+        };
+    }
+
+    /// <summary>
     /// The in-game axes of what the enemies have built (#1750), under the same rule: an item
     /// answers only what its own stats answer. Penetration answers resistances built, armour
     /// answers crit built, either resistance answers the damage type built (the two ends of one
