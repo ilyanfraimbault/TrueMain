@@ -77,18 +77,24 @@ export default defineNuxtConfig({
     },
   },
   sitemap: {
-    // Static pages are auto-discovered from the file-based routes; the dynamic
-    // champion URLs come from this endpoint (see
-    // server/routes/__sitemap__/urls.ts), which is also where the reason player
-    // profiles are *not* advertised is written down (#1337). `/dev/*` is
-    // stripped from the prod build entirely (hook below) but exclude it here
-    // too so a dev-mode sitemap stays clean.
-    sources: ['/__sitemap__/urls'],
     // `/truemains/favorites` renders a per-visitor localStorage list — there is
     // nothing stable for a crawler to index (the page also sets `noindex`).
     // `/builder` is the legacy redirect to `/matchup` (#939) — kept for old
-    // links, not something to advertise.
+    // links, not something to advertise. `/dev/*` is stripped from the prod
+    // build entirely (hook below) but excluded here too so a dev-mode sitemap
+    // stays clean. Applies to every sitemap below.
     exclude: ['/dev/**', '/truemains/favorites', '/builder'],
+    // An index (`/sitemap_index.xml`, which `/sitemap.xml` redirects to) over
+    // one sitemap per page family (#1538), so Search Console reports what it
+    // read and indexed family by family. Static pages are auto-discovered from
+    // the file-based routes; champions and known players come from one cached
+    // endpoint (server/routes/__sitemap__/urls.ts, which also says why truemain
+    // profiles are *not* advertised, #1337), split by path.
+    sitemaps: {
+      pages: { includeAppSources: true, exclude: ['/champions/*', '/players/*'] },
+      champions: { sources: ['/__sitemap__/urls'], include: ['/champions/*'] },
+      players: { sources: ['/__sitemap__/urls'], include: ['/players/*'] },
+    },
   },
   // On-demand social-share artwork (#926). This was `enabled: false` from the
   // SEO foundation (#551) for one reason only — "no dedicated share artwork

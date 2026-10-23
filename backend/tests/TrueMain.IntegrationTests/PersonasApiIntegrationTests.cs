@@ -190,6 +190,29 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Batch_MovesTheUpdateStampOnlyWhenThePageChanges()
+    {
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory, authed: true);
+
+        await Upsert(client, "steady", "Steady", ("Steady", "EUW"));
+        var created = await UpdatedAt("steady");
+
+        // The weekly scraper run resends the persona unchanged: the sitemap's lastmod must not move (#1538).
+        await Upsert(client, "steady", "Steady", ("steady", "euw"));
+        (await UpdatedAt("steady")).Should().Be(created);
+
+        await Upsert(client, "steady", "Steady", ("Steady", "EUW"), ("Second", "EUW"));
+        (await UpdatedAt("steady")).Should().BeAfter(created, "a new account changes the page");
+    }
+
+    private async Task<DateTime> UpdatedAt(string slug)
+    {
+        await using var db = _fixture.CreateDbContext();
+        return await db.Personas.AsNoTracking().Where(p => p.Slug == slug).Select(p => p.UpdatedAtUtc).SingleAsync();
+    }
+
+    [Fact]
     public async Task Batch_ReportsAMalformedPersonaWithoutFailingTheRest_AndRejectsAnOversizedBatch()
     {
         await using var factory = CreateFactory();

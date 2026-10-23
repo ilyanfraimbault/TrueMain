@@ -107,8 +107,6 @@ public sealed partial class PersonaUpsertService(
             {
                 persona.DisplayName = displayName;
             }
-
-            persona.UpdatedAtUtc = DateTime.UtcNow;
         }
 
         MergeLinks(persona, entry.Links ?? [], source);
@@ -122,6 +120,14 @@ public sealed partial class PersonaUpsertService(
         }
 
         await ResolvePendingAsync(persona, pendingBefore, exclusions, ct);
+
+        // The sitemap advertises this stamp as the page's `lastmod` (#1538): the scrapers resend
+        // every persona each week, so it moves only when the page does, or all of them claim a
+        // change on every run and a crawler learns to ignore the field.
+        if (!created && PageChanged(persona))
+        {
+            persona.UpdatedAtUtc = DateTime.UtcNow;
+        }
 
         try
         {
@@ -147,6 +153,15 @@ public sealed partial class PersonaUpsertService(
             results.Count(r => r.Status == AccountStatus.Conflict));
 
         return new PersonaUpsertResult { Slug = slug, Created = created, MergedInto = mergedInto, Accounts = results };
+    }
+
+    /// <summary>Whether this upsert changed what <c>/players/{slug}</c> shows: the name, a link or an account.</summary>
+    private bool PageChanged(Persona persona)
+    {
+        db.ChangeTracker.DetectChanges();
+        return db.Entry(persona).State != EntityState.Unchanged
+            || persona.Links.Any(l => db.Entry(l).State != EntityState.Unchanged)
+            || persona.Accounts.Any(a => db.Entry(a).State != EntityState.Unchanged);
     }
 
     private Task<Persona?> LoadAsync(System.Linq.Expressions.Expression<Func<Persona, bool>> match, CancellationToken ct) =>

@@ -120,6 +120,14 @@ skeleton argument above does not apply to it. The sitemap lists those with at le
 (`GET /players`), with the day of their last upsert as `lastmod`; a person whose accounts are all untracked has
 a page of bare Riot IDs and is left out. Truemain profiles stay excluded, for the reason above.
 
+**One sitemap per page family, behind an index (2026-10-23, #1538).** `/sitemap_index.xml` lists
+`/__sitemap__/pages.xml`, `champions.xml` and `players.xml`; `/sitemap.xml` redirects to the index and
+`robots.txt` declares it. Search Console had held the single 7,000-URL sitemap as pending for weeks without
+reading it while every check on our side passed, and an index gives it fresh URLs to schedule and reports
+read and indexed counts family by family. A known player's `lastmod` is the last upsert that **changed** the
+page (name, link or account): the scrapers resend every persona each week, and stamping each pass made all
+7,000 claim a change on the same day.
+
 **A route family that contributes no URLs warns.** Each family is fetched defensively so one upstream outage
 cannot fail the whole sitemap — that part is right, and stays. What was wrong was that an empty family still
 produced a valid, well-formed sitemap and said nothing, which is why the missing profiles sat in production
