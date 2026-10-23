@@ -63,7 +63,7 @@ async function mountMatchups(position: PositionFilter) {
   }))
   await vi.waitFor(async () => {
     await flushPromises()
-    expect(wrapper.find('[aria-label*="lanes won"]').exists() || wrapper.text().includes('No decided lane') || wrapper.text().includes('Not enough decided lanes')).toBe(true)
+    expect(wrapper.find('[aria-label*="% WR"]').exists() || wrapper.text().includes('Not enough games')).toBe(true)
   })
   return wrapper
 }
@@ -79,10 +79,10 @@ describe('player champion page — all positions', () => {
     const wrapper = await mountMatchups(ALL_POSITIONS)
 
     expect(positions).toContain('ALL')
-    const labels = wrapper.findAll('[aria-label*="lanes won"]').map(mark => mark.attributes('aria-label'))
-    expect(labels).toContain('Fiora — 67% lanes won (3 decided lanes)')
+    const labels = wrapper.findAll('[aria-label*="% WR"]').map(mark => mark.attributes('aria-label'))
+    expect(labels).toContain('Fiora: 67% WR (3 games)')
     // A one-lane opponent is placed: the player slice has no lane floor.
-    expect(labels).toContain('Pantheon — 100% lanes won (1 decided lane)')
+    expect(labels).toContain('Pantheon: 100% WR (1 game)')
     expect(wrapper.findAll('a[href^="/matchup"]')).toHaveLength(0)
   })
 
@@ -93,10 +93,10 @@ describe('player champion page — all positions', () => {
       .toContain('/matchup?champion=39&position=TOP&opponent=114')
   })
 
-  it('says an empty slice has no decided lane on that role', async () => {
+  it('says an empty slice has too few games on that role', async () => {
     const wrapper = await mountMatchups('JUNGLE')
 
-    expect(wrapper.text()).toContain('Not enough decided lanes against any jungle opponent yet.')
+    expect(wrapper.text()).toContain('Not enough games against any jungle opponent yet.')
   })
 
   it('names the slice in the build heading', async () => {

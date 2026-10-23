@@ -75,6 +75,28 @@ public sealed class ChampionBuildDistributionsTests
         build.RunePages.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Materialize_PutsFlashInTheLeftSlot_EvenWhenItsCanonicalIdIsSecond()
+    {
+        var rows = new[]
+        {
+            Pattern(SpellA, firstItem: 3078, keystone: 8010, boots: 3047, games: 30, wins: 15),
+            Pattern(SpellB, firstItem: 3078, keystone: 8010, boots: 3047, games: 10, wins: 5),
+        };
+        var group = ChampionBuildDistributions.Fold(rows, totalGames: 40).Single();
+        var spells = new Dictionary<Guid, ChampionDimSpellPair>
+        {
+            // Stored canonically (min, max): Cleanse (1) before Flash (4).
+            [SpellA] = new() { Id = SpellA, Spell1Id = 1, Spell2Id = 4 },
+            [SpellB] = new() { Id = SpellB, Spell1Id = 4, Spell2Id = 14 },
+        };
+
+        var build = ChampionBuildDistributions.Materialize(group, 40, spells, [], [], []);
+
+        build.Variations.SummonerSpells.Select(s => (s.Spell1Id, s.Spell2Id))
+            .Should().Equal((4, 1), (4, 14));
+    }
+
     private static Row Pattern(Guid spell, int firstItem, int keystone, int boots, int games, int wins)
         => new(spell, Skill, Starter, Runes, firstItem, 3006, 0, 0, 0, 0, 0, boots, keystone, games, wins);
 }

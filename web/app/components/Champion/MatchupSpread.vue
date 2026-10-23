@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { useElementSize } from '@vueuse/core'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { ALL_POSITIONS, positionLabel, type ChampionPosition, type PositionFilter } from '#common/utils/positions'
+import { ALL_POSITIONS, positionLabel, type PositionFilter } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
+import { RESULT_SPREAD_WASH } from '#common/utils/result-tone'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import {
   beeswarmRows,
@@ -19,9 +20,10 @@ import {
 const props = defineProps<{
   championId: number
   /**
-   * The page's lane; the panel starts there and follows it when it changes. `ALL`
-   * (player scope only) pairs each of the player's games with the opponent of the
-   * position they held in it.
+   * The page's lane, the only filter the panel takes: the opponent is whoever held
+   * that role on the other team, and a lane picked here apart from the page's would
+   * contradict the build beside it. `ALL` (player scope only) pairs each of the
+   * player's games with the opponent of the position they held in it.
    */
   position: PositionFilter | null
   champions: ChampionStaticListItem[]
@@ -35,12 +37,9 @@ const ICON = 28
 const ROW = 32
 const MIN_ROWS = 5
 
-const role = ref<PositionFilter | null>(props.position)
-watch(() => props.position, (value) => { role.value = value })
-
 const { data, status, error } = useChampionMatchups(
   () => props.championId,
-  () => role.value,
+  () => props.position,
   { nameTag: () => props.nameTag, eloBracket: () => props.eloBracket, patch: () => props.patch },
 )
 
@@ -49,14 +48,13 @@ const { data, status, error } = useChampionMatchups(
 const isLoading = computed(() => isLoadingStatus(status.value) && !data.value)
 
 const championById = useChampionsById(() => props.champions)
-const isAllPositions = computed(() => role.value === ALL_POSITIONS)
-// The picker speaks `null` for "All positions"; the route speaks `ALL`.
-const pickerRole = computed<ChampionPosition | null>(() =>
-  role.value === ALL_POSITIONS ? null : role.value)
+const isAllPositions = computed(() => props.position === ALL_POSITIONS)
 const emptyDescription = computed(() => {
-  if (isAllPositions.value) return 'No decided lane against any opponent yet.'
-  const roleName = (positionLabel(role.value) ?? 'lane').toLowerCase()
-  return `Not enough decided lanes against any ${roleName} opponent yet.`
+  if (isAllPositions.value) return 'Not enough games against any opponent yet.'
+  const roleName = positionLabel(props.position)?.toLowerCase()
+  return roleName
+    ? `Not enough games against any ${roleName} opponent yet.`
+    : 'Not enough games against any opponent yet.'
 })
 
 const spread = computed(() => buildMatchupSpread(data.value?.matchups ?? []))
@@ -91,22 +89,29 @@ function opponentName(point: MatchupSpreadPoint): string {
   return championDisplayName(id, championById.value.get(id) ?? null)
 }
 
-// One player's lanes are a handful per opponent, so their tooltip states the sample
-// the rate rests on; the champion page's aggregate needs no such caveat.
-function describe(point: MatchupSpreadPoint): string {
-  const rate = `${opponentName(point)} — ${formatPercentage(point.laneWinRate, 0)} lanes won`
+// The tooltip sits on the opponent's own icon, so it states only the rate: a
+// plain "WR", since "lanes won" reads wrong on a jungler (#2094's rate at 15 min
+// is the same measure whatever the role). One player's games are a handful per
+// opponent, so theirs also states the sample; the aggregate needs no such caveat.
+function rateLabel(point: MatchupSpreadPoint): string {
+  const rate = `${formatPercentage(point.laneWinRate, 0)} WR`
   if (!props.nameTag) return rate
-  const lanes = point.entry.decidedLaneGames
-  return `${rate} (${lanes} decided ${lanes === 1 ? 'lane' : 'lanes'})`
+  const games = point.entry.decidedLaneGames
+  return `${rate} (${games} ${games === 1 ? 'game' : 'games'})`
+}
+
+// The icon is the only place the name shows, so the accessible name carries it.
+function accessibleLabel(point: MatchupSpreadPoint): string {
+  return `${opponentName(point)}: ${rateLabel(point)}`
 }
 
 // Same deep link as the matchup rows: the `/matchup` tool with both champions
 // and the role pinned (#939).
 function matchupToolLink(opponentChampionId: number): string | undefined {
-  if (!role.value || isAllPositions.value) return undefined
+  if (!props.position || isAllPositions.value) return undefined
   const query = new URLSearchParams({
     champion: String(props.championId),
-    position: role.value,
+    position: props.position,
     opponent: String(opponentChampionId),
   })
   return `/matchup?${query.toString()}`
@@ -117,13 +122,6 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
 
 <template>
   <SectionCard :level="2" title="Matchups">
-    <template #actions>
-      <RolePicker
-        :hide-all="!nameTag"
-        :position="pickerRole"
-        @update:position="value => (role = value ?? ALL_POSITIONS)"
-      />
-    </template>
 
     <USkeleton v-if="isLoading" class="h-40 w-full rounded-md" />
 
@@ -139,19 +137,20 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
     <div
       v-else
       ref="strip"
-      class="relative overflow-hidden rounded-md bg-linear-to-r from-data-bad/15 via-transparent to-data-good/15"
+      class="relative overflow-hidden rounded-md"
+      :class="RESULT_SPREAD_WASH"
       :style="{ height: `${layout.height}px` }"
     >
       <div class="absolute inset-y-2 left-1/2 w-px bg-accented" aria-hidden="true" />
       <UTooltip
         v-for="mark in layout.marks"
         :key="mark.point.entry.opponentChampionId"
-        :text="describe(mark.point)"
+        :text="rateLabel(mark.point)"
       >
         <component
           :is="matchupToolLink(mark.point.entry.opponentChampionId) ? NuxtLinkComponent : 'div'"
           :to="matchupToolLink(mark.point.entry.opponentChampionId)"
-          :aria-label="describe(mark.point)"
+          :aria-label="accessibleLabel(mark.point)"
           class="absolute rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           :style="{ left: `${mark.left}px`, top: `${mark.top}px`, width: `${ICON}px`, height: `${ICON}px` }"
         >

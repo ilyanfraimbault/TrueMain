@@ -27,6 +27,18 @@ const { data: persona, status, error } = await useAsyncData<PersonaResponse | nu
 
 const notFound = computed(() => status.value === 'success' && !persona.value)
 
+// A known player an operator merged into another one (#2253) answers under the kept
+// player's slug: send the visitor there, and a crawler with a permanent redirect.
+const mergedTarget = computed(() => mergedPlayerPath(slug.value, persona.value))
+if (mergedTarget.value) {
+  await navigateTo(mergedTarget.value, { redirectCode: 301, replace: true })
+}
+watch(mergedTarget, (target) => {
+  if (target) {
+    navigateTo(target, { replace: true })
+  }
+})
+
 const { data: versions } = useDDragonVersions()
 const patch = computed(() => versions.value?.[0] ?? null)
 const { data: championsData } = useChampionStaticList()

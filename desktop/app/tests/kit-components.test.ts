@@ -67,7 +67,7 @@ describe('KitTree', () => {
     expect(empty.find('[aria-label="Add the first item"]').exists()).toBe(true)
   })
 
-  it('trades two siblings on a drag or Alt+arrow, and asks for no item after a drag', async () => {
+  it('trades two nodes on a drag, siblings on Alt+arrow, and asks for no item after a drag', async () => {
     const wrapper = mount(KitTree, { props: { tree: kit().tree, items, boots: [3020], editable: true }, global, attachTo: document.body })
     const lich = wrapper.get('[aria-label="Replace Lich Bane"]')
     // Lich Bane (left) dragged onto Shadowflame: 32 px nodes, 12 px apart, so Shadowflame's centre is 44 px right.
@@ -82,12 +82,12 @@ describe('KitTree', () => {
     await lich.trigger('pointermove', onto)
     await lich.trigger('pointerup', onto)
     await lich.trigger('click')
-    expect(wrapper.emitted('swap')).toEqual([[[0, 0], 1]])
+    expect(wrapper.emitted('swap')).toEqual([[[0, 0], [0, 1]]])
     expect(wrapper.emitted('pick')).toBeUndefined()
 
     await wrapper.get('[aria-label="Replace Shadowflame"]').trigger('keydown', { key: 'ArrowLeft', altKey: true })
     await wrapper.get('[aria-label="Replace Luden\'s Echo"]').trigger('keydown', { key: 'ArrowRight', altKey: true })
-    expect(wrapper.emitted('swap')).toEqual([[[0, 0], 1], [[0, 1], 0]])
+    expect(wrapper.emitted('swap')).toEqual([[[0, 0], [0, 1]], [[0, 1], [0, 0]]])
     wrapper.unmount()
   })
 

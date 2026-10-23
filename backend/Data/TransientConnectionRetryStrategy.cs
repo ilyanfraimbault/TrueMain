@@ -21,8 +21,9 @@ namespace Data;
 /// </para>
 /// <para>
 /// A retrying strategy rejects user-initiated transactions that are not wrapped in
-/// <c>Database.CreateExecutionStrategy().ExecuteAsync(...)</c>. The API runs none —
-/// its Postgres access is read-only — which is what makes it safe there. The Ingestor
+/// <c>Database.CreateExecutionStrategy().ExecuteAsync(...)</c>. The API's writes are single
+/// <c>SaveChanges</c> calls, except the persona conflict resolution (#2253), whose transaction
+/// runs inside that wrapper as one replayable unit — which is what makes it safe there. The Ingestor
 /// keeps the default non-retrying strategy: its explicit transactions are not
 /// replayable units of work, and a failed pass already replays on the next cycle.
 /// </para>

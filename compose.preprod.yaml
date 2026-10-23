@@ -7,6 +7,7 @@ x-ingestor-environment: &ingestor-environment
       MongoLogging__LogsRetention: "30.00:00:00"
       MatchDataRetention__RetainedPatchCount: "1"
       MatchDataRetention__AggregateRetainedPatchCount: "2"
+      MatchDataRetention__BuildAggregateRetainedPatchCount: "2"
       ManualSeed__BatchSize: "250"
       Discovery__MaxAccountsPerPlatformPerRun: "100"
       Discovery__NewAccountsTarget: "15"

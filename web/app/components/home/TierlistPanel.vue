@@ -73,14 +73,15 @@ const rows = computed(() =>
           <span class="stat-label text-right">WR</span>
           <span class="stat-label hidden sm:block">Pick rate</span>
         </div>
-        <ul class="divide-y divide-default/60">
+        <ul class="flex flex-1 flex-col divide-y divide-default/60">
           <li
             v-for="(row, index) in rows"
             :key="`${row.championId}-${row.position}`"
+            class="flex flex-1"
           >
             <NuxtLink
               :to="{ path: pathFor(row.championId), query: { position: row.position } }"
-              class="grid grid-cols-[1rem_minmax(0,1fr)_2rem_2rem_3.5rem] items-center gap-3 px-4 py-2 transition-colors hover:bg-accented focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:grid-cols-[1rem_minmax(0,1fr)_2rem_2rem_3.5rem_7rem]"
+              class="grid flex-1 grid-cols-[1rem_minmax(0,1fr)_2rem_2rem_3.5rem] items-center gap-3 px-4 py-2 transition-colors hover:bg-accented focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:grid-cols-[1rem_minmax(0,1fr)_2rem_2rem_3.5rem_7rem]"
             >
               <span class="text-sm tabular-nums text-dimmed">{{ index + 1 }}</span>
               <span class="flex min-w-0 items-center gap-2.5">

@@ -121,6 +121,60 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RunAsync_BuildRetention_PurgesTheBuildsOfAPatchOutOfTheWindowAndKeepsItsScopes()
+    {
+        await SeedAggregateDataAsync();
+        await SeedLiveMatchesAsync();
+
+        var recorded = BuildRecordedProcess(retainedPatchCount: 1, buildAggregateRetainedPatchCount: 1);
+
+        await recorded.RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        // The account-level scopes stay for the leaderboard and the persona "last game"...
+        (await db.ChampionAggregateScopes.AsNoTracking().Select(s => s.GameVersion).Distinct().ToListAsync())
+            .Should().BeEquivalentTo(["16.4", "16.5"]);
+        // ...while the out-of-window patch loses its patterns and its panel tables.
+        (await db.ChampionAggregatePatterns.AsNoTracking().Select(p => p.Scope.GameVersion).ToListAsync())
+            .Should().BeEquivalentTo(["16.5"]);
+        (await db.ChampionMatchupStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.5", "unknown"]);
+        (await db.ChampionDamageProfileStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.5"]);
+        (await db.ChampionBuildPurgedPatches.AsNoTracking().Select(p => p.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.4"]);
+        (await db.ChampionPatchStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.4", "16.5"]);
+        (await db.ChampionBanStats.AsNoTracking().Select(s => s.Patch).ToListAsync())
+            .Should().BeEquivalentTo(["16.4", "16.5"]);
+
+        // A second run finds the patch already purged and touches nothing.
+        await BuildRecordedProcess(retainedPatchCount: 1, buildAggregateRetainedPatchCount: 1)
+            .RunCoreAsync(CancellationToken.None);
+        (await db.ChampionBuildPurgedPatches.AsNoTracking().CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RunAsync_BuildRetention_KeepsAPatchWithoutItsLightRecord()
+    {
+        await SeedAggregateDataAsync();
+        await SeedLiveMatchesAsync();
+        await using (var seed = _fixture.CreateDbContext())
+        {
+            await seed.ChampionPatchStats.Where(s => s.Patch == "16.4").ExecuteDeleteAsync();
+        }
+
+        await BuildRecordedProcess(retainedPatchCount: 1, buildAggregateRetainedPatchCount: 1)
+            .RunCoreAsync(CancellationToken.None);
+
+        // Purging before the record exists would lose the patch's history for good.
+        await using var db = _fixture.CreateDbContext();
+        (await db.ChampionAggregatePatterns.AsNoTracking().CountAsync()).Should().Be(2);
+        (await db.ChampionMatchupStats.AsNoTracking().CountAsync()).Should().Be(3);
+        (await db.ChampionBuildPurgedPatches.AsNoTracking().CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldPruneTimelineSnapshotsToCanonicalMarksOnce()
     {
         var now = DateTime.UtcNow;
@@ -263,9 +317,21 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// One ranked KR game on 16.5, so the live window (<c>RetainedPatchWindow</c>) holds
+    /// 16.5 and 16.4 is out of it.
+    /// </summary>
+    private async Task SeedLiveMatchesAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+        db.Matches.Add(BuildMatch("LIVE_1", "KR", DateTime.UtcNow.AddHours(-1), "16.5.1"));
+        await db.SaveChangesAsync();
+    }
+
     private RecordedProcess<MatchDataRetentionProcess> BuildRecordedProcess(
         int retainedPatchCount,
-        int aggregateRetainedPatchCount = 0)
+        int aggregateRetainedPatchCount = 0,
+        int buildAggregateRetainedPatchCount = 0)
     {
         var process = new MatchDataRetentionProcess(
             NullLogger<MatchDataRetentionProcess>.Instance,
@@ -279,7 +345,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
                 // multi-batch path (one transaction per match).
                 NonRankedDeleteBatchSize = 1,
                 ExpiredPatchDeleteBatchSize = 1,
-                AggregateRetainedPatchCount = aggregateRetainedPatchCount
+                AggregateRetainedPatchCount = aggregateRetainedPatchCount,
+                BuildAggregateRetainedPatchCount = buildAggregateRetainedPatchCount
             }),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {

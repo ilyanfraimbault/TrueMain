@@ -13,6 +13,8 @@ public class TrueMainDbContext : DbContext
     public DbSet<Persona> Personas => Set<Persona>();
     public DbSet<PersonaLink> PersonaLinks => Set<PersonaLink>();
     public DbSet<PersonaAccount> PersonaAccounts => Set<PersonaAccount>();
+    public DbSet<PersonaAccountConflict> PersonaAccountConflicts => Set<PersonaAccountConflict>();
+    public DbSet<PersonaAccountExclusion> PersonaAccountExclusions => Set<PersonaAccountExclusion>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
     public DbSet<MatchParticipantTimelineSnapshot> MatchParticipantTimelineSnapshots => Set<MatchParticipantTimelineSnapshot>();
     public DbSet<MatchBan> MatchBans => Set<MatchBan>();
@@ -55,6 +57,7 @@ public class TrueMainDbContext : DbContext
     // champion, position, bracket, population), folded by the pattern aggregation in the
     // transaction that replaces the scopes. Outlives them: retention never deletes it.
     public DbSet<ChampionPatchStat> ChampionPatchStats => Set<ChampionPatchStat>();
+    public DbSet<ChampionBuildPurgedPatch> ChampionBuildPurgedPatches => Set<ChampionBuildPurgedPatch>();
 
     // Measured champion profiles (#1449): per (champion, position, patch) sums of what
     // the champion did in its games — damage split, sustain, CC, damage taken, lane

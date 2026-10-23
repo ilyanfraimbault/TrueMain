@@ -329,6 +329,7 @@ in `backend/Ingestor/Options/*`:
 | `ManualSeed__BatchSize` | 250 | 750 | manual seeds resolved per cycle |
 | `MatchDataRetention__RetainedPatchCount` | 1 | 2 (code default) | patches of match data kept |
 | `MatchDataRetention__AggregateRetainedPatchCount` | 2 | 0 (code default: kept forever) | patches of aggregates kept, so older champion pages are empty on preprod by choice |
+| `MatchDataRetention__BuildAggregateRetainedPatchCount` | 2 | 2 | live patches whose builds (patterns, panel tables) are kept; older ones keep only their scopes and light record (#1958). The live window is read from `matches`, so it never holds more patches than `RetainedPatchCount` keeps: on preprod that is **1**, and the previous patch's builds go as soon as its matches do |
 | `INGESTOR_AGGREGATE_INTERVAL_MINUTES` | 120 | 20 | minutes between two aggregate-lane passes |
 | `INGESTOR_MAINTENANCE_INTERVAL_MINUTES` | 1 | 1 | minutes between two maintenance passes of the fetch container (#1457) |
 | `INGESTOR_FETCH_RAMP_STAGE` | 1 | 1 | ramp stage of the fetch workers' target rate (#1459, `docs/ingestion-ramp.md`) |

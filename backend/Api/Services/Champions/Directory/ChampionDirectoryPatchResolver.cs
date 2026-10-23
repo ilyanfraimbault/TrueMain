@@ -41,7 +41,13 @@ internal sealed class ChampionDirectoryPatchResolver(
     {
         if (!string.IsNullOrEmpty(requestedPatch))
         {
-            return requestedPatch;
+            // An explicit patch whose builds were purged (#1958) still has its scopes, so
+            // serving it would print totals and tiers over empty builds: it answers as a
+            // patch with no data instead.
+            var purged = await db.ChampionBuildPurgedPatches
+                .AsNoTracking()
+                .AnyAsync(patch => patch.Patch == requestedPatch, ct);
+            return purged ? null : requestedPatch;
         }
 
         return await cache.GetOrComputeAsync(ActivePatchCacheKey, ResolveActivePatchCoreAsync, ct);
@@ -109,6 +115,8 @@ internal sealed class ChampionDirectoryPatchResolver(
         var sw = Stopwatch.StartNew();
         var distinctPatches = await db.ChampionAggregateScopes
             .AsNoTracking()
+            // A patch whose builds were purged has nothing left to serve (#1958).
+            .WithBuilds(db)
             .Where(scope => scope.QueueId == (int)options.Value.QueueId)
             // Mains only, and deliberately not parameterised on the population —
             // for the same reason this resolution carries no elo clause: which

@@ -39,7 +39,8 @@ internal static class ChampionScopeLoader
         string? platformId = null,
         int? minGames = null,
         IReadOnlyCollection<string>? eloBrackets = null,
-        bool truemainsOnly = true)
+        bool truemainsOnly = true,
+        int defaultPatchMinGames = 0)
     {
         var normalizedPatch = string.IsNullOrWhiteSpace(patch)
             ? null
@@ -50,6 +51,7 @@ internal static class ChampionScopeLoader
 
         var baseQuery = db.ChampionAggregateScopes
             .AsNoTracking()
+            .WithBuilds(db)
             .WhereChampionScope(
                 championId, queueId, riotAccountId, normalizedPatch, platformId, requestedPosition,
                 // The resolution pass has to stand on the same population as the
@@ -66,27 +68,10 @@ internal static class ChampionScopeLoader
             return null;
         }
 
-        // Player-scoped views (minGames set) default to the most recent patch
-        // where the player actually has enough games, not the global latest — a
-        // champion main whose newest patch is thin would otherwise render a
-        // sparse slice. This is a *preference*, not a gate: when no patch clears
-        // the floor we still fall back to the latest patch that has any games so
-        // a champion the player has genuinely played renders a (thin) build
-        // rather than 404-ing. An explicit patch request still wins.
-        // Across every position the floor is on the patch's whole total, not on its
-        // busiest position: that total is the slice the page will render.
-        var selectedPatch = normalizedPatch is null && minGames is { } floor
-            ? ChampionAggregateScopeResolver.ResolveLatestPatchAboveFloor(
-                  resolutionRows.Select(row => (
-                      row.GameVersion,
-                      allPositions ? LanePositions.AllPositions : row.Position,
-                      row.Games)),
-                  floor)
-              ?? ChampionAggregateScopeResolver.ResolvePatchVersion(
-                  resolutionRows.Select(row => row.GameVersion), null)
-            : ChampionAggregateScopeResolver.ResolvePatchVersion(
-                resolutionRows.Select(row => row.GameVersion),
-                normalizedPatch);
+        // An explicit patch still wins over every default below.
+        var selectedPatch = !string.IsNullOrWhiteSpace(normalizedPatch)
+            ? normalizedPatch
+            : ResolveDefaultPatch(resolutionRows, allPositions, minGames, defaultPatchMinGames);
         if (string.IsNullOrWhiteSpace(selectedPatch))
         {
             return null;
@@ -105,6 +90,7 @@ internal static class ChampionScopeLoader
         // on the final scope slice.
         var scopedScopes = await db.ChampionAggregateScopes
             .AsNoTracking()
+            .WithBuilds(db)
             .WhereChampionScope(
                 championId,
                 queueId,
@@ -117,6 +103,43 @@ internal static class ChampionScopeLoader
             .ToListAsync(ct);
 
         return scopedScopes.Count == 0 ? null : scopedScopes;
+    }
+
+    /// <summary>
+    /// The patch a request without one is served on. An explicit patch never reaches here.
+    /// </summary>
+    private static string? ResolveDefaultPatch(
+        IReadOnlyList<ScopeResolutionRow> resolutionRows,
+        bool allPositions,
+        int? minGames,
+        int defaultPatchMinGames)
+    {
+        // Across every position the floor is on the patch's whole total, not on its
+        // busiest position: that total is the slice the page will render.
+        var rows = resolutionRows
+            .Select(row => (row.GameVersion, allPositions ? LanePositions.AllPositions : row.Position, row.Games))
+            .ToList();
+
+        // Player-scoped views (minGames set) default to the most recent patch
+        // where the player actually has enough games, not the global latest — a
+        // champion main whose newest patch is thin would otherwise render a
+        // sparse slice. This is a *preference*, not a gate: when no patch clears
+        // the floor we still fall back to the latest patch that has any games so
+        // a champion the player has genuinely played renders a (thin) build
+        // rather than 404-ing.
+        if (minGames is { } floor)
+        {
+            return ChampionAggregateScopeResolver.ResolveLatestPatchAboveFloor(rows, floor)
+                ?? ChampionAggregateScopeResolver.ResolvePatchVersion(
+                    resolutionRows.Select(row => row.GameVersion), null);
+        }
+
+        // The public page (#2249): a patch released hours ago holds a few dozen games
+        // per lane and prunes the build tree to a stub, while the previous one sits
+        // beside it settled. The site-wide servable bar (#1109) cannot see that — it
+        // clears on forty champions, not on this one. Resolved over the same population
+        // as the slice and bracket-agnostically, like the rest of this pass.
+        return ChampionAggregateScopeResolver.ResolveFilledPatch(rows, defaultPatchMinGames);
     }
 
     private sealed record ScopeResolutionRow(string GameVersion, string Position, int Games);

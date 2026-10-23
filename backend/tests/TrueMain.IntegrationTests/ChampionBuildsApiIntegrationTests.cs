@@ -198,6 +198,78 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetChampionAsync_NeverServesAPatchWhoseBuildsWerePurged()
+    {
+        await SeedMultiTierAggregatesAsync();
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // A patch keeps its account-level scopes once its builds are purged (#1958). Both
+            // sides of 16.5 are purged here: the older one a reader can still ask for, and a
+            // newer one that would otherwise win the default resolution.
+            // Seeded as the purge leaves them: the scope and the marker, no pattern.
+            foreach (var patch in new[] { "16.4", "16.6" })
+            {
+                db.ChampionAggregateScopes.Add(new ChampionAggregateScope
+                {
+                    Id = Guid.NewGuid(),
+                    RiotAccountId = Guid.Parse("aaaa1111-1111-1111-1111-111111111111"),
+                    ChampionId = 777,
+                    GameVersion = patch,
+                    PlatformId = "KR",
+                    QueueId = 420,
+                    Position = "MIDDLE",
+                    EloBracket = EloBracket.Silver,
+                    IsMain = true,
+                    Games = 60,
+                    Wins = 30,
+                    LastGameStartTimeUtc = DateTime.UtcNow,
+                    AggregatedAtUtc = DateTime.UtcNow,
+                });
+                db.ChampionBuildPurgedPatches.Add(new ChampionBuildPurgedPatch { Patch = patch, PurgedAtUtc = DateTime.UtcNow });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var latest = await client.GetFromJsonAsync<ChampionResponse>("/champions/777");
+        latest!.Patch.Should().Be("16.5", "the newest patch with builds left is served, not a purged one");
+        latest.TotalGames.Should().Be(100);
+
+        var purged = await client.GetAsync("/champions/777?patch=16.4");
+        purged.StatusCode.Should().Be(HttpStatusCode.NotFound, "a purged patch has no build to render");
+    }
+
+    [Fact]
+    public async Task GetChampionAsync_DefaultsPastANewestPatchTooThinToFillThePage()
+    {
+        await SeedThinNewestPatchAggregatesAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // 16.6 holds 30 games, under both MinDefaultPatchGames (500) and half of 16.5's
+        // 600: the page opens on 16.5, the patch that can fill it (#2249).
+        var byDefault = await client.GetFromJsonAsync<ChampionResponse>("/champions/779?position=BOTTOM");
+        byDefault!.Patch.Should().Be("16.5");
+        byDefault.TotalGames.Should().Be(600);
+
+        // The thin patch is still served when asked for by name.
+        var explicitPatch = await client.GetFromJsonAsync<ChampionResponse>(
+            "/champions/779?position=BOTTOM&patch=16.6");
+        explicitPatch!.Patch.Should().Be("16.6");
+        explicitPatch.TotalGames.Should().Be(30);
+    }
+
+    [Fact]
     public async Task GetChampionAsync_CountsOnlyTruemainsByDefault_AndWidensWhenAskedTo()
     {
         await SeedMixedPopulationAggregatesAsync();
@@ -238,6 +310,31 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync(
             "/champions/778?position=MIDDLE&opponentChampionId=122&truemainsOnly=false");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private async Task SeedThinNewestPatchAggregatesAsync()
+    {
+        var now = DateTime.UtcNow;
+        var accountId = Guid.Parse("eeee5555-5555-5555-5555-555555555555");
+
+        await using var db = _fixture.CreateDbContext();
+
+        db.RiotAccounts.Add(BuildAccount(accountId, "KR", "thin-patch-puuid", "thin-patch", now));
+        await db.SaveChangesAsync();
+
+        // A settled patch and the one released after it, still filling.
+        await new ChampionAggregateSeeder()
+            .AddPatternWithRune(accountId, 779, "16.5", "KR", 420, "BOTTOM",
+                summoner1Id: 4, summoner2Id: 7, skillOrderKey: "Q-W-E",
+                buildItems: [3031, 3006, 3094], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 600, wins: 310, aggregatedAtUtc: now.AddDays(-1))
+            .AddPatternWithRune(accountId, 779, "16.6", "KR", 420, "BOTTOM",
+                summoner1Id: 4, summoner2Id: 7, skillOrderKey: "Q-W-E",
+                buildItems: [3031, 3006, 3094], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 30, wins: 16, aggregatedAtUtc: now.AddMinutes(-5))
+            .SaveAsync(db);
     }
 
     private async Task SeedMixedPopulationAggregatesAsync()

@@ -51,6 +51,7 @@ Last verified against `develop` on 2026-09-02.
 - "Completed item" is the build path's eligibility rule, shared, not a local restatement of it — #1021
 - Champion URLs are bare slugs, and the slug map is app state rather than per-page async data — #1124
 - The champion page server-renders its build as prose — the one SSR round-trip the page pays — #926, #1123, #1273
+- The champion page defaults to the newest patch its lane can fill, not the newest with any games (2026-10-22) — #2249, #1109
 - The build paragraph's cache window is 5 minutes, because it sits next to live numbers — #1123, #926, #1273
 - `hydrate-on-visible` does not make a panel free — it defers hydration, not server rendering — #1123, #1231
 - The build paragraph is typeset, and rune trees get Riot's colours to do it — #1123, #1143
@@ -99,6 +100,7 @@ Last verified against `develop` on 2026-09-02.
 - One player's matchups carry no games floor, and the player champion page has an explicit "All positions" slice (2026-10-20) — #2158
 - The champion page shows its matchups as a spread on the lane win rate at 15 min (centred on 50%), replacing the sidebar list — #2094
 - The player champion page shows the same spread on the player's own lanes (live from their 15-min snapshots, no lane floor), replacing its sidebar list — 2026-10-22
+- The spread follows the page's lane (no picker of its own), its tooltip says only `% WR`, and its wash is the match rows' red-to-blue — 2026-10-22
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - The draft assistant's lane guess is an assignment solved by exact enumeration — not per-champion arg-maxes, not Hungarian — #1674, #1706
@@ -115,7 +117,9 @@ Last verified against `develop` on 2026-09-02.
 - `/matchup` carries one line of numbers, not two — and it stores the XP gap beside the gold one — #1098, #976, #1087
 - Column captions head every rendering of the matchup rows, filtered view included, and beat figure-restating tooltips — #1494
 - The role opponent is a database filter, a pinned matchup is used whole, and votes are weighted by patch and pilot — #1659, #563, #923
+- The matchup recommendation's core path is voted one slot at a time with the champion page's step gates, never as a whole prefix — #2247
 - A refetch on `/matchup` shows skeletons rather than the previous answer dimmed — #1659, #1117
+- `/matchup` draws its draft as the desktop app's champion select (loading-art cards, lane duel between the teams), not as a form — #2241
 
 ## Player profile — [`decisions/product-player-profile.md`](decisions/product-player-profile.md)
 
@@ -132,6 +136,7 @@ Last verified against `develop` on 2026-09-02.
 - The site's match detail has no Timeline tab: TrueMain computes and stores no win-probability curve, the desktop app alone builds it from the client's timeline (2026-10-12, reverses 2026-10-05) — #2009, #1911
 - Known players: one person, several accounts at `/players/{slug}`, linked only from public sources, never inferred (2026-10-13) — #2016
 - Known players' accounts on a platform the pipeline does not ingest are stored as `untracked`, never seeded (2026-10-19) — #2134
+- Known players' account conflicts are recorded and settled by the operator (move / keep / detach / merge); exclusions and merged-persona pointers keep the scrapers from undoing it (2026-10-23) — #2253
 - A main champion row reads its lane and play rate only: the `80 of last 200` sample line is gone (2026-10-13, reverses #1498's line)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
@@ -210,6 +215,7 @@ Last verified against `develop` on 2026-09-02.
 - Build aggregates live for the current and previous patch; every patch keeps a light win/pick/ban record per champion × position × elo bracket, written before the full aggregates are dropped (2026-10-06) — #1467
 - The light record is `champion_patch_stats` (games, wins), folded with every scope replacement, plus the ban pair, which moves to the light level and leaves retention (2026-10-21) — #1956
 - "Trend by patch" (now with an optional `eloBracket`) and the lifetime games total read the light record; the leaderboard's and personas' account-level cross-patch reads cannot and are #1958's to settle (2026-10-21) — #1957
+- Build retention (prod) purges a patch's patterns and panel tables outside the live window but keeps its scopes, light record and bans; build readers skip purged patches (2026-10-22) — #1958
 - Timeline snapshots keep the canonical marks {5, 10, 15, 20, 30} only; retention prunes the legacy per-minute grid — #772, #694, #1599
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back, and the bracket is the participant's stamp (2026-10-19) — #1367, #1365

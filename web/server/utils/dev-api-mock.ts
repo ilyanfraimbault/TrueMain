@@ -1269,7 +1269,12 @@ function mockPersonaSearch(needle: string): SearchPlayer[] {
     })
 }
 
-function mockPersona(slug: string): PersonaResponse | null {
+// A known player an operator merged into another (#2253): the API answers the kept
+// one, whose slug sends the page there.
+const MOCK_MERGED_PERSONAS: Readonly<Record<string, string>> = { 'sheiden-tv': 'sheiden' }
+
+function mockPersona(requested: string): PersonaResponse | null {
+  const slug = MOCK_MERGED_PERSONAS[requested] ?? requested
   const owned = players().filter(p => p.row.persona?.slug === slug)
   const persona = owned[0]?.row.persona
   if (!persona) return null
