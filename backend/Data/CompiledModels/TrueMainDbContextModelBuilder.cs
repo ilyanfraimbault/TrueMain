@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("ecffe55f-2567-43ba-8ff6-361626985005"), entityTypeCount: 44)
+            : base(skipDetectChanges: false, modelId: new Guid("ffd2a06a-29f2-46d8-b5a4-f05fde4eb1c4"), entityTypeCount: 46)
         {
         }
 
@@ -59,6 +59,8 @@ namespace Data.CompiledModels
             var perkSelectionCatalog = PerkSelectionCatalogEntityType.Create(this);
             var persona = PersonaEntityType.Create(this);
             var personaAccount = PersonaAccountEntityType.Create(this);
+            var personaAccountConflict = PersonaAccountConflictEntityType.Create(this);
+            var personaAccountExclusion = PersonaAccountExclusionEntityType.Create(this);
             var personaLink = PersonaLinkEntityType.Create(this);
             var rankSnapshot = RankSnapshotEntityType.Create(this);
             var riotAccount = RiotAccountEntityType.Create(this);
@@ -76,8 +78,15 @@ namespace Data.CompiledModels
             MatchParticipantTimelineSnapshotEntityType.CreateForeignKey1(matchParticipantTimelineSnapshot, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey1(participantPerkSelection, match);
             ParticipantPerkSelectionEntityType.CreateForeignKey2(participantPerkSelection, perkSelectionCatalog);
+            PersonaEntityType.CreateForeignKey1(persona, persona);
             PersonaAccountEntityType.CreateForeignKey1(personaAccount, persona);
             PersonaAccountEntityType.CreateForeignKey2(personaAccount, riotAccount);
+            PersonaAccountConflictEntityType.CreateForeignKey1(personaAccountConflict, persona);
+            PersonaAccountConflictEntityType.CreateForeignKey2(personaAccountConflict, persona);
+            PersonaAccountConflictEntityType.CreateForeignKey3(personaAccountConflict, riotAccount);
+            PersonaAccountExclusionEntityType.CreateForeignKey1(personaAccountExclusion, personaAccountConflict);
+            PersonaAccountExclusionEntityType.CreateForeignKey2(personaAccountExclusion, persona);
+            PersonaAccountExclusionEntityType.CreateForeignKey3(personaAccountExclusion, riotAccount);
             PersonaLinkEntityType.CreateForeignKey1(personaLink, persona);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
 
@@ -122,6 +131,8 @@ namespace Data.CompiledModels
             PerkSelectionCatalogEntityType.CreateAnnotations(perkSelectionCatalog);
             PersonaEntityType.CreateAnnotations(persona);
             PersonaAccountEntityType.CreateAnnotations(personaAccount);
+            PersonaAccountConflictEntityType.CreateAnnotations(personaAccountConflict);
+            PersonaAccountExclusionEntityType.CreateAnnotations(personaAccountExclusion);
             PersonaLinkEntityType.CreateAnnotations(personaLink);
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);
             RiotAccountEntityType.CreateAnnotations(riotAccount);
