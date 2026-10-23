@@ -10,11 +10,16 @@
 
 <template>
   <div aria-hidden="true" class="flex flex-col gap-3">
-    <!-- Tab bar (General · Details · Runes) -->
-    <div class="flex gap-4 border-b border-default/40 pb-2">
-      <USkeleton class="h-4 w-16" />
-      <USkeleton class="h-4 w-14" />
-      <USkeleton class="h-4 w-12" />
+    <!-- Tab bar (Overview · Timeline · Build · Runes): the panel's full-width
+         pill list, one equal-width trigger per tab, labels centred. -->
+    <div class="flex w-full rounded-lg bg-elevated p-1 ring ring-default">
+      <div
+        v-for="(width, i) in ['w-14', 'w-14', 'w-10', 'w-10']"
+        :key="`sk-tab-${i}`"
+        class="flex h-7 flex-1 items-center justify-center"
+      >
+        <USkeleton class="h-3" :class="width" />
+      </div>
     </div>
 
     <!-- Two team scoreboards -->
