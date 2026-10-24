@@ -91,7 +91,7 @@ call is refused.
 
 | Field | Type | Rule |
 | --- | --- | --- |
-| `process` | string | `Web` or `Admin` |
+| `process` | string | `Web`, `Admin`, or `Edge` (the edge's failures, relayed by the admin — #1580) |
 | `host` | string? | ≤ 128 characters |
 | `entries` | array | 1 to 50 entries |
 | `entries[].timestampUtc` | datetime? | replaced by the server clock when older than 10 minutes or more than 1 minute ahead |
@@ -99,7 +99,7 @@ call is refused.
 | `entries[].category` | string | ≤ 128 characters |
 | `entries[].message` | string | ≤ 4,000 characters |
 | `entries[].exception` | string? | ≤ 16,000 characters |
-| `entries[].eventType` | string? | `FrontendServerError`, `FrontendUpstreamErrors`, or none |
+| `entries[].eventType` | string? | `FrontendServerError`, `FrontendUpstreamErrors`, `FrontendRequestAborted`, or none; under `Edge`, `EdgeProxyError` or none, and `EdgeProxyError` under no other process |
 | `entries[].requestMethod` | string? | ≤ 16 characters |
 | `entries[].requestPath` | string? | a route template (`/api/champions/{n}`), ≤ 512 characters |
 | `entries[].statusCode` | int? | 100–599 |

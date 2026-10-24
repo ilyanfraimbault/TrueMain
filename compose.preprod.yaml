@@ -209,6 +209,7 @@ services:
       NUXT_OPS_API_BASE_URL: http://api:8080
       NUXT_OPS_KEY: ${OPS_API_KEY}
       NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
+      NUXT_EDGE_LOG_PORT: "5140"
       NUXT_SESSION_PASSWORD: "${ADMIN_SESSION_PASSWORD:?set ADMIN_SESSION_PASSWORD before deploying}"
       NUXT_ADMIN_USERNAME: ${ADMIN_USERNAME:-truemain}
       NUXT_ADMIN_PASSWORD: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD before deploying - admin is exposed on 0.0.0.0}"
