@@ -88,13 +88,14 @@ describe('PlayerAccountRow', () => {
     expect(wrapper.text().trim().endsWith('yesterday')).toBe(true)
   })
 
-  it('writes a dash when no game is stored, and Unranked without a rank', async () => {
+  it('leaves the date empty when no game is stored, and writes Unranked without a rank', async () => {
     const wrapper = await mountSuspended(PlayersPlayerAccountRow, {
       props: { account: { ...account, ranked: null }, championsById: new Map(), patch: '16.19.1' },
     })
 
     expect(wrapper.text()).toContain('Unranked')
-    expect(wrapper.text().trim().endsWith('—')).toBe(true)
+    expect(wrapper.text()).not.toContain('—')
+    expect(wrapper.find('[title="No ranked game stored for this account"]').text()).toBe('')
   })
 })
 

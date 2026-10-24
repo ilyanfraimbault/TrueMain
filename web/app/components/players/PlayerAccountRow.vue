@@ -94,10 +94,12 @@ const lastPlayedTitle = computed(() => (props.account.lastPlayedAtUtc
       </li>
     </ul>
 
+    <!-- Left empty (not a dash) when the account has no stored ranked game: the
+         cell only holds the column, and a lone dash is what a search engine
+         ended up quoting from the page (#2263). -->
     <span
-      class="w-24 text-right text-xs tabular-nums"
-      :class="lastPlayed ? 'text-muted' : 'text-dimmed'"
+      class="w-24 text-right text-xs text-muted tabular-nums"
       :title="lastPlayedTitle"
-    >{{ lastPlayed ?? '—' }}</span>
+    >{{ lastPlayed }}</span>
   </li>
 </template>

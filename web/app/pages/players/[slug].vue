@@ -56,6 +56,33 @@ useSeoMeta({
     : 'A known League of Legends player on TrueMain.',
 })
 
+// What the page is, for a crawler (#2263): a profile of one person, below the
+// leaderboard. The person carries their public channels as `sameAs`, so the
+// page reads as a deep profile of someone, not as a section of the site. Its
+// `@id` is explicit: the module's default for a `Person` is the site identity's
+// id, which would collide with the TrueMain `Organization` node.
+// Whole nodes as computeds: the definers' getters only take scalar values, and
+// `sameAs` is a list.
+const personId = computed(() => `#/schema/person/${slug.value}`)
+useSchemaOrg([
+  definePerson(computed(() => ({
+    '@id': personId.value,
+    'name': persona.value?.displayName ?? slug.value,
+    'sameAs': persona.value?.links.map(link => link.url) ?? [],
+  }))),
+  defineWebPage(computed(() => ({
+    '@type': ['WebPage', 'ProfilePage'] as Array<'WebPage' | 'ProfilePage'>,
+    'name': persona.value?.displayName ?? 'Player',
+    'mainEntity': { '@id': personId.value },
+  }))),
+  defineBreadcrumb({
+    itemListElement: [
+      { name: 'Truemains', item: '/truemains' },
+      { name: () => persona.value?.displayName ?? slug.value },
+    ],
+  }),
+])
+
 if (import.meta.server && notFound.value) {
   setResponseStatus(useRequestEvent()!, 404)
 }
