@@ -29,7 +29,7 @@ const CLICK_ID_PARAMS = new Set([
 
 function decodeParamName(raw: string): string {
   try {
-    return decodeURIComponent(raw.replace(/\+/g, ' ')).toLowerCase()
+    return decodeURIComponent(raw.replaceAll('+', ' ')).toLowerCase()
   }
   catch {
     return raw.toLowerCase()
@@ -58,7 +58,8 @@ export function stripCampaignParams(url: string): string {
     .split('&')
     .filter(segment => segment !== '' && !isCampaignParam(segment.split('=', 1)[0]!))
   const base = beforeHash.slice(0, queryAt)
-  return `${base}${kept.length ? `?${kept.join('&')}` : ''}${hash}`
+  const query = kept.length ? `?${kept.join('&')}` : ''
+  return base + query + hash
 }
 
 /**
