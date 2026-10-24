@@ -14,6 +14,7 @@ import type { ForwardedError } from '../../../web/layers/nitro/server/utils/log-
 // set of sites stays small and nobody can invent one with a Host header.
 const ERROR_LOGGER = /^http\.log\.error(?:\.([\w-]{1,32}))?$/
 const ERROR_TEXT_LIMIT = 300
+const ERROR_INPUT_LIMIT = 2_000
 
 /**
  * `read tcp 172.18.0.4:51234->172.18.0.5:3000: read: connection reset by peer`
@@ -21,7 +22,17 @@ const ERROR_TEXT_LIMIT = 300
  * carries an ephemeral port, which would make every occurrence a distinct error.
  */
 export function normalizeEdgeError(message: string): string {
-  const normalized = message.replace(/\S+->/g, '').trim()
+  // Token by token rather than a regular expression: the line comes from the network,
+  // and a pattern over unbounded runs of non-space characters backtracks quadratically.
+  const normalized = message
+    .slice(0, ERROR_INPUT_LIMIT)
+    .split(' ')
+    .map((token) => {
+      const arrow = token.lastIndexOf('->')
+      return arrow === -1 ? token : token.slice(arrow + 2)
+    })
+    .filter(token => token !== '')
+    .join(' ')
   return (normalized || 'unknown error').slice(0, ERROR_TEXT_LIMIT)
 }
 
@@ -112,7 +123,9 @@ export function createLineServer(onLine: (line: string) => void, options: LineSe
 
 /** `NUXT_EDGE_LOG_PORT` as a port number, or null when unset or not a port. */
 export function edgeLogPort(value: unknown): number | null {
-  const text = String(value ?? '').trim()
+  let text = ''
+  if (typeof value === 'number') text = String(value)
+  else if (typeof value === 'string') text = value.trim()
   if (!/^\d{1,5}$/.test(text)) return null
   const port = Number(text)
   return port >= 1 && port <= 65_535 ? port : null

@@ -16,7 +16,7 @@ export default defineNitroPlugin((nitroApp) => {
   const port = edgeLogPort(config.edgeLogPort)
   if (port === null || !config.logIngestKey) {
     console.error(port === null
-      ? `[edge-error-relay] off: NUXT_EDGE_LOG_PORT is not a port number (${String(config.edgeLogPort)})`
+      ? `[edge-error-relay] off: NUXT_EDGE_LOG_PORT is not a port number (${JSON.stringify(config.edgeLogPort)})`
       : '[edge-error-relay] off: NUXT_EDGE_LOG_PORT is set but NUXT_LOG_INGEST_KEY is not')
     return
   }

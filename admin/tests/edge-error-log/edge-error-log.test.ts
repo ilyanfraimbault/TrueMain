@@ -72,6 +72,16 @@ describe('normalizeEdgeError', () => {
       .toBe('read tcp 172.18.0.5:3000: read: connection reset by peer')
   })
 
+  it('keeps the far end of a chained address and collapses the spaces it leaves', () => {
+    expect(normalizeEdgeError('a 1.1.1.1:1->2.2.2.2:2->3.3.3.3:3  b')).toBe('a 3.3.3.3:3 b')
+  })
+
+  it('stays linear on a long run of non-space characters', () => {
+    const started = performance.now()
+    expect(normalizeEdgeError('x'.repeat(1_000_000) + '-')).toBe('x'.repeat(300))
+    expect(performance.now() - started).toBeLessThan(500)
+  })
+
   it('caps the error text', () => {
     expect(normalizeEdgeError('x'.repeat(1_000))).toHaveLength(300)
   })
@@ -88,6 +98,8 @@ describe('edgeLogPort', () => {
     ['65536', null],
     ['51a', null],
     ['-1', null],
+    [{ port: 5140 }, null],
+    [null, null],
   ])('reads %j as %j', (value, expected) => {
     expect(edgeLogPort(value)).toBe(expected)
   })
