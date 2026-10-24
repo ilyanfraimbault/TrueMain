@@ -5,7 +5,7 @@ useSeoMeta({
     'How TrueMain handles data: the public League of Legends game data it surfaces, privacy-friendly analytics, and your rights.',
 })
 
-const lastUpdated = 'October 19, 2026'
+const lastUpdated = 'October 24, 2026'
 const contactEmail = 'contact@truemain.lol'
 </script>
 
@@ -47,12 +47,14 @@ const contactEmail = 'contact@truemain.lol'
         <ProseP>
           <ProseStrong>Audience measurement.</ProseStrong>
           We use a self-hosted analytics tool (Umami), for the sole purpose of
-          measuring how the site is used: pages viewed, the site you came from,
-          your browser, operating system, device type, screen size and
-          language, and your country,
-          region and city derived from your IP address; your IP address itself
-          is not stored. It sets no cookie. To count unique and returning
-          visitors, it stores a random identifier on your device (in your
+          measuring how the site is used: pages viewed, the domain of the site
+          you came from (never the address of the page itself), your browser,
+          operating system, device type, screen size and language, and your
+          country, region and city derived from your IP address; your IP
+          address itself is not stored. Campaign tracking parameters in a link
+          (such as <ProseCode>utm_source</ProseCode> or ad click identifiers)
+          are removed before anything is sent. It sets no cookie. To count
+          unique and returning visitors, it stores a random identifier on your device (in your
           browser's local storage) for at most 13 months from your first visit;
           later visits do not extend that period, and a new identifier replaces
           it once it expires. This identifier is generated at random, is not
@@ -112,7 +114,8 @@ const contactEmail = 'contact@truemain.lol'
           Aggregated statistics and the public match data they are built from are
           retained for as long as they are useful to the service, and are pruned
           on a rolling basis as patches age. Audience measurement records hold
-          no IP address and are used only to produce aggregate statistics; the
+          no IP address, are used only to produce aggregate statistics, and are
+          deleted automatically 25 months after they are collected; the
           identifier stored on your device lasts at most 13 months.
         </ProseP>
       </section>
