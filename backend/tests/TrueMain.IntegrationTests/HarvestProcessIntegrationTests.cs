@@ -1,11 +1,13 @@
 using AwesomeAssertions;
 using Data.Entities;
+using Data.Ops.Mongo;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.Discovery;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 
 namespace TrueMain.IntegrationTests;
 
@@ -48,6 +50,7 @@ public sealed class HarvestProcessIntegrationTests : IAsyncLifetime
             new ParticipantHarvestService(),
             new ChampionCoverageProvider(
                 Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
+            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new HarvestOptions
             {
@@ -126,6 +129,7 @@ public sealed class HarvestProcessIntegrationTests : IAsyncLifetime
             new ParticipantHarvestService(),
             new ChampionCoverageProvider(
                 Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
+            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new HarvestOptions
             {

@@ -1,4 +1,5 @@
 using Data.Logging;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -22,6 +23,7 @@ public sealed class HarvestProcess(
     IDataSessionFactory sessionFactory,
     IParticipantHarvestService harvestService,
     IChampionCoverageProvider coverageProvider,
+    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
     IOptions<HarvestOptions> harvestOptions,
     IOptions<MatchIngestionOptions> matchIngestionOptions,
@@ -43,8 +45,26 @@ public sealed class HarvestProcess(
             return new HarvestNoWorkSummary("No platforms configured.", 0);
         }
 
-        await using var session = await sessionFactory.CreateAsync(ct);
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+
+        // Same guard as Discovery's (#487, #1149): measured from the last run that did its
+        // work, so a skip can never re-arm itself. Nothing else paces the harvest — it makes
+        // no Riot call — so without it the orphan scan follows the maintenance pass's loop
+        // speed (#2261).
+        if (configured.MinRunInterval > TimeSpan.Zero)
+        {
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
+            if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < configured.MinRunInterval)
+            {
+                logger.LogInformation(
+                    "Harvest skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
+                    lastRunUtc,
+                    configured.MinRunInterval);
+                return new SkippedSummary("Within MinRunInterval; harvest skipped this iteration.", true);
+            }
+        }
+
+        await using var session = await sessionFactory.CreateAsync(ct);
 
         // The same frozen coverage signal the claim and scoring read, so the harvest's
         // per-platform budget split agrees with theirs within a cycle (#1150).
@@ -157,7 +177,8 @@ public sealed class HarvestProcess(
             MaxCandidatesPerRun = effectiveBudget,
             NewCandidateShare = Math.Clamp(newPairs / (double)effectiveBudget, 0d, 1d),
             LookbackDays = configured.LookbackDays,
-            SaveBatchSize = configured.SaveBatchSize
+            SaveBatchSize = configured.SaveBatchSize,
+            MinRunInterval = configured.MinRunInterval
         };
     }
 
