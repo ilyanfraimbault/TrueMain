@@ -1,4 +1,5 @@
 import { isAnalyticsOptedOut } from '~/utils/analytics-opt-out'
+import { minimizeAnalyticsPayload } from '~/utils/analytics-payload'
 import { clearVisitorId, getOrCreateVisitorId } from '~/utils/analytics-visitor-id'
 
 /**
@@ -18,6 +19,9 @@ import { clearVisitorId, getOrCreateVisitorId } from '~/utils/analytics-visitor-
  *   exactly what the exemption excludes.
  * - A visitor who opted out on /privacy never gets the tracker loaded nor an
  *   id; the tracker itself also checks the same flag before every send.
+ * - No campaign ids and no referrer path: every send drops `utm_*` and ad click
+ *   ids from the URL and cuts the referrer down to its domain (#2092,
+ *   `utils/analytics-payload`).
  *
  * The id rides on every send through the tracker's `before-send` hook rather
  * than `umami.identify()`: both set the payload `id` Umami derives its session
@@ -60,8 +64,9 @@ export default defineNuxtPlugin(() => {
   useScriptUmamiAnalytics({
     websiteId,
     scriptInput: { src: `${origin}/script.js` },
-    ...(visitorId && {
-      beforeSend: (_type: string, payload: Record<string, unknown>) => ({ ...payload, id: visitorId }),
+    beforeSend: (_type: string, payload: Record<string, unknown>) => ({
+      ...minimizeAnalyticsPayload(payload, window.location.hostname),
+      ...(visitorId && { id: visitorId }),
     }),
     // `bundle: false` is load-bearing. The registry bundles its entry by default:
     // the build downloads *cloud.umami.is*'s tracker (it cannot read our `src`,
