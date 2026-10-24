@@ -2189,8 +2189,14 @@ namespace Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<bool>("DisplayNameLocked")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("MergedIntoPersonaId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RemovedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -2356,6 +2362,9 @@ namespace Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<bool>("IsTakedown")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("PersonaId")
                         .HasColumnType("uuid");
 
@@ -2418,6 +2427,33 @@ namespace Data.Migrations
                         .IsUnique();
 
                     b.ToTable("persona_links", (string)null);
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaLinkExclusion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("PersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonaId", "Url")
+                        .IsUnique();
+
+                    b.ToTable("persona_link_exclusions", (string)null);
                 });
 
             modelBuilder.Entity("Data.Entities.RankSnapshot", b =>
@@ -2770,6 +2806,17 @@ namespace Data.Migrations
                 {
                     b.HasOne("Data.Entities.Persona", "Persona")
                         .WithMany("Links")
+                        .HasForeignKey("PersonaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Persona");
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaLinkExclusion", b =>
+                {
+                    b.HasOne("Data.Entities.Persona", "Persona")
+                        .WithMany()
                         .HasForeignKey("PersonaId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

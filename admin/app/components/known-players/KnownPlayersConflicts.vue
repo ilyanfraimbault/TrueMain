@@ -4,6 +4,7 @@
 // the operator reads both players side by side and settles it here. The decision
 // holds against the next scraper runs (an exclusion, or a merged page's pointer).
 import type { PersonaConflict, PersonaConflictDetail, PersonaConflictResolveBody, PersonaConflictStatus } from '~~/shared/types/ops'
+import { computed, ref, watch } from 'vue'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { resolutionLabel, resolvedMessage, resolveErrorMessage, riotId } from '~~/shared/utils/persona-conflicts'
 
@@ -44,7 +45,7 @@ const detailError = ref<unknown>(null)
 const busy = ref(false)
 const toast = useActionToast()
 
-async function open(conflict: PersonaConflict) {
+async function open(conflict: Pick<PersonaConflict, 'id'>) {
   detail.value = null
   detailError.value = null
   detailOpen.value = true
@@ -55,6 +56,21 @@ async function open(conflict: PersonaConflict) {
     detailError.value = e
   }
 }
+
+// `?conflict=<id>` opens one conflict: the known player's edit panel links its open
+// conflicts here (#2019). Closing the panel drops it, so a reload does not reopen it.
+const route = useRoute()
+const router = useRouter()
+watch(() => route.query.conflict, (id) => {
+  if (typeof id === 'string' && id && detail.value?.conflict.id !== id) {
+    open({ id })
+  }
+}, { immediate: true })
+watch(detailOpen, (isOpen) => {
+  if (!isOpen && route.query.conflict) {
+    router.replace({ query: { ...route.query, conflict: undefined } })
+  }
+})
 
 async function resolve(body: PersonaConflictResolveBody) {
   if (!detail.value) {

@@ -19,6 +19,12 @@ public class Persona
 
     public required string DisplayName { get; set; }
 
+    /// <summary>
+    /// True once an operator set <see cref="DisplayName"/> (#2019): created the persona from the admin,
+    /// or renamed it. The intake then keeps the operator's name instead of the one each source sends.
+    /// </summary>
+    public bool DisplayNameLocked { get; set; }
+
     /// <summary>The source that first published this person.</summary>
     public PersonaSource Source { get; set; }
 
@@ -36,6 +42,15 @@ public class Persona
     public Guid? MergedIntoPersonaId { get; set; }
 
     public Persona? MergedInto { get; set; }
+
+    /// <summary>
+    /// When an operator removed this persona (#2019); null for a live one. A removed persona keeps its
+    /// row and slug but no account or link, so <c>GET /players/{slug}</c> answers 404 and the intake
+    /// answers <c>removed</c> for its slug and writes nothing: the scrapers never recreate it. A
+    /// takedown also bars its Riot accounts from every other persona
+    /// (<see cref="PersonaAccountExclusion.IsTakedown"/>).
+    /// </summary>
+    public DateTime? RemovedAtUtc { get; set; }
 
     public ICollection<PersonaLink> Links { get; set; } = new List<PersonaLink>();
 

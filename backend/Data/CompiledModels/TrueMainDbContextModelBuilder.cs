@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("ffd2a06a-29f2-46d8-b5a4-f05fde4eb1c4"), entityTypeCount: 46)
+            : base(skipDetectChanges: false, modelId: new Guid("8c39607b-dc63-47b2-9256-2a770f1c0537"), entityTypeCount: 47)
         {
         }
 
@@ -62,6 +62,7 @@ namespace Data.CompiledModels
             var personaAccountConflict = PersonaAccountConflictEntityType.Create(this);
             var personaAccountExclusion = PersonaAccountExclusionEntityType.Create(this);
             var personaLink = PersonaLinkEntityType.Create(this);
+            var personaLinkExclusion = PersonaLinkExclusionEntityType.Create(this);
             var rankSnapshot = RankSnapshotEntityType.Create(this);
             var riotAccount = RiotAccountEntityType.Create(this);
 
@@ -88,6 +89,7 @@ namespace Data.CompiledModels
             PersonaAccountExclusionEntityType.CreateForeignKey2(personaAccountExclusion, persona);
             PersonaAccountExclusionEntityType.CreateForeignKey3(personaAccountExclusion, riotAccount);
             PersonaLinkEntityType.CreateForeignKey1(personaLink, persona);
+            PersonaLinkExclusionEntityType.CreateForeignKey1(personaLinkExclusion, persona);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
 
             ApexCutoffSnapshotEntityType.CreateAnnotations(apexCutoffSnapshot);
@@ -134,6 +136,7 @@ namespace Data.CompiledModels
             PersonaAccountConflictEntityType.CreateAnnotations(personaAccountConflict);
             PersonaAccountExclusionEntityType.CreateAnnotations(personaAccountExclusion);
             PersonaLinkEntityType.CreateAnnotations(personaLink);
+            PersonaLinkExclusionEntityType.CreateAnnotations(personaLinkExclusion);
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);
             RiotAccountEntityType.CreateAnnotations(riotAccount);
 

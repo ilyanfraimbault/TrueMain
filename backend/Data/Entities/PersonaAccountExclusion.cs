@@ -1,8 +1,8 @@
 namespace Data.Entities;
 
 /// <summary>
-/// A Riot account one persona may not claim any more (#2253): an operator settled a conflict
-/// against it. The persona intake answers <c>excluded</c> for that claim and writes nothing, so the
+/// A Riot account one persona may not claim any more: an operator settled a conflict against it
+/// (#2253) or unlinked the account from it (#2019). The persona intake answers <c>excluded</c> for that claim and writes nothing, so the
 /// weekly scrapers, which keep sending what their sources list, cannot undo the decision.
 /// </summary>
 /// <remarks>
@@ -28,7 +28,14 @@ public class PersonaAccountExclusion
 
     public RiotAccount? RiotAccount { get; set; }
 
-    /// <summary>The conflict whose resolution wrote it.</summary>
+    /// <summary>
+    /// Written by a takedown (#2019): the removed persona's accounts are barred from every persona,
+    /// not only from the one that held them, so another source listing the same person under
+    /// another slug cannot put them back on the site.
+    /// </summary>
+    public bool IsTakedown { get; set; }
+
+    /// <summary>The conflict whose resolution wrote it; null for an operator's unlink or a takedown.</summary>
     public Guid? ConflictId { get; set; }
 
     public PersonaAccountConflict? Conflict { get; set; }

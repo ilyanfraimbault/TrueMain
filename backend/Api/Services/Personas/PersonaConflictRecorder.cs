@@ -12,18 +12,32 @@ namespace TrueMain.Services.Personas;
 /// </summary>
 public sealed class PersonaConflictRecorder(TrueMainDbContext db)
 {
-    /// <summary>The Riot IDs and tracked accounts <paramref name="persona"/> may no longer claim.</summary>
+    /// <summary>
+    /// The Riot IDs and tracked accounts <paramref name="persona"/> may no longer claim: its own
+    /// exclusions, and every takedown's, which bar the account from all personas (#2019).
+    /// </summary>
     public async Task<PersonaExclusions> LoadExclusionsAsync(Persona persona, CancellationToken ct)
     {
         var rows = await db.PersonaAccountExclusions
             .AsNoTracking()
-            .Where(e => e.PersonaId == persona.Id)
+            .Where(e => e.PersonaId == persona.Id || e.IsTakedown)
             .Select(e => new { e.PlatformId, e.GameName, e.TagLine, e.RiotAccountId })
             .ToListAsync(ct);
 
         return new PersonaExclusions(
             rows.Select(r => PersonaExclusions.Key(r.PlatformId, r.GameName, r.TagLine)).ToHashSet(StringComparer.Ordinal),
             rows.Where(r => r.RiotAccountId is not null).Select(r => r.RiotAccountId!.Value).ToHashSet());
+    }
+
+    /// <summary>The URLs an operator removed from <paramref name="persona"/> (#2019), lowercased.</summary>
+    public async Task<HashSet<string>> LoadLinkExclusionsAsync(Persona persona, CancellationToken ct)
+    {
+        var urls = await db.PersonaLinkExclusions
+            .AsNoTracking()
+            .Where(e => e.PersonaId == persona.Id)
+            .Select(e => e.Url.ToLower())
+            .ToListAsync(ct);
+        return urls.ToHashSet(StringComparer.Ordinal);
     }
 
     /// <summary>
