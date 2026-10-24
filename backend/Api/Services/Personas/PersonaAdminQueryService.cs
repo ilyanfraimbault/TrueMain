@@ -105,46 +105,13 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db) : IPersonaAdm
             return null;
         }
 
-        var accounts = await db.PersonaAccounts
-            .AsNoTracking()
-            .Where(a => a.PersonaId == id)
-            .OrderBy(a => a.RiotAccountId == null)
-            .ThenBy(a => a.PlatformId)
-            .ThenBy(a => a.GameName)
-            .Select(a => new PersonaAdminAccountReadModel
-            {
-                Id = a.Id,
-                GameName = a.GameName,
-                TagLine = a.TagLine,
-                PlatformId = a.PlatformId,
-                Source = a.Source.ToString(),
-                RiotAccountId = a.RiotAccountId,
-                CurrentGameName = a.RiotAccount == null ? null : a.RiotAccount.GameName,
-                CurrentTagLine = a.RiotAccount == null ? null : a.RiotAccount.TagLine,
-                CreatedAtUtc = a.CreatedAtUtc,
-            })
-            .ToListAsync(ct);
-
+        var accounts = await LoadAccountsAsync(id, ct);
         var links = await db.PersonaLinks
             .AsNoTracking()
             .Where(l => l.PersonaId == id)
             .OrderBy(l => l.Kind)
             .ThenBy(l => l.Url)
             .Select(l => new { l.Id, l.Kind, l.Url, l.Source, l.CreatedAtUtc })
-            .ToListAsync(ct);
-
-        var exclusions = await db.PersonaAccountExclusions
-            .AsNoTracking()
-            .Where(e => e.PersonaId == id)
-            .OrderByDescending(e => e.CreatedAtUtc)
-            .Select(e => new PersonaAdminExclusionReadModel
-            {
-                GameName = e.GameName,
-                TagLine = e.TagLine,
-                PlatformId = e.PlatformId,
-                Reason = e.IsTakedown ? "takedown" : e.ConflictId != null ? "conflict" : "unlinked",
-                CreatedAtUtc = e.CreatedAtUtc,
-            })
             .ToListAsync(ct);
 
         var removedLinks = await db.PersonaLinkExclusions
@@ -154,23 +121,8 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db) : IPersonaAdm
             .Select(e => new PersonaAdminRemovedLinkReadModel { Url = e.Url, CreatedAtUtc = e.CreatedAtUtc })
             .ToListAsync(ct);
 
-        var conflicts = await db.PersonaAccountConflicts
-            .AsNoTracking()
-            .Where(c => c.Status == PersonaConflictStatus.Open && (c.ClaimantPersonaId == id || c.OwnerPersonaId == id))
-            .OrderByDescending(c => c.LastSeenAtUtc)
-            .Select(c => new PersonaAdminConflictReadModel
-            {
-                Id = c.Id,
-                Role = c.ClaimantPersonaId == id ? "claimant" : "owner",
-                GameName = c.GameName,
-                TagLine = c.TagLine,
-                PlatformId = c.PlatformId,
-                OtherSlug = c.ClaimantPersonaId == id ? c.Owner!.Slug : c.Claimant!.Slug,
-                OtherDisplayName = c.ClaimantPersonaId == id ? c.Owner!.DisplayName : c.Claimant!.DisplayName,
-                Source = c.Source.ToString(),
-                LastSeenAtUtc = c.LastSeenAtUtc,
-            })
-            .ToListAsync(ct);
+        var exclusions = await LoadExclusionsAsync(id, ct);
+        var conflicts = await LoadOpenConflictsAsync(id, ct);
 
         return new PersonaAdminDetailReadModel
         {
@@ -199,6 +151,62 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db) : IPersonaAdm
             Conflicts = conflicts,
         };
     }
+
+    /// <summary>Tracked accounts first, then by platform and Riot ID, each with its current Riot ID.</summary>
+    private Task<List<PersonaAdminAccountReadModel>> LoadAccountsAsync(Guid id, CancellationToken ct) =>
+        db.PersonaAccounts
+            .AsNoTracking()
+            .Where(a => a.PersonaId == id)
+            .OrderBy(a => a.RiotAccountId == null)
+            .ThenBy(a => a.PlatformId)
+            .ThenBy(a => a.GameName)
+            .Select(a => new PersonaAdminAccountReadModel
+            {
+                Id = a.Id,
+                GameName = a.GameName,
+                TagLine = a.TagLine,
+                PlatformId = a.PlatformId,
+                Source = a.Source.ToString(),
+                RiotAccountId = a.RiotAccountId,
+                CurrentGameName = a.RiotAccount == null ? null : a.RiotAccount.GameName,
+                CurrentTagLine = a.RiotAccount == null ? null : a.RiotAccount.TagLine,
+                CreatedAtUtc = a.CreatedAtUtc,
+            })
+            .ToListAsync(ct);
+
+    private Task<List<PersonaAdminExclusionReadModel>> LoadExclusionsAsync(Guid id, CancellationToken ct) =>
+        db.PersonaAccountExclusions
+            .AsNoTracking()
+            .Where(e => e.PersonaId == id)
+            .OrderByDescending(e => e.CreatedAtUtc)
+            .Select(e => new PersonaAdminExclusionReadModel
+            {
+                GameName = e.GameName,
+                TagLine = e.TagLine,
+                PlatformId = e.PlatformId,
+                Reason = e.IsTakedown ? "takedown" : e.ConflictId != null ? "conflict" : "unlinked",
+                CreatedAtUtc = e.CreatedAtUtc,
+            })
+            .ToListAsync(ct);
+
+    private Task<List<PersonaAdminConflictReadModel>> LoadOpenConflictsAsync(Guid id, CancellationToken ct) =>
+        db.PersonaAccountConflicts
+            .AsNoTracking()
+            .Where(c => c.Status == PersonaConflictStatus.Open && (c.ClaimantPersonaId == id || c.OwnerPersonaId == id))
+            .OrderByDescending(c => c.LastSeenAtUtc)
+            .Select(c => new PersonaAdminConflictReadModel
+            {
+                Id = c.Id,
+                Role = c.ClaimantPersonaId == id ? "claimant" : "owner",
+                GameName = c.GameName,
+                TagLine = c.TagLine,
+                PlatformId = c.PlatformId,
+                OtherSlug = c.ClaimantPersonaId == id ? c.Owner!.Slug : c.Claimant!.Slug,
+                OtherDisplayName = c.ClaimantPersonaId == id ? c.Owner!.DisplayName : c.Claimant!.DisplayName,
+                Source = c.Source.ToString(),
+                LastSeenAtUtc = c.LastSeenAtUtc,
+            })
+            .ToListAsync(ct);
 
     private IQueryable<Persona> Filter(PersonaListFilter filter)
     {

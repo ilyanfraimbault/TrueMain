@@ -34,6 +34,7 @@ public sealed class PersonaRemovalService(TrueMainDbContext db, PersonaAudit aud
         var persona = await db.Personas
             .Include(p => p.Accounts)
             .Include(p => p.Links)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(p => p.Id == id, ct);
         if (PersonaEditService.NotLive(persona) is { } refused)
         {

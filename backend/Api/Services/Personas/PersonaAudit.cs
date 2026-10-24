@@ -25,7 +25,8 @@ public sealed class PersonaAudit(IAuditLog auditLog, ILogger<PersonaAudit> logge
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Audit write failed for {Action} on persona {Slug}; the edit was committed.", action, slug);
+            // The persona id, not the slug: nothing a request carried reaches the log line.
+            logger.LogWarning(ex, "Audit write failed for {Action} on persona {PersonaId}; the edit was committed.", action, personaId);
         }
     }
 }

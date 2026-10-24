@@ -37,14 +37,21 @@ export const VIEW_ITEMS: { label: string, value: PersonaListView }[] = [
 
 /** The URL key a name suggests: lowercase kebab, accents dropped, at most 64 characters. */
 export function slugify(name: string): string {
-  return name
+  const kebab = name
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, SLUG_MAX_LENGTH)
-    .replace(/-+$/, '')
+  return trimDashes(trimDashes(kebab).slice(0, SLUG_MAX_LENGTH))
+}
+
+/** Drops leading and trailing dashes, without a backtracking regular expression. */
+function trimDashes(value: string): string {
+  let start = 0
+  let end = value.length
+  while (start < end && value[start] === '-') start++
+  while (end > start && value[end - 1] === '-') end--
+  return value.slice(start, end)
 }
 
 /** Why `slug` is not a valid URL key, or null when it is — the backend's rule. */

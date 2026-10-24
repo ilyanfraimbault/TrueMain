@@ -11,7 +11,10 @@ const route = useRoute()
 const router = useRouter()
 
 function parseTab(raw: unknown): Tab {
-  return raw === 'resolved' ? 'Resolved' : raw === 'open' ? 'Open' : 'Players'
+  if (raw === 'resolved') {
+    return 'Resolved'
+  }
+  return raw === 'open' ? 'Open' : 'Players'
 }
 
 const tab = ref<Tab>(parseTab(route.query.status))
