@@ -1,20 +1,24 @@
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { defineComponent, h, nextTick, ref, toValue } from 'vue'
 import { PlayersPlayerAccountRow, PlayersPlayerLinks, SearchPlayerItem, UApp } from '#components'
 import type { PersonaAccount } from '~~/shared/types/players'
 import type { SearchPlayer } from '~~/shared/types/search'
 import { useTruemainSearch } from '#common/composables/useTruemainSearch'
+import PlayerPage from '~/pages/players/[slug].vue'
 
 // Known players (#2016, #2018): the page's channel buttons and account rows,
 // the search palette's player row, and the search composable carrying the
 // players the same request answers.
 
-const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }))
+const { apiFetch, schemaOrg } = vi.hoisted(() => ({ apiFetch: vi.fn(), schemaOrg: vi.fn() }))
 mockNuxtImport('useApiFetch', () => () => apiFetch)
+// Captured rather than rendered: the test reads the nodes the page hands the module.
+mockNuxtImport('useSchemaOrg', () => schemaOrg)
 
 afterEach(() => {
   apiFetch.mockReset()
+  schemaOrg.mockReset()
   vi.useRealTimers()
 })
 
@@ -150,5 +154,35 @@ describe('useTruemainSearch', () => {
     term.value = 'i'
     await nextTick()
     expect(search.players.value).toEqual([])
+  })
+})
+
+describe('known player page', () => {
+  it('describes itself as the profile of a person, under the leaderboard', async () => {
+    apiFetch.mockImplementation(async (url: string) => url === '/players/faker'
+      ? {
+          slug: 'faker',
+          displayName: 'Faker',
+          links: [
+            { kind: 'twitch', url: 'https://www.twitch.tv/faker' },
+            { kind: 'leaguepedia', url: 'https://lol.fandom.com/wiki/Faker' },
+          ],
+          accounts: [],
+        }
+      : null)
+
+    await mountSuspended(defineComponent({ setup: () => () => h(UApp, null, () => h(PlayerPage)) }), { route: '/players/faker' })
+
+    const nodes = (schemaOrg.mock.lastCall![0] as unknown[]).map(node => toValue(node) as Record<string, unknown>)
+    const person = nodes.find(node => node.name === 'Faker' && 'sameAs' in node)
+    const page = nodes.find(node => 'mainEntity' in node)
+    const breadcrumb = nodes.find(node => 'itemListElement' in node)
+
+    expect(person).toMatchObject({
+      '@id': '#/schema/person/faker',
+      'sameAs': ['https://www.twitch.tv/faker', 'https://lol.fandom.com/wiki/Faker'],
+    })
+    expect(page).toMatchObject({ '@type': ['WebPage', 'ProfilePage'], 'mainEntity': { '@id': '#/schema/person/faker' } })
+    expect((breadcrumb!.itemListElement as Array<{ name: unknown }>).map(item => toValue(item.name))).toEqual(['Truemains', 'Faker'])
   })
 })
