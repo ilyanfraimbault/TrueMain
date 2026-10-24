@@ -39,7 +39,7 @@ public sealed partial class SeedGenerator(
     private const int RedTeamId = 200;
 
     // The minute the lane outcome is judged at, matching
-    // ChampionLaneOutcomeAggregationProcess. Must stay one of TimelineSnapshotMarks.Minutes, or
+    // ChampionMatchupLeadAggregationProcess. Must stay one of TimelineSnapshotMarks.Minutes, or
     // no snapshot pair exists to judge from and every lane counter stays 0.
     private const int LaneOutcomeMinute = 15;
 
