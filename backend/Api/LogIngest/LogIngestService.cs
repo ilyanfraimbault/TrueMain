@@ -25,10 +25,19 @@ public sealed class LogIngestService(IForwardedLogWriter writer, TimeProvider ti
     /// <summary>Clock skew tolerated ahead of the server before the reported timestamp is replaced.</summary>
     internal static readonly TimeSpan MaxReportedSkewAhead = TimeSpan.FromMinutes(1);
 
+    /// <summary>
+    /// The edge's failures (#1580) and the process they are filed under go together: the
+    /// admin relays them under <c>Edge</c>, and a frontend's own rows cannot pass for them.
+    /// </summary>
+    private const string EdgeProcess = "Edge";
+
+    private static readonly string EdgeEventType = OpsEvents.EdgeProxyError.Name!;
+
     public LogIngestResult Ingest(LogIngestRequest request)
     {
         var entries = request.Entries ?? [];
         var errors = new Dictionary<string, string>(StringComparer.Ordinal);
+        var fromEdge = string.Equals(request.Process, EdgeProcess, StringComparison.Ordinal);
         for (var index = 0; index < entries.Count; index++)
         {
             var eventType = entries[index].EventType;
@@ -37,6 +46,12 @@ public sealed class LogIngestService(IForwardedLogWriter writer, TimeProvider ti
                 errors[$"entries[{index}].eventType"] =
                     $"'{eventType}' is not an event a frontend may report; expected one of "
                     + $"{string.Join(", ", OpsEvents.ForwardableEventTypes)}, or none.";
+            }
+            else if (eventType is not null && fromEdge != (eventType == EdgeEventType))
+            {
+                errors[$"entries[{index}].eventType"] = fromEdge
+                    ? $"Process '{EdgeProcess}' reports '{EdgeEventType}' only, or none."
+                    : $"'{EdgeEventType}' is reported under process '{EdgeProcess}' only.";
             }
         }
 

@@ -92,6 +92,10 @@ export default defineNuxtConfig({
     // Key for the API's `POST /internal/logs` (#1556), distinct from the ops key.
     // Empty keeps error forwarding off (`web/layers/nitro`'s log-forwarding plugin).
     logIngestKey: process.env.NUXT_LOG_INGEST_KEY ?? '',
+    // TCP port the edge proxy streams its error log to (#1580), relayed to the
+    // ops logs under process `Edge`. Empty keeps the relay off
+    // (`server/plugins/edge-error-relay.ts`); it needs `logIngestKey` too.
+    edgeLogPort: process.env.NUXT_EDGE_LOG_PORT ?? '',
     // Single-operator credentials checked by the login endpoint. Both default
     // to `truemain` for local dev; override per environment.
     adminUsername: process.env.NUXT_ADMIN_USERNAME ?? 'truemain',
