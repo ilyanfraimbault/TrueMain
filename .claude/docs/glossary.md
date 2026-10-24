@@ -48,6 +48,10 @@ A person — a pro, a streamer, a creator, or any notable player — together wi
 for them. The site shows their name, never the word "persona"; their page is `/players/{slug}`. Not the same thing as a
 true main: a known player need not main anything, and a true main is usually nobody in particular.
 
+**Takedown** (of a known player):
+Removing a known player at the person's request: the page goes and their accounts are barred from every known player.
+A plain *removal* only retires a persona that should not exist and leaves its accounts free.
+
 **Candidate**:
 A (player, champion) pair proposed as a possible true main, found on the apex ladder, added by an operator, or
 harvested from games already stored. It moves New → Scored → Queued → Processing → Validated, and leaves only

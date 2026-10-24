@@ -229,7 +229,19 @@ account gets an exclusion (its claim is answered `excluded`), and a merged perso
 kept one rather than being deleted, so its slug keeps redirecting (301 on the web page), the intake folds its source's
 entry into the kept persona instead of recreating it, and the conflict history keeps both names.
 
-**Source.** #2016, #2134, #2253.
+**The operator's edits hold the same way (2026-10-24, #2019).** The admin adds a known player by hand (source
+`manual`), renames one, adds or unlinks an account, adds or removes a link, and removes a known player. Each decision is
+written where the weekly batch cannot undo it: an unlinked account is an exclusion for that persona, a removed link a
+link exclusion the intake skips, a name the operator set is locked against the sources' names, and adding an account
+or link back by hand lifts the persona's own exclusion of it. Removal keeps the row and slug, like a merge, but empties
+it: the page answers 404, and the intake answers `removed` and writes nothing, so a source that keeps listing the person
+cannot bring the page back. Two kinds, because they answer two different requests: a plain **removal** is for a persona
+that should not exist (its accounts stay free for whoever a source lists them under); a **takedown** is for a person who
+asked not to be listed, and bars their accounts from every persona, since another source may list them under another
+slug. A manual account still goes through the intake's rules: another persona's account opens a conflict rather than
+moving, and a takedown wins over a manual add.
+
+**Source.** #2016, #2134, #2253, #2019.
 
 **A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
 each main's name, so the count would name its denominator next to the champion page's per-patch count. On the
