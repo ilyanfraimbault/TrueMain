@@ -339,8 +339,8 @@ Last verified against `develop` on 2026-09-02.
 - Preprod builds carry a prerelease version, tagged only after they deploy (2026-08-24)
 - Caddy terminates TLS and is the only public entry point in prod — #433, #430, #426
 - The admin `/analytics` iframe stays on Umami's public share view, not the authenticated app — kept as-is on purpose, 2026-08-04 — #1013, #1014
-- Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow — #680, #1018
-- Analytics stay inside the CNIL consent exemption: no session replay, an opt-out on `/privacy` — no consent banner (2026-10-18); since 2026-10-19 a random anonymous visitor id, 13 months from creation and never extended, counts returning visitors across months (data retention: #2092) — #2089, #2149
+- Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow; since #2092 the same sidecar caps the rest of Umami's data at 25 months — #680, #1018, #2092
+- Analytics stay inside the CNIL consent exemption: no session replay, an opt-out on `/privacy` — no consent banner (2026-10-18); since 2026-10-19 a random anonymous visitor id, 13 months from creation and never extended, counts returning visitors across months; since 2026-10-24 no campaign ids, the referrer cut to its domain, data kept 25 months — #2089, #2149, #2092
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
 - Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)

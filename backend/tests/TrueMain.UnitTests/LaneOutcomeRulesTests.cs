@@ -7,7 +7,7 @@ namespace TrueMain.UnitTests;
 
 /// <summary>
 /// Pins the one rule two consumers judge lanes with (#1117): the ingestor's
-/// <c>ChampionLaneOutcomeAggregationProcess</c>, which folds the stored counters, and the
+/// <c>ChampionMatchupLeadAggregationProcess</c>, which folds the stored counters, and the
 /// API's live pass over a composition's sampled games. Both already have integration
 /// suites, but they exercise <see cref="LaneOutcomeRules.Judge"/> through a full fold,
 /// where a flip on the strict comparison is absorbed by whichever gold gaps the fixtures
