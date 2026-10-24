@@ -137,6 +137,14 @@ public static class OpsEvents
     public static readonly EventId IngestionBackpressureReleased = new(1018, nameof(IngestionBackpressureReleased));
 
     /// <summary>
+    /// The edge proxy failed a request itself — it could not reach or read the site's or
+    /// the admin's server, so the request never got there (#1580). Relayed by the admin's
+    /// server from the edge's error log, under process <c>Edge</c>, counted per site, status
+    /// and error.
+    /// </summary>
+    public static readonly EventId EdgeProxyError = new(1019, nameof(EdgeProxyError));
+
+    /// <summary>
     /// The ids of the events logged through source-generated <c>[LoggerMessage]</c> methods
     /// (#1636), whose attribute takes a constant rather than an <see cref="EventId"/>. The
     /// method names the event after the field it mirrors, so <see cref="Resolve"/> matches
@@ -170,7 +178,8 @@ public static class OpsEvents
         FrontendUpstreamErrors,
         FrontendRequestAborted,
         IngestionBackpressureActivated,
-        IngestionBackpressureReleased
+        IngestionBackpressureReleased,
+        EdgeProxyError
     ];
 
     private static readonly Dictionary<string, int> IdByName =
@@ -184,12 +193,12 @@ public static class OpsEvents
         All.Select(eventId => eventId.Name!).ToList();
 
     /// <summary>
-    /// The events a frontend may report through <c>POST /internal/logs</c> (#1556).
-    /// Anything else is refused, so a forwarded row can never pass for a backend event
-    /// such as <see cref="ProcessRunFailed"/>.
+    /// The events a frontend may report through <c>POST /internal/logs</c> (#1556), plus the
+    /// edge's own failures the admin relays (#1580). Anything else is refused, so a forwarded
+    /// row can never pass for a backend event such as <see cref="ProcessRunFailed"/>.
     /// </summary>
     public static IReadOnlyList<string> ForwardableEventTypes { get; } =
-        [FrontendServerError.Name!, FrontendUpstreamErrors.Name!, FrontendRequestAborted.Name!];
+        [FrontendServerError.Name!, FrontendUpstreamErrors.Name!, FrontendRequestAborted.Name!, EdgeProxyError.Name!];
 
     /// <summary>The id of a registered event name, or null.</summary>
     public static int? IdOf(string name)

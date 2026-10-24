@@ -79,6 +79,51 @@ public class LogIngestServiceTests
         Assert.Equal(eventType, Assert.Single(writer.Entries).EventType);
     }
 
+    [Fact]
+    public void FilesTheEdgesFailuresUnderTheEdgeProcess()
+    {
+        var (service, writer) = Create();
+
+        var result = service.Ingest(new LogIngestRequest
+        {
+            Process = "Edge",
+            Host = "truemain-admin",
+            Entries = [Entry(eventType: nameof(OpsEvents.EdgeProxyError), count: 3), Entry(eventType: null)]
+        });
+
+        Assert.Equal(2, result.Accepted);
+        Assert.All(writer.Entries, row => Assert.Equal("Edge", row.ProcessName));
+        Assert.Equal(nameof(OpsEvents.EdgeProxyError), writer.Entries[0].EventType);
+    }
+
+    [Fact]
+    public void RejectsAnEdgeFailureReportedUnderAFrontendProcess()
+    {
+        var (service, writer) = Create();
+
+        var result = service.Ingest(Request(Entry(eventType: nameof(OpsEvents.EdgeProxyError))));
+
+        Assert.Equal(0, result.Accepted);
+        Assert.True(result.Errors.ContainsKey("entries[0].eventType"));
+        Assert.Empty(writer.Entries);
+    }
+
+    [Fact]
+    public void RejectsAFrontendEventReportedUnderTheEdgeProcess()
+    {
+        var (service, writer) = Create();
+
+        var result = service.Ingest(new LogIngestRequest
+        {
+            Process = "Edge",
+            Entries = [Entry(eventType: nameof(OpsEvents.EdgeProxyError)), Entry(eventType: nameof(OpsEvents.FrontendServerError))]
+        });
+
+        Assert.Equal(0, result.Accepted);
+        Assert.True(result.Errors.ContainsKey("entries[1].eventType"));
+        Assert.Empty(writer.Entries);
+    }
+
     [Theory]
     [InlineData(nameof(OpsEvents.RequestFailed))]
     [InlineData(nameof(OpsEvents.ProcessRunFailed))]
