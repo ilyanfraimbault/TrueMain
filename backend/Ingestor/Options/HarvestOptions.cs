@@ -83,4 +83,19 @@ public class HarvestOptions
     /// <summary>Pending changes flushed to the DB per batch while upserting.</summary>
     [Range(1, int.MaxValue)]
     public int SaveBatchSize { get; set; } = 200;
+
+    /// <summary>
+    /// Minimum interval between two harvests (#2261), with the same contract as
+    /// <see cref="DiscoveryOptions.MinRunInterval"/>: measured from the last run that actually
+    /// did its work, and <see cref="TimeSpan.Zero"/> (default) runs it every iteration.
+    /// <para>
+    /// The harvest makes no Riot call, so no rate limit paces it — its cost is the orphan scan,
+    /// a per-platform <c>GROUP BY</c> over every untracked participant row in
+    /// <see cref="LookbackDays"/>. Under the one-minute FetchWorkers maintenance pass (#2214)
+    /// that scan reran every few minutes against Postgres, while new pairs only trickle in: a
+    /// run every interval still takes all of them within the new-pair budget.
+    /// </para>
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "10675199.02:48:05.4775807")]
+    public TimeSpan MinRunInterval { get; set; } = TimeSpan.Zero;
 }

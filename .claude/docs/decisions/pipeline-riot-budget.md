@@ -150,6 +150,13 @@ claims again, while the maintenance pass runs on `Job:IntervalMinutes`.
   1-minute wait (the old pass also waited out a `MatchIngestion` step of several minutes), and a floor is needed
   because a pass of skipped cadence guards takes seconds: back-to-back would hot-loop `Harvest` and `Scoring`
   against Postgres. The deployed containers therefore set `Job:RunOnce=false` (`INGESTOR_RUN_ONCE`).
+  The floor alone was not enough for `Harvest` (#2261): with no cadence guard of its own it ran on every
+  pass, several times more often than under the sequential lane, and its orphan scan (a per-platform
+  `GROUP BY` over every untracked participant in the lookback) became the heaviest statement in Postgres,
+  competing for I/O with cold API reads. It now carries `Harvest:MinRunInterval` (20 minutes shipped, about
+  its pre-#2214 cadence) on the same last-completed-run contract as the other guards. Each run still takes
+  every new pair within its new-pair budget, so the rarer runs lose no discovery. `Scoring` stays unguarded:
+  it is cheap per run and refills the Queued stock that the workers drain.
 - **The workers reuse `MatchIngestionProcess`, narrowed through a scoped `MatchIngestionScope`** (platforms,
   batch size), so the claim's ordering, depth/breadth split and per-platform deficit allocation are untouched
   within a routing value. Across routing values the batch is no longer split by deficit: the regions do not
