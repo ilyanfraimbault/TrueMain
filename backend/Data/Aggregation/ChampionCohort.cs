@@ -23,8 +23,8 @@ public readonly record struct ChampionCohortKey(string MatchId, int ParticipantI
 ///
 /// <para>
 /// <b>Why it lives in <c>Data</c> and why it is shared.</b> Several folds write the panels
-/// stacked on one champion page — <c>ChampionMatchupLeadAggregationProcess</c> and
-/// <c>ChampionLaneOutcomeAggregationProcess</c> (the matchups panel) and
+/// stacked on one champion page — <c>ChampionMatchupLeadAggregationProcess</c> (the
+/// matchups panel, lane counters included since #1445) and
 /// <c>ChampionSynergyAggregationProcess</c> (synergies) — beside a header read
 /// from <c>champion_aggregate_scopes</c>. Whenever one of them restates the cohort in
 /// its own words the numbers drift apart while still looking comparable: #1087 measured

@@ -28,8 +28,8 @@ public class TrueMainDbContext : DbContext
     // leaderboard (#606), carrying the lane counters and gold/XP gaps folded into
     // the same rows (#919/#976/#1111). The champion side is a main of that
     // champion — Data.Aggregation.ChampionCohort (#1087). Populated by
-    // ChampionMatchupLeadAggregationProcess, lane counters by
-    // ChampionLaneOutcomeAggregationProcess.
+    // ChampionMatchupLeadAggregationProcess, game and lane counters in one pass
+    // (#1445).
     public DbSet<ChampionMatchupStat> ChampionMatchupStats => Set<ChampionMatchupStat>();
 
     // Pre-aggregated same-team co-occurrence for the champion synergies panel

@@ -11,6 +11,7 @@ Fresh worktrees have no `node_modules` and a `launch.json` without port-freeing.
 
 2. **Launch config** — copy the canonical file: `cp .claude/skills/setup-worktree/assets/launch.json .claude/launch.json`.
    The port-freeing must be inline `bash -c` (the sandbox blocks executing script files under `.claude/` with EPERM). It kills only LISTEN-state owners of the port, so clients connected to something else are unaffected.
+   `web-mock` runs the web app on the same port with `NUXT_DEV_MOCK_API=1`, so the pages render from `web/server/utils/dev-api-mock.ts` fixtures without any backend.
 
 3. **Backend port** — verify API changes on **:5099**, not :5008 (5008 is frequently another worktree's API). The `api-5099` configuration runs `dotnet run --no-launch-profile` with `ASPNETCORE_ENVIRONMENT=Development` and the URL pinned to 127.0.0.1:5099. If the web app must call this API instead of the default, check `web/nuxt.config.ts` for the API base env var and set it on the web dev process.
 
