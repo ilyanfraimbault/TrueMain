@@ -185,7 +185,8 @@ public sealed class PersonaConflictResolutionService(
     {
         var keptId = keepClaimant ? conflict.ClaimantPersonaId : conflict.OwnerPersonaId;
         var mergedId = keepClaimant ? conflict.OwnerPersonaId : conflict.ClaimantPersonaId;
-        if (await db.Personas.AnyAsync(p => (p.Id == keptId || p.Id == mergedId) && p.MergedIntoPersonaId != null, ct))
+        if (await db.Personas.AnyAsync(
+                p => (p.Id == keptId || p.Id == mergedId) && (p.MergedIntoPersonaId != null || p.RemovedAtUtc != null), ct))
         {
             return Stale();
         }

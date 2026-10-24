@@ -22,6 +22,12 @@ public sealed record PersonaUpsertResult
     /// </summary>
     public string? MergedInto { get; init; }
 
+    /// <summary>
+    /// True when an operator removed this persona (#2019): the entry was ignored and nothing was
+    /// written. Not an error — the source still lists the person, the operator decided otherwise.
+    /// </summary>
+    public bool Removed { get; init; }
+
     public IReadOnlyList<PersonaAccountUpsertResult> Accounts { get; init; } = Array.Empty<PersonaAccountUpsertResult>();
 }
 
@@ -39,7 +45,7 @@ public sealed record PersonaAccountUpsertResult
     /// platform the pipeline does not ingest, so never seeded; <c>conflict</c> — the Riot ID or
     /// its account already belongs to another persona, left untouched and recorded for the admin's
     /// conflict queue; <c>excluded</c> — an operator settled a conflict over it against this persona,
-    /// so the claim is ignored; <c>invalid</c> — malformed, including a placeholder such as
+    /// unlinked it from this persona, or took it down with a removed persona, so the claim is ignored; <c>invalid</c> — malformed, including a placeholder such as
     /// <c>undefined</c> for a name or tag.
     /// </summary>
     public string Status { get; init; } = string.Empty;
