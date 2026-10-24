@@ -889,6 +889,27 @@ function expectedWinRate(selfWinRate: number, allyWinRates: number[]): number {
   ))
 }
 
+// Deterministic slivers that stage the panel's two threshold-driven empty
+// states (#1878) without hunting for a thin champion. Every other draw clears
+// the floors, so without these neither notice is reachable locally:
+// - a champion whose id is divisible by 13 (Ryze, Graves, Lulu, Viego) has no
+//   teammate past the shared-games floor, so the partner list comes back empty;
+// - a duo whose two ids sum to a multiple of 5 (e.g. Aatrox + Lee Sin) is too
+//   thin to split: the pair clears its own floor, no third pick clears the trio's.
+// Neither overlaps the player performance panel's sliver (ids divisible by 11).
+function isThinSynergyChampion(id: number): boolean {
+  return id % 13 === 0
+}
+
+function isThinTrioDuo(id: number, partner: number): boolean {
+  return (id + partner) % 5 === 0
+}
+
+/** A sample drawn strictly under `floor` games (and at least one). */
+function underFloor(draw: number, floor: number): number {
+  return 1 + Math.floor(draw * (floor - 1))
+}
+
 async function mockSynergies(
   id: number,
   partnerPosition?: string,
@@ -903,10 +924,13 @@ async function mockSynergies(
   // so which of the two binds varies by champion — the point of the pair.
   const minGames = Math.max(20, Math.ceil(0.01 * championGames))
 
+  const thin = isThinSynergyChampion(s.id)
+
   const partners: ChampionSynergyEntry[] = CHAMPION_SEEDS
     .filter(p => p.position !== s.position && (!partnerPosition || p.position === partnerPosition))
     .map((p) => {
-      const games = Math.round(15 + rng() * 180)
+      const draw = rng()
+      const games = thin ? underFloor(draw, minGames) : Math.round(15 + draw * 180)
       const baselineGames = games + Math.round(200 + rng() * 900)
       const baselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (p.wr - 0.5) * 0.8)
       const expected = expectedWinRate(s.wr, [baselineWinRate])
@@ -952,7 +976,10 @@ async function mockTrioSynergies(
 
   const rng = mulberry32(s.id * 31 + partner)
   const minGames = 12
-  const pairGames = Math.round(20 + rng() * 160)
+  const thin = isThinTrioDuo(s.id, p.id)
+  // A thin duo still clears the pair floor (20) but stays small enough that
+  // spreading it over every third pick leaves none at the trio floor.
+  const pairGames = Math.round(20 + rng() * (thin ? 20 : 160))
   const pairWinRate = round3(0.5 + (rng() - 0.5) * 0.12)
   const partnerBaselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (p.wr - 0.5) * 0.8)
 
@@ -961,7 +988,8 @@ async function mockTrioSynergies(
   const completions: ChampionTrioSynergyEntry[] = CHAMPION_SEEDS
     .filter(t => t.position !== s.position && t.position !== partnerPosition)
     .map((t) => {
-      const games = Math.round(pairGames * (0.2 + rng() * 0.6))
+      const draw = rng()
+      const games = thin ? underFloor(draw, minGames) : Math.round(pairGames * (0.2 + draw * 0.6))
       const baselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (t.wr - 0.5) * 0.8)
       const expected = expectedWinRate(s.wr, [partnerBaselineWinRate, baselineWinRate])
       const winRate = round3(Math.min(0.9, Math.max(0.1, expected + (rng() - 0.45) * 0.14)))
