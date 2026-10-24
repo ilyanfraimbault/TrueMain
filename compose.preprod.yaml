@@ -327,6 +327,7 @@ services:
     environment:
       PGPASSWORD: "${UMAMI_DB_PASSWORD:?set UMAMI_DB_PASSWORD before deploying}"
       RETENTION_DAYS: ${UMAMI_REPLAY_RETENTION_DAYS:-7}
+      DATA_RETENTION_MONTHS: ${UMAMI_DATA_RETENTION_MONTHS:-25}
     user: postgres
     entrypoint: ["sh", "/cleanup.sh"]
     configs:
@@ -395,9 +396,32 @@ configs:
       #!/bin/sh
       set -eu
       while true; do
-        if psql -h umami-db -U umami -d umami -v ON_ERROR_STOP=1 -c \
-          "DELETE FROM session_replay WHERE created_at < now() - interval '$${RETENTION_DAYS} days'; DELETE FROM heatmap_event WHERE created_at < now() - interval '$${RETENTION_DAYS} days';"; then
-          echo "$$(date -Iseconds) purged replay/heatmap rows older than $${RETENTION_DAYS} days"
+        if psql -h umami-db -U umami -d umami -X -v ON_ERROR_STOP=1 --single-transaction \
+          -v replay_days="$${RETENTION_DAYS}" -v data_months="$${DATA_RETENTION_MONTHS}" <<'SQL'
+      DELETE FROM session_replay WHERE created_at < now() - make_interval(days => :'replay_days'::int);
+      DELETE FROM heatmap_event WHERE created_at < now() - make_interval(days => :'replay_days'::int);
+      DELETE FROM event_data WHERE created_at < now() - make_interval(months => :'data_months'::int);
+      DELETE FROM revenue WHERE created_at < now() - make_interval(months => :'data_months'::int);
+      DELETE FROM session_data WHERE created_at < now() - make_interval(months => :'data_months'::int);
+      DELETE FROM session_link WHERE created_at < now() - make_interval(months => :'data_months'::int);
+      DELETE FROM website_event WHERE created_at < now() - make_interval(months => :'data_months'::int);
+      DELETE FROM session s WHERE s.created_at < now() - make_interval(months => :'data_months'::int)
+        AND NOT EXISTS (SELECT 1 FROM website_event e WHERE e.session_id = s.session_id);
+      UPDATE website_event SET referrer_domain = NULL, referrer_path = NULL, referrer_query = NULL
+        WHERE (referrer_domain IS NULL AND (referrer_path IS NOT NULL OR referrer_query IS NOT NULL))
+          OR referrer_domain = regexp_replace(lower(hostname), '^www\.', '');
+      UPDATE website_event SET referrer_path = '/', referrer_query = ''
+        WHERE referrer_domain IS NOT NULL
+          AND (referrer_path IS DISTINCT FROM '/' OR referrer_query IS DISTINCT FROM '');
+      UPDATE website_event SET utm_source = NULL, utm_medium = NULL, utm_campaign = NULL, utm_content = NULL,
+          utm_term = NULL, gclid = NULL, fbclid = NULL, msclkid = NULL, ttclid = NULL, li_fat_id = NULL, twclid = NULL,
+          url_query = trim(both '&' from regexp_replace(url_query, '(^|&)(utm(_|%5f)[^=&]*|gclid|gbraid|wbraid|dclid|fbclid|msclkid|ttclid|li_fat_id|twclid|igshid|yclid|mc_cid|mc_eid)(=[^&]*)?(?=&|$$)', '', 'gi'))
+        WHERE coalesce(utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+            gclid, fbclid, msclkid, ttclid, li_fat_id, twclid) IS NOT NULL
+          OR url_query ~* '(^|&)(utm(_|%5f)[^=&]*|gclid|gbraid|wbraid|dclid|fbclid|msclkid|ttclid|li_fat_id|twclid|igshid|yclid|mc_cid|mc_eid)(=[^&]*)?(&|$$)';
+      SQL
+        then
+          echo "$$(date -Iseconds) purged replay/heatmap rows older than $${RETENTION_DAYS} days, data older than $${DATA_RETENTION_MONTHS} months; scrubbed referrer paths and campaign ids"
         else
           echo "$$(date -Iseconds) purge failed, will retry next cycle" >&2
         fi

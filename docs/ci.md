@@ -1129,7 +1129,16 @@ leaves a misleading version on the page (#1637).
   for session replay and heatmap data (#1018): `session_replay` and
   `heatmap_event` are the heaviest tables it writes and grow unbounded. It is
   the Postgres image with the entrypoint replaced by a purge script on a loop,
-  no server started.
+  no server started. Since #2092 the same daily pass keeps the rest of Umami's
+  data inside the CNIL consent exemption: it deletes events, event and session
+  data, session links and orphaned sessions older than
+  `UMAMI_DATA_RETENTION_MONTHS` (default 25), then rewrites any row that still
+  carries a referrer path or query, a same-site referrer, or a `utm_*`/ad click
+  id (the web tracker already strips them before sending; this catches old
+  cached bundles and direct calls to the public collect endpoint). The whole
+  pass is one transaction (`--single-transaction`), so a failure leaves the
+  tables as they were and is retried the next day. The parameter list in its
+  regex mirrors `web/app/utils/analytics-payload.ts`.
 - The ingestor's tuning knobs on prod (`ManualSeed__BatchSize`,
   `MatchIngestion__BatchSize`…) are documented in `docs/prod.md`.
 
