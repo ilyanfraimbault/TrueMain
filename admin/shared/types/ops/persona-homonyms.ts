@@ -16,6 +16,8 @@ export interface PersonaHomonymGroup {
   key: string
   /** Oldest first: the one a merge keeps by default. `disputed` is always false here. */
   personas: PersonaOps[]
+  /** Link keys two or more of them list — the same channel, the strongest hint of one person. */
+  sharedLinks: string[]
   /** Pairs already marked as different people, each as its two persona ids. */
   distinctPairs: [string, string][]
 }

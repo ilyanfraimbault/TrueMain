@@ -37,6 +37,12 @@ public sealed record PersonaHomonymGroupReadModel
     /// <summary>Oldest first: the one a merge keeps by default.</summary>
     public IReadOnlyList<PersonaHomonymReadModel> Personas { get; init; } = [];
 
+    /// <summary>
+    /// Links two or more of the group list (#2273) — the same channel, the strongest hint of one person —
+    /// as their link key: lowercased, without the scheme, a <c>www.</c> or a trailing slash.
+    /// </summary>
+    public IReadOnlyList<string> SharedLinks { get; init; } = [];
+
     /// <summary>Pairs of the group already marked as different people, each as its two persona ids.</summary>
     public IReadOnlyList<IReadOnlyList<Guid>> DistinctPairs { get; init; } = [];
 }

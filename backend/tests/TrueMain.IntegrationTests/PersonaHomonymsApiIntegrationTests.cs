@@ -131,6 +131,23 @@ public sealed class PersonaHomonymsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Homonyms_ListTheGroupsSharingALinkFirst()
+    {
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+        await BatchAsync(client, "alpha", "Alpha", "leaguepedia", ("Alpha One", "EUW"));
+        await BatchAsync(client, "alpha-dpm", "alpha", "dpm", ("Alpha Two", "EUW"));
+        await BatchAsync(client, "yongi", "Yongi", "deeplol", [new { kind = "youtube", url = "https://www.youtube.com/@yongi" }], ("Yongi One", "KR"));
+        await BatchAsync(client, "yongi-dpm", "yongi", "dpm", [new { kind = "youtube", url = "https://youtube.com/@Yongi/" }], ("Yongi Two", "KR"));
+
+        var groups = await GetAsync<PersonaHomonymsReadModel>(client, "/ops/personas/homonyms");
+
+        groups.Groups.Select(g => g.Key).Should().Equal("yongi", "alpha");
+        groups.Groups[0].SharedLinks.Should().Equal("youtube.com/@yongi");
+        groups.Groups[1].SharedLinks.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Merge_CarriesTheMergedPersonasMarks_ToTheKeptOne()
     {
         await using var factory = CreateFactory();
@@ -201,8 +218,12 @@ public sealed class PersonaHomonymsApiIntegrationTests : IAsyncLifetime
         return await db.Personas.Where(p => p.Slug == slug).Select(p => p.Id).SingleAsync();
     }
 
+    private static Task<PersonaUpsertResult> BatchAsync(
+        HttpClient client, string slug, string displayName, string source, params (string GameName, string TagLine)[] accounts) =>
+        BatchAsync(client, slug, displayName, source, [], accounts);
+
     private static async Task<PersonaUpsertResult> BatchAsync(
-        HttpClient client, string slug, string displayName, string source, params (string GameName, string TagLine)[] accounts)
+        HttpClient client, string slug, string displayName, string source, object[] links, params (string GameName, string TagLine)[] accounts)
     {
         var response = await client.PostAsJsonAsync("/ops/personas/batch", new
         {
@@ -214,6 +235,7 @@ public sealed class PersonaHomonymsApiIntegrationTests : IAsyncLifetime
                     displayName,
                     source,
                     seedMissing = false,
+                    links,
                     accounts = accounts.Select(a => new { gameName = a.GameName, tagLine = a.TagLine, platformId = "EUW1" }),
                 },
             },
