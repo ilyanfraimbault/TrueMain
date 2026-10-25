@@ -7,10 +7,12 @@ settled it are cheap and repeatable.
 
 ## How the sitemap is produced
 
-`@nuxtjs/sitemap` serves `/sitemap.xml` from the web app. Static pages come from the file-based
-routes; the one data-driven family is declared by `web/server/routes/__sitemap__/urls.ts`, which
-enumerates `/champions/{slug}` from the app's own server routes and decorates each entry with a
-day-precision `lastmod`. That source route is cached for an hour at the origin, and the rendered
+`@nuxtjs/sitemap` serves an index at `/sitemap_index.xml` (`/sitemap.xml` redirects to it) over one
+sitemap per page family: `/__sitemap__/pages.xml`, `champions.xml` and `players.xml`. Static pages come
+from the file-based routes; the two data-driven families are declared by
+`web/server/routes/__sitemap__/urls.ts`, which enumerates `/champions/{slug}` and `/players/{slug}` from
+the app's own server routes and decorates each entry with a day-precision `lastmod`. The index is what
+gets submitted to Search Console. That source route is cached for an hour at the origin, and the rendered
 sitemap is cached for ten minutes — so a cold request pays for the fan-out and can take a few
 seconds, while warm ones answer in milliseconds.
 
@@ -23,18 +25,23 @@ Work outwards from the file. Each step is cheap, and each one eliminates a whole
 ### 1. Is the response actually correct?
 
 ```bash
-curl -sS -i -m 30 https://truemain.lol/sitemap.xml | head -20
+curl -sS -i -m 30 https://truemain.lol/sitemap_index.xml | head -20
+curl -sS -i -m 30 https://truemain.lol/__sitemap__/champions.xml | head -20
 ```
 
-Expect `200`, `Content-Type: text/xml`, and the `X-Sitemap-*` cache headers. A redirect, a 5xx, or an
-HTML body is a real bug — go fix it, the rest of this page does not apply.
+Expect `200`, `Content-Type: text/xml`, and the `X-Sitemap-*` cache headers on the index and on each
+sitemap it lists. A redirect (other than `/sitemap.xml` → the index), a 5xx, or an HTML body is a real
+bug — go fix it, the rest of this page does not apply.
 
 ### 2. Is the XML valid — not merely well-formed?
 
 Well-formed is not the same as schema-valid, and only the second one tells you anything:
 
 ```bash
-curl -sS https://truemain.lol/sitemap.xml -o sm.xml
+curl -sS https://truemain.lol/sitemap_index.xml -o index.xml
+curl -sS -o siteindex.xsd https://www.sitemaps.org/schemas/sitemap/0.9/siteindex.xsd
+xmllint --noout --schema siteindex.xsd index.xml
+curl -sS https://truemain.lol/__sitemap__/champions.xml -o sm.xml   # and pages.xml, players.xml
 curl -sS -o sitemap.xsd https://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd
 xmllint --noout --schema sitemap.xsd sm.xml
 ```

@@ -15,7 +15,7 @@
 
 export type ForwardedLevel = 'Warning' | 'Error' | 'Critical'
 
-export type ForwardedEventType = 'FrontendServerError' | 'FrontendUpstreamErrors' | 'FrontendRequestAborted'
+export type ForwardedEventType = 'FrontendServerError' | 'FrontendUpstreamErrors' | 'FrontendRequestAborted' | 'EdgeProxyError'
 
 export interface ForwardedError {
   level: ForwardedLevel
@@ -44,14 +44,17 @@ export interface ForwardedEntry {
   count: number
 }
 
+/** `Edge` is the edge proxy, whose failures the admin relays (#1580). */
+export type ForwardedProcess = 'Web' | 'Admin' | 'Edge'
+
 export interface ForwardedBatch {
-  process: 'Web' | 'Admin'
+  process: ForwardedProcess
   host: string
   entries: ForwardedEntry[]
 }
 
 export interface LogForwarderOptions {
-  process: 'Web' | 'Admin'
+  process: ForwardedProcess
   host: string
   send: (batch: ForwardedBatch) => Promise<unknown>
   /** Distinct errors held between two flushes; the excess is counted, not kept. */

@@ -188,6 +188,32 @@ public sealed class PersonaConflictsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OpenQueue_ListsTheMostCertainConflictsFirst()
+    {
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+        object[] Link(string kind, string url) => [new { kind, url }];
+        // Seen oldest first, so the last-seen order would be the reverse of the expected one.
+        await BatchAsync(client, "holder-a", "leaguepedia", Link("twitch", "https://www.twitch.tv/same"), ("Account A", "EUW"));
+        await BatchAsync(client, "claimer-a", "dpm", Link("twitch", "https://twitch.tv/same/"), ("Account A", "EUW"));
+        await BatchAsync(client, "holder-b", "leaguepedia", ("Account B", "EUW"));
+        await BatchAsync(client, "claimer-b", "dpm", ("Account B", "EUW"));
+        await BatchAsync(client, "holder-c", "leaguepedia", Link("youtube", "https://youtube.com/@one"), ("Account C", "EUW"));
+        await BatchAsync(client, "claimer-c", "dpm", Link("youtube", "https://youtube.com/@two"), ("Account C", "EUW"));
+
+        var open = await GetConflictsAsync(client, "?status=Open");
+
+        open.Conflicts.Select(c => c.Claimant.Slug).Should().Equal("claimer-a", "claimer-b", "claimer-c");
+        open.Conflicts[0].Evidence.SharedSocial.Should().Equal("twitch");
+        open.Conflicts[0].Evidence.Score.Should().Be(10);
+        open.Conflicts[2].Evidence.DifferingSocial.Should().Equal("youtube");
+        (await GetConflictsAsync(client, "?status=Open&pageSize=1&page=2")).Conflicts.Single().Claimant.Slug.Should().Be("claimer-b");
+        var detail = await client.GetFromJsonAsync<PersonaConflictDetailReadModel>($"/ops/personas/conflicts/{open.Conflicts[0].Id}");
+        detail!.Conflict.Evidence.Score.Should().Be(10);
+        (await GetConflictsAsync(client, "")).Conflicts.Select(c => c.Claimant.Slug).Should().Equal("claimer-c", "claimer-b", "claimer-a");
+    }
+
+    [Fact]
     public async Task Resolve_RejectsBadRequests_AndNeedsTheOpsKey()
     {
         await using var factory = CreateFactory();

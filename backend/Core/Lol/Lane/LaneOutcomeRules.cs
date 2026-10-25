@@ -15,7 +15,7 @@ public enum LaneStanding
 
 /// <summary>
 /// What "the lane was won" means, in one place. Two consumers judge it and they must
-/// not drift: the ingestor's <c>ChampionLaneOutcomeAggregationProcess</c>, which folds
+/// not drift: the ingestor's <c>ChampionMatchupLeadAggregationProcess</c>, which folds
 /// the site-wide counters, and the API's live pass over a composition's sampled games
 /// (#1117). A lane win rate that meant one thing on the champion page and another on
 /// the matchup tool would be worse than having only one of them.

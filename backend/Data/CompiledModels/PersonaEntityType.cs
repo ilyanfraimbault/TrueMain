@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.Persona",
                 typeof(Persona),
                 baseEntityType,
-                propertyCount: 7,
+                propertyCount: 9,
                 navigationCount: 3,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 2,
@@ -55,6 +55,14 @@ namespace Data.CompiledModels
                 maxLength: 64);
             displayName.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var displayNameLocked = runtimeEntityType.AddProperty(
+                "DisplayNameLocked",
+                typeof(bool),
+                propertyInfo: typeof(Persona).GetProperty("DisplayNameLocked", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Persona).GetField("<DisplayNameLocked>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: false);
+            displayNameLocked.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
             var mergedIntoPersonaId = runtimeEntityType.AddProperty(
                 "MergedIntoPersonaId",
                 typeof(Guid?),
@@ -62,6 +70,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(Persona).GetField("<MergedIntoPersonaId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 nullable: true);
             mergedIntoPersonaId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var removedAtUtc = runtimeEntityType.AddProperty(
+                "RemovedAtUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(Persona).GetProperty("RemovedAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Persona).GetField("<RemovedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            removedAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var slug = runtimeEntityType.AddProperty(
                 "Slug",

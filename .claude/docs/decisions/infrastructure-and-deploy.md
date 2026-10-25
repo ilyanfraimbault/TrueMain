@@ -165,7 +165,9 @@ traffic is low enough to afford it). Left unbounded, this repeats the disk-fill 
 container with its entrypoint overridden to just loop a `psql` purge once a day — no server started, matching
 `umami-db`'s Postgres major version. Retention is `UMAMI_REPLAY_RETENTION_DAYS`, default 7 — #1018.
 Since #2089 the site records no replay or heatmap; the sidecar stays so the rows recorded before are purged on
-the same retention, and so a re-enabled recorder can never fill the disk again.
+the same retention, and so a re-enabled recorder can never fill the disk again. Since #2092 the same daily pass
+also enforces the CNIL retention and minimisation rules on the rest of Umami's data (next entry); the service
+keeps its name, because Docker Manager leaves a renamed container running as an orphan.
 
 **Analytics stay inside the CNIL consent exemption for audience measurement — no consent banner (2026-10-18).**
 The owner wanted to see recurring visitors, possibly by name. Checked against the CNIL's self-assessment grid
@@ -190,8 +192,26 @@ visitor stays one session for 13 months; storage that cannot keep the id sends n
 per-page-load id. The id rides on every send through the tracker's `before-send` hook, not
 `umami.identify()`: identify runs after the automatic first page view, which then lands in a second,
 IP-hashed session on every page load. Still no `identify()`, no replay, no named visitors; `/privacy`
-describes the identifier. The 25-month cap on the collected data is #2092. The Sessions-view gap above now
-spans 13 months instead of one.
+describes the identifier. The Sessions-view gap above now spans 13 months instead of one.
+**Referrer, UTM and retention gaps closed on 2026-10-24 (#2092).** Three measures of the grid we did not apply:
+- *Campaign ids are not collected.* Umami's collector parses `utm_*` and six ad click ids out of the page URL
+  into columns, and keeps the whole query string. The tracker's `data-exclude-search` would drop them, but
+  also every page filter (`patch`, `elo`, `position`, `vs`…) content analysis reads, so it is not used:
+  `utils/analytics-payload.ts` strips `utm_*` and click ids from the URL in the same `before-send` hook that
+  stamps the visitor id, and leaves the rest of the query as it was.
+- *The referrer is limited to its domain.* An external referrer leaves the browser as its origin alone (stored
+  as the domain with path `/`). A same-site referrer is dropped: Umami 3.4's tracker sends the previous page as
+  a bare path on reloads and client-side navigations, and its collector stores that path and query even though
+  it blanks the referrer domain — a per-visitor page chain.
+- *Collected data is kept 25 months at most.* The `umami-replay-cleanup` sidecar deletes `website_event`,
+  `event_data`, `revenue`, `session_data` and `session_link` rows older than `UMAMI_DATA_RETENTION_MONTHS`
+  (default 25), then the sessions older than that with no event left (Umami declares no foreign keys, so
+  every child table is purged by itself).
+The tracker side is not enough on its own: the collect endpoint is public and pages cached before the change
+still run the old bundle. The same daily pass therefore rewrites anything that slipped through to the same
+shape — referrer path `/` and empty query, same-site referrers blanked, campaign columns nulled and the
+parameters cut from `url_query` — which also scrubs the rows recorded before #2092 on its first run. Keep the parameter list
+in `analytics-payload.ts` and the sidecar's regex in step. Remaining known gap: Umami's Sessions view.
 
 **`/ops/*` is the only authenticated API surface** (`X-Ops-Key`, min 32 chars, rotated independently of the
 Riot key). Everything else is public and rate-limited to 500 req/min per *visitor* — `docs/api.md`.

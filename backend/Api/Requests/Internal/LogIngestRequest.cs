@@ -12,11 +12,12 @@ public sealed record LogIngestRequest
     public const int MaxEntries = 50;
 
     /// <summary>
-    /// Only the two frontends may report; <c>Api</c> and <c>Ingestor</c> rows come from
-    /// those hosts' own loggers and cannot be forged through this endpoint.
+    /// Only the two frontends may report, and the edge through the admin (#1580); <c>Api</c>
+    /// and <c>Ingestor</c> rows come from those hosts' own loggers and cannot be forged
+    /// through this endpoint.
     /// </summary>
     [Required]
-    [AllowedValues("Web", "Admin")]
+    [AllowedValues("Web", "Admin", "Edge")]
     public string? Process { get; init; }
 
     [MaxLength(128)]

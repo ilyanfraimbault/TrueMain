@@ -387,6 +387,26 @@ proxies cancel the API call with the client — #1569.
 - **A cancelled proxy call returns quietly.** It is not a failure to report as `FrontendServerError`; the
   abandonment is already counted.
 
+## The edge's own failures are relayed by the admin from Caddy's error log (2026-10-24)
+
+**Decision:** the edge Caddy streams its error log (`http.log.error`) as JSON lines over TCP to the admin's
+server, which reports each 5xx the edge generated itself as `EdgeProxyError` under process `Edge`, counted per
+site, status and error, through the existing forwarder and `POST /internal/logs` — #1580.
+
+- **Why.** A 502 from the edge (a dial timeout to a saturated web container, #1570) reaches no process that
+  logs: the 200-visitor run produced over 20,000 of them and not one row. Caddy's access log was the only trace.
+- **The admin, not the site and not a sidecar.** The site is the server that fails in that incident, so it
+  cannot be the receiver. A sidecar in the edge project would need its own image or inline code and the ingest
+  key; the admin already sits on the edge's network with the forwarder, its aggregation and the key. The API is
+  not on that network and stays off it.
+- **Caddy's `output net`, not a file reader.** The edge is its own Docker Manager project, so sharing a log file
+  with the app stack would mean a cross-project volume; reading `docker logs` would mean the Docker socket.
+- **Lossy, like the rest of forwarding.** While the admin is down, Caddy falls back to writing those lines to its
+  stderr, and they are not counted. That window is a deploy or an admin outage; the access log still has them.
+- **Bounded.** Caddy deletes the client address and headers before the line leaves it; the site comes from the
+  logger name in the config (`log web`), never from the request; the API accepts `EdgeProxyError` only under
+  `Edge` and nothing else under `Edge`, so neither frontend's rows and the edge's can pass for one another. The
+  relay port is unauthenticated, reachable only from the edge network, and can write nothing but those rows.
 
 ## The Ingestor's own meter is folded into Mongo, with no OpenTelemetry pipeline (2026-10-05)
 

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { pageParams, resolveDevApiMock, tierFor } from '~~/server/utils/dev-api-mock'
 import type { ChampionDirectoryResponse } from '~~/shared/types/champion-directory'
-import type { ChampionMainsComparison } from '~~/shared/types/champions'
+import type { ChampionMainsComparison, ChampionSynergies, ChampionTrioSynergies } from '~~/shared/types/champions'
 import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
 
 // `resolveDevApiMock` reaches two auto-imported server globals: `$fetch`
@@ -110,6 +110,55 @@ describe('resolveDevApiMock', () => {
   it('404s (not a URIError/500) on a malformed player segment', async () => {
     await expect(resolveDevApiMock('/truemains/foo%2/profile', {}))
       .rejects.toMatchObject({ statusCode: 404 })
+  })
+})
+
+// The synergies panel has two threshold-driven empty states (#1878): no
+// teammate past the shared-games floor, and a duo too thin for any third pick.
+// Random draws always clear both floors, so the mock reserves a sliver of ids
+// for each; these pin that the slivers stay reachable and that the rest of the
+// panel keeps its rows.
+describe('resolveDevApiMock: /champions/{id}/synergies', () => {
+  async function synergies(id: number, query: Record<string, string> = {}) {
+    return await resolveDevApiMock(`/champions/${id}/synergies`, query) as ChampionSynergies
+  }
+
+  async function trio(id: number, partner: number, partnerPosition: string) {
+    return await resolveDevApiMock(`/champions/${id}/synergies/trios`, { partner: String(partner), partnerPosition }) as ChampionTrioSynergies
+  }
+
+  it('stages the no-partner state on champions whose id is divisible by 13', async () => {
+    for (const id of [13, 104, 117, 234]) {
+      const res = await synergies(id)
+      expect(res.partners).toEqual([])
+      expect(res.minGames).toBeGreaterThanOrEqual(20)
+      expect(res.championGames).toBeGreaterThan(0)
+      // The lane filter narrows an empty list, it does not refill it.
+      expect((await synergies(id, { partnerPosition: 'BOTTOM' })).partners).toEqual([])
+    }
+  })
+
+  it('keeps partners past the floor on every other champion', async () => {
+    const res = await synergies(266)
+    expect(res.partners.length).toBeGreaterThan(0)
+    expect(res.partners.every(p => p.games >= res.minGames)).toBe(true)
+  })
+
+  it('stages the thin-duo state when the two ids sum to a multiple of 5', async () => {
+    // Aatrox TOP + Lee Sin JUNGLE: 266 + 64 = 330.
+    const res = await trio(266, 64, 'JUNGLE')
+    expect(res.completions).toEqual([])
+    // Past the duo floor, yet too small to spread over a third pick.
+    expect(res.pairGames).toBeGreaterThanOrEqual(20)
+    expect(res.pairGames).toBeLessThanOrEqual(40)
+    expect(res.pairWins).toBeLessThanOrEqual(res.pairGames)
+  })
+
+  it('suggests a third pick for every other duo', async () => {
+    // Aatrox TOP + Hecarim JUNGLE: 266 + 120 = 386.
+    const res = await trio(266, 120, 'JUNGLE')
+    expect(res.completions.length).toBeGreaterThan(0)
+    expect(res.completions.every(c => c.games >= res.minGames && c.games <= res.pairGames)).toBe(true)
   })
 })
 

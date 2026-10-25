@@ -12,6 +12,7 @@ share.
 | `server/utils/proxy-path.ts` | the site's `/api` and the admin's `/api/ops` proxies |
 | `server/utils/abandoned-request.ts` | the same two proxies, and the log-forwarding plugin |
 | `server/utils/log-forwarder.ts`, `server/plugins/log-forwarding.ts` | every 5xx and proxied 429/5xx of both servers |
+| `server/utils/ingest-forwarder.ts` | the log-forwarding plugin, and the admin's edge error relay (#1580) |
 | `server/utils/ddragon-patch.ts` | every `/api/static/*` endpoint of both apps |
 | `server/api/static/champions.get.ts` | the champion list, both apps |
 

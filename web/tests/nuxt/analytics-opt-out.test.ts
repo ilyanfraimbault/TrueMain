@@ -52,6 +52,10 @@ describe('privacy page', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('We do not record sessions')
+    // #2092: no referrer path, no campaign ids, 25-month retention.
+    expect(wrapper.text()).toContain('never the address of the page itself')
+    expect(wrapper.text()).toContain('utm_source')
+    expect(wrapper.text()).toContain('deleted automatically 25 months after they are collected')
     expect(readSwitch(wrapper).exists()).toBe(true)
   })
 })

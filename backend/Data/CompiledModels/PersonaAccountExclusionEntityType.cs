@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.PersonaAccountExclusion",
                 typeof(PersonaAccountExclusion),
                 baseEntityType,
-                propertyCount: 8,
+                propertyCount: 9,
                 navigationCount: 3,
                 foreignKeyCount: 3,
                 unnamedIndexCount: 3,
@@ -62,6 +62,14 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(PersonaAccountExclusion).GetField("<GameName>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 32);
             gameName.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var isTakedown = runtimeEntityType.AddProperty(
+                "IsTakedown",
+                typeof(bool),
+                propertyInfo: typeof(PersonaAccountExclusion).GetProperty("IsTakedown", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(PersonaAccountExclusion).GetField("<IsTakedown>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: false);
+            isTakedown.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var personaId = runtimeEntityType.AddProperty(
                 "PersonaId",

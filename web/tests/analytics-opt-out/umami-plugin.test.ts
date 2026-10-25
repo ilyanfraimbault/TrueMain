@@ -3,7 +3,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 /**
  * The Umami plugin (#728, #2089, #2149): it loads the page-view tracker only,
  * never the session replay recorder, and not at all for a visitor who opted
- * out. Every send carries the anonymous visitor id.
+ * out. Every send carries the anonymous visitor id, and no campaign id or
+ * referrer path (#2092).
  * The plugin relies on Nuxt auto-imports, stubbed as globals here.
  */
 const umami = { host: '', websiteId: '' }
@@ -83,7 +84,25 @@ describe('umami plugin', () => {
 
     localStorage.mockRestore()
     expect(useScriptUmamiAnalytics).toHaveBeenCalledOnce()
-    expect(useScriptUmamiAnalytics.mock.calls[0]![0].beforeSend).toBeUndefined()
+    const { beforeSend } = useScriptUmamiAnalytics.mock.calls[0]![0]
+    expect(beforeSend('event', { url: '/' })).toEqual({ url: '/' })
+  })
+
+  it('strips campaign ids and the referrer path from every send', () => {
+    umami.host = 'https://analytics.example.test'
+    umami.websiteId = 'site-id'
+
+    plugin()
+
+    const { beforeSend } = useScriptUmamiAnalytics.mock.calls[0]![0]
+    const payload = beforeSend('event', {
+      website: 'site-id',
+      url: 'https://truemain.lol/champions/1?patch=26.20&utm_source=reddit&gclid=abc',
+      referrer: 'https://www.reddit.com/r/leagueoflegends/comments/xyz?share=1',
+    })
+    expect(payload.url).toBe('https://truemain.lol/champions/1?patch=26.20')
+    expect(payload.referrer).toBe('https://www.reddit.com/')
+    expect(payload.id).toBeTypeOf('string')
   })
 
   it('removes the visitor id of a visitor who opted out', () => {

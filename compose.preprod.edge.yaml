@@ -21,6 +21,21 @@ configs:
     content: |
       {
       	auto_https off
+      	log edge_errors {
+      		include http.log.error
+      		output net admin:5140 {
+      			dial_timeout 1s
+      			soft_start
+      		}
+      		format filter {
+      			request>remote_ip delete
+      			request>remote_port delete
+      			request>client_ip delete
+      			request>headers delete
+      			request>tls delete
+      		}
+      		level DEBUG
+      	}
       }
 
       (security_headers) {
@@ -54,7 +69,7 @@ configs:
       }
 
       :3001 {
-      	log
+      	log web
       	encode zstd gzip
       	import security_headers
       	import maintenance
@@ -62,7 +77,7 @@ configs:
       }
 
       :3002 {
-      	log
+      	log admin
       	encode zstd gzip
       	import security_headers
       	import maintenance

@@ -12,6 +12,16 @@
       "port": 3002
     },
     {
+      "name": "web-mock",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "lsof -ti tcp:3002 -sTCP:LISTEN | xargs -r kill; NUXT_DEV_MOCK_API=1 exec npm run dev -- --port 3002"
+      ],
+      "cwd": "web",
+      "port": 3002
+    },
+    {
       "name": "admin-dev",
       "runtimeExecutable": "bash",
       "runtimeArgs": [

@@ -25,6 +25,9 @@ public interface IPersonaUpsertService
 /// belongs to another persona: that is reported as a conflict and recorded for an operator to
 /// settle from the admin (#2253). What the operator settled holds against the next runs: a claim
 /// the persona lost is answered <c>excluded</c>, and a merged persona's slug folds into the kept one.
+/// The operator's own edits hold the same way (#2019): an unlinked account is an exclusion, a
+/// removed link is skipped, a name the operator set is kept, and a removed persona's slug is
+/// answered <c>removed</c> with nothing written.
 /// </summary>
 /// <remarks>
 /// Each listed Riot ID is resolved against the tracked accounts on its platform, with the same
@@ -37,6 +40,7 @@ public sealed partial class PersonaUpsertService(
     TrueMainDbContext db,
     ISeedRequestService seedRequestService,
     PersonaConflictRecorder conflicts,
+    IPersonaAutoMergeService autoMerge,
     ILogger<PersonaUpsertService> logger) : IPersonaUpsertService
 {
     // What a source serialises when it has no value: a JavaScript `undefined` or `null` printed as
@@ -72,7 +76,28 @@ public sealed partial class PersonaUpsertService(
                 string.Join(", ", untracked));
         }
 
+        if (results.Any(r => r.Accounts.Any(a => a.Status == AccountStatus.Conflict)))
+        {
+            await MergeHomonymConflictsAsync(ct);
+        }
+
         return results;
+    }
+
+    /// <summary>
+    /// A conflict between two same-name personas is one person published twice (#2271): settled at
+    /// once rather than queued. Best effort — the batch is written; what fails stays in the queue.
+    /// </summary>
+    private async Task MergeHomonymConflictsAsync(CancellationToken ct)
+    {
+        try
+        {
+            await autoMerge.MergeHomonymConflictsAsync(ct);
+        }
+        catch (Exception ex) when (ex is DbUpdateException or System.Data.Common.DbException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "The same-name conflict sweep failed after a persona batch; the conflicts stay open.");
+        }
     }
 
     public async Task<PersonaUpsertResult> UpsertAsync(PersonaUpsertEntry entry, CancellationToken ct)
@@ -95,25 +120,28 @@ public sealed partial class PersonaUpsertService(
             mergedInto = persona?.Slug;
         }
 
+        if (persona?.RemovedAtUtc is not null)
+        {
+            // An operator removed this persona (#2019): its sources keep sending it, and the
+            // decision holds — nothing is written, not even under the merged slug's kept persona.
+            return new PersonaUpsertResult { Slug = slug, Removed = true };
+        }
+
         var created = persona is null;
         if (persona is null)
         {
             persona = new Persona { Slug = slug, DisplayName = displayName, Source = source };
             db.Personas.Add(persona);
         }
-        else
+        else if (mergedInto is null && !persona.DisplayNameLocked)
         {
-            if (mergedInto is null)
-            {
-                persona.DisplayName = displayName;
-            }
-
-            persona.UpdatedAtUtc = DateTime.UtcNow;
+            persona.DisplayName = displayName;
         }
 
-        MergeLinks(persona, entry.Links ?? [], source);
+        HashSet<string> removedLinks = created ? [] : await conflicts.LoadLinkExclusionsAsync(persona, ct);
+        MergeLinks(persona, entry.Links ?? [], source, removedLinks);
 
-        var exclusions = created ? PersonaExclusions.None : await conflicts.LoadExclusionsAsync(persona, ct);
+        var exclusions = await conflicts.LoadExclusionsAsync(persona, ct);
         var pendingBefore = persona.Accounts.Where(a => a.RiotAccountId is null).ToList();
         var results = new List<PersonaAccountUpsertResult>();
         foreach (var account in entry.Accounts ?? [])
@@ -122,6 +150,14 @@ public sealed partial class PersonaUpsertService(
         }
 
         await ResolvePendingAsync(persona, pendingBefore, exclusions, ct);
+
+        // The sitemap advertises this stamp as the page's `lastmod` (#1538): the scrapers resend
+        // every persona each week, so it moves only when the page does, or all of them claim a
+        // change on every run and a crawler learns to ignore the field.
+        if (!created && PageChanged(persona))
+        {
+            persona.UpdatedAtUtc = DateTime.UtcNow;
+        }
 
         try
         {
@@ -149,13 +185,23 @@ public sealed partial class PersonaUpsertService(
         return new PersonaUpsertResult { Slug = slug, Created = created, MergedInto = mergedInto, Accounts = results };
     }
 
+    /// <summary>Whether this upsert changed what <c>/players/{slug}</c> shows: the name, a link or an account.</summary>
+    private bool PageChanged(Persona persona)
+    {
+        db.ChangeTracker.DetectChanges();
+        return db.Entry(persona).State != EntityState.Unchanged
+            || persona.Links.Any(l => db.Entry(l).State != EntityState.Unchanged)
+            || persona.Accounts.Any(a => db.Entry(a).State != EntityState.Unchanged);
+    }
+
     private Task<Persona?> LoadAsync(System.Linq.Expressions.Expression<Func<Persona, bool>> match, CancellationToken ct) =>
         db.Personas
             .Include(p => p.Links)
             .Include(p => p.Accounts)
             .FirstOrDefaultAsync(match, ct);
 
-    private static string? Validate(string slug, string displayName, string? sourceRaw, out PersonaSource source)
+    /// <summary>Why an entry cannot be written as a persona at all, or null when it can.</summary>
+    internal static string? Validate(string slug, string displayName, string? sourceRaw, out PersonaSource source)
     {
         source = default;
         if (slug.Length is 0 or > PersonaConfiguration.SlugMaxLength || !SlugPattern().IsMatch(slug))
@@ -173,7 +219,8 @@ public sealed partial class PersonaUpsertService(
             : $"source '{sourceRaw}' is not one of {string.Join(", ", Enum.GetNames<PersonaSource>())}.";
     }
 
-    private void MergeLinks(Persona persona, IReadOnlyList<PersonaLinkEntry> links, PersonaSource source)
+    private void MergeLinks(
+        Persona persona, IReadOnlyList<PersonaLinkEntry> links, PersonaSource source, HashSet<string> removedLinks)
     {
         foreach (var link in links)
         {
@@ -185,7 +232,9 @@ public sealed partial class PersonaUpsertService(
                 continue;
             }
 
-            if (persona.Links.Any(existing => string.Equals(existing.Url, url, StringComparison.OrdinalIgnoreCase)))
+            // A link an operator removed stays removed (#2019).
+            if (removedLinks.Contains(url.ToLowerInvariant())
+                || persona.Links.Any(existing => string.Equals(existing.Url, url, StringComparison.OrdinalIgnoreCase)))
             {
                 continue;
             }
