@@ -48,7 +48,7 @@ export function linkKey(url: string): string {
 }
 
 /** What tells a channel apart at a glance: its handle, the URL's last path segment, decoded. */
-export function linkHandle(url: string): string {
+export function linkHandle(url: string, max = 18): string {
   const path = url.replace(/^https?:\/\/[^/]+/, '').replace(/[?#].*$/, '').replace(/\/+$/, '')
   const last = path.split('/').pop() ?? ''
   let handle = last
@@ -61,5 +61,5 @@ export function linkHandle(url: string): string {
   if (!handle) {
     return url.replace(/^https?:\/\/(www\.)?/, '')
   }
-  return handle.length > 18 ? `${handle.slice(0, 16)}…` : handle
+  return handle.length > max ? `${handle.slice(0, max - 2)}…` : handle
 }
