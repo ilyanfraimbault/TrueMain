@@ -15,6 +15,7 @@ public static class PersonaServiceCollectionExtensions
         services.AddScoped<PersonaMerger>();
         services.AddScoped<IPersonaConflictResolutionService, PersonaConflictResolutionService>();
         services.AddScoped<IPersonaAutoMergeService, PersonaAutoMergeService>();
+        services.AddHostedService<PersonaAutoMergeStartupSweep>();
         services.AddScoped<IPersonaHomonymQueryService, PersonaHomonymQueryService>();
         services.AddScoped<IPersonaHomonymService, PersonaHomonymService>();
         services.AddScoped<PersonaAudit>();

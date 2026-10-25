@@ -6,9 +6,10 @@ import KnownPlayersConflictActions from '~~/app/components/known-players/KnownPl
 import KnownPlayersConflictList from '~~/app/components/known-players/KnownPlayersConflictList.vue'
 import KnownPlayersConflicts from '~~/app/components/known-players/KnownPlayersConflicts.vue'
 import KnownPlayersHomonymGroup from '~~/app/components/known-players/KnownPlayersHomonymGroup.vue'
+import KnownPlayersHomonymRow from '~~/app/components/known-players/KnownPlayersHomonymRow.vue'
 import KnownPlayersHomonyms from '~~/app/components/known-players/KnownPlayersHomonyms.vue'
 import KnownPlayersPersonaCard from '~~/app/components/known-players/KnownPlayersPersonaCard.vue'
-import { autoMergedMessage, markedDistinct, markedMessage, mergedMessage } from '~~/shared/utils/persona-homonyms'
+import { autoMergedMessage, linkHandle, linkKey, markedDistinct, markedMessage, mergedMessage } from '~~/shared/utils/persona-homonyms'
 import { conflict, persona } from './fixtures'
 
 const stub = (tag: string, text?: (props: Record<string, unknown>) => string) => defineComponent({
@@ -39,6 +40,7 @@ function group(over: Partial<PersonaHomonymGroup> = {}): PersonaHomonymGroup {
       persona({ id: 'p2', slug: 'rain-dpm', displayName: 'rain', source: 'Dpm' }),
       persona({ id: 'p3', slug: 'rain-helena-ruiz', displayName: 'Rain' }),
     ],
+    sharedLinks: [],
     distinctPairs: [],
     ...over,
   }
@@ -70,6 +72,16 @@ describe('persona-homonyms utils', () => {
     expect(markedMessage({ marked: 0 }).title).toBe('Already marked as different people')
   })
 
+  it('keys a link like the API, and shows its handle', () => {
+    expect(linkKey('https://www.YouTube.com/@Yongi/')).toBe('youtube.com/@yongi')
+    expect(linkKey('http://sooplive.co.kr/station/dkel3535')).toBe('sooplive.co.kr/station/dkel3535')
+    expect(linkHandle('https://www.sooplive.co.kr/station/dkel3535')).toBe('dkel3535')
+    expect(linkHandle('https://www.deeplol.gg/strm/%EC%84%B1%ED%9B%88')).toBe('성훈')
+    expect(linkHandle('https://www.youtube.com/channel/UChG0xFLvU4abcdefghijk')).toBe('UChG0xFLvU4abcde…')
+    expect(linkHandle('https://x.com/%E0%A4%A')).toBe('%E0%A4%A')
+    expect(linkHandle('https://twitch.tv/')).toBe('twitch.tv/')
+  })
+
   it('reads a pair in either order', () => {
     const marked = group({ distinctPairs: [['p1', 'p3']] })
     expect(markedDistinct(marked, 'p3', 'p1')).toBe(true)
@@ -80,12 +92,12 @@ describe('persona-homonyms utils', () => {
 describe('KnownPlayersHomonymGroup', () => {
   const mountGroup = (props: { group: PersonaHomonymGroup, busy?: boolean }) => mount(KnownPlayersHomonymGroup, {
     props: { busy: false, ...props },
-    global: { components: { ...ui, KnownPlayersPersonaCard } },
+    global: { components: { ...ui, KnownPlayersHomonymRow } },
   })
 
   it('keeps the oldest by default and merges the others after a confirmation', async () => {
     const wrapper = mountGroup({ group: group() })
-    expect(wrapper.findAllComponents(KnownPlayersPersonaCard)).toHaveLength(3)
+    expect(wrapper.findAllComponents(KnownPlayersHomonymRow)).toHaveLength(3)
     const mergeButton = () => wrapper.get('[data-action="merge"]')
     expect(mergeButton().text()).toBe('Merge 2 into rain')
 
@@ -108,6 +120,18 @@ describe('KnownPlayersHomonymGroup', () => {
     await wrapper.get('[data-persona="rain-helena-ruiz"] [data-select]').trigger('click')
     await wrapper.get('[data-action="distinct"]').trigger('click')
     expect(wrapper.emitted('distinct')).toEqual([[{ personaIds: ['p1', 'p2', 'p3'] }]])
+  })
+
+  it('marks the channels two players share, and dims a player left out', async () => {
+    const shared = 'twitch.tv/peng'
+    const wrapper = mountGroup({ group: group({ sharedLinks: [shared] }) })
+    expect(wrapper.text()).toContain('One channel listed by more than one of them')
+    expect(wrapper.findAll('[data-shared]')).toHaveLength(3)
+    expect(wrapper.findAll('[data-account]')).toHaveLength(6)
+
+    await wrapper.get('[data-persona="rain-dpm"] [data-select]').trigger('click')
+    expect(wrapper.get('[data-persona="rain-dpm"]').classes()).toContain('opacity-50')
+    expect(wrapper.get('[data-persona="rain"]').classes()).toContain('bg-primary/5')
   })
 
   it('shows the pairs already marked, and sends nothing while busy or with one player left', async () => {
@@ -137,7 +161,7 @@ describe('KnownPlayersHomonyms', () => {
   }
 
   const mountQueue = () => mount(KnownPlayersHomonyms, {
-    global: { components: { ...ui, KnownPlayersHomonymGroup, KnownPlayersPersonaCard } },
+    global: { components: { ...ui, KnownPlayersHomonymGroup, KnownPlayersHomonymRow } },
   })
 
   it('merges a group and marks one as different people', async () => {

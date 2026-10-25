@@ -41,3 +41,25 @@ export function markedMessage(result: PersonaHomonymMarked): { title: string } {
 export function markedDistinct(group: Pick<PersonaHomonymGroup, 'distinctPairs'>, a: string, b: string): boolean {
   return group.distinctPairs.some(([x, y]) => (x === a && y === b) || (x === b && y === a))
 }
+
+/** A link's key, as the API keys `sharedLinks`: lowercased, without the scheme, a `www.` or a trailing slash. */
+export function linkKey(url: string): string {
+  return url.toLowerCase().replace(/^https?:\/\/(www\.)?|\/+$/g, '')
+}
+
+/** What tells a channel apart at a glance: its handle, the URL's last path segment, decoded. */
+export function linkHandle(url: string): string {
+  const path = url.replace(/^https?:\/\/[^/]+/, '').replace(/[?#].*$/, '').replace(/\/+$/, '')
+  const last = path.split('/').pop() ?? ''
+  let handle = last
+  try {
+    handle = decodeURIComponent(last)
+  }
+  catch {
+    // A malformed escape: the raw segment still tells the channel apart.
+  }
+  if (!handle) {
+    return url.replace(/^https?:\/\/(www\.)?/, '')
+  }
+  return handle.length > 18 ? `${handle.slice(0, 16)}…` : handle
+}

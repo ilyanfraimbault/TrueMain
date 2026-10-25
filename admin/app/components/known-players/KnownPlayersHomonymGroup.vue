@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // One group of the homonyms queue (#2271): known players sharing a name and no
-// account. The operator picks who belongs to it and either merges them into the one
-// kept — oldest by default, the slug the site advertised first — or marks them as
-// different people. The merge retires pages, so it asks twice.
+// account, one row each (#2273) with the channels they share marked. The operator
+// picks who belongs to it and either merges them into the one kept — oldest by
+// default, the slug the site advertised first — or marks them as different people.
+// The merge retires pages, so it asks twice.
 import type { PersonaHomonymDistinctBody, PersonaHomonymGroup, PersonaHomonymMergeBody } from '~~/shared/types/ops'
 import { computed, ref, watch } from 'vue'
 import { markedDistinct } from '~~/shared/utils/persona-homonyms'
@@ -71,32 +72,31 @@ function note(id: string) {
 </script>
 
 <template>
-  <section class="space-y-4" :data-group="group.key">
-    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      <div v-for="persona in group.personas" :key="persona.id" class="space-y-2" :data-persona="persona.slug">
-        <div class="flex items-center gap-1">
-          <UButton
-            data-keep
-            size="xs"
-            :icon="persona.id === keepId ? 'i-lucide-crown' : 'i-lucide-circle'"
-            :color="persona.id === keepId ? 'primary' : 'neutral'"
-            :variant="persona.id === keepId ? 'solid' : 'ghost'"
-            :label="persona.id === keepId ? 'Kept' : 'Keep this one'"
-            :disabled="busy"
-            @click="keep(persona.id)"
-          />
-          <UButton
-            data-select
-            size="xs"
-            :icon="selected.includes(persona.id) ? 'i-lucide-square-check' : 'i-lucide-square'"
-            color="neutral"
-            variant="ghost"
-            :label="selected.includes(persona.id) ? 'Included' : 'Left out'"
-            :disabled="busy || persona.id === keepId"
-            @click="toggle(persona.id)"
-          />
-        </div>
-        <KnownPlayersPersonaCard :persona="persona" :side="note(persona.id) || `Created ${persona.createdAtUtc.slice(0, 10)}`" />
+  <section class="space-y-3" :data-group="group.key">
+    <div v-if="group.sharedLinks.length > 0" class="flex items-center gap-1.5 text-xs text-success">
+      <UIcon name="i-lucide-link" class="size-3.5" />
+      {{ group.sharedLinks.length === 1 ? 'One channel' : `${group.sharedLinks.length} channels` }} listed by more than one of them — likely one person.
+    </div>
+
+    <div class="overflow-hidden rounded-lg ring-1 ring-default">
+      <div class="hidden grid-cols-[15rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-6 border-b border-default bg-elevated/50 px-3 py-1.5 text-xs uppercase text-muted md:grid">
+        <span>Known player</span>
+        <span>Accounts</span>
+        <span>Links</span>
+      </div>
+      <div class="divide-y divide-default">
+        <KnownPlayersHomonymRow
+          v-for="persona in group.personas"
+          :key="persona.id"
+          :persona="persona"
+          :kept="persona.id === keepId"
+          :included="selected.includes(persona.id)"
+          :busy="busy"
+          :shared-links="group.sharedLinks"
+          :note="note(persona.id)"
+          @keep="keep(persona.id)"
+          @toggle="toggle(persona.id)"
+        />
       </div>
     </div>
 

@@ -247,12 +247,13 @@ DeepLoL, `reksaiking-reksaiking` from dpm.lol). The operator's rule:
 two known players with the same name — lowercased, spaces, dots, dashes and underscores dropped — that claim the same
 Riot account are one person, so that conflict is merged without asking, into the older persona (the slug the site
 advertised first), through the same merge an operator would pick and audited with the actor `auto`. The intake sweeps
-after every batch that raised a conflict; the admin's button sweeps the backlog. A same name **without** a common
+after every batch that raised a conflict, and the API sweeps once at startup (#2273) — the scrapers run weekly, so
+without it a deploy left the backlog queued for a week; the admin's button sweeps on demand. A same name **without** a common
 account is not enough — Leaguepedia lists several pros called Rain — so those personas go to a homonyms queue where the operator merges a selection or marks them as different people.
 The mark is per pair (`persona_distinct_pairs`), so a group only comes back when a new persona with that name appears,
 and a merge carries the merged persona's marks over to the kept one.
 
-**Source.** #2016, #2134, #2253, #2019, #2271.
+**Source.** #2016, #2134, #2253, #2019, #2271, #2273.
 
 **A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
 each main's name, so the count would name its denominator next to the champion page's per-patch count. On the

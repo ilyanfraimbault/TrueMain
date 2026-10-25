@@ -6,7 +6,10 @@ namespace TrueMain.Services.Personas;
 
 public interface IPersonaHomonymQueryService
 {
-    /// <summary>A page of homonym groups in name order; <paramref name="search"/> matches a name or slug.</summary>
+    /// <summary>
+    /// A page of homonym groups, the ones sharing a link first (the likeliest duplicates), then in name
+    /// order; <paramref name="search"/> matches a name or slug.
+    /// </summary>
     Task<PersonaHomonymsReadModel> GetPageAsync(string? search, int? page, int? pageSize, CancellationToken ct);
 }
 
@@ -27,11 +30,24 @@ public sealed class PersonaHomonymQueryService(TrueMainDbContext db) : IPersonaH
         WHERE p."MergedIntoPersonaId" IS NULL AND p."RemovedAtUtc" IS NULL
         """;
 
-    // A group stays while one pair in it is not marked: n personas make n(n-1)/2 pairs.
+    // A group stays while one pair in it is not marked: n personas make n(n-1)/2 pairs. Two of its
+    // personas listing the same channel is the strongest hint they are one person: those come first.
+    // Only the grouped personas' links are keyed: keying all of them made the query an order of magnitude slower.
     private static readonly string GroupKeysSql = $$"""
         WITH live AS ({{LiveSql}}),
         groups AS (
             SELECT key, count(*) AS n FROM live WHERE key <> '' GROUP BY key HAVING count(*) > 1
+        ),
+        links AS (
+            SELECT live.key, l."PersonaId", {{PersonaHomonyms.LinkKeySql("l")}} AS url
+            FROM persona_links l
+            JOIN live ON live."Id" = l."PersonaId"
+            JOIN groups ON groups.key = live.key
+        ),
+        shared AS (
+            SELECT DISTINCT a.key
+            FROM links a
+            JOIN links b ON b.key = a.key AND b.url = a.url AND b."PersonaId" <> a."PersonaId"
         ),
         marked AS (
             SELECT a.key, count(*) AS m
@@ -40,9 +56,10 @@ public sealed class PersonaHomonymQueryService(TrueMainDbContext db) : IPersonaH
             JOIN live b ON b."Id" = d."OtherPersonaId" AND b.key = a.key
             GROUP BY a.key
         )
-        SELECT g.key AS "Value"
+        SELECT g.key AS "Key", (s.key IS NOT NULL) AS "SharesALink"
         FROM groups g
         LEFT JOIN marked m ON m.key = g.key
+        LEFT JOIN shared s ON s.key = g.key
         WHERE coalesce(m.m, 0) < g.n * (g.n - 1) / 2
           AND ({0} = '' OR EXISTS (
               SELECT 1 FROM live l
@@ -57,12 +74,14 @@ public sealed class PersonaHomonymQueryService(TrueMainDbContext db) : IPersonaH
         var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, 1, MaxPageSize);
         var pattern = string.IsNullOrWhiteSpace(search) ? string.Empty : $"%{PersonaConflictQueryService.EscapeLike(search.Trim())}%";
 
-        var keys = db.Database.SqlQueryRaw<string>(GroupKeysSql, pattern);
+        var keys = db.Database.SqlQueryRaw<GroupKey>(GroupKeysSql, pattern);
         var total = await keys.LongCountAsync(ct);
         var pageKeys = await keys
-            .OrderBy(k => k)
+            .OrderByDescending(k => k.SharesALink)
+            .ThenBy(k => k.Key)
             .Skip((effectivePage - 1) * effectivePageSize)
             .Take(effectivePageSize)
+            .Select(k => k.Key)
             .ToListAsync(ct);
 
         return new PersonaHomonymsReadModel
@@ -147,6 +166,13 @@ public sealed class PersonaHomonymQueryService(TrueMainDbContext db) : IPersonaH
                 {
                     Key = key,
                     Personas = group,
+                    SharedLinks = group
+                        .SelectMany(p => p.Links.Select(l => (p.Id, Key: PersonaHomonyms.LinkKey(l.Url))).Distinct())
+                        .GroupBy(l => l.Key, StringComparer.Ordinal)
+                        .Where(g => g.Count() > 1)
+                        .Select(g => g.Key)
+                        .Order(StringComparer.Ordinal)
+                        .ToList(),
                     DistinctPairs = pairs
                         .Where(p => keyOf[p.PersonaId] == key && keyOf[p.OtherPersonaId] == key)
                         .Select(p => (IReadOnlyList<Guid>)[p.PersonaId, p.OtherPersonaId])
@@ -157,4 +183,6 @@ public sealed class PersonaHomonymQueryService(TrueMainDbContext db) : IPersonaH
     }
 
     private sealed record Member(Guid Id, string Key);
+
+    private sealed record GroupKey(string Key, bool SharesALink);
 }
