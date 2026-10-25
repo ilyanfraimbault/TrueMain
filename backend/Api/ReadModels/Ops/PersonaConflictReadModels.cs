@@ -51,6 +51,28 @@ public sealed record PersonaConflictReadModel
 
     /// <summary>The persona holding the account.</summary>
     public PersonaConflictPersonaReadModel Owner { get; init; } = new();
+
+    /// <summary>What the two personas' links say about the answer (#2277); the open queue is ordered by it.</summary>
+    public PersonaConflictEvidenceReadModel Evidence { get; init; } = new();
+}
+
+/// <summary>
+/// The links two personas of a conflict share (#2277). Link kinds are lowercase, as on the public page.
+/// <see cref="Score"/>: 10 per shared social channel, 3 per shared reference page, −5 per social
+/// kind both list with different channels.
+/// </summary>
+public sealed record PersonaConflictEvidenceReadModel
+{
+    public int Score { get; init; }
+
+    /// <summary>Social kinds (twitch, youtube, x…) whose channel both list.</summary>
+    public IReadOnlyList<string> SharedSocial { get; init; } = [];
+
+    /// <summary>Reference pages (Leaguepedia, LoLPros, DeepLoL, a website) both list.</summary>
+    public int SharedReferences { get; init; }
+
+    /// <summary>Social kinds both list, with different channels.</summary>
+    public IReadOnlyList<string> DifferingSocial { get; init; } = [];
 }
 
 public sealed record PersonaConflictAccountReadModel
