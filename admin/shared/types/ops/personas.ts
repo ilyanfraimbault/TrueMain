@@ -42,6 +42,19 @@ export interface PersonaConflict {
   claimant: PersonaConflictPersona
   /** The known player holding it. */
   owner: PersonaConflictPersona
+  /** What the two players' links say about the answer (#2277); the open queue is ordered by it. */
+  evidence: PersonaConflictEvidence
+}
+
+export interface PersonaConflictEvidence {
+  /** 10 per shared social channel, 3 per shared reference page, −5 per social kind with different channels. */
+  score: number
+  /** Social kinds (twitch, youtube, x…) whose channel both list. */
+  sharedSocial: string[]
+  /** Reference pages (Leaguepedia, LoLPros, DeepLoL, a website) both list. */
+  sharedReferences: number
+  /** Social kinds both list, with different channels. */
+  differingSocial: string[]
 }
 
 export interface PersonaConflictsResponse {

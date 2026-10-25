@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // The conflict queue's rows (#2253): the disputed account, the known player whose
-// source claims it, the one holding it, how often the claim came back and when.
+// source claims it, the one holding it, what their links have in common — the open
+// queue is ordered by it, most certain first (#2277) — how often the claim came back.
 // Presentational — the container fetches, pages and opens the detail.
 import type { PersonaConflict } from '~~/shared/types/ops'
 import { formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 import { accountCount, renamedTo, resolutionColor, resolutionLabel, riotId } from '~~/shared/utils/persona-conflicts'
+import { evidenceBadges } from '~~/shared/utils/persona-evidence'
 
 defineProps<{
   conflicts: PersonaConflict[]
@@ -28,6 +30,9 @@ const emit = defineEmits<{ open: [conflict: PersonaConflict] }>()
           </th>
           <th class="px-4 py-2 font-medium">
             Held by
+          </th>
+          <th class="px-4 py-2 font-medium">
+            In common
           </th>
           <th class="px-4 py-2 font-medium">
             Seen
@@ -76,6 +81,18 @@ const emit = defineEmits<{ open: [conflict: PersonaConflict] }>()
             <p class="text-xs text-muted">
               {{ conflict.owner.source }} · {{ accountCount(conflict.owner.accountCount) }}
             </p>
+          </td>
+          <td class="px-4 py-2">
+            <div data-evidence class="flex flex-wrap gap-1">
+              <UBadge
+                v-for="badge in evidenceBadges(conflict.evidence)"
+                :key="badge.label"
+                :color="badge.color"
+                variant="subtle"
+                size="sm"
+                :label="badge.label"
+              />
+            </div>
           </td>
           <td class="px-4 py-2 whitespace-nowrap">
             <p class="tabular-nums">
