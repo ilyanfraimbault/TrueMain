@@ -2392,6 +2392,29 @@ namespace Data.Migrations
                     b.ToTable("persona_account_exclusions", (string)null);
                 });
 
+            modelBuilder.Entity("Data.Entities.PersonaDistinctPair", b =>
+                {
+                    b.Property<Guid>("PersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OtherPersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("PersonaId", "OtherPersonaId");
+
+                    b.HasIndex("OtherPersonaId");
+
+                    b.ToTable("persona_distinct_pairs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_persona_distinct_pairs_ordered", "\"PersonaId\" < \"OtherPersonaId\"");
+                        });
+                });
+
             modelBuilder.Entity("Data.Entities.PersonaLink", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2800,6 +2823,25 @@ namespace Data.Migrations
                     b.Navigation("Persona");
 
                     b.Navigation("RiotAccount");
+                });
+
+            modelBuilder.Entity("Data.Entities.PersonaDistinctPair", b =>
+                {
+                    b.HasOne("Data.Entities.Persona", "OtherPersona")
+                        .WithMany()
+                        .HasForeignKey("OtherPersonaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Data.Entities.Persona", "Persona")
+                        .WithMany()
+                        .HasForeignKey("PersonaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OtherPersona");
+
+                    b.Navigation("Persona");
                 });
 
             modelBuilder.Entity("Data.Entities.PersonaLink", b =>

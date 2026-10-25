@@ -1,0 +1,160 @@
+using Data;
+using Microsoft.EntityFrameworkCore;
+using TrueMain.ReadModels.Ops;
+
+namespace TrueMain.Services.Personas;
+
+public interface IPersonaHomonymQueryService
+{
+    /// <summary>A page of homonym groups in name order; <paramref name="search"/> matches a name or slug.</summary>
+    Task<PersonaHomonymsReadModel> GetPageAsync(string? search, int? page, int? pageSize, CancellationToken ct);
+}
+
+/// <summary>
+/// Read side of the admin's homonyms queue (#2271): the duplicates a conflict cannot reveal, two
+/// sources publishing one person under two slugs with no account in common — and the true
+/// homonyms Leaguepedia lists, which only the operator can tell apart. Grouped by
+/// <see cref="PersonaHomonyms"/>'s name key over the live personas.
+/// </summary>
+public sealed class PersonaHomonymQueryService(TrueMainDbContext db) : IPersonaHomonymQueryService
+{
+    public const int DefaultPageSize = 25;
+    private const int MaxPageSize = 100;
+
+    private static readonly string LiveSql = $$"""
+        SELECT p."Id", p."DisplayName", p."Slug", {{PersonaHomonyms.NameKeySql("p")}} AS key
+        FROM personas p
+        WHERE p."MergedIntoPersonaId" IS NULL AND p."RemovedAtUtc" IS NULL
+        """;
+
+    // A group stays while one pair in it is not marked: n personas make n(n-1)/2 pairs.
+    private static readonly string GroupKeysSql = $$"""
+        WITH live AS ({{LiveSql}}),
+        groups AS (
+            SELECT key, count(*) AS n FROM live WHERE key <> '' GROUP BY key HAVING count(*) > 1
+        ),
+        marked AS (
+            SELECT a.key, count(*) AS m
+            FROM persona_distinct_pairs d
+            JOIN live a ON a."Id" = d."PersonaId"
+            JOIN live b ON b."Id" = d."OtherPersonaId" AND b.key = a.key
+            GROUP BY a.key
+        )
+        SELECT g.key AS "Value"
+        FROM groups g
+        LEFT JOIN marked m ON m.key = g.key
+        WHERE coalesce(m.m, 0) < g.n * (g.n - 1) / 2
+          AND ({0} = '' OR EXISTS (
+              SELECT 1 FROM live l
+              WHERE l.key = g.key AND (l."DisplayName" ILIKE {0} ESCAPE '\' OR l."Slug" ILIKE {0} ESCAPE '\')))
+        """;
+
+    private static readonly string MembersSql = $$"""SELECT "Id", key AS "Key" FROM ({{LiveSql}}) live WHERE key = ANY({0})""";
+
+    public async Task<PersonaHomonymsReadModel> GetPageAsync(string? search, int? page, int? pageSize, CancellationToken ct)
+    {
+        var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
+        var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, 1, MaxPageSize);
+        var pattern = string.IsNullOrWhiteSpace(search) ? string.Empty : $"%{PersonaConflictQueryService.EscapeLike(search.Trim())}%";
+
+        var keys = db.Database.SqlQueryRaw<string>(GroupKeysSql, pattern);
+        var total = await keys.LongCountAsync(ct);
+        var pageKeys = await keys
+            .OrderBy(k => k)
+            .Skip((effectivePage - 1) * effectivePageSize)
+            .Take(effectivePageSize)
+            .ToListAsync(ct);
+
+        return new PersonaHomonymsReadModel
+        {
+            Groups = pageKeys.Count == 0 ? [] : await LoadGroupsAsync(pageKeys, ct),
+            Total = total,
+            Page = effectivePage,
+            PageSize = effectivePageSize,
+        };
+    }
+
+    private async Task<IReadOnlyList<PersonaHomonymGroupReadModel>> LoadGroupsAsync(List<string> keys, CancellationToken ct)
+    {
+        var members = await db.Database
+            .SqlQueryRaw<Member>(MembersSql, new object[] { keys.ToArray() })
+            .ToListAsync(ct);
+        var ids = members.Select(m => m.Id).ToList();
+
+        var personas = await db.Personas
+            .AsNoTracking()
+            .Where(p => ids.Contains(p.Id))
+            .Select(p => new { p.Id, p.Slug, p.DisplayName, p.Source, p.CreatedAtUtc })
+            .ToListAsync(ct);
+        var accounts = (await db.PersonaAccounts
+                .AsNoTracking()
+                .Where(a => ids.Contains(a.PersonaId))
+                .OrderBy(a => a.PlatformId)
+                .ThenBy(a => a.GameName)
+                .Select(a => new { a.PersonaId, a.GameName, a.TagLine, a.PlatformId, a.Source, a.RiotAccountId })
+                .ToListAsync(ct))
+            .ToLookup(a => a.PersonaId);
+        var links = (await db.PersonaLinks
+                .AsNoTracking()
+                .Where(l => ids.Contains(l.PersonaId))
+                .OrderBy(l => l.Kind)
+                .ThenBy(l => l.Url)
+                .Select(l => new { l.PersonaId, l.Kind, l.Url, l.Source })
+                .ToListAsync(ct))
+            .ToLookup(l => l.PersonaId);
+        var pairs = await db.PersonaDistinctPairs
+            .AsNoTracking()
+            .Where(p => ids.Contains(p.PersonaId) && ids.Contains(p.OtherPersonaId))
+            .Select(p => new { p.PersonaId, p.OtherPersonaId })
+            .ToListAsync(ct);
+
+        var keyOf = members.ToDictionary(m => m.Id, m => m.Key);
+        return keys
+            .Select(key =>
+            {
+                var group = personas
+                    .Where(p => keyOf[p.Id] == key)
+                    .OrderBy(p => p.CreatedAtUtc)
+                    .ThenBy(p => p.Slug, StringComparer.Ordinal)
+                    .Select(p => new PersonaHomonymReadModel
+                    {
+                        Id = p.Id,
+                        Slug = p.Slug,
+                        DisplayName = p.DisplayName,
+                        Source = p.Source.ToString(),
+                        CreatedAtUtc = p.CreatedAtUtc,
+                        Accounts = accounts[p.Id]
+                            .Select(a => new PersonaOpsAccountReadModel
+                            {
+                                GameName = a.GameName,
+                                TagLine = a.TagLine,
+                                PlatformId = a.PlatformId,
+                                Source = a.Source.ToString(),
+                                RiotAccountId = a.RiotAccountId,
+                            })
+                            .ToList(),
+                        Links = links[p.Id]
+                            .Select(l => new PersonaOpsLinkReadModel
+                            {
+                                Kind = l.Kind.ToString().ToLowerInvariant(),
+                                Url = l.Url,
+                                Source = l.Source.ToString(),
+                            })
+                            .ToList(),
+                    })
+                    .ToList();
+                return new PersonaHomonymGroupReadModel
+                {
+                    Key = key,
+                    Personas = group,
+                    DistinctPairs = pairs
+                        .Where(p => keyOf[p.PersonaId] == key && keyOf[p.OtherPersonaId] == key)
+                        .Select(p => (IReadOnlyList<Guid>)[p.PersonaId, p.OtherPersonaId])
+                        .ToList(),
+                };
+            })
+            .ToList();
+    }
+
+    private sealed record Member(Guid Id, string Key);
+}
