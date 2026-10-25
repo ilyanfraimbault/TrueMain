@@ -16,6 +16,7 @@ public class TrueMainDbContext : DbContext
     public DbSet<PersonaAccountConflict> PersonaAccountConflicts => Set<PersonaAccountConflict>();
     public DbSet<PersonaAccountExclusion> PersonaAccountExclusions => Set<PersonaAccountExclusion>();
     public DbSet<PersonaLinkExclusion> PersonaLinkExclusions => Set<PersonaLinkExclusion>();
+    public DbSet<PersonaDistinctPair> PersonaDistinctPairs => Set<PersonaDistinctPair>();
     public DbSet<MatchParticipant> MatchParticipants => Set<MatchParticipant>();
     public DbSet<MatchParticipantTimelineSnapshot> MatchParticipantTimelineSnapshots => Set<MatchParticipantTimelineSnapshot>();
     public DbSet<MatchBan> MatchBans => Set<MatchBan>();

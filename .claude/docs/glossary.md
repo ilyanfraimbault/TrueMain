@@ -52,6 +52,11 @@ true main: a known player need not main anything, and a true main is usually nob
 Removing a known player at the person's request: the page goes and their accounts are barred from every known player.
 A plain *removal* only retires a persona that should not exist and leaves its accounts free.
 
+**Homonyms** (known players):
+Live known players with the same name once case, spaces, dots, dashes and underscores are ignored. Claiming the same
+account makes them one person (merged automatically); without one, the operator merges them or marks them as
+*different people*.
+
 **Candidate**:
 A (player, champion) pair proposed as a possible true main, found on the apex ladder, added by an operator, or
 harvested from games already stored. It moves New → Scored → Queued → Processing → Validated, and leaves only

@@ -110,7 +110,7 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
         return query;
     }
 
-    private static string EscapeLike(string value) =>
+    internal static string EscapeLike(string value) =>
         value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal);
