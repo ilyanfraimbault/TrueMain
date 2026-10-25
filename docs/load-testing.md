@@ -141,7 +141,9 @@ host: requests are named by route template, and the workflow refuses to publish 
 
 Every error class has a counterpart in the admin Logs page: `RequestFailed` (an API 5xx), `RateLimitRejected`,
 `RequestAborted` (a client gave up), `FrontendServerError`, `FrontendUpstreamErrors` and `FrontendRequestAborted`
-(the web tier, the last one being a visitor that left first — #1569) and
+(the web tier, the last one being a visitor that left first — #1569), `EdgeProxyError` on process `Edge` (the edge
+proxy could not reach or read web or admin, so the request never got there; the visitor saw the 503 maintenance
+page, the row carries the 502 or 504 Caddy generated, counted per site and error — #1580) and
 `LogRecordsDropped` (the log channel itself overflowed) — #1555, #1556. A class k6 counted with no matching rows is
 a gap in the logging, not in the site.
 

@@ -1,10 +1,24 @@
 import type { MaybeRefOrGetter } from 'vue'
 import type {
+  PersonaAccountInput,
+  PersonaAdminDetail,
+  PersonaAutoMerged,
   PersonaConflictDetail,
   PersonaConflictResolveBody,
   PersonaConflictResolved,
   PersonaConflictsFilters,
   PersonaConflictsResponse,
+  PersonaCreateBody,
+  PersonaEdited,
+  PersonaHomonymDistinctBody,
+  PersonaHomonymMarked,
+  PersonaHomonymMergeBody,
+  PersonaHomonymMerged,
+  PersonaHomonymsFilters,
+  PersonaHomonymsResponse,
+  PersonaLinkInput,
+  PersonaListFilters,
+  PersonasPage,
 } from '~~/shared/types/ops'
 
 // The known-players conflict queue of the ops API (#2253), built on `useOps`.
@@ -32,4 +46,80 @@ export function resolvePersonaConflict(id: string, body: PersonaConflictResolveB
     method: 'POST',
     body,
   })
+}
+
+/**
+ * `POST /api/ops/personas/conflicts/auto-merge` — settle as merges the open
+ * conflicts whose two known players share a name (#2271). The intake runs the
+ * same sweep after every batch; this one clears the backlog.
+ */
+export function autoMergePersonaConflicts() {
+  return $fetch<PersonaAutoMerged>('/api/ops/personas/conflicts/auto-merge', { method: 'POST' })
+}
+
+// Known players sharing a name without a common account (#2271): the operator
+// merges them or marks them as different people. Both throw a `FetchError`: 400
+// on a malformed body, 409 when one was merged or removed meanwhile.
+
+/** `GET /api/ops/personas/homonyms` — groups of same-name known players, in name order, paged. */
+export function usePersonaHomonyms(filters: MaybeRefOrGetter<PersonaHomonymsFilters>) {
+  return useOps<PersonaHomonymsResponse>('/personas/homonyms', () => ({ ...toValue(filters) }))
+}
+
+/** `POST /api/ops/personas/homonyms/merge` — fold known players into the one kept. */
+export function mergePersonaHomonyms(body: PersonaHomonymMergeBody) {
+  return $fetch<PersonaHomonymMerged>('/api/ops/personas/homonyms/merge', { method: 'POST', body })
+}
+
+/** `POST /api/ops/personas/homonyms/distinct` — mark known players as different people. */
+export function markPersonaHomonymsDistinct(body: PersonaHomonymDistinctBody) {
+  return $fetch<PersonaHomonymMarked>('/api/ops/personas/homonyms/distinct', { method: 'POST', body })
+}
+
+// The known-players management of the ops API (#2019). Every edit throws a
+// `FetchError` the caller catches: 400 on a malformed body, 404 for an unknown
+// player or row, 409 when the slug or link exists or the player was merged or
+// removed meanwhile.
+
+const personaPath = (id: string) => `/api/ops/personas/${encodeURIComponent(id)}`
+
+/** `GET /api/ops/personas` — known players, most recently updated first, paged. */
+export function usePersonas(filters: MaybeRefOrGetter<PersonaListFilters>) {
+  return useOps<PersonasPage>('/personas', () => ({ ...toValue(filters) }))
+}
+
+/** `GET /api/ops/personas/{id}` — one known player in full. */
+export function getPersona(id: string) {
+  return $fetch<PersonaAdminDetail>(personaPath(id))
+}
+
+/** `POST /api/ops/personas` — add a known player by hand (source `manual`). */
+export function createPersona(body: PersonaCreateBody) {
+  return $fetch<PersonaEdited>('/api/ops/personas', { method: 'POST', body })
+}
+
+/** `PATCH /api/ops/personas/{id}` — the operator's name, which the sources then keep. */
+export function renamePersona(id: string, displayName: string) {
+  return $fetch<PersonaEdited>(personaPath(id), { method: 'PATCH', body: { displayName } })
+}
+
+/** `DELETE /api/ops/personas/{id}` — remove a known player; `takedown` also bars its accounts everywhere. */
+export function removePersona(id: string, takedown: boolean) {
+  return $fetch<PersonaEdited>(personaPath(id), { method: 'DELETE', query: takedown ? { takedown: true } : undefined })
+}
+
+export function addPersonaLink(id: string, link: PersonaLinkInput) {
+  return $fetch<PersonaEdited>(`${personaPath(id)}/links`, { method: 'POST', body: link })
+}
+
+export function removePersonaLink(id: string, linkId: string) {
+  return $fetch<PersonaEdited>(`${personaPath(id)}/links/${encodeURIComponent(linkId)}`, { method: 'DELETE' })
+}
+
+export function addPersonaAccount(id: string, account: PersonaAccountInput) {
+  return $fetch<PersonaEdited>(`${personaPath(id)}/accounts`, { method: 'POST', body: account })
+}
+
+export function unlinkPersonaAccount(id: string, accountId: string) {
+  return $fetch<PersonaEdited>(`${personaPath(id)}/accounts/${encodeURIComponent(accountId)}`, { method: 'DELETE' })
 }

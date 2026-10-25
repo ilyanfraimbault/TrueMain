@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Data.Ops.Mongo;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -67,7 +68,8 @@ public sealed class HarvestIntakeBudgetTests
             MaxCandidatesPerRun = 7500,
             NewCandidateShare = 0.5,
             LookbackDays = 14,
-            SaveBatchSize = 42
+            SaveBatchSize = 42,
+            MinRunInterval = TimeSpan.FromMinutes(20)
         };
         var harness = new Harness(
             configured,
@@ -84,6 +86,7 @@ public sealed class HarvestIntakeBudgetTests
         spent.MinObservedGames.Should().Be(7);
         spent.LookbackDays.Should().Be(14);
         spent.SaveBatchSize.Should().Be(42);
+        spent.MinRunInterval.Should().Be(TimeSpan.FromMinutes(20));
     }
 
     private sealed class Harness
@@ -114,6 +117,7 @@ public sealed class HarvestIntakeBudgetTests
                 sessionFactory,
                 harvestService,
                 coverageProvider,
+                Substitute.For<IProcessRunStore>(),
                 TimeProvider.System,
                 Microsoft.Extensions.Options.Options.Create(harvest),
                 Microsoft.Extensions.Options.Options.Create(matchIngestion),

@@ -40,7 +40,7 @@ Last verified against `develop` on 2026-09-02.
 
 ## Champion page — builds, SSR prose — [`decisions/product-champion-page.md`](decisions/product-champion-page.md)
 
-- The "why this item" card is a rate and a situation, nothing else: no contrast rate, no sample, no scope footnote — #1451, #1465
+- The "why this item" card is the situation alone: no rate, no contrast rate, no sample, no scope footnote — #1451, #1465, #2256
 - The card's key term uses the item tooltip's colour vocabulary (damage coloured by the resistance that blocks it); untinted where no stat answers it — #1465
 - A `Preference` verdict renders nothing on the card — #1465
 - An item-context axis the front end has no wording for is dropped, never printed raw; a test mirrors the backend's axis list — #1451
@@ -137,6 +137,9 @@ Last verified against `develop` on 2026-09-02.
 - Known players: one person, several accounts at `/players/{slug}`, linked only from public sources, never inferred (2026-10-13) — #2016
 - Known players' accounts on a platform the pipeline does not ingest are stored as `untracked`, never seeded (2026-10-19) — #2134
 - Known players' account conflicts are recorded and settled by the operator (move / keep / detach / merge); exclusions and merged-persona pointers keep the scrapers from undoing it (2026-10-23) — #2253
+- Operators add, edit, unlink and remove known players from the admin; every edit holds against the scrapers, removal keeps the slug, a takedown bars the accounts from every persona (2026-10-24) — #2019
+- Two same-name known players claiming one account are merged automatically (into the older); same-name ones without a common account go to a homonyms queue to merge or mark as different people (2026-10-25) — #2271
+- The open conflict queue is ordered most certain first: shared social channels (Twitch, YouTube, X…) weigh most, shared reference pages less, differing channels count against (2026-10-25) — #2277
 - A main champion row reads its lane and play rate only: the `80 of last 200` sample line is gone (2026-10-13, reverses #1498's line)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
@@ -149,6 +152,7 @@ Last verified against `develop` on 2026-09-02.
 - A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04) — #1545
 - OG image URLs are signed with a secret regenerated at every build, and that is left as the default — #926
 - The sitemap advertises champions, not truemain profiles; known players with a tracked account are in it, their page being server-rendered (2026-09-01, extended 2026-10-14) — #862, #1337, #551, #2018
+- The sitemap is an index over one sitemap per family (pages, champions, players); a player's `lastmod` moves only when the page changes (2026-10-23) — #1538
 
 ## Web frontend rules (hydration, fetches, icons, tooltips) — [`decisions/web-frontend-rules.md`](decisions/web-frontend-rules.md)
 
@@ -225,6 +229,7 @@ Last verified against `develop` on 2026-09-02.
 - Damage profiles are served through the fold's own snapshot rule; the per-build split is a sibling table filled forward (no backfill); an unprofiled champion gets a Data Dragon class, never a share (2026-10-05) — #1905
 - An item-context verdict is about an *edge* of the build tree: rates are branch-relative, a step with no real alternative is `Core`, and the gold-lead confounder dies with the flat grain — #1496, #1450
 - A situation may only explain an item it could mechanically answer: the item-context whitelist is derived from the item's own categories, and three floors (bucket games, absolute lift, significance) decide a finding — #1450
+- A finding is kept only on the end of the axis the item itself answers; the mirror of a rival's finding is dropped — #2256
 - Item-context verdicts are derived and rebuilt per run while the counters stay additive per match, so the API read carries no statistics — #1450
 - A thin item-context bucket widens backwards through patches, both ends together, and records the window it used — #1450
 - The item context carries no elo dimension: splitting by rank would starve the buckets the feature rests on — #1450
@@ -270,7 +275,7 @@ Last verified against `develop` on 2026-09-02.
 - The pipeline runs as two lanes — Riot-bound and Postgres-bound — because they have opposite bottlenecks, in both environments — #1362, #1490, #1360
 - The lane is derived from the process name; the mode it ran under is recorded (2026-09-02) — #1362
 - Match ingestion fans out one worker per platform, and stays sequential inside one — #1359
-- Match fetching runs as permanent per-region workers beside a 1-minute maintenance pass, held to a target rate (default 30 calls/min per regional host, prod's prior average) beside reserved shares for AccountRefresh/ManualSeed (2026-10-21) — #1457, #1460
+- Match fetching runs as permanent per-region workers beside a 1-minute maintenance pass, held to a target rate (default 30 calls/min per regional host, prod's prior average) beside reserved shares for AccountRefresh/ManualSeed (2026-10-21); Harvest, unpaced by Riot, carries its own 20-minute cadence (2026-10-24) — #1457, #1460, #2261
 - Throughput is raised in held stages (30 → 36 → 40 → 44 calls/min per regional host), behind a memory and free-disk brake that stops claims — never a batch in flight — with an ops event per activation and release; CPU out of scope (2026-10-21) — #1459, #1460
 - A Riot call that stores nothing is a bug, not a cost (2026-09-02) — #1358, #1357, #1312
 - Every outbound client asks for compressed responses (2026-09-16) — #1601
@@ -336,8 +341,8 @@ Last verified against `develop` on 2026-09-02.
 - Preprod builds carry a prerelease version, tagged only after they deploy (2026-08-24)
 - Caddy terminates TLS and is the only public entry point in prod — #433, #430, #426
 - The admin `/analytics` iframe stays on Umami's public share view, not the authenticated app — kept as-is on purpose, 2026-08-04 — #1013, #1014
-- Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow — #680, #1018
-- Analytics stay inside the CNIL consent exemption: no session replay, an opt-out on `/privacy` — no consent banner (2026-10-18); since 2026-10-19 a random anonymous visitor id, 13 months from creation and never extended, counts returning visitors across months (data retention: #2092) — #2089, #2149
+- Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow; since #2092 the same sidecar caps the rest of Umami's data at 25 months — #680, #1018, #2092
+- Analytics stay inside the CNIL consent exemption: no session replay, an opt-out on `/privacy` — no consent banner (2026-10-18); since 2026-10-19 a random anonymous visitor id, 13 months from creation and never extended, counts returning visitors across months; since 2026-10-24 no campaign ids, the referrer cut to its domain, data kept 25 months — #2089, #2149, #2092
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
 - Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
@@ -374,6 +379,7 @@ Last verified against `develop` on 2026-09-02.
 - Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
 - The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
 - A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
+- The edge's own failures reach the ops logs through the admin, which receives Caddy's error log over TCP — no sidecar, no log-file reader (2026-10-24) — #1580
 - The Ingestor's own meter is folded into Mongo per minute and shown on the Riot API tab — no OpenTelemetry pipeline, no tracing (2026-10-05) — #1636
 - The ops scripts kept outside the repo report their runs into `process_runs` through allow-listed ops endpoints, and the Processes page shows them on a *Scrapers* tab (2026-10-19) — #2119
 - Iterations are paged from a header per pass (`process_iterations`), not grouped from the runs (2026-10-19) — #2124

@@ -566,6 +566,37 @@ on it. Both scripts are pinned by `*.test.sh` in the `deploy-scripts` job.
 The maintenance page is duplicated in the two edge files, because each deploy
 reads one file; the `compose-config` job fails when the two copies differ.
 
+### The edge reports its own failures
+
+A request the edge cannot hand to web or admin — a dial that times out, a
+connection refused or reset — never reaches a server that logs to the ops logs;
+the visitor gets the maintenance page and the only trace used to be Caddy's
+access log (#1580). Both edge Caddyfiles therefore declare a global logger,
+`edge_errors`, that takes Caddy's error log (`include http.log.error`) and
+streams it as JSON lines over TCP to `admin:5140` (`output net`), where the
+admin's `edge-error-relay` plugin (`NUXT_EDGE_LOG_PORT` in both app compose
+files) turns each 5xx into an `EdgeProxyError` row under process `Edge`,
+counted per site, status and error every five seconds, through the same
+`POST /internal/logs` path as the frontends' own errors.
+
+- `level DEBUG` is required: Caddy logs an error that a `handle_errors` route
+  answered (the maintenance page) at debug level, and at error level only when
+  that route fails too, with the original error under `first_error`.
+- Each site names its logger (`log web`, `log admin`), so the error logger is
+  `http.log.error.web` / `.admin` and the site a row names comes from the
+  config, never from a request's `Host` header. Their access logs are named the
+  same way, `http.log.access.web` / `.admin`.
+- A `format filter` deletes the client address, port and headers before the
+  line leaves Caddy; the relay keeps only the site, status, error text and
+  duration.
+- The default logger stays at `INFO`, so the debug lines add nothing to the
+  container's json-file log while the relay is reachable. `soft_start` lets
+  Caddy start before the admin listens, and it redials on its own once the
+  admin is back. While the admin is down, Caddy writes each error line to its
+  stderr instead, with a `write error` line — the one case where this adds to
+  the json-file budget, and only for the requests that failed.
+- The analytics vhost logs nothing and is not covered.
+
 ### Preprod versioning
 
 `version` resolves `<base>-rc.<N>` from a full-history checkout: the base is
@@ -1098,7 +1129,16 @@ leaves a misleading version on the page (#1637).
   for session replay and heatmap data (#1018): `session_replay` and
   `heatmap_event` are the heaviest tables it writes and grow unbounded. It is
   the Postgres image with the entrypoint replaced by a purge script on a loop,
-  no server started.
+  no server started. Since #2092 the same daily pass keeps the rest of Umami's
+  data inside the CNIL consent exemption: it deletes events, event and session
+  data, session links and orphaned sessions older than
+  `UMAMI_DATA_RETENTION_MONTHS` (default 25), then rewrites any row that still
+  carries a referrer path or query, a same-site referrer, or a `utm_*`/ad click
+  id (the web tracker already strips them before sending; this catches old
+  cached bundles and direct calls to the public collect endpoint). The whole
+  pass is one transaction (`--single-transaction`), so a failure leaves the
+  tables as they were and is retried the next day. The parameter list in its
+  regex mirrors `web/app/utils/analytics-payload.ts`.
 - The ingestor's tuning knobs on prod (`ManualSeed__BatchSize`,
   `MatchIngestion__BatchSize`…) are documented in `docs/prod.md`.
 

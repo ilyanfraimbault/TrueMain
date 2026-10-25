@@ -5,7 +5,7 @@ import { parseItemDescription } from '#shared/utils/tooltip-parser'
 import { formatCount } from '#shared/utils/counts'
 import { formatPercentageAdaptive } from '#shared/utils/ddragon'
 import type { ItemContextCard } from '#shared/utils/item-context'
-import { ITEM_CONTEXT_TONE_CLASS, itemContextAxisPhrase, wordableAxes } from '#shared/utils/item-context'
+import { ITEM_CONTEXT_TONE_CLASS, capitalizePhrase, itemContextAxisPhrase, wordableAxes } from '#shared/utils/item-context'
 
 const props = defineProps<{
   item: StaticItemData
@@ -22,17 +22,20 @@ const props = defineProps<{
 /**
  * The "why this item" block (#1451).
  *
- * Every line is a measurement the ingestor decided; nothing here computes a rate or a
+ * Every line is a finding the ingestor decided; nothing here computes a rate or a
  * threshold. A finding this build has no wording for is dropped rather than printed as a
  * raw identifier, so a front end older than the backend loses a line instead of leaking a
  * `EnemyArmorPenetration` at a player.
+ *
+ * The situation alone, without the item's pick rate in it: "41% against a frontline" read as
+ * a probability the reader could not place — 41% of what, compared to what — while the
+ * situation is the whole answer the card is opened for.
  */
 const contextLines = computed(() =>
   props.context
     ? wordableAxes(props.context).map(axis => ({
         key: `${axis.axis}-${axis.bucket}`,
-        rate: formatPercentageAdaptive(axis.rateIn),
-        phrase: itemContextAxisPhrase(axis)!,
+        phrase: capitalizePhrase(itemContextAxisPhrase(axis)!),
       }))
     : [],
 )
@@ -103,9 +106,9 @@ const pickRateLabel = computed(() =>
     </div>
 
     <!-- Why this item (#1451): the situations that measurably move this pick. One line
-         each, the rate and the situation and nothing else — the contrast rate, the sample
-         and the scope footnote were all cut, because the class above already says the pick
-         is situational and the card is read in a hover, not studied. The key term carries
+         each, the situation and nothing else — the rates, the sample and the scope footnote
+         were all cut, because the class above already says the pick is situational and the
+         card is read in a hover, not studied. The key term carries
          the item tooltip's own colour vocabulary (see `ITEM_CONTEXT_TONE_CLASS`), so magic
          damage is the same cyan here as in the description right above it. -->
     <div
@@ -125,7 +128,7 @@ const pickRateLabel = computed(() =>
           :key="line.key"
           class="text-toned"
         >
-          <span class="font-semibold tabular-nums text-default">{{ line.rate }}</span>{{ ' ' }}<template
+          <template
             v-for="(token, index) in line.phrase"
             :key="`${line.key}-${index}`"
           ><span :class="token.tone ? ITEM_CONTEXT_TONE_CLASS[token.tone] : undefined">{{ token.text }}</span></template>

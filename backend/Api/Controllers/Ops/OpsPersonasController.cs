@@ -123,7 +123,7 @@ public sealed class OpsPersonasController(
         };
     }
 
-    private static bool TryParseOptional<TEnum>(string? raw, out TEnum? value)
+    internal static bool TryParseOptional<TEnum>(string? raw, out TEnum? value)
         where TEnum : struct, Enum
     {
         value = null;

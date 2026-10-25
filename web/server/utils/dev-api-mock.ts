@@ -889,6 +889,27 @@ function expectedWinRate(selfWinRate: number, allyWinRates: number[]): number {
   ))
 }
 
+// Deterministic slivers that stage the panel's two threshold-driven empty
+// states (#1878) without hunting for a thin champion. Every other draw clears
+// the floors, so without these neither notice is reachable locally:
+// - a champion whose id is divisible by 13 (Ryze, Graves, Lulu, Viego) has no
+//   teammate past the shared-games floor, so the partner list comes back empty;
+// - a duo whose two ids sum to a multiple of 5 (e.g. Aatrox + Lee Sin) is too
+//   thin to split: the pair clears its own floor, no third pick clears the trio's.
+// Neither overlaps the player performance panel's sliver (ids divisible by 11).
+function isThinSynergyChampion(id: number): boolean {
+  return id % 13 === 0
+}
+
+function isThinTrioDuo(id: number, partner: number): boolean {
+  return (id + partner) % 5 === 0
+}
+
+/** A sample drawn strictly under `floor` games (and at least one). */
+function underFloor(draw: number, floor: number): number {
+  return 1 + Math.floor(draw * (floor - 1))
+}
+
 async function mockSynergies(
   id: number,
   partnerPosition?: string,
@@ -903,10 +924,13 @@ async function mockSynergies(
   // so which of the two binds varies by champion — the point of the pair.
   const minGames = Math.max(20, Math.ceil(0.01 * championGames))
 
+  const thin = isThinSynergyChampion(s.id)
+
   const partners: ChampionSynergyEntry[] = CHAMPION_SEEDS
     .filter(p => p.position !== s.position && (!partnerPosition || p.position === partnerPosition))
     .map((p) => {
-      const games = Math.round(15 + rng() * 180)
+      const draw = rng()
+      const games = thin ? underFloor(draw, minGames) : Math.round(15 + draw * 180)
       const baselineGames = games + Math.round(200 + rng() * 900)
       const baselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (p.wr - 0.5) * 0.8)
       const expected = expectedWinRate(s.wr, [baselineWinRate])
@@ -952,7 +976,10 @@ async function mockTrioSynergies(
 
   const rng = mulberry32(s.id * 31 + partner)
   const minGames = 12
-  const pairGames = Math.round(20 + rng() * 160)
+  const thin = isThinTrioDuo(s.id, p.id)
+  // A thin duo still clears the pair floor (20) but stays small enough that
+  // spreading it over every third pick leaves none at the trio floor.
+  const pairGames = Math.round(20 + rng() * (thin ? 20 : 160))
   const pairWinRate = round3(0.5 + (rng() - 0.5) * 0.12)
   const partnerBaselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (p.wr - 0.5) * 0.8)
 
@@ -961,7 +988,8 @@ async function mockTrioSynergies(
   const completions: ChampionTrioSynergyEntry[] = CHAMPION_SEEDS
     .filter(t => t.position !== s.position && t.position !== partnerPosition)
     .map((t) => {
-      const games = Math.round(pairGames * (0.2 + rng() * 0.6))
+      const draw = rng()
+      const games = thin ? underFloor(draw, minGames) : Math.round(pairGames * (0.2 + draw * 0.6))
       const baselineWinRate = round3(SYNERGY_COHORT_WIN_RATE + (t.wr - 0.5) * 0.8)
       const expected = expectedWinRate(s.wr, [partnerBaselineWinRate, baselineWinRate])
       const winRate = round3(Math.min(0.9, Math.max(0.1, expected + (rng() - 0.45) * 0.14)))
@@ -2365,12 +2393,68 @@ async function mockCompositionBuildGames(id: number, body: unknown, query: Recor
 }
 
 
+type MockSituation = [axis: string, bucket: 'High' | 'Low']
+
+/**
+ * The situations each archetype's mocked verdicts carry: the second and third build items,
+ * then the two boots — an empty list is a `Preference`. Chosen per item the way the fold
+ * would allow them (`ItemContextWhitelist.For` and `Answers`, #2256): the axis has to be one
+ * the item's stats answer, at the end they answer it. A fixture that hung "against heavy crowd
+ * control" on Rapid Firecannon made the preview show exactly the nonsense the rule exists to
+ * prevent.
+ */
+const MOCK_SITUATIONS: Record<keyof typeof ARCHETYPES, [MockSituation[], MockSituation[], MockSituation[], MockSituation[]]> = {
+  marksman: [
+    [['AllyMagicDamage', 'High']],
+    [['AllyMagicDamage', 'High'], ['OwnGoldLeadAt15', 'Low']],
+    [],
+    [['EnemyPhysicalDamage', 'High']],
+  ],
+  mage: [
+    [['EnemyFrontline', 'High']],
+    [['AllyMagicDamage', 'Low'], ['OwnGoldLeadAt15', 'High']],
+    [['EnemyFrontline', 'High']],
+    [],
+  ],
+  fighter: [
+    [['EnemyFrontline', 'High']],
+    [['AllyMagicDamage', 'High'], ['OwnGoldLeadAt15', 'Low']],
+    [['EnemyPhysicalDamage', 'High']],
+    [['EnemyCrowdControl', 'High']],
+  ],
+  assassin: [
+    [['AllyMagicDamage', 'High']],
+    [['AllyMagicDamage', 'High'], ['OwnGoldLeadAt15', 'High']],
+    [],
+    [['EnemyPhysicalDamage', 'High']],
+  ],
+  tank: [
+    [['EnemyMagicDamage', 'High']],
+    [['EnemySustain', 'High'], ['EnemyCrit', 'High']],
+    [['EnemyPhysicalDamage', 'High']],
+    [['EnemyCrowdControl', 'High']],
+  ],
+  enchanter: [
+    [['OwnGoldLeadAt15', 'Low']],
+    [['OwnGoldLeadAt15', 'High']],
+    [],
+    [['EnemyCrowdControl', 'High']],
+  ],
+  jungler: [
+    [['EnemyFrontline', 'High']],
+    [['AllyMagicDamage', 'High'], ['OwnGoldLeadAt15', 'Low']],
+    [['EnemyPhysicalDamage', 'High']],
+    [],
+  ],
+}
+
 /**
  * Situational build context (#1451): one verdict of each class, so the hover card can be
  * eyeballed in every state without a backend — core (no lines), situational with one axis,
  * situational with two, and a preference. The item ids are pulled from the same archetype
  * `mockChampionDetail` builds its tree, boots and starter rows from, so the cards attach to
- * what is actually on screen instead of to ids nothing renders.
+ * what is actually on screen instead of to ids nothing renders; their situations come from
+ * `MOCK_SITUATIONS`.
  */
 function mockItemContext(championId: number, position: string | undefined) {
   const s = seedsById.get(championId)
@@ -2427,6 +2511,24 @@ function mockItemContext(championId: number, position: string | undefined) {
   })
 
   const items = archetype.items
+  const [second, third, firstBoots, secondBoots] = MOCK_SITUATIONS[s.archetype]
+  // Rates fall from the strongest line down, as the fold orders them.
+  const situational = (
+    slot: 'Build' | 'Boots',
+    itemId: number,
+    pickRate: number,
+    situations: MockSituation[],
+    parentItemId = 0,
+  ) => item(
+    slot,
+    itemId,
+    situations.length ? 'Situational' : 'Preference',
+    pickRate,
+    situations.map(([name, bucket], index) =>
+      axis(name, bucket, 0.62 - index * 0.08, 0.18 + index * 0.02, name !== 'OwnGoldLeadAt15')),
+    1,
+    parentItemId,
+  )
 
   return {
     championId,
@@ -2436,26 +2538,18 @@ function mockItemContext(championId: number, position: string | undefined) {
     items: [
       // The build verdicts chain, as the tree does: each step hangs off the one before it.
       item('Build', items[0]!, 'Core', 0.93, []),
-      item('Build', items[1]!, 'Situational', 0.42, [
-        axis('EnemyMagicDamage', 'High', 0.62, 0.18),
-      ], 1, items[0]!),
-      item('Build', items[2]!, 'Situational', 0.31, [
-        axis('EnemyCrowdControl', 'High', 0.55, 0.21),
-        axis('EnemySustain', 'High', 0.44, 0.19),
-      ], 2, items[1]!),
+      situational('Build', items[1]!, 0.42, second, items[0]!),
+      situational('Build', items[2]!, 0.31, third, items[1]!),
       item('Build', items[3]!, 'Preference', 0.27, [], 1, items[1]!),
-      item('Boots', archetype.boots[0]!, 'Situational', 0.38, [
-        axis('EnemyPhysicalDamage', 'High', 0.61, 0.12),
-      ]),
-      item('Boots', archetype.boots[1]!, 'Situational', 0.34, [
-        axis('EnemyCrowdControl', 'High', 0.58, 0.15),
-      ]),
+      situational('Boots', archetype.boots[0]!, 0.38, firstBoots),
+      situational('Boots', archetype.boots[1]!, 0.34, secondBoots),
+      // The starter is the answer to the lane, so every lane-opponent axis is open to it; the
+      // gold lead at 15 is a build-slot axis only.
       item('Starter', archetype.starterItems[0]!, 'Situational', 0.52, [
         axis('OpponentRanged', 'Low', 0.66, 0.24),
       ]),
       item('Starter', archetype.starterItems[1]!, 'Situational', 0.41, [
         axis('OpponentLanePressure', 'High', 0.57, 0.22),
-        axis('OwnGoldLeadAt15', 'Low', 0.49, 0.31, false),
       ]),
     ],
   }
