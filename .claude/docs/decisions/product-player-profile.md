@@ -253,7 +253,15 @@ account is not enough — Leaguepedia lists several pros called Rain — so thos
 The mark is per pair (`persona_distinct_pairs`), so a group only comes back when a new persona with that name appears,
 and a merge carries the merged persona's marks over to the kept one.
 
-**Source.** #2016, #2134, #2253, #2019, #2271, #2273.
+**The open queue reads most certain first, and social channels carry the most weight (2026-10-25, #2277).** The
+operator's rule: what tells an easy conflict from an uncertain one is the links the two known players share, and a
+social channel (Twitch, YouTube, X, Kick, TikTok, Instagram, SOOP, Chzzk) counts far more than a reference page
+(Leaguepedia, LoLPros, DeepLoL, a website) — nobody shares a stream or an account with someone else, while sources copy
+each other's wiki links. Score: 10 per shared social channel, 3 per shared reference page, −5 per social kind listed with
+different channels; ties by last sighting. Links are compared decoded, case-insensitive, without scheme, `www.`, query
+or trailing slash, the same key the conflict drawer's comparison uses.
+
+**Source.** #2016, #2134, #2253, #2019, #2271, #2273, #2277.
 
 **A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
 each main's name, so the count would name its denominator next to the champion page's per-patch count. On the

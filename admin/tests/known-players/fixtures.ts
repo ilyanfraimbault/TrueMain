@@ -20,6 +20,7 @@ export function conflict(over: Partial<PersonaConflict> = {}): PersonaConflict {
     },
     claimant: { id: 'p2', slug: 'peng-dpm', displayName: 'Peng (dpm)', source: 'Dpm', accountCount: 4, linkCount: 1 },
     owner: { id: 'p1', slug: 'peng', displayName: 'Peng', source: 'Leaguepedia', accountCount: 1, linkCount: 3 },
+    evidence: { score: 0, sharedSocial: [], sharedReferences: 0, differingSocial: [] },
     ...over,
   }
 }

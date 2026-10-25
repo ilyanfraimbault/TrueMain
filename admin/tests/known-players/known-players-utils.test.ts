@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { evidenceBadges } from '~~/shared/utils/persona-evidence'
 import {
   accountInput,
   accountLabel,
@@ -80,5 +81,21 @@ describe('labels', () => {
     expect(editErrorMessage({ data: { title: 'Not Found' } })).toBe('Not Found')
     expect(editErrorMessage(new Error('boom'))).toBe('The change was not saved.')
     expect(editErrorMessage(null, 'Nope.')).toBe('Nope.')
+  })
+})
+
+describe('evidenceBadges', () => {
+  it('says what the two players share, social channels first', () => {
+    expect(evidenceBadges({ score: 23, sharedSocial: ['twitch', 'x'], sharedReferences: 1, differingSocial: [] })).toEqual([
+      { label: 'same twitch, x', color: 'success' },
+      { label: '1 shared page', color: 'neutral' },
+    ])
+    expect(evidenceBadges({ score: 1, sharedSocial: [], sharedReferences: 2, differingSocial: ['youtube'] })).toEqual([
+      { label: '2 shared pages', color: 'info' },
+      { label: 'different youtube', color: 'warning' },
+    ])
+    expect(evidenceBadges({ score: 0, sharedSocial: [], sharedReferences: 0, differingSocial: [] })).toEqual([
+      { label: 'nothing in common', color: 'neutral' },
+    ])
   })
 })
