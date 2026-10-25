@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { defineComponent, h } from 'vue'
 import KnownPlayersConflictActions from '~~/app/components/known-players/KnownPlayersConflictActions.vue'
 import KnownPlayersConflictList from '~~/app/components/known-players/KnownPlayersConflictList.vue'
-import KnownPlayersPersonaCard from '~~/app/components/known-players/KnownPlayersPersonaCard.vue'
+import KnownPlayersConflictCompare from '~~/app/components/known-players/KnownPlayersConflictCompare.vue'
 import { conflict, persona } from './fixtures'
 
 // Nuxt UI is auto-imported in the app; here stand-ins render the props a test reads.
@@ -65,22 +65,49 @@ describe('KnownPlayersConflictList', () => {
   })
 })
 
-describe('KnownPlayersPersonaCard', () => {
-  it('lists accounts with the disputed one marked, and links with their source', () => {
-    const wrapper = mount(KnownPlayersPersonaCard, { global, props: { persona: persona(), side: 'Holds it' } })
-    expect(wrapper.text()).toContain('Holds it')
-    expect(wrapper.text()).toContain('Accounts · 2 (1 tracked)')
-    const disputed = wrapper.findAll('[data-disputed]')
-    expect(disputed).toHaveLength(1)
-    expect(disputed[0]!.text()).toContain('twtv Peng04#NMIXX')
-    expect(wrapper.text()).toContain('Leaguepedia · untracked')
-    expect(wrapper.find('a').attributes('href')).toBe('https://www.twitch.tv/peng')
+describe('KnownPlayersConflictCompare', () => {
+  const peng = persona()
+  const pengDpm = persona({
+    id: 'p2',
+    slug: 'peng-dpm',
+    displayName: 'Peng (dpm)',
+    source: 'Dpm',
+    accounts: [{ gameName: 'peng old', tagLine: 'euw', platformId: 'EUW1', source: 'Dpm', riotAccountId: null, disputed: false }],
+    links: [
+      { kind: 'twitch', url: 'https://twitch.tv/peng/', source: 'Dpm' },
+      { kind: 'x', url: 'https://x.com/peng_dpm', source: 'Dpm' },
+    ],
   })
 
-  it('says when a player has no account or link', () => {
-    const wrapper = mount(KnownPlayersPersonaCard, { global, props: { persona: persona({ accounts: [], links: [] }), side: 'Claims it' } })
-    expect(wrapper.text()).toContain('No account.')
-    expect(wrapper.text()).toContain('No link.')
+  it('lines the two players up: the disputed account first, the shared ones and links on one row', () => {
+    const wrapper = mount(KnownPlayersConflictCompare, {
+      global: { components: { ...global.components, UIcon: stub('i') } },
+      props: { claimant: pengDpm, owner: peng },
+    })
+    expect(wrapper.text()).toContain('Claims it')
+    expect(wrapper.text()).toContain('Holds it')
+
+    const accounts = wrapper.findAll('[data-account-row]')
+    expect(accounts).toHaveLength(2)
+    expect(accounts[0]!.text()).toContain('claims this account')
+    expect(accounts[0]!.text()).toContain('twtv Peng04#NMIXX')
+    expect(accounts[1]!.attributes('data-match')).toBe('same')
+
+    const links = wrapper.findAll('[data-link-row]')
+    expect(links.map(l => l.attributes('data-match'))).toEqual(['same', 'only'])
+    expect(links[0]!.findAll('a').map(a => a.attributes('href'))).toEqual(['https://twitch.tv/peng/', 'https://www.twitch.tv/peng'])
+    expect(wrapper.get('[data-verdict]').text()).toBe('1 of 2 links identical · 1 other account in common')
+  })
+
+  it('says when neither side has an account or a link', () => {
+    const bare = persona({ accounts: [], links: [] })
+    const wrapper = mount(KnownPlayersConflictCompare, {
+      global: { components: { ...global.components, UIcon: stub('i') } },
+      props: { claimant: bare, owner: { ...bare, id: 'p2' } },
+    })
+    expect(wrapper.text()).toContain('No account on either side.')
+    expect(wrapper.text()).toContain('No link on either side.')
+    expect(wrapper.get('[data-verdict]').text()).toBe('Neither lists a link to compare.')
   })
 })
 

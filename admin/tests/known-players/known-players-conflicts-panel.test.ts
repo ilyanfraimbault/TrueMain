@@ -4,7 +4,7 @@ import { defineComponent, h, ref } from 'vue'
 import KnownPlayersConflictActions from '~~/app/components/known-players/KnownPlayersConflictActions.vue'
 import KnownPlayersConflictList from '~~/app/components/known-players/KnownPlayersConflictList.vue'
 import KnownPlayersConflicts from '~~/app/components/known-players/KnownPlayersConflicts.vue'
-import KnownPlayersPersonaCard from '~~/app/components/known-players/KnownPlayersPersonaCard.vue'
+import KnownPlayersConflictCompare from '~~/app/components/known-players/KnownPlayersConflictCompare.vue'
 import { conflict, persona } from './fixtures'
 
 // Nuxt UI and the ops composables are auto-imported in the app; here they are stand-ins and globals.
@@ -58,11 +58,11 @@ describe('KnownPlayersConflicts', () => {
 
     const wrapper = mount(KnownPlayersConflicts, {
       props: { status: 'Open' },
-      global: { components: { ...ui, KnownPlayersConflictList, KnownPlayersConflictActions, KnownPlayersPersonaCard } },
+      global: { components: { ...ui, KnownPlayersConflictList, KnownPlayersConflictActions, KnownPlayersConflictCompare } },
     })
     await flushPromises()
     expect(getPersonaConflict).toHaveBeenCalledWith('c1')
-    expect(wrapper.findAllComponents(KnownPlayersPersonaCard)).toHaveLength(2)
+    expect(wrapper.findAllComponents(KnownPlayersConflictCompare)).toHaveLength(1)
     expect(wrapper.findAll('[data-row]')).toHaveLength(1)
 
     wrapper.findComponent(KnownPlayersConflictActions).vm.$emit('resolve', { action: 'keep' })
@@ -86,7 +86,7 @@ describe('KnownPlayersConflicts', () => {
 
     const wrapper = mount(KnownPlayersConflicts, {
       props: { status: 'Open' },
-      global: { components: { ...ui, KnownPlayersConflictList, KnownPlayersConflictActions, KnownPlayersPersonaCard } },
+      global: { components: { ...ui, KnownPlayersConflictList, KnownPlayersConflictActions, KnownPlayersConflictCompare } },
     })
     await flushPromises()
     wrapper.findComponent(KnownPlayersConflictActions).vm.$emit('resolve', { action: 'keep' })
