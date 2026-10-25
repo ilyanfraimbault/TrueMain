@@ -47,7 +47,16 @@ export function channelKey(url: string): string {
   catch {
     // A malformed escape: compare the URL as it is.
   }
-  return decoded.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/[?#].*$/, '').replace(/\/+$/, '')
+  let key = decoded.toLowerCase().replace(/^https?:\/\/(www\.)?/, '')
+  const cut = key.search(/[?#]/)
+  if (cut >= 0) {
+    key = key.slice(0, cut)
+  }
+  let end = key.length
+  while (end > 0 && key[end - 1] === '/') {
+    end--
+  }
+  return key.slice(0, end)
 }
 
 export function compareAccounts(left: PersonaOps, right: PersonaOps): AccountCompareRow[] {
@@ -117,6 +126,8 @@ export function compareVerdict(summary: CompareSummary, links: LinkCompareRow[])
     parts.push(`${summary.sameAccounts} other account${summary.sameAccounts === 1 ? '' : 's'} in common`)
   }
   // One shared channel outweighs a differing one: sources often list a second channel, or another wiki page.
-  const tone = summary.sameLinks > 0 ? 'success' : summary.differingKinds.length > 0 ? 'warning' : 'neutral'
-  return { text: parts.join(' · '), tone }
+  if (summary.sameLinks > 0) {
+    return { text: parts.join(' · '), tone: 'success' }
+  }
+  return { text: parts.join(' · '), tone: summary.differingKinds.length > 0 ? 'warning' : 'neutral' }
 }
