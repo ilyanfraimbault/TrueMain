@@ -62,7 +62,7 @@ defineExpose({ refresh, pending, total })
     <div class="flex flex-wrap items-center gap-2 mb-3">
       <UInput v-model="searchFilter" icon="i-lucide-search" placeholder="Name or slug" class="w-full sm:w-64" :loading="pending" />
       <p class="text-xs text-muted">
-        Same name, no account in common. Merge the ones that are one person; mark the others as different people.
+        Same name, no account in common — the ones sharing a channel first. Merge the ones that are one person; mark the others as different people.
       </p>
     </div>
 
