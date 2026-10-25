@@ -27,6 +27,9 @@ public static class PersonaConflictConfidence
         PersonaLinkKind.Chzzk,
     ];
 
+    /// <summary>Stripped in this order: a scheme, then a <c>www.</c>.</summary>
+    private static readonly string[] IgnoredPrefixes = ["https://", "http://", "www."];
+
     public static bool IsSocial(PersonaLinkKind kind) => SocialKinds.Contains(kind);
 
     /// <summary>What the two link lists have in common, and what sets them apart.</summary>
@@ -60,13 +63,13 @@ public static class PersonaConflictConfidence
     /// </summary>
     public static string ChannelKey(string url)
     {
-        var decoded = Uri.UnescapeDataString(url).ToLowerInvariant();
-        var start = decoded.StartsWith("https://", StringComparison.Ordinal) ? 8
-            : decoded.StartsWith("http://", StringComparison.Ordinal) ? 7 : 0;
-        var key = decoded[start..];
-        if (key.StartsWith("www.", StringComparison.Ordinal))
+        var key = Uri.UnescapeDataString(url).ToLowerInvariant();
+        foreach (var prefix in IgnoredPrefixes)
         {
-            key = key[4..];
+            if (key.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                key = key[prefix.Length..];
+            }
         }
 
         var cut = key.IndexOfAny(['?', '#']);
