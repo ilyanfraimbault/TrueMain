@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The known-players conflict queue (#2253): accounts a scraper lists for one known
 // player while another already holds them. The intake never moves them on its own;
-// the operator reads both players side by side and settles it here. The decision
+// the operator reads both players lined up row by row (#2275) and settles it here. The decision
 // holds against the next scraper runs (an exclusion, or a merged page's pointer).
 import type { PersonaConflict, PersonaConflictDetail, PersonaConflictResolveBody, PersonaConflictStatus } from '~~/shared/types/ops'
 import { computed, ref, watch } from 'vue'
@@ -163,10 +163,7 @@ defineExpose({ refresh, pending, counts: computed(() => ({ open: data.value?.ope
       <template #body>
         <FetchErrorAlert v-if="detailError" :error="detailError" title="Failed to load this conflict" />
         <div v-else-if="detail" class="space-y-6">
-          <div class="grid gap-6 sm:grid-cols-2">
-            <KnownPlayersPersonaCard :persona="detail.claimant" side="Claims it" />
-            <KnownPlayersPersonaCard :persona="detail.owner" side="Holds it" />
-          </div>
+          <KnownPlayersConflictCompare :claimant="detail.claimant" :owner="detail.owner" />
           <USeparator />
           <KnownPlayersConflictActions
             v-if="detail.conflict.status === 'Open'"

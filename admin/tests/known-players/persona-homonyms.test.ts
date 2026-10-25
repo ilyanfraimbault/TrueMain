@@ -8,7 +8,7 @@ import KnownPlayersConflicts from '~~/app/components/known-players/KnownPlayersC
 import KnownPlayersHomonymGroup from '~~/app/components/known-players/KnownPlayersHomonymGroup.vue'
 import KnownPlayersHomonymRow from '~~/app/components/known-players/KnownPlayersHomonymRow.vue'
 import KnownPlayersHomonyms from '~~/app/components/known-players/KnownPlayersHomonyms.vue'
-import KnownPlayersPersonaCard from '~~/app/components/known-players/KnownPlayersPersonaCard.vue'
+import KnownPlayersConflictCompare from '~~/app/components/known-players/KnownPlayersConflictCompare.vue'
 import { autoMergedMessage, linkHandle, linkKey, markedDistinct, markedMessage, mergedMessage } from '~~/shared/utils/persona-homonyms'
 import { conflict, persona } from './fixtures'
 
@@ -219,7 +219,7 @@ describe('KnownPlayersConflicts auto-merge', () => {
 
     const wrapper = mount(KnownPlayersConflicts, {
       props: { status: 'Open' },
-      global: { components: { ...ui, KnownPlayersConflictList, KnownPlayersConflictActions, KnownPlayersPersonaCard } },
+      global: { components: { ...ui, KnownPlayersConflictList, KnownPlayersConflictActions, KnownPlayersConflictCompare } },
     })
     await wrapper.get('[data-action="auto-merge"]').trigger('click')
     await flushPromises()
