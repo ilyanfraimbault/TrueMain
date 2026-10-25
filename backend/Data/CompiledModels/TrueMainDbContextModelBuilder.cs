@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("8c39607b-dc63-47b2-9256-2a770f1c0537"), entityTypeCount: 47)
+            : base(skipDetectChanges: false, modelId: new Guid("74470629-b307-49ed-a250-7c73dea59fe3"), entityTypeCount: 48)
         {
         }
 
@@ -61,6 +61,7 @@ namespace Data.CompiledModels
             var personaAccount = PersonaAccountEntityType.Create(this);
             var personaAccountConflict = PersonaAccountConflictEntityType.Create(this);
             var personaAccountExclusion = PersonaAccountExclusionEntityType.Create(this);
+            var personaDistinctPair = PersonaDistinctPairEntityType.Create(this);
             var personaLink = PersonaLinkEntityType.Create(this);
             var personaLinkExclusion = PersonaLinkExclusionEntityType.Create(this);
             var rankSnapshot = RankSnapshotEntityType.Create(this);
@@ -88,6 +89,8 @@ namespace Data.CompiledModels
             PersonaAccountExclusionEntityType.CreateForeignKey1(personaAccountExclusion, personaAccountConflict);
             PersonaAccountExclusionEntityType.CreateForeignKey2(personaAccountExclusion, persona);
             PersonaAccountExclusionEntityType.CreateForeignKey3(personaAccountExclusion, riotAccount);
+            PersonaDistinctPairEntityType.CreateForeignKey1(personaDistinctPair, persona);
+            PersonaDistinctPairEntityType.CreateForeignKey2(personaDistinctPair, persona);
             PersonaLinkEntityType.CreateForeignKey1(personaLink, persona);
             PersonaLinkExclusionEntityType.CreateForeignKey1(personaLinkExclusion, persona);
             RankSnapshotEntityType.CreateForeignKey1(rankSnapshot, riotAccount);
@@ -135,6 +138,7 @@ namespace Data.CompiledModels
             PersonaAccountEntityType.CreateAnnotations(personaAccount);
             PersonaAccountConflictEntityType.CreateAnnotations(personaAccountConflict);
             PersonaAccountExclusionEntityType.CreateAnnotations(personaAccountExclusion);
+            PersonaDistinctPairEntityType.CreateAnnotations(personaDistinctPair);
             PersonaLinkEntityType.CreateAnnotations(personaLink);
             PersonaLinkExclusionEntityType.CreateAnnotations(personaLinkExclusion);
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);

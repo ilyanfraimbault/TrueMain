@@ -40,6 +40,7 @@ public sealed partial class PersonaUpsertService(
     TrueMainDbContext db,
     ISeedRequestService seedRequestService,
     PersonaConflictRecorder conflicts,
+    IPersonaAutoMergeService autoMerge,
     ILogger<PersonaUpsertService> logger) : IPersonaUpsertService
 {
     // What a source serialises when it has no value: a JavaScript `undefined` or `null` printed as
@@ -75,7 +76,28 @@ public sealed partial class PersonaUpsertService(
                 string.Join(", ", untracked));
         }
 
+        if (results.Any(r => r.Accounts.Any(a => a.Status == AccountStatus.Conflict)))
+        {
+            await MergeHomonymConflictsAsync(ct);
+        }
+
         return results;
+    }
+
+    /// <summary>
+    /// A conflict between two same-name personas is one person published twice (#2271): settled at
+    /// once rather than queued. Best effort — the batch is written; what fails stays in the queue.
+    /// </summary>
+    private async Task MergeHomonymConflictsAsync(CancellationToken ct)
+    {
+        try
+        {
+            await autoMerge.MergeHomonymConflictsAsync(ct);
+        }
+        catch (Exception ex) when (ex is DbUpdateException or System.Data.Common.DbException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "The same-name conflict sweep failed after a persona batch; the conflicts stay open.");
+        }
     }
 
     public async Task<PersonaUpsertResult> UpsertAsync(PersonaUpsertEntry entry, CancellationToken ct)

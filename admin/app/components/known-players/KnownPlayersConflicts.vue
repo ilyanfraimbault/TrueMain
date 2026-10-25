@@ -7,6 +7,7 @@ import type { PersonaConflict, PersonaConflictDetail, PersonaConflictResolveBody
 import { computed, ref, watch } from 'vue'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { resolutionLabel, resolvedMessage, resolveErrorMessage, riotId } from '~~/shared/utils/persona-conflicts'
+import { autoMergedMessage } from '~~/shared/utils/persona-homonyms'
 
 const SOURCES = ['Leaguepedia', 'TrackingThePros', 'DeepLol', 'Dpm', 'LoLPros', 'Manual']
 const sourceItems = [{ label: 'All sources', value: ALL }, ...SOURCES.map(s => ({ label: s, value: s }))]
@@ -93,6 +94,24 @@ async function resolve(body: PersonaConflictResolveBody) {
   }
 }
 
+// Two known players with the same name claiming one account are one person (#2271):
+// the intake merges them after each batch; this clears what was queued before.
+const autoMerging = ref(false)
+async function autoMerge() {
+  autoMerging.value = true
+  try {
+    const message = autoMergedMessage(await autoMergePersonaConflicts())
+    toast.success(message.title, message.description)
+  }
+  catch (e) {
+    toast.failure('Same-name conflicts not merged', resolveErrorMessage(e))
+  }
+  finally {
+    autoMerging.value = false
+    refresh()
+  }
+}
+
 defineExpose({ refresh, pending, counts: computed(() => ({ open: data.value?.open ?? 0, resolved: data.value?.resolved ?? 0 })) })
 </script>
 
@@ -102,6 +121,18 @@ defineExpose({ refresh, pending, counts: computed(() => ({ open: data.value?.ope
       <UInput v-model="searchFilter" icon="i-lucide-search" placeholder="Player or Riot ID" class="w-full sm:w-64" :loading="pending" />
       <USelect v-model="sourceFilter" :items="sourceItems" icon="i-lucide-database" class="w-48" />
       <UButton v-if="hasFilters" icon="i-lucide-x" color="neutral" variant="ghost" label="Clear" @click="sourceFilter = ALL; searchFilter = ''" />
+      <UButton
+        v-if="status === 'Open'"
+        data-action="auto-merge"
+        icon="i-lucide-merge"
+        color="primary"
+        variant="subtle"
+        label="Merge same-name conflicts"
+        class="sm:ml-auto"
+        :loading="autoMerging"
+        :disabled="autoMerging || busy"
+        @click="autoMerge()"
+      />
     </div>
 
     <FetchErrorAlert v-if="error" :error="error" title="Failed to load the conflicts" class="mb-4" />

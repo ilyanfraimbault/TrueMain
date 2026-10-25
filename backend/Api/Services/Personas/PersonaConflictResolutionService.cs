@@ -11,6 +11,10 @@ public interface IPersonaConflictResolutionService
 {
     /// <summary>Settles one open conflict with the operator's action, in one transaction, and audits it.</summary>
     Task<PersonaConflictResolveOutcome> ResolveAsync(Guid id, PersonaConflictResolveRequest request, CancellationToken ct);
+
+    /// <summary>The same, audited under <paramref name="actor"/>: <c>auto</c> for the same-name merge (#2271).</summary>
+    Task<PersonaConflictResolveOutcome> ResolveAsync(
+        Guid id, PersonaConflictResolveRequest request, string actor, CancellationToken ct);
 }
 
 public enum PersonaConflictResolveResult
@@ -34,11 +38,16 @@ public sealed record PersonaConflictResolveOutcome(
 /// </summary>
 public sealed class PersonaConflictResolutionService(
     TrueMainDbContext db,
+    PersonaMerger merger,
     IAuditLog auditLog,
     ILogger<PersonaConflictResolutionService> logger) : IPersonaConflictResolutionService
 {
+    public Task<PersonaConflictResolveOutcome> ResolveAsync(
+        Guid id, PersonaConflictResolveRequest request, CancellationToken ct) =>
+        ResolveAsync(id, request, "operator", ct);
+
     public async Task<PersonaConflictResolveOutcome> ResolveAsync(
-        Guid id, PersonaConflictResolveRequest request, CancellationToken ct)
+        Guid id, PersonaConflictResolveRequest request, string actor, CancellationToken ct)
     {
         if (Parse(request) is not { } action)
         {
@@ -85,7 +94,7 @@ public sealed class PersonaConflictResolutionService(
 
         if (outcome.Resolved is { } resolved)
         {
-            await AuditAsync(id, resolved, ct);
+            await AuditAsync(id, resolved, actor, ct);
         }
 
         return outcome;
@@ -175,104 +184,19 @@ public sealed class PersonaConflictResolutionService(
         return Ok(conflict, PersonaConflictResolution.Detached, null, null, 0);
     }
 
-    /// <summary>
-    /// The two personas are one person: the other one's accounts, links and exclusions move to the kept
-    /// one, and it stays behind empty, pointing at the kept persona — its slug redirects there and the
-    /// intake feeds the kept persona when a source sends it.
-    /// </summary>
+    /// <summary>The two personas are one person: merged into the one the operator kept (<see cref="PersonaMerger"/>).</summary>
     private async Task<PersonaConflictResolveOutcome> MergeAsync(
         PersonaAccountConflict conflict, bool keepClaimant, CancellationToken ct)
     {
         var keptId = keepClaimant ? conflict.ClaimantPersonaId : conflict.OwnerPersonaId;
         var mergedId = keepClaimant ? conflict.OwnerPersonaId : conflict.ClaimantPersonaId;
-        if (await db.Personas.AnyAsync(
-                p => (p.Id == keptId || p.Id == mergedId) && (p.MergedIntoPersonaId != null || p.RemovedAtUtc != null), ct))
+        if (await merger.MergeAsync(keptId, mergedId, conflict.Id, ct) is not { } alsoResolved)
         {
             return Stale();
         }
 
-        // Riot IDs and tracked accounts are unique across personas, so the accounts move as they are.
-        await db.PersonaAccounts.Where(a => a.PersonaId == mergedId)
-            .ExecuteUpdateAsync(set => set.SetProperty(a => a.PersonaId, keptId), ct);
-
-        var keptUrls = await db.PersonaLinks.Where(l => l.PersonaId == keptId).Select(l => l.Url.ToLower()).ToListAsync(ct);
-        await db.PersonaLinks.Where(l => l.PersonaId == mergedId && keptUrls.Contains(l.Url.ToLower())).ExecuteDeleteAsync(ct);
-        await db.PersonaLinks.Where(l => l.PersonaId == mergedId)
-            .ExecuteUpdateAsync(set => set.SetProperty(l => l.PersonaId, keptId), ct);
-
-        await MoveExclusionsAsync(mergedId, keptId, ct);
-        var alsoResolved = await MoveConflictsAsync(conflict, mergedId, keptId, ct);
-
-        var now = DateTime.UtcNow;
-        await db.Personas.Where(p => p.MergedIntoPersonaId == mergedId)
-            .ExecuteUpdateAsync(set => set.SetProperty(p => p.MergedIntoPersonaId, keptId), ct);
-        await db.Personas.Where(p => p.Id == mergedId).ExecuteUpdateAsync(
-            set => set.SetProperty(p => p.MergedIntoPersonaId, keptId).SetProperty(p => p.UpdatedAtUtc, now), ct);
-        await db.Personas.Where(p => p.Id == keptId).ExecuteUpdateAsync(set => set.SetProperty(p => p.UpdatedAtUtc, now), ct);
-
         Close(conflict, PersonaConflictResolution.Merged);
         return Ok(conflict, PersonaConflictResolution.Merged, await SlugAsync(keptId, ct), await SlugAsync(mergedId, ct), alsoResolved);
-    }
-
-    private async Task MoveExclusionsAsync(Guid fromId, Guid toId, CancellationToken ct)
-    {
-        var moving = await db.PersonaAccountExclusions.Where(e => e.PersonaId == fromId).ToListAsync(ct);
-        foreach (var exclusion in moving)
-        {
-            if (await HasExclusionAsync(toId, exclusion.PlatformId, exclusion.GameName, exclusion.TagLine, ct))
-            {
-                db.PersonaAccountExclusions.Remove(exclusion);
-            }
-            else
-            {
-                exclusion.PersonaId = toId;
-            }
-        }
-    }
-
-    /// <summary>
-    /// After a merge: every open conflict between the two is settled by it, and the merged persona's
-    /// other open claims and holdings become the kept persona's. Resolved ones keep their history.
-    /// </summary>
-    private async Task<int> MoveConflictsAsync(PersonaAccountConflict conflict, Guid mergedId, Guid keptId, CancellationToken ct)
-    {
-        var now = DateTime.UtcNow;
-        var between = await db.PersonaAccountConflicts
-            .Where(c => c.Id != conflict.Id && c.Status == PersonaConflictStatus.Open
-                        && (c.ClaimantPersonaId == mergedId || c.ClaimantPersonaId == keptId)
-                        && (c.OwnerPersonaId == mergedId || c.OwnerPersonaId == keptId))
-            .ExecuteUpdateAsync(
-                set => set.SetProperty(c => c.Status, PersonaConflictStatus.Resolved)
-                    .SetProperty(c => c.Resolution, PersonaConflictResolution.Merged)
-                    .SetProperty(c => c.ResolvedAtUtc, now),
-                ct);
-
-        await db.PersonaAccountConflicts
-            .Where(c => c.Status == PersonaConflictStatus.Open && c.OwnerPersonaId == mergedId)
-            .ExecuteUpdateAsync(set => set.SetProperty(c => c.OwnerPersonaId, keptId), ct);
-
-        var claims = await db.PersonaAccountConflicts
-            .Where(c => c.Id != conflict.Id && c.Status == PersonaConflictStatus.Open && c.ClaimantPersonaId == mergedId)
-            .ToListAsync(ct);
-        foreach (var claim in claims)
-        {
-            var nameLower = claim.GameName.ToLowerInvariant();
-            var tagLower = claim.TagLine.ToLowerInvariant();
-            var duplicate = await db.PersonaAccountConflicts.AnyAsync(
-                c => c.ClaimantPersonaId == keptId && c.PlatformId == claim.PlatformId
-                     && c.GameName.ToLower() == nameLower && c.TagLine.ToLower() == tagLower,
-                ct);
-            if (duplicate)
-            {
-                db.PersonaAccountConflicts.Remove(claim);
-            }
-            else
-            {
-                claim.ClaimantPersonaId = keptId;
-            }
-        }
-
-        return between;
     }
 
     /// <summary>
@@ -415,7 +339,7 @@ public sealed class PersonaConflictResolutionService(
             AlsoResolved = alsoResolved,
         });
 
-    private async Task AuditAsync(Guid id, PersonaConflictResolvedResponse resolved, CancellationToken ct)
+    private async Task AuditAsync(Guid id, PersonaConflictResolvedResponse resolved, string actor, CancellationToken ct)
     {
         // Best effort, like the seed intake's: the resolution is committed; a Mongo outage must not 500 it.
         try
@@ -433,7 +357,7 @@ public sealed class PersonaConflictResolutionService(
 
             await auditLog.RecordAsync(
                 action: "resolve_persona_conflict",
-                actor: "operator",
+                actor: actor,
                 targetType: "PersonaAccountConflict",
                 targetId: id.ToString(),
                 metadata: metadata,

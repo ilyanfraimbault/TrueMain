@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // Known players — the operator's view of the people the scrapers group Riot accounts
 // under. Two questions: who is listed, with what (the players tab, #2019: list, manual
-// add and edit, unlink, removal); and which accounts do two known players claim (the
-// conflict queue, #2253). `?status=open|resolved` deep-links the queue.
+// add and edit, unlink, removal); which accounts do two known players claim (the
+// conflict queue, #2253); and which known players share a name with no account in
+// common (the homonyms queue, #2271). `?status=open|resolved|homonyms` deep-links them.
 import type { PersonaConflictStatus } from '~~/shared/types/ops'
 
-type Tab = 'Players' | PersonaConflictStatus
+type Tab = 'Players' | 'Homonyms' | PersonaConflictStatus
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +14,9 @@ const router = useRouter()
 function parseTab(raw: unknown): Tab {
   if (raw === 'resolved') {
     return 'Resolved'
+  }
+  if (raw === 'homonyms') {
+    return 'Homonyms'
   }
   return raw === 'open' ? 'Open' : 'Players'
 }
@@ -37,16 +41,22 @@ watch(() => route.query.status, (raw) => {
 
 interface ConflictsPanel { refresh: () => void, pending: boolean, counts: { open: number, resolved: number } }
 interface DirectoryPanel { refresh: () => void, pending: boolean }
+interface HomonymsPanel { refresh: () => void, pending: boolean, total: number }
 const conflicts = ref<ConflictsPanel | null>(null)
 const directory = ref<DirectoryPanel | null>(null)
+const homonyms = ref<HomonymsPanel | null>(null)
 
 const TABS: { value: Tab, label: string, icon: string }[] = [
   { value: 'Players', label: 'Players', icon: 'i-lucide-users' },
   { value: 'Open', label: 'Open conflicts', icon: 'i-lucide-git-pull-request-arrow' },
   { value: 'Resolved', label: 'Resolved conflicts', icon: 'i-lucide-check-check' },
+  { value: 'Homonyms', label: 'Homonyms', icon: 'i-lucide-copy' },
 ]
 
 function label(value: Tab, text: string) {
+  if (value === 'Homonyms') {
+    return homonyms.value ? `${text} · ${homonyms.value.total}` : text
+  }
   const counts = conflicts.value?.counts
   if (value === 'Players' || !counts) {
     return text
@@ -54,15 +64,16 @@ function label(value: Tab, text: string) {
   return `${text} · ${value === 'Open' ? counts.open : counts.resolved}`
 }
 
-const pending = computed(() => (tab.value === 'Players' ? directory.value?.pending : conflicts.value?.pending) ?? false)
+const panel = computed(() => {
+  if (tab.value === 'Players') {
+    return directory.value
+  }
+  return tab.value === 'Homonyms' ? homonyms.value : conflicts.value
+})
+const pending = computed(() => panel.value?.pending ?? false)
 
 function refresh() {
-  if (tab.value === 'Players') {
-    directory.value?.refresh()
-  }
-  else {
-    conflicts.value?.refresh()
-  }
+  panel.value?.refresh()
 }
 </script>
 
@@ -104,6 +115,7 @@ function refresh() {
 
     <template #body>
       <KnownPlayersDirectory v-if="tab === 'Players'" ref="directory" />
+      <KnownPlayersHomonyms v-else-if="tab === 'Homonyms'" ref="homonyms" />
       <KnownPlayersConflicts v-else ref="conflicts" v-model:status="status" />
     </template>
   </UDashboardPanel>

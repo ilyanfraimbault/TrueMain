@@ -2,6 +2,7 @@ import type { MaybeRefOrGetter } from 'vue'
 import type {
   PersonaAccountInput,
   PersonaAdminDetail,
+  PersonaAutoMerged,
   PersonaConflictDetail,
   PersonaConflictResolveBody,
   PersonaConflictResolved,
@@ -9,6 +10,12 @@ import type {
   PersonaConflictsResponse,
   PersonaCreateBody,
   PersonaEdited,
+  PersonaHomonymDistinctBody,
+  PersonaHomonymMarked,
+  PersonaHomonymMergeBody,
+  PersonaHomonymMerged,
+  PersonaHomonymsFilters,
+  PersonaHomonymsResponse,
   PersonaLinkInput,
   PersonaListFilters,
   PersonasPage,
@@ -39,6 +46,34 @@ export function resolvePersonaConflict(id: string, body: PersonaConflictResolveB
     method: 'POST',
     body,
   })
+}
+
+/**
+ * `POST /api/ops/personas/conflicts/auto-merge` — settle as merges the open
+ * conflicts whose two known players share a name (#2271). The intake runs the
+ * same sweep after every batch; this one clears the backlog.
+ */
+export function autoMergePersonaConflicts() {
+  return $fetch<PersonaAutoMerged>('/api/ops/personas/conflicts/auto-merge', { method: 'POST' })
+}
+
+// Known players sharing a name without a common account (#2271): the operator
+// merges them or marks them as different people. Both throw a `FetchError`: 400
+// on a malformed body, 409 when one was merged or removed meanwhile.
+
+/** `GET /api/ops/personas/homonyms` — groups of same-name known players, in name order, paged. */
+export function usePersonaHomonyms(filters: MaybeRefOrGetter<PersonaHomonymsFilters>) {
+  return useOps<PersonaHomonymsResponse>('/personas/homonyms', () => ({ ...toValue(filters) }))
+}
+
+/** `POST /api/ops/personas/homonyms/merge` — fold known players into the one kept. */
+export function mergePersonaHomonyms(body: PersonaHomonymMergeBody) {
+  return $fetch<PersonaHomonymMerged>('/api/ops/personas/homonyms/merge', { method: 'POST', body })
+}
+
+/** `POST /api/ops/personas/homonyms/distinct` — mark known players as different people. */
+export function markPersonaHomonymsDistinct(body: PersonaHomonymDistinctBody) {
+  return $fetch<PersonaHomonymMarked>('/api/ops/personas/homonyms/distinct', { method: 'POST', body })
 }
 
 // The known-players management of the ops API (#2019). Every edit throws a
