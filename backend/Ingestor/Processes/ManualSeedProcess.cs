@@ -275,9 +275,9 @@ public sealed class ManualSeedProcess(
         try
         {
             await auditLog.RecordAsync(
-                action: "seed_account_ingested",
-                actor: "ingestor",
-                targetType: "SeedRequest",
+                action: AuditActions.SeedAccountIngested,
+                actor: AuditActors.Ingestor,
+                targetType: AuditTargets.SeedRequest,
                 targetId: request.Id.ToString(),
                 metadata: new Dictionary<string, string>
                 {

@@ -1,5 +1,6 @@
 using Data;
 using Data.Entities;
+using Data.Logging.Mongo;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Requests.Ops;
@@ -36,7 +37,7 @@ public sealed class PersonaHomonymService(TrueMainDbContext db, PersonaMerger me
 
     public Task<PersonaHomonymOutcome<PersonaHomonymMergeResponse>> MergeAsync(
         PersonaHomonymMergeRequest request, CancellationToken ct) =>
-        MergeAsync(request, "operator", ct);
+        MergeAsync(request, AuditActors.Operator, ct);
 
     public async Task<PersonaHomonymOutcome<PersonaHomonymMergeResponse>> MergeAsync(
         PersonaHomonymMergeRequest request, string actor, CancellationToken ct)
@@ -81,7 +82,7 @@ public sealed class PersonaHomonymService(TrueMainDbContext db, PersonaMerger me
         if (outcome.Response is { } merged)
         {
             await audit.RecordAsync(
-                "merge_personas", keepId, merged.KeptSlug, new() { ["merged"] = string.Join(",", merged.MergedSlugs) }, actor, ct);
+                AuditActions.MergePersonas, keepId, merged.KeptSlug, new() { ["merged"] = string.Join(",", merged.MergedSlugs) }, actor, ct);
         }
 
         return outcome;
@@ -132,7 +133,7 @@ public sealed class PersonaHomonymService(TrueMainDbContext db, PersonaMerger me
         }
 
         await audit.RecordAsync(
-            "mark_personas_distinct", ids[0], slugs[ids[0]], new() { ["others"] = string.Join(",", ids.Skip(1).Select(id => slugs[id])) }, ct);
+            AuditActions.MarkPersonasDistinct, ids[0], slugs[ids[0]], new() { ["others"] = string.Join(",", ids.Skip(1).Select(id => slugs[id])) }, ct);
         return new(PersonaEditResult.Ok, Response: new PersonaHomonymDistinctResponse { Marked = marked });
     }
 

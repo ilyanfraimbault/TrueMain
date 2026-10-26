@@ -47,9 +47,10 @@ public static class MongoLoggingServiceCollectionExtensions
         services.TryAddSingleton<MongoLogChannel>();
 
         // The lossless audit writer (synchronous insert, never the channel). The
-        // read query for /ops/logs. Both reuse the singleton MongoLogContext.
+        // read queries for /ops/logs and /ops/audit-events. All reuse the singleton MongoLogContext.
         services.TryAddSingleton<IAuditLog, MongoAuditLog>();
         services.TryAddSingleton<IMongoLogQuery, MongoLogQuery>();
+        services.TryAddSingleton<IAuditEventQuery, MongoAuditEventQuery>();
 
         // Records reported by other processes (the frontends, through the API's
         // POST /internal/logs, #1556), written to the same channel as this host's own.
