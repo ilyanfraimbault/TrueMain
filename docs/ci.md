@@ -1131,6 +1131,12 @@ leaves a misleading version on the page (#1637).
   of `Abandoned`, which means the host died instead of stopping — and the claims
   the dead incarnation held are released at the next boot rather than a full
   `MatchIngestion:ClaimLeaseMinutes` later.
+- `ALERTING_DISCORD_WEBHOOK_URL` turns the Api's pipeline-health alerts on (#2292):
+  the Discord webhook they are posted to, passed as `Alerting__DiscordWebhookUrl` and
+  defaulting to empty, which leaves alerting off. It is a credential, so it lives in
+  the stack `.env` only. The compose files also set `Alerting__AdminBaseUrl` (the
+  `/health` link) and `Alerting__EnvironmentLabel` (the title prefix that tells the
+  two stacks apart in one channel).
 - `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
   projects against (#925). Unset means no forecast at all, which the admin
   panel says explicitly instead of fitting a line to a guessed capacity.

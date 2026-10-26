@@ -85,7 +85,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
         api.ProcessName.Should().Be("Api");
         api.Environment.Should().Be("Testing", "the snapshot names the environment the host really booted in");
         api.Sections.Select(section => section.Name).Should().Equal(
-            "MainAnalysis", "Database", "MongoLogging", "ChampionsList", "DataQualityDetectors", "StorageHistory");
+            "MainAnalysis", "Database", "MongoLogging", "ChampionsList", "DataQualityDetectors", "StorageHistory", "Alerting");
         api.Sections.Should().OnlyContain(section => section.Values.Count > 0);
         api.Sections.Should().OnlyContain(section => section.Description.Length > 0);
     }

@@ -26,15 +26,17 @@ const { data: fetched, pending, refreshing, error, refresh } = usePipelineHealth
 // below, so a kept payload says how old it is rather than passing for live.
 const data = useLastGoodPayload(fetched, 'pipeline-health')
 
+// What the alerter sent (#2292): its own fetch, so a failing read costs the panel only.
+const { data: healthAlerts, pending: alertsPending, refresh: refreshAlerts } = useHealthAlerts()
+
 // The cockpit is read as live — it is the "is it on fire right now" page — so it
 // re-evaluates itself on a 30 s timer instead of waiting for a reload (#1411).
-// The whole page is one payload, so one source covers the verdict and every tile.
 const {
   lastUpdatedAt,
   paused: livePaused,
   toggle: toggleLive,
   refreshNow,
-} = useLiveRefresh(refresh, { hiddenEvery: HIDDEN_VERDICT_REFRESH_MS })
+} = useLiveRefresh([refresh, refreshAlerts], { hiddenEvery: HIDDEN_VERDICT_REFRESH_MS })
 
 const verdict = computed(() => detectorStatusMeta(data.value?.status))
 // The verdict in the tab title and favicon too (#2296), from this same payload.
@@ -181,6 +183,8 @@ const visibleProcesses = computed(() =>
           </UCard>
         </NuxtLink>
       </div>
+
+      <HealthAlertsPanel :alerts="healthAlerts ?? null" :pending="alertsPending" class="mb-8" />
 
       <!-- Riot API budget — informational, and labelled as such: it is a link to the
            Processes page's Riot API tab, not a signal the verdict above weighed. -->

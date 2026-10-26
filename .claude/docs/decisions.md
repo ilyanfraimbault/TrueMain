@@ -390,6 +390,7 @@ Last verified against `develop` on 2026-09-02.
 - The cockpit payloads are kept warm by one background refresher, only while read, one at a time; a stale value is served with its computed-at time rather than making the click wait (2026-10-26) — #2305
 - A process run is compared with the median of its last 20 successes of the same process and mode, flagged at ≥ +100 % / ≤ −50 %, nothing under 5 runs; thresholds in the Api only (2026-10-26) — #2298
 - The audit trail's wording is one backend catalog served with the events, and a known player's History is the events targeting it (2026-10-26) — #2288
+- The pipeline-health verdict is announced on a Discord webhook, on transitions only (red held 2 evaluations, a process at 3 failed runs, recoveries), 1 h cooldown per signal, state in Mongo, from the cockpit payload read without counting as a visit (2026-10-26) — #2292
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 

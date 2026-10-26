@@ -577,3 +577,29 @@ The thresholds live in one place, `ProcessRunBaselinePolicy` in the Api, and the
 - **Why the current baseline for every row, not the history before each run.** One bounded index walk per
   (process, mode) on the page (`ix_process_finished`, limit 20), cached 60 s, instead of a lookup per row.
 - **Why top-level counters only.** Nested breakdowns (per platform, per step) are not comparable field by field.
+
+## The pipeline-health verdict is announced on Discord, on transitions only, from the cockpit's own payload (2026-10-26)
+
+**Decision:** a hosted service in the Api (`PipelineHealthAlerter`) evaluates the `/health` payload every 5 minutes
+and posts to a **Discord webhook** (`Alerting:DiscordWebhookUrl`, `ALERTING_DISCORD_WEBHOOK_URL` in the stack env)
+when something changes: a cockpit signal opening an incident (red for 2 evaluations in a row), a process reaching 3
+consecutive failed runs, and either one recovering. One message per evaluation, naming the signals that changed and
+linking to `/health` (`Alerting:AdminBaseUrl`). No webhook → the service is off, and both `/health` and the
+configuration page say so. Each alert is recorded in Mongo (`health_alerts`, 90-day TTL) and the last ones are listed
+on `/health`; the incident state is one versioned document (`health_alert_state`). #2292
+
+- **Why Discord.** It reaches the operator's phone with no mail server, no push provider and no account to run;
+  e-mail and push were the alternatives considered.
+- **Why the cockpit payload, read without counting as a visit.** The alerter must never judge differently from the
+  page it links to, so it reads the same warm payload (#2305) — but through `WarmPayload.GetUnreadAsync`: a read
+  through the normal path would keep the background refresher recomputing it every few seconds all day, while this
+  costs one evaluation per 5 minutes at most, none while an open cockpit keeps it fresh.
+- **Why transitions, a 2-evaluation debounce and a 1-hour cooldown per signal.** A held red is one incident, not a
+  message every 5 minutes; one bad sample (a cold read timing out, a deploy) is not an incident; a flapping signal
+  costs one message per cooldown, and is announced then if it is still failing. `unknown` neither opens nor closes.
+- **Why the state lives in Mongo and the first evaluation after boot only observes.** A deploy must neither
+  re-announce an open incident nor forget it, and a freshly started host's first reads are its least trustworthy.
+  The state is saved before the message is sent, conditioned on its version, so two Api containers evaluating at
+  once during a rolling deploy cannot both announce one transition; a refused delivery is recorded and retried.
+- **The webhook URL is a credential.** It is never committed, never logged (its HTTP client has no request loggers),
+  and the configuration page shows `Enabled` in its place; `webhook` joined the secret-name fragments.

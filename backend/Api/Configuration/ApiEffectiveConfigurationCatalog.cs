@@ -60,6 +60,44 @@ public static class ApiEffectiveConfigurationCatalog
             + "numbers, which is most of the reason this section is worth showing."
     };
 
+    /// <summary>
+    /// The pipeline-health alerter (#2292). Its include-list leaves the webhook URL out — it is
+    /// the channel's credential — and shows <see cref="AlertingOptions.Enabled"/> in its place,
+    /// so the page says whether alerting is on without saying where it posts.
+    /// </summary>
+    internal static EffectiveConfigurationSectionDescriptor Alerting { get; } = new()
+    {
+        SectionName = AlertingOptions.SectionName,
+        OptionsType = typeof(AlertingOptions),
+        Title = "Health alerting",
+        Description =
+            "When the /health verdict is announced on Discord: how often it is evaluated, how "
+            + "many red evaluations make an incident, the per-signal cooldown and the failed-run "
+            + "streak at which a process is announced.",
+        IncludeProperties =
+        [
+            nameof(AlertingOptions.Enabled),
+            nameof(AlertingOptions.AdminBaseUrl),
+            nameof(AlertingOptions.EnvironmentLabel),
+            nameof(AlertingOptions.EvaluationInterval),
+            nameof(AlertingOptions.RedConfirmations),
+            nameof(AlertingOptions.Cooldown),
+            nameof(AlertingOptions.ProcessFailureThreshold)
+        ],
+        Notices =
+        [
+            new EffectiveConfigurationNotice(
+                nameof(AlertingOptions.Enabled),
+                UnsetCondition.ZeroOrNegative,
+                "Alerting is off: no Discord webhook is configured. Set Alerting:DiscordWebhookUrl "
+                + "(ALERTING_DISCORD_WEBHOOK_URL in the stack environment) to turn it on."),
+            new EffectiveConfigurationNotice(
+                nameof(AlertingOptions.AdminBaseUrl),
+                UnsetCondition.EmptyText,
+                "Alerts name the /health path instead of linking to it.")
+        ]
+    };
+
     public static EffectiveConfigurationCatalog Instance { get; } = new(
         ProcessName: "Api",
         Sections:
@@ -69,6 +107,7 @@ public static class ApiEffectiveConfigurationCatalog
             SharedEffectiveConfigurationSections.MongoLogging,
             ChampionsList,
             DataQualityDetectors,
-            StorageHistory
+            StorageHistory,
+            Alerting
         ]);
 }

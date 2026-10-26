@@ -22,7 +22,9 @@ public static class EffectiveConfigurationRedaction
         "passphrase",
         "connectionstring",
         "apikey",
-        "privatekey"
+        "privatekey",
+        // A webhook URL carries its own credential in the path (#2292): whoever has it can post.
+        "webhook"
     ];
 
     /// <summary>
