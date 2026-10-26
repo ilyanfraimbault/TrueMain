@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
+import { withNavBadges, navBadges } from '~/utils/nav-badges'
 import { NAV_GROUPS } from '~/utils/navigation'
 import { createOpsPrefetcher, hoveredRoute } from '~/utils/ops-cache'
 
@@ -23,9 +24,12 @@ const open = ref(false)
 // pages, what it recognises in the typed term (#2290, `usePaletteSearch`).
 const { term: searchTerm, groups: searchGroups, loading: searchLoading } = usePaletteSearch()
 
+// Pending counts and the health dot (#2294), refreshed every minute while visible.
+const { summary } = useNavSummary()
+
 // Closing the mobile drawer is a link concern; the group labels are not links.
 const groups = computed<NavigationMenuItem[][]>(() =>
-  NAV_GROUPS.map(group => group.map(item => (
+  withNavBadges(NAV_GROUPS, navBadges(summary.value)).map(group => group.map(item => (
     item.type === 'label'
       ? item
       : {
