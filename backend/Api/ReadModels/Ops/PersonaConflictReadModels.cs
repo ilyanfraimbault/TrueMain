@@ -104,6 +104,9 @@ public sealed record PersonaConflictPersonaReadModel
 
     public string Source { get; init; } = string.Empty;
 
+    /// <summary>When the persona was created: the older one is the one a bulk merge keeps (#2295).</summary>
+    public DateTime CreatedAtUtc { get; init; }
+
     public int AccountCount { get; init; }
 
     public int LinkCount { get; init; }

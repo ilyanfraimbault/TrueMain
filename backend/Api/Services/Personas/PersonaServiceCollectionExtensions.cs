@@ -2,7 +2,7 @@ namespace TrueMain.Services.Personas;
 
 /// <summary>
 /// Registers the known-players surface (#2016): the public read, the ops write, the conflict queue
-/// (#2253) and its channel conflicts (#2286), the operator's edits (#2019) and the homonyms queue (#2271).
+/// (#2253), its bulk resolution (#2295) and its channel conflicts (#2286), the operator's edits (#2019) and the homonyms queue (#2271).
 /// </summary>
 public static class PersonaServiceCollectionExtensions
 {
@@ -14,6 +14,7 @@ public static class PersonaServiceCollectionExtensions
         services.AddScoped<IPersonaConflictQueryService, PersonaConflictQueryService>();
         services.AddScoped<PersonaMerger>();
         services.AddScoped<IPersonaConflictResolutionService, PersonaConflictResolutionService>();
+        services.AddScoped<IPersonaConflictBulkResolutionService, PersonaConflictBulkResolutionService>();
         services.AddScoped<PersonaChannelConflictFinder>();
         services.AddScoped<IPersonaChannelConflictQueryService, PersonaChannelConflictQueryService>();
         services.AddScoped<IPersonaAutoMergeService, PersonaAutoMergeService>();
