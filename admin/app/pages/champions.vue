@@ -52,7 +52,7 @@ function resetFilters() {
   position.value = ALL
 }
 
-const { data, pending, error, refresh } = useChampionStats(filters)
+const { data, pending, refreshing, error, refresh } = useChampionStats(filters)
 const { nameFor, iconFor, pending: staticPending } = useChampionStatic()
 
 // Join the ops rows with DDragon names/icons.
@@ -148,7 +148,7 @@ const mainsLabelFormatter = computed(() =>
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="refreshing"
             aria-label="Refresh"
             @click="refresh()"
           />

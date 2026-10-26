@@ -19,27 +19,18 @@ import type {
 // (seed requests, candidates, account explorer).
 
 /**
- * Strip `undefined`, `null`, and empty-string values from a query object so an
- * unset filter is omitted from the request entirely (the backend treats an
- * absent param as "no filter"). Numbers — including `0` — are preserved.
- */
-function cleanQuery(
-  filters: Record<string, string | number | boolean | undefined>,
-): Record<string, string | number | boolean> {
-  const out: Record<string, string | number | boolean> = {}
-  for (const [key, value] of Object.entries(filters)) {
-    if (value === undefined || value === null || value === '') {
-      continue
-    }
-    out[key] = value
-  }
-  return out
-}
-
-/**
  * Thin wrapper around `useFetch('/api/ops' + path)` — the browser-facing,
- * session-authenticated proxy to the backend ops API. Returns the standard
- * `useFetch` shape (`data`, `pending`, `error`, `refresh`, `status`).
+ * session-authenticated proxy to the backend ops API. Returns the `useFetch`
+ * shape (`data`, `pending`, `error`, `refresh`, `status`) plus `refreshing`.
+ *
+ * Stale-while-revalidate across navigations (#2306, `utils/ops-cache.ts`): a
+ * panel returning to a key fetched in the last few minutes starts from the stored
+ * payload and revalidates behind it. Hence the one departure from `useFetch`:
+ * **`pending` means "nothing to draw yet"** — a request in flight with no payload
+ * on screen, the skeleton's condition — while `refreshing` is any request in
+ * flight, what a refresh button's spinner shows. A panel that writes
+ * `v-if="pending"` for its skeleton therefore keeps the cached content instead of
+ * blanking it on every visit.
  *
  * `query` may be a getter/ref so callers can pass reactive filters; `useFetch`
  * watches it and re-fetches when it changes. Every ops fetch runs client-side:
@@ -55,17 +46,30 @@ export function useOps<T>(
   const queryParams = query
     ? computed(() => cleanQuery(toValue(query)))
     : undefined
-  return useFetch<T>(`/api/ops${path}`, {
+  // Distinct per (path, query), see `opsCacheKey`.
+  const key = queryParams
+    ? computed(() => opsCacheKey(path, queryParams.value))
+    : opsCacheKey(path)
+  const { loggedIn } = useUserSession()
+  const cacheOptions = opsCacheFetchOptions(key, () => loggedIn.value)
+  const fetched = useFetch<T>(`/api/ops${path}`, {
     query: queryParams,
-    // Distinct per (path, query) so concurrent panels hitting the same path with
-    // different filters don't collide on one cache entry. Without the query in
-    // the key, e.g. the Overview's unfiltered `/stats/champions` and the
-    // Champions panel's region-filtered one would share `ops:/stats/champions`
-    // and clobber each other's data.
-    key: queryParams
-      ? computed(() => `ops:${path}:${JSON.stringify(queryParams.value)}`)
-      : `ops:${path}`,
+    key,
+    onRequest: cacheOptions.onRequest,
+    onResponse: cacheOptions.onResponse,
+    // Both cast: `useFetch`'s overloads resolve its data type through conditional
+    // types a generic `T` cannot satisfy, and a typed `default` would widen `data`
+    // past `T | undefined`. At runtime each returns a payload stored for this key.
+    default: cacheOptions.default as () => undefined,
+    getCachedData: cacheOptions.getCachedData as never,
   })
+  trackOpsCacheShown(key)
+
+  const refreshing = computed(() => fetched.status.value === 'pending')
+  const pending = computed(() =>
+    refreshing.value && (fetched.data.value === undefined || fetched.data.value === null),
+  )
+  return { ...fetched, pending, refreshing }
 }
 
 /** `GET /api/ops/stats/overview` — site-wide totals for the Overview panel. */

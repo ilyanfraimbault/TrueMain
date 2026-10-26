@@ -7,7 +7,7 @@
 import type { AggregationFamily, AggregationRun } from '~~/shared/types/ops'
 import { formatDateTime, formatElapsed, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 
-const { data, pending, error, refresh } = useAggregations()
+const { data, pending, refreshing, error, refresh } = useAggregations()
 
 const families = computed<AggregationFamily[]>(() => data.value?.families ?? [])
 const backlog = computed(() => data.value?.backlog ?? null)
@@ -99,7 +99,7 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="refreshing"
             aria-label="Refresh"
             @click="refresh()"
           />
