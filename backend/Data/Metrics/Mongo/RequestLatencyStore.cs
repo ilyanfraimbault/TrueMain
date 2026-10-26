@@ -103,13 +103,15 @@ internal sealed class RequestLatencyStore(MongoLogContext context, IOptions<Mong
             })));
         }
 
-        var pipeline = PipelineDefinition<RequestLatencyRollupDocument, BsonDocument>.Create(
+        IReadOnlyList<BsonDocument> stages =
         [
             new BsonDocument("$match", new BsonDocument("bucketStartUtc", new BsonDocument("$gte", sinceUtc))),
             new BsonDocument("$group", group)
-        ]);
+        ];
+        var pipeline = PipelineDefinition<RequestLatencyRollupDocument, BsonDocument>.Create(stages);
 
-        var groups = await Rollups.Aggregate(pipeline, cancellationToken: ct).ToListAsync(ct);
+        using var cursor = await Rollups.AggregateAsync(pipeline, cancellationToken: ct);
+        var groups = await cursor.ToListAsync(ct);
 
         var oldest = await Rollups
             .Find(FilterDefinition<RequestLatencyRollupDocument>.Empty)

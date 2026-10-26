@@ -23,11 +23,11 @@ import { pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
 // `?view=riot-api`. `scrapers` (#2119) holds the ops scripts kept outside the repo;
 // `performance` (#2307) how fast the ops API answers the admin.
 type ProcessesView = 'runs' | 'riot-api' | 'scrapers' | 'performance'
-const TAB_VIEWS: readonly string[] = ['riot-api', 'scrapers', 'performance']
+const TAB_VIEWS: ReadonlySet<string> = new Set(['riot-api', 'scrapers', 'performance'])
 const route = useRoute()
 const router = useRouter()
 function parseView(raw: unknown): ProcessesView {
-  return typeof raw === 'string' && TAB_VIEWS.includes(raw) ? raw as ProcessesView : 'runs'
+  return typeof raw === 'string' && TAB_VIEWS.has(raw) ? raw as ProcessesView : 'runs'
 }
 const view = ref<ProcessesView>(parseView(route.query.view))
 watch(view, (value) => {
