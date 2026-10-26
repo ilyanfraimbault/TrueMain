@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FormError, FormSubmitEvent } from '@nuxt/ui'
+import { safeRedirectPath } from '~~/shared/utils/login-redirect'
 
 // The global auth middleware already redirects an authenticated visitor away
 // from `/login`, so this page only ever renders for signed-out operators. It
@@ -9,6 +10,7 @@ definePageMeta({
 })
 
 const { fetch: refreshSession } = useUserSession()
+const route = useRoute()
 
 const state = reactive({
   username: '',
@@ -36,7 +38,9 @@ async function onSubmit(_event: FormSubmitEvent<typeof state>) {
     // Refresh the client session so `loggedIn` flips before we navigate;
     // otherwise the global middleware would bounce us straight back here.
     await refreshSession()
-    await navigateTo('/')
+    // Back to the page the operator was sent here from (#2289) — only ever a
+    // same-origin path: `?redirect=` is attacker-controllable.
+    await navigateTo(safeRedirectPath(route.query.redirect))
   }
   catch (err: unknown) {
     // extractFetchError surfaces the server's actual reason (e.g. the 429

@@ -28,7 +28,8 @@ export default defineNuxtPlugin((nuxtApp) => {
         // navigate, or the global middleware bounces /login straight back to /.
         await clear()
       }
-      const target = loginRedirectTarget(useRouter().currentRoute.value.path)
+      const { path, fullPath } = useRouter().currentRoute.value
+      const target = loginRedirectTarget(path, fullPath)
       if (target) {
         await navigateTo(target)
       }

@@ -1,4 +1,6 @@
-export const LOGIN_PATH = '/login'
+import { LOGIN_PATH, loginLocation, type LoginLocation } from '~~/shared/utils/login-redirect'
+
+export { LOGIN_PATH }
 
 /**
  * Proxy prefixes whose 401 can only mean "the operator session is gone".
@@ -41,10 +43,12 @@ export function isSessionExpiry(url: string, status: number): boolean {
 }
 
 /**
- * Where to send an operator whose session just expired — `null` when they are
- * already on the login page, so a 401 fired from `/login` (or a second one
- * arriving after the redirect) cannot bounce the router against itself.
+ * Where to send an operator whose session just expired — the login page, carrying
+ * the page they were on as `?redirect=` so signing back in returns them there
+ * (#2289) — or `null` when they are already on the login page, so a 401 fired
+ * from `/login` (or a second one arriving after the redirect) cannot bounce the
+ * router against itself.
  */
-export function loginRedirectTarget(currentPath: string): string | null {
-  return currentPath === LOGIN_PATH ? null : LOGIN_PATH
+export function loginRedirectTarget(currentPath: string, currentFullPath = currentPath): LoginLocation | null {
+  return currentPath === LOGIN_PATH ? null : loginLocation(currentFullPath)
 }
