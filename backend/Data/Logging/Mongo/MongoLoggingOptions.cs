@@ -161,6 +161,26 @@ public sealed class MongoLoggingOptions
     public TimeSpan RequestLatencyRetention { get; set; } = TimeSpan.FromDays(30);
 
     /// <summary>
+    /// Collection holding every pipeline-health alert the Api sent (#2292), read by the
+    /// admin <c>/health</c> page's recent-alerts panel.
+    /// </summary>
+    public string HealthAlertsCollection { get; set; } = "health_alerts";
+
+    /// <summary>
+    /// Collection holding the health alerter's one state document (#2292): which signals have
+    /// an open incident, their debounce streaks and cooldowns, so a deploy neither re-alerts
+    /// nor forgets an incident.
+    /// </summary>
+    public string HealthAlertStateCollection { get; set; } = "health_alert_state";
+
+    /// <summary>
+    /// Retention window for <see cref="HealthAlertsCollection"/>, a TTL index on
+    /// <c>sentAtUtc</c>. Alerts are sent on transitions only, so the collection stays tiny;
+    /// ninety days keeps a quarter of incident history. Zero or negative disables it.
+    /// </summary>
+    public TimeSpan HealthAlertsRetention { get; set; } = TimeSpan.FromDays(90);
+
+    /// <summary>
     /// Master switch. When false (or when <see cref="ConnectionString"/> is
     /// blank) the provider is still registered but drops every record, so
     /// persisted logging can be turned off without code changes.
