@@ -362,7 +362,7 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
         // (processName, finishedAtUtc desc): it reads the first index entry of that
         // process (or the first few, skipping non-successes). The former $in + $sort +
         // $group pipeline sorted every run of every named process in memory to keep one
-        // row each, and the retained history only grows (#2303).
+        // row each, a cost that grows with the retained history (#2303).
         // The sort keys match the index exactly, so no in-memory SORT stage is planned;
         // two runs of one process finishing on the same millisecond is not a case.
         var builder = Builders<ProcessRunDocument>.Filter;
