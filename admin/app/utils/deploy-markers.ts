@@ -63,7 +63,7 @@ function lastIndexAtOrBefore(starts: readonly number[], at: number): number {
 function toMarker(index: number, deploys: readonly Deployment[]): ChartMarker {
   const ordered = [...deploys].sort((a, b) => Date.parse(a.deployedAtUtc) - Date.parse(b.deployedAtUtc))
   const versions = [...new Set(ordered.map(deploy => deploy.version))]
-  const latest = versions[versions.length - 1]!
+  const latest = versions.at(-1)!
   const label = versions.length > 1 ? `${latest} (+${versions.length - 1})` : latest
   const title = ordered.map(describeDeploy).join('\n')
   return { index, label, title }
@@ -93,8 +93,8 @@ export function indexToPixelFromTicks(ticks: readonly AxisTick[]): ((index: numb
   if (usable.length < 2) {
     return null
   }
-  const first = usable.reduce((a, b) => (b.value < a.value ? b : a))
-  const last = usable.reduce((a, b) => (b.value > a.value ? b : a))
+  const first = usable.reduce((a, b) => (b.value < a.value ? b : a), usable[0]!)
+  const last = usable.reduce((a, b) => (b.value > a.value ? b : a), usable[0]!)
   if (last.value === first.value) {
     return null
   }
