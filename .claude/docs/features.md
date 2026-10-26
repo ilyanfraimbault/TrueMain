@@ -194,6 +194,17 @@ name fields prefilled (`?view=seed&riotId=`); known players matching the name or
 loaded on the first such term) → `/champions?search=` with the table filtered. Nothing is matched — and no request
 is sent — under two characters, so the pages still list instantly. Each target page reads its value from the query
 string on arrival and again when the palette jumps while it is already open (`useQueryValue`). Type, arrow, Enter.
+**Sidebar badges** (#2294): **Known players** carries one count — open account conflicts plus pending homonym
+groups (the page's tabs give the split, the badge's title too) — and **Health** a dot in the cockpit verdict's
+colour (`detectorStatusMeta`; amber, red, or a *measured* unknown). Nothing for a zero or a green verdict, and
+nothing at all after a failed fetch: never a stale or invented count. One light `GET /ops/nav-summary`
+(`useNavSummary`, mounted by the layout) re-asked every 60 s while the tab is visible, paused in a background tab
+(`useLiveRefresh`); server-side the two counts are cached 30 s and single-flighted (the conflicts'
+`(Status, LastSeenAtUtc)` index; the homonym groups from the stored, indexed `personas."NameKey"` instead of a
+regex per row), and the verdict is **peeked** from the warm pipeline-health payload (#2305) — never evaluated, and
+not counted as a read, so an admin tab left open does not keep the cockpit refresher busy. With no evaluation held,
+or one older than the refresher's 15 min idle window, the verdict is `unknown` with no `healthEvaluatedAtUtc`, and
+the dot stays off: the Overview and Health pages are the readers that keep it current.
 
 | Route | What it shows |
 |---|---|

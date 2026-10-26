@@ -2204,6 +2204,12 @@ namespace Data.Migrations
                     b.Property<Guid?>("MergedIntoPersonaId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasComputedColumnSql("regexp_replace(lower(\"DisplayName\"), '[[:space:]._-]+', '', 'g')", true);
+
                     b.Property<DateTime?>("RemovedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -2225,6 +2231,11 @@ namespace Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("MergedIntoPersonaId");
+
+                    b.HasIndex("NameKey")
+                        .HasFilter("\"MergedIntoPersonaId\" IS NULL AND \"RemovedAtUtc\" IS NULL");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("NameKey"), new[] { "Id" });
 
                     b.HasIndex("Slug")
                         .IsUnique();

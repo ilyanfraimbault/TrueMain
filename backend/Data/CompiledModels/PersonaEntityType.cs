@@ -21,10 +21,10 @@ namespace Data.CompiledModels
                 "Data.Entities.Persona",
                 typeof(Persona),
                 baseEntityType,
-                propertyCount: 9,
+                propertyCount: 10,
                 navigationCount: 3,
                 foreignKeyCount: 1,
-                unnamedIndexCount: 2,
+                unnamedIndexCount: 3,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -71,6 +71,18 @@ namespace Data.CompiledModels
                 nullable: true);
             mergedIntoPersonaId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
+            var nameKey = runtimeEntityType.AddProperty(
+                "NameKey",
+                typeof(string),
+                propertyInfo: typeof(Persona).GetProperty("NameKey", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Persona).GetField("<NameKey>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                valueGenerated: ValueGenerated.OnAddOrUpdate,
+                beforeSaveBehavior: PropertySaveBehavior.Ignore,
+                afterSaveBehavior: PropertySaveBehavior.Ignore);
+            nameKey.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+            nameKey.AddAnnotation("Relational:ComputedColumnSql", "regexp_replace(lower(\"DisplayName\"), '[[:space:]._-]+', '', 'g')");
+            nameKey.AddAnnotation("Relational:IsStored", true);
+
             var removedAtUtc = runtimeEntityType.AddProperty(
                 "RemovedAtUtc",
                 typeof(DateTime?),
@@ -115,6 +127,10 @@ namespace Data.CompiledModels
                 new[] { mergedIntoPersonaId });
 
             var index0 = runtimeEntityType.AddIndex(
+                new[] { nameKey });
+            index0.AddAnnotation("Relational:Filter", "\"MergedIntoPersonaId\" IS NULL AND \"RemovedAtUtc\" IS NULL");
+
+            var index1 = runtimeEntityType.AddIndex(
                 new[] { slug },
                 unique: true);
 
