@@ -13,7 +13,7 @@
          transitive. Stays on 2.x: Microsoft.OpenApi 3.x breaks the build
          until an AspNetCore.OpenApi release's XML-comment source generator
          targets the v3 object model (#1054). -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="3.11.0" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.18.3" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
