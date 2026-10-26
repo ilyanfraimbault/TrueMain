@@ -13,7 +13,7 @@ namespace TrueMain.Services;
 /// which the admin prints, so it is never presented as live — and the
 /// <c>CockpitCacheRefresher</c> recomputes it within a tick, because the read just marked it
 /// wanted. Only a payload with no value at all (never computed, or unread for
-/// <see cref="Retention"/>) makes the caller wait for the computation.
+/// <see cref="WarmPayloadRetention.Value"/>) makes the caller wait for the computation.
 /// </para>
 ///
 /// <para>
@@ -32,13 +32,6 @@ namespace TrueMain.Services;
 internal sealed class WarmPayload<T>(string key, TimeSpan ttl, TimeSpan failureBackoff) : IWarmPayload
     where T : class
 {
-    /// <summary>
-    /// How long a value is kept, and served stale, after its last computation. Long enough
-    /// that the first visit of the day still reads a value instantly: the refresher stops
-    /// recomputing an unread payload, so this is what an idle night leaves behind.
-    /// </summary>
-    internal static readonly TimeSpan Retention = TimeSpan.FromHours(24);
-
     private readonly RequestCoalescer<T> _coalescer = new();
 
     public string Key { get; } = key;
@@ -112,7 +105,7 @@ internal sealed class WarmPayload<T>(string key, TimeSpan ttl, TimeSpan failureB
         // A refresh keeps the read time the payload had: the refresher's own pass is not a
         // reader, otherwise an unread payload would keep itself warm for ever.
         var lastReadAt = TryGetEntry(cache, out var previous) ? previous.LastReadAtUtc : now;
-        cache.Store(Key, new Entry(computed, now, lastReadAt), Retention);
+        cache.Store(Key, new Entry(computed, now, lastReadAt), WarmPayloadRetention.Value);
         return computed;
     }
 
@@ -158,3 +151,17 @@ internal interface IWarmPayload
 }
 
 internal sealed record WarmPayloadState(DateTimeOffset ComputedAtUtc, DateTimeOffset LastReadAtUtc);
+
+/// <summary>
+/// The retention every <see cref="WarmPayload{T}"/> shares, held outside the generic type so it
+/// is one value rather than one static per closed payload type.
+/// </summary>
+internal static class WarmPayloadRetention
+{
+    /// <summary>
+    /// How long a value is kept, and served stale, after its last computation. Long enough
+    /// that the first visit of the day still reads a value instantly: the refresher stops
+    /// recomputing an unread payload, so this is what an idle night leaves behind.
+    /// </summary>
+    public static readonly TimeSpan Value = TimeSpan.FromHours(24);
+}
