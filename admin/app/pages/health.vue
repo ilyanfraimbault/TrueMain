@@ -10,6 +10,7 @@
 // The verdict is computed server-side, not here: thresholds are a domain decision, and a
 // tile that judged a signal differently from the panel it links to would be lying.
 import { detectorStatusMeta } from '~~/shared/utils/detector-status'
+import { HIDDEN_VERDICT_REFRESH_MS } from '~/utils/page-title'
 import { formatDateTime, formatElapsed, formatNumber, formatPercent, formatTimeAgo } from '~~/shared/utils/format'
 import {
   championDataLagLabel,
@@ -33,9 +34,11 @@ const {
   paused: livePaused,
   toggle: toggleLive,
   refreshNow,
-} = useLiveRefresh(refresh)
+} = useLiveRefresh(refresh, { hiddenEvery: HIDDEN_VERDICT_REFRESH_MS })
 
 const verdict = computed(() => detectorStatusMeta(data.value?.status))
+// The verdict in the tab title and favicon too (#2296), from this same payload.
+useVerdictTitle(() => data.value?.status)
 const signals = computed(() => data.value?.signals ?? [])
 const processes = computed(() => data.value?.processes ?? [])
 const rawData = computed(() => data.value?.rawData ?? null)

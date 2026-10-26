@@ -9,6 +9,8 @@
 // verdict. The histograms and the top-champions chart own their requests
 // (`components/overview/`): they were never part of the manual refresh.
 
+import { HIDDEN_VERDICT_REFRESH_MS } from '~/utils/page-title'
+
 const { data: stats, pending, refreshing, error, refresh } = useOverviewStats()
 
 // --- Health verdict strip (#1031) --------------------------------------------
@@ -24,6 +26,8 @@ const {
 
 // The last good verdict survives a failed refresh (#1427), see HealthVerdictStrip.
 const health = useLastGoodPayload(fetchedHealth, 'pipeline-health')
+// ...and in the tab title and favicon (#2296), so a background Overview tab says it.
+useVerdictTitle(() => health.value?.status)
 
 // The strip answers "is anything on fire?", so it keeps itself current on a 30 s
 // timer (#1411). Only the strip: the totals and histograms below move on a
@@ -34,7 +38,7 @@ const {
   paused: livePaused,
   toggle: toggleLive,
   refreshNow,
-} = useLiveRefresh(refreshHealth)
+} = useLiveRefresh(refreshHealth, { hiddenEvery: HIDDEN_VERDICT_REFRESH_MS })
 
 // The manual button is the whole panel's refresh, verdict strip included, and it
 // restarts the live countdown so a click is never followed by an immediate tick.

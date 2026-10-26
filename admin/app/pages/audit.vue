@@ -17,6 +17,7 @@ const {
   clearTarget,
   resetFilters,
   pending,
+  refreshing,
   error,
   refresh,
   entries,
@@ -33,7 +34,7 @@ const {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :loading="pending" aria-label="Refresh" @click="refresh()" />
+          <UButton icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :loading="refreshing" aria-label="Refresh" @click="refresh()" />
         </template>
       </UDashboardNavbar>
 

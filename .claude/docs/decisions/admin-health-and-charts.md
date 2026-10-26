@@ -427,3 +427,18 @@ collapse into one label.
   carry their row index as d3 data, which pins the index scale exactly; without readable ticks nothing is drawn
   rather than a marker drawn in the wrong place.
 
+## The health verdict keeps refreshing in a background tab, once a minute (2026-10-26)
+
+**Decision.** `/health` and the Overview put a non-green verdict in the browser tab (`● Red — Health`, a dotted
+favicon, #2296). Their verdict source passes `hiddenEvery: 60_000` to `useLiveRefresh`: while the tab is hidden
+it re-reads `GET /ops/pipeline-health` every minute instead of stopping, and reads it once more on return. Every
+other live panel still stops in a hidden tab, as #1411 set.
+
+**Why.**
+
+- *A tab title that never updates in the background is useless*: the title and favicon are the only part of a
+  background tab still on screen, and the acceptance of #2296 is a red verdict showing there after a refresh.
+- *One small payload a minute*, not the 30 s visible cadence: the #1411 concern was a background tab hammering
+  the ops API with every panel; a single verdict read at half the rate is the cheapest way to keep the signal.
+- *Green and `unknown` leave the tab alone*: green is the resting state and `unknown` is "not measured", neither
+  a pass nor an alarm (#1031's vocabulary).

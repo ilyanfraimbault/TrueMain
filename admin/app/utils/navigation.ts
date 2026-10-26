@@ -4,9 +4,9 @@ import NAVIGATION from './navigation.json'
 // The destinations themselves live in `navigation.json`: one entry per sidebar
 // group, each destination a `[label, icon, route]` tuple. A data table that
 // regular is read as duplicated code by Sonar when written in TS.
-type Destination = [label: string, icon: string, to: string]
+export type Destination = [label: string, icon: string, to: string]
 
-interface NavigationGroup {
+export interface NavigationGroup {
   label: string
   // The group's pages, one sidebar link each.
   pages: Destination[]
@@ -17,7 +17,7 @@ interface NavigationGroup {
   tabs: Destination[]
 }
 
-const GROUPS = NAVIGATION as NavigationGroup[]
+export const GROUPS = NAVIGATION as NavigationGroup[]
 
 function link([label, icon, to]: Destination) {
   return { label, icon, to }
