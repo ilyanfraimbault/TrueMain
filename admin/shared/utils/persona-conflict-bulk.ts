@@ -37,13 +37,20 @@ export function skipReasonLabel(reason: PersonaConflictBulkSkipReason | null): s
   }
 }
 
+function conflictWord(count: number): string {
+  return count === 1 ? 'conflict' : 'conflicts'
+}
+
 /** "3 conflicts merged", with the skips when there were some. */
 export function bulkResolvedMessage(result: PersonaConflictBulkResolved): { title: string, description?: string } {
-  const title = `${result.resolved} conflict${result.resolved === 1 ? '' : 's'} merged`
+  const title = `${result.resolved} ${conflictWord(result.resolved)} merged`
   const also = result.outcomes.reduce((sum, o) => sum + (o.resolution?.alsoResolved ?? 0), 0)
-  const parts = [
-    result.skipped > 0 ? `${result.skipped} skipped: they changed since the preview.` : null,
-    also > 0 ? `${also} other conflict${also === 1 ? '' : 's'} settled with them.` : null,
-  ].filter(Boolean)
+  const parts: string[] = []
+  if (result.skipped > 0) {
+    parts.push(`${result.skipped} skipped: they changed since the preview.`)
+  }
+  if (also > 0) {
+    parts.push(`${also} other ${conflictWord(also)} settled with them.`)
+  }
   return { title, description: parts.length > 0 ? parts.join(' ') : undefined }
 }
