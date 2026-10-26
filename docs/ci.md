@@ -1101,6 +1101,12 @@ leaves a misleading version on the page (#1637).
   in `docs/prod.md`, #1598; preprod's plain-HTTP edge in `docs/preprod.md`,
   #1558). The preprod stack requires `PREPROD_SITE_URL` and
   `PREPROD_ADMIN_URL`, which is why the compose-config job sets both.
+- The admin gets the public site's origin as `NUXT_PUBLIC_SITE_URL` for its
+  "Open on the site" buttons (#2291): `https://truemain.lol` on prod, the
+  stack's own `PREPROD_SITE_URL` on preprod (the web service's origin, so no
+  new variable and no host in the repo), `http://localhost:3000` in the two
+  local stacks. Passed as `${PREPROD_SITE_URL:-}` on the admin rather than
+  required: an empty value only hides the buttons.
 - Both deployed stacks publish the API's port on the loopback interface only
   (`127.0.0.1:8080:8080` on prod, `127.0.0.1:8081:8080` on preprod). Nothing
   external needs it: web and admin reach the API over the internal network as
