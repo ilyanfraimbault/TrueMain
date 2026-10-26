@@ -1521,6 +1521,12 @@ namespace Data.Migrations
 
                     b.HasIndex("PlatformId", "Status", "Score");
 
+                    b.HasIndex("Score", "DiscoveredAtUtc", "Id")
+                        .HasDatabaseName("IX_main_candidates_list_order");
+
+                    b.HasIndex("Status", "Score", "DiscoveredAtUtc", "Id")
+                        .HasDatabaseName("IX_main_candidates_status_list_order");
+
                     b.ToTable("main_candidates", (string)null);
                 });
 
