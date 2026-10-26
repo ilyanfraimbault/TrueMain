@@ -66,6 +66,43 @@ public sealed record ProcessRunReadModel
     public DateTime? LastHeartbeatAtUtc { get; init; }
 
     public JsonElement? Summary { get; init; }
+
+    /// <summary>
+    /// How this run compares with the recent successful runs of the same process and mode
+    /// (#2298), or null when it is not a successful run or that history is too short.
+    /// </summary>
+    public ProcessRunBaselineReadModel? Baseline { get; init; }
+}
+
+/// <summary>
+/// A successful run measured against the median of the last
+/// <see cref="SampleCount"/> successful runs of the same process and job mode.
+/// <see cref="Counters"/> is keyed by the summary's own top-level numeric property
+/// names, verbatim; a counter is absent when too few of those runs recorded it.
+/// </summary>
+public sealed record ProcessRunBaselineReadModel
+{
+    public int SampleCount { get; init; }
+
+    public ProcessRunMetricBaselineReadModel? Duration { get; init; }
+
+    public IReadOnlyDictionary<string, ProcessRunMetricBaselineReadModel> Counters { get; init; }
+        = new Dictionary<string, ProcessRunMetricBaselineReadModel>();
+}
+
+/// <summary>
+/// One metric of a run against its recent median. <see cref="Deviation"/> is the
+/// relative gap (<c>1.8</c> = 180 % above the median), null when the median is zero
+/// and the value is not; <see cref="Flagged"/> says it crossed the policy thresholds,
+/// so the admin never re-derives them.
+/// </summary>
+public sealed record ProcessRunMetricBaselineReadModel
+{
+    public double Median { get; init; }
+
+    public double? Deviation { get; init; }
+
+    public bool Flagged { get; init; }
 }
 
 /// <summary>

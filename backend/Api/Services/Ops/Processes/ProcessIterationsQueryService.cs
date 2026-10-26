@@ -18,7 +18,8 @@ public interface IProcessIterationsQueryService
     Task<ProcessIterationsReadModel> GetAsync(int? page, int? pageSize, bool finishedOnly, string? lane, CancellationToken ct);
 }
 
-public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IProcessIterationsQueryService
+public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProcessRunBaselineService baselines)
+    : IProcessIterationsQueryService
 {
     private const int DefaultPageSize = 10;
     private const int MinPageSize = 1;
@@ -68,8 +69,11 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IPro
         var runDocuments = await store.GetRunsForIterationsAsync(
             headerPage.Headers.Select(header => header.IterationId).ToList(), ct);
 
+        // Baselines attach to the whole page at once, so each (process, mode) is looked up once.
+        var runModels = await baselines.AttachAsync(runDocuments, now, ct);
         var runsByIteration = runDocuments
-            .GroupBy(run => run.IterationId!.Value)
+            .Zip(runModels)
+            .GroupBy(pair => pair.First.IterationId!.Value)
             .ToDictionary(group => group.Key, group => group.ToList());
 
         // Age stale-heartbeat Running rows out to Abandoned in memory (the store
@@ -79,7 +83,8 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IPro
         var iterations = headerPage.Headers
             .Select(header =>
             {
-                var runs = runsByIteration.TryGetValue(header.IterationId, out var list) ? list : [];
+                var pairs = runsByIteration.TryGetValue(header.IterationId, out var list) ? list : [];
+                var runs = pairs.Select(pair => pair.First).ToList();
                 return new ProcessIterationReadModel
                 {
                     IterationId = header.IterationId,
@@ -94,9 +99,7 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store) : IPro
                     IsRunning = runs.Any(run =>
                         ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now)
                         == ProcessRunStatus.Running),
-                    Runs = runs
-                        .Select(run => ProcessRunsQueryService.ToReadModel(run, now))
-                        .ToList()
+                    Runs = pairs.Select(pair => pair.Second).ToList()
                 };
             })
             .ToList();

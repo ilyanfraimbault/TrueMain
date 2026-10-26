@@ -387,6 +387,7 @@ Last verified against `develop` on 2026-09-02.
 - Iterations are paged from a header per pass (`process_iterations`), not grouped from the runs (2026-10-19) — #2124
 - The Aggregation panel prints planner estimates and index probes, never a pass over a fold table; distinct patches and per-row freshness dropped (2026-10-26) — #2303
 - The cockpit payloads are kept warm by one background refresher, only while read, one at a time; a stale value is served with its computed-at time rather than making the click wait (2026-10-26) — #2305
+- A process run is compared with the median of its last 20 successes of the same process and mode, flagged at ≥ +100 % / ≤ −50 %, nothing under 5 runs; thresholds in the Api only (2026-10-26) — #2298
 - The audit trail's wording is one backend catalog served with the events, and a known player's History is the events targeting it (2026-10-26) — #2288
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
