@@ -9,20 +9,22 @@ import { computed } from 'vue'
 import { compareAccounts, compareLinks, compareSummary, compareVerdict } from '~~/shared/utils/persona-compare'
 import { linkHandle } from '~~/shared/utils/persona-homonyms'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   /** The known player whose source lists the account. */
   claimant: PersonaOps
   /** The known player holding it. */
   owner: PersonaOps
-}>()
+  /** The two columns' headings; a channel conflict (#2286) has no claimant or holder. */
+  labels?: [string, string]
+}>(), { labels: () => ['Claims it', 'Holds it'] })
 
 const accounts = computed(() => compareAccounts(props.claimant, props.owner))
 const links = computed(() => compareLinks(props.claimant, props.owner))
 const verdict = computed(() => compareVerdict(compareSummary(accounts.value, links.value), links.value))
 
 const sides = computed(() => [
-  { label: 'Claims it', persona: props.claimant },
-  { label: 'Holds it', persona: props.owner },
+  { label: props.labels[0], persona: props.claimant },
+  { label: props.labels[1], persona: props.owner },
 ])
 
 const MARK: Record<CompareMatch, { icon: string, class: string, title: string } | null> = {

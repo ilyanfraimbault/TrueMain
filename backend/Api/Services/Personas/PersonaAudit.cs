@@ -9,15 +9,20 @@ namespace TrueMain.Services.Personas;
 /// </summary>
 public sealed class PersonaAudit(IAuditLog auditLog, ILogger<PersonaAudit> logger)
 {
+    public Task RecordAsync(
+        string action, Guid personaId, string slug, Dictionary<string, string> metadata, CancellationToken ct) =>
+        RecordAsync(action, personaId, slug, metadata, "operator", ct);
+
+    /// <summary>The same, under <paramref name="actor"/>: <c>auto</c> for the same-name merges (#2271, #2286).</summary>
     public async Task RecordAsync(
-        string action, Guid personaId, string slug, Dictionary<string, string> metadata, CancellationToken ct)
+        string action, Guid personaId, string slug, Dictionary<string, string> metadata, string actor, CancellationToken ct)
     {
         try
         {
             metadata["slug"] = slug;
             await auditLog.RecordAsync(
                 action: action,
-                actor: "operator",
+                actor: actor,
                 targetType: "Persona",
                 targetId: personaId.ToString(),
                 metadata: metadata,

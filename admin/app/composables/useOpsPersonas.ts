@@ -3,6 +3,8 @@ import type {
   PersonaAccountInput,
   PersonaAdminDetail,
   PersonaAutoMerged,
+  PersonaChannelConflictsFilters,
+  PersonaChannelConflictsResponse,
   PersonaConflictDetail,
   PersonaConflictResolveBody,
   PersonaConflictResolved,
@@ -55,6 +57,15 @@ export function resolvePersonaConflict(id: string, body: PersonaConflictResolveB
  */
 export function autoMergePersonaConflicts() {
   return $fetch<PersonaAutoMerged>('/api/ops/personas/conflicts/auto-merge', { method: 'POST' })
+}
+
+/**
+ * `GET /api/ops/personas/channel-conflicts` — known players listing the same social
+ * channel (#2286), the most channels in common first, paged. Settled with the
+ * homonyms actions below: a merge, or a mark as different people.
+ */
+export function usePersonaChannelConflicts(filters: MaybeRefOrGetter<PersonaChannelConflictsFilters>) {
+  return useOps<PersonaChannelConflictsResponse>('/personas/channel-conflicts', () => ({ ...toValue(filters) }))
 }
 
 // Known players sharing a name without a common account (#2271): the operator

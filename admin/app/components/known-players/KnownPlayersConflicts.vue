@@ -3,6 +3,7 @@
 // player while another already holds them. The intake never moves them on its own;
 // the operator reads both players lined up row by row (#2275) and settles it here. The decision
 // holds against the next scraper runs (an exclusion, or a merged page's pointer).
+// Below the open queue, the known players sharing a social channel (#2286).
 import type { PersonaConflict, PersonaConflictDetail, PersonaConflictResolveBody, PersonaConflictStatus } from '~~/shared/types/ops'
 import { computed, ref, watch } from 'vue'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
@@ -31,7 +32,15 @@ const filters = computed(() => ({
   pageSize,
 }))
 
-const { data, pending, error, refresh } = usePersonaConflicts(filters)
+const { data, pending, error, refresh: refreshAccounts } = usePersonaConflicts(filters)
+// The channel conflicts below reload when this stamp moves, and report their count for the tab.
+const channelStamp = ref(0)
+const channelTotal = ref(0)
+
+function refresh() {
+  refreshAccounts()
+  channelStamp.value++
+}
 const conflicts = computed(() => data.value?.conflicts ?? [])
 const total = computed(() => data.value?.total ?? 0)
 const hasFilters = computed(() => sourceFilter.value !== ALL || Boolean(searchFilter.value.trim()))
@@ -112,7 +121,11 @@ async function autoMerge() {
   }
 }
 
-defineExpose({ refresh, pending, counts: computed(() => ({ open: data.value?.open ?? 0, resolved: data.value?.resolved ?? 0 })) })
+defineExpose({
+  refresh,
+  pending,
+  counts: computed(() => ({ open: (data.value?.open ?? 0) + channelTotal.value, resolved: data.value?.resolved ?? 0 })),
+})
 </script>
 
 <template>
@@ -141,7 +154,7 @@ defineExpose({ refresh, pending, counts: computed(() => ({ open: data.value?.ope
       <template #header>
         <div class="flex items-center justify-between gap-2">
           <p class="text-sm font-medium text-highlighted">
-            {{ status === 'Open' ? 'To settle' : 'History' }}
+            {{ status === 'Open' ? 'Accounts to settle' : 'History' }}
           </p>
           <UBadge v-if="!pending" color="neutral" variant="subtle" :label="`${formatNumber(total)} ${total === 1 ? 'conflict' : 'conflicts'}`" />
         </div>
@@ -153,6 +166,14 @@ defineExpose({ refresh, pending, counts: computed(() => ({ open: data.value?.ope
         <UPagination v-model:page="page" :total="total" :items-per-page="pageSize" :sibling-count="1" active-color="primary" variant="subtle" :disabled="pending" show-edges />
       </div>
     </UCard>
+
+    <KnownPlayersChannelConflicts
+      v-show="status === 'Open'"
+      :search="searchDebounced.trim()"
+      :stamp="channelStamp"
+      class="mt-4"
+      @total="channelTotal = $event"
+    />
 
     <USlideover
       v-model:open="detailOpen"

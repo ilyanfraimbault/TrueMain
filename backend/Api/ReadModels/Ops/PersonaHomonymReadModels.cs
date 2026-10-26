@@ -6,10 +6,16 @@ public sealed record PersonaAutoMergeResponse
     /// <summary>Same-name conflicts settled as merges.</summary>
     public int Merged { get; init; }
 
-    /// <summary>Other open conflicts those merges settled too.</summary>
+    /// <summary>Same-name personas sharing a social channel merged into their oldest (#2286).</summary>
+    public int MergedByChannel { get; init; }
+
+    /// <summary>Other open account conflicts those merges settled too.</summary>
     public int AlsoResolved { get; init; }
 
-    /// <summary>Same-name conflicts that changed under the sweep and stay in the queue.</summary>
+    /// <summary>
+    /// Same-name conflicts that changed under the sweep, and same-name channel groups holding a pair
+    /// marked as different people: they stay in the queue.
+    /// </summary>
     public int Skipped { get; init; }
 }
 
