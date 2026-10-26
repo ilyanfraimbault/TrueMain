@@ -120,6 +120,12 @@ const tally = computed(() => {
               </UTooltip>
             </span>
             <span class="flex items-center gap-2 shrink-0">
+              <ProcessesBaselineBadge
+                v-if="entry.link.run?.baseline"
+                :metric="entry.link.run.baseline.duration"
+                :sample-count="entry.link.run.baseline.sampleCount"
+                kind="duration"
+              />
               <span class="text-xs text-dimmed tabular-nums">
                 {{ entry.link.run && entry.link.outcome !== 'Running' ? formatElapsed(entry.link.run.durationMs) : '—' }}
               </span>
@@ -144,6 +150,7 @@ const tally = computed(() => {
             <ProcessSummaryView
               v-if="entry.hasSummary"
               :value="entry.link.run?.summary"
+              :baseline="entry.link.run.baseline"
             />
             <p v-else-if="!entry.link.run.error" class="text-sm text-dimmed">
               No summary recorded.

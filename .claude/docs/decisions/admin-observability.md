@@ -562,3 +562,18 @@ metadata. #2288
   players they touch appear only as slugs in metadata. Matching metadata text would mix in a homonym's events, so
   the History shows exactly what targeted the player and the Audit page's search covers the rest.
 
+
+## A process run is compared with the median of its last 20 successes, flagged at twice or half (2026-10-26)
+
+**Decision:** every successful run on `/processes` (runs table, run slide-over, iteration summary) carries a
+`baseline` computed by the Api in the process-runs reads: the median duration and the median of each top-level
+numeric summary counter over the last 20 successful runs of the same process **and** job mode. A metric is flagged
+at ≥ +100 % or ≤ −50 % of its median; nothing is compared under 5 runs (or under 5 runs that recorded a counter).
+The thresholds live in one place, `ProcessRunBaselinePolicy` in the Api, and the admin only reads `flagged` — #2298.
+
+- **Why the median, not the mean.** One pathological run must not move the reference it is judged against.
+- **Why successes only, and per mode.** A failed or skipped run stops short by definition, and a `Full` pass does
+  not do the work of one lane; mixing them would flag every normal run.
+- **Why the current baseline for every row, not the history before each run.** One bounded index walk per
+  (process, mode) on the page (`ix_process_finished`, limit 20), cached 60 s, instead of a lookup per row.
+- **Why top-level counters only.** Nested breakdowns (per platform, per step) are not comparable field by field.
