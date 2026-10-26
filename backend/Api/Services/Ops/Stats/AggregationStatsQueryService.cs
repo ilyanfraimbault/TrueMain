@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Data.Ops.Mongo;
@@ -14,10 +13,25 @@ public interface IAggregationStatsQueryService
     Task<AggregationsReadModel> GetAsync(CancellationToken ct);
 }
 
+/// <summary>
+/// The admin Aggregation panel (#2303). Every Postgres figure is a catalog lookup or an index
+/// probe, never a pass over a fold table:
+/// <list type="bullet">
+/// <item>row counts are the planner's estimates, as <c>/database</c> and <c>/health</c> show them
+/// (an exact <c>count(*)</c> of a fold table is a full pass over it);</item>
+/// <item>distinct champions are a skip scan of an index leading on the champion — about 170
+/// probes instead of a <c>DISTINCT</c> over every row;</item>
+/// <item>the two backlogs are counts over partial indexes that hold only the pending rows.</item>
+/// </list>
+/// Distinct patches and the newest row timestamp per family were dropped rather than paid
+/// for: no fold table is indexed on either column, <c>/patch-coverage</c> measures each fold
+/// per patch, and the producing process's last success says when the family last wrote.
+/// </summary>
 public sealed class AggregationStatsQueryService(
     TrueMainDbContext db,
     IProcessRunStore processRunStore,
-    IOptions<MainAnalysisOptions> mainAnalysisOptions) : IAggregationStatsQueryService
+    IOptions<MainAnalysisOptions> mainAnalysisOptions,
+    TimeProvider timeProvider) : IAggregationStatsQueryService
 {
     private static readonly string[] ProcessNames =
     [
@@ -28,169 +42,154 @@ public sealed class AggregationStatsQueryService(
         "MatchParticipantEloBracketEnrichment"
     ];
 
+    private static readonly string[] Tables =
+    [
+        "champion_aggregate_scopes",
+        "champion_aggregate_patterns",
+        "champion_matchup_stats",
+        "champion_synergy_stats",
+        "champion_synergy_baseline_stats",
+        "main_champion_stats"
+    ];
+
     public async Task<AggregationsReadModel> GetAsync(CancellationToken ct)
     {
         var queueId = (int)mainAnalysisOptions.Value.QueueId;
 
-        var latestRuns = await LoadLatestRunsAsync(onlySuccesses: false, ct);
-        var latestSuccesses = await LoadLatestRunsAsync(onlySuccesses: true, ct);
+        // The two Mongo reads run alongside the Postgres ones: different stores, and the
+        // DbContext is only ever used by one of the three tasks.
+        var latestRunsTask = processRunStore.GetLatestPerProcessAsync(ProcessNames, onlySuccesses: false, ct);
+        var latestSuccessesTask = processRunStore.GetLatestPerProcessAsync(ProcessNames, onlySuccesses: true, ct);
 
-        var runsByProcess = ProcessNames.ToDictionary(
-            processName => processName,
-            processName => BuildRunReadModel(
-                latestRuns.FirstOrDefault(run => run.ProcessName == processName),
-                latestSuccesses.FirstOrDefault(run => run.ProcessName == processName)));
+        var estimates = await LoadRowEstimatesAsync(ct);
+        var coverage = await LoadCoverageAsync(queueId, ct);
+        var latestRuns = await latestRunsTask;
+        var latestSuccesses = await latestSuccessesTask;
 
-        var families = new List<AggregationFamilyReadModel>
-        {
-            await BuildBuildsFamilyAsync(runsByProcess, ct),
-            await BuildMatchupsFamilyAsync(runsByProcess, ct),
-            await BuildSynergiesFamilyAsync(runsByProcess, ct),
-            await BuildMainsFamilyAsync(runsByProcess, ct)
-        };
-
-        var pendingSynergyMatches = await db.Matches
-            .AsNoTracking()
-            .LongCountAsync(match => match.QueueId == queueId && !match.SynergyAggregated, ct);
-        var pendingEloBracketParticipants = await db.MatchParticipants
-            .AsNoTracking()
-            .LongCountAsync(
-                participant => participant.RiotAccountId != null && participant.EloBracket == string.Empty,
-                ct);
+        AggregationRunReadModel? Run(string processName) => BuildRunReadModel(
+            latestRuns.FirstOrDefault(run => run.ProcessName == processName),
+            latestSuccesses.FirstOrDefault(run => run.ProcessName == processName));
 
         return new AggregationsReadModel
         {
             QueueId = queueId,
-            Families = families,
+            MeasuredAtUtc = timeProvider.GetUtcNow().UtcDateTime,
+            Families =
+            [
+                Family("builds", "ChampionPatternAggregation", coverage.BuildChampions, estimates, Run,
+                    "champion_aggregate_scopes", "champion_aggregate_patterns"),
+                Family("matchups", "ChampionMatchupLeadAggregation", coverage.MatchupChampions, estimates, Run,
+                    "champion_matchup_stats"),
+                Family("synergies", "ChampionSynergyAggregation", coverage.SynergyChampions, estimates, Run,
+                    "champion_synergy_stats", "champion_synergy_baseline_stats"),
+                Family("mains", "MainAnalysis", coverage.MainChampions, estimates, Run,
+                    "main_champion_stats")
+            ],
             Backlog = new AggregationBacklogReadModel
             {
-                PendingSynergyMatches = pendingSynergyMatches,
-                PendingEloBracketParticipants = pendingEloBracketParticipants
+                PendingSynergyMatches = coverage.PendingSynergyMatches,
+                PendingEloBracketParticipants = coverage.PendingEloBracketParticipants
             }
         };
     }
 
-    private async Task<AggregationFamilyReadModel> BuildBuildsFamilyAsync(
-        IReadOnlyDictionary<string, AggregationRunReadModel?> runsByProcess,
-        CancellationToken ct)
+    private static AggregationFamilyReadModel Family(
+        string key,
+        string processName,
+        long distinctChampions,
+        IReadOnlyDictionary<string, long> estimates,
+        Func<string, AggregationRunReadModel?> run,
+        params string[] tables)
     {
-        var scopes = db.ChampionAggregateScopes.AsNoTracking();
-
-        var scopeRows = await scopes.LongCountAsync(ct);
-        var patternRows = await db.ChampionAggregatePatterns.AsNoTracking().LongCountAsync(ct);
-        var distinctChampions = await scopes.Select(scope => scope.ChampionId).Distinct().CountAsync(ct);
-
-        // The aggregation normalises GameVersion on write, so this is already
-        // "MAJOR.MINOR" — normalise anyway, so a value written in any other form
-        // still counts as one patch rather than a second one.
-        var gameVersions = await scopes.Select(scope => scope.GameVersion).Distinct().ToListAsync(ct);
-        var distinctPatches = gameVersions
-            .Select(PatchVersion.Normalize)
-            .Distinct()
-            .Count();
-
-        var lastAggregatedAtUtc = await scopes.MaxAsync(scope => (DateTime?)scope.AggregatedAtUtc, ct);
+        var counts = tables
+            .Select(table => new AggregationTableCountReadModel
+            {
+                Table = table,
+                RowEstimate = estimates.GetValueOrDefault(table)
+            })
+            .ToList();
 
         return new AggregationFamilyReadModel
         {
-            Key = "builds",
-            ProcessName = "ChampionPatternAggregation",
-            Tables =
-            [
-                new AggregationTableCountReadModel { Table = "champion_aggregate_scopes", Rows = scopeRows },
-                new AggregationTableCountReadModel { Table = "champion_aggregate_patterns", Rows = patternRows }
-            ],
-            TotalRows = scopeRows + patternRows,
-            DistinctChampions = distinctChampions,
-            DistinctPatches = distinctPatches,
-            LastAggregatedAtUtc = lastAggregatedAtUtc,
-            LastRun = runsByProcess["ChampionPatternAggregation"]
+            Key = key,
+            ProcessName = processName,
+            Tables = counts,
+            TotalRowEstimate = counts.Sum(count => count.RowEstimate),
+            DistinctChampions = (int)distinctChampions,
+            LastRun = run(processName)
         };
     }
 
-    private async Task<AggregationFamilyReadModel> BuildMatchupsFamilyAsync(
-        IReadOnlyDictionary<string, AggregationRunReadModel?> runsByProcess,
-        CancellationToken ct)
+    /// <summary>
+    /// The fold tables' live-row estimates. <c>n_live_tup</c> first, the figure <c>/database</c>
+    /// prints, so the two pages agree; <c>reltuples</c> when the statistics view holds no count
+    /// for a table that has rows (its counters reset with the statistics, while
+    /// <c>reltuples</c> is what the last VACUUM or ANALYZE measured).
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, long>> LoadRowEstimatesAsync(CancellationToken ct)
     {
-        var stats = db.ChampionMatchupStats.AsNoTracking();
+        var rows = await db.Database
+            .SqlQuery<TableRowEstimate>($"""
+                SELECT s.relname AS "TableName",
+                       CASE WHEN s.n_live_tup > 0 THEN s.n_live_tup
+                            ELSE GREATEST(c.reltuples, 0)::bigint END AS "RowEstimate"
+                FROM pg_catalog.pg_stat_user_tables s
+                JOIN pg_catalog.pg_class c ON c.oid = s.relid
+                WHERE s.schemaname = 'public' AND s.relname = ANY ({Tables})
+                """)
+            .ToListAsync(ct);
 
-        var rows = await stats.LongCountAsync(ct);
-        var distinctChampions = await stats.Select(stat => stat.ChampionId).Distinct().CountAsync(ct);
-        var distinctPatches = await stats.Select(stat => stat.Patch).Distinct().CountAsync(ct);
-        var lastAggregatedAtUtc = await stats.MaxAsync(stat => (DateTime?)stat.AggregatedAtUtc, ct);
-
-        return new AggregationFamilyReadModel
-        {
-            Key = "matchups",
-            ProcessName = "ChampionMatchupLeadAggregation",
-            Tables = [new AggregationTableCountReadModel { Table = "champion_matchup_stats", Rows = rows }],
-            TotalRows = rows,
-            DistinctChampions = distinctChampions,
-            DistinctPatches = distinctPatches,
-            LastAggregatedAtUtc = lastAggregatedAtUtc,
-            LastRun = runsByProcess["ChampionMatchupLeadAggregation"]
-        };
+        return rows.ToDictionary(row => row.TableName, row => row.RowEstimate, StringComparer.Ordinal);
     }
 
-    private async Task<AggregationFamilyReadModel> BuildSynergiesFamilyAsync(
-        IReadOnlyDictionary<string, AggregationRunReadModel?> runsByProcess,
-        CancellationToken ct)
-    {
-        var stats = db.ChampionSynergyStats.AsNoTracking();
-
-        var rows = await stats.LongCountAsync(ct);
-        var baselineRows = await db.ChampionSynergyBaselineStats.AsNoTracking().LongCountAsync(ct);
-        var distinctChampions = await stats.Select(stat => stat.ChampionId).Distinct().CountAsync(ct);
-        var distinctPatches = await stats.Select(stat => stat.Patch).Distinct().CountAsync(ct);
-        var lastAggregatedAtUtc = await stats.MaxAsync(stat => (DateTime?)stat.AggregatedAtUtc, ct);
-
-        return new AggregationFamilyReadModel
-        {
-            Key = "synergies",
-            ProcessName = "ChampionSynergyAggregation",
-            Tables =
-            [
-                new AggregationTableCountReadModel { Table = "champion_synergy_stats", Rows = rows },
-                new AggregationTableCountReadModel { Table = "champion_synergy_baseline_stats", Rows = baselineRows }
-            ],
-            TotalRows = rows + baselineRows,
-            DistinctChampions = distinctChampions,
-            DistinctPatches = distinctPatches,
-            LastAggregatedAtUtc = lastAggregatedAtUtc,
-            LastRun = runsByProcess["ChampionSynergyAggregation"]
-        };
-    }
-
-    private async Task<AggregationFamilyReadModel> BuildMainsFamilyAsync(
-        IReadOnlyDictionary<string, AggregationRunReadModel?> runsByProcess,
-        CancellationToken ct)
-    {
-        var stats = db.MainChampionStats.AsNoTracking();
-
-        var rows = await stats.LongCountAsync(ct);
-        var distinctChampions = await stats.Select(stat => stat.ChampionId).Distinct().CountAsync(ct);
-        var lastCalculatedAtUtc = await stats.MaxAsync(stat => (DateTime?)stat.CalculatedAtUtc, ct);
-
-        return new AggregationFamilyReadModel
-        {
-            Key = "mains",
-            ProcessName = "MainAnalysis",
-            Tables = [new AggregationTableCountReadModel { Table = "main_champion_stats", Rows = rows }],
-            TotalRows = rows,
-            DistinctChampions = distinctChampions,
-            // Mains are per-account aggregates over the full corpus — no patch axis.
-            DistinctPatches = null,
-            LastAggregatedAtUtc = lastCalculatedAtUtc,
-            LastRun = runsByProcess["MainAnalysis"]
-        };
-    }
-
-    private async Task<IReadOnlyList<ProcessRunDocument>> LoadLatestRunsAsync(bool onlySuccesses, CancellationToken ct)
-        // The newest run per process in one grouped pass (same rationale as
-        // PipelineHealthQueryService). Two variants: the latest run regardless of
-        // outcome, and the latest success — they diverge exactly when the most
-        // recent run failed or was abandoned.
-        => await processRunStore.GetLatestPerProcessAsync(ProcessNames, onlySuccesses, ct);
+    /// <summary>
+    /// Champion coverage and the backlogs, in one round trip. Each champion count walks an
+    /// index that leads on <c>ChampionId</c> one distinct value at a time (a recursive
+    /// "loose index scan"); mains walk the active-main partial index's
+    /// <c>(PlatformId, ChampionId)</c> pairs the same way. The backlog predicates match the
+    /// partial indexes <c>IX_matches_synergy_pending</c> and
+    /// <c>IX_match_participants_elo_bracket_pending</c> word for word, so each count reads only
+    /// the pending rows.
+    /// </summary>
+    private async Task<CoverageRow> LoadCoverageAsync(int queueId, CancellationToken ct)
+        => await db.Database
+            .SqlQuery<CoverageRow>($"""
+                SELECT
+                  (WITH RECURSIVE ids(id) AS (
+                     SELECT min("ChampionId") FROM champion_aggregate_scopes
+                     UNION ALL
+                     SELECT (SELECT min(s."ChampionId") FROM champion_aggregate_scopes s WHERE s."ChampionId" > ids.id)
+                     FROM ids WHERE ids.id IS NOT NULL)
+                   SELECT count(id) FROM ids) AS "BuildChampions",
+                  (WITH RECURSIVE ids(id) AS (
+                     SELECT min("ChampionId") FROM champion_matchup_stats
+                     UNION ALL
+                     SELECT (SELECT min(s."ChampionId") FROM champion_matchup_stats s WHERE s."ChampionId" > ids.id)
+                     FROM ids WHERE ids.id IS NOT NULL)
+                   SELECT count(id) FROM ids) AS "MatchupChampions",
+                  (WITH RECURSIVE ids(id) AS (
+                     SELECT min("ChampionId") FROM champion_synergy_stats
+                     UNION ALL
+                     SELECT (SELECT min(s."ChampionId") FROM champion_synergy_stats s WHERE s."ChampionId" > ids.id)
+                     FROM ids WHERE ids.id IS NOT NULL)
+                   SELECT count(id) FROM ids) AS "SynergyChampions",
+                  (WITH RECURSIVE pairs(platform, champion) AS (
+                     (SELECT "PlatformId", "ChampionId" FROM main_champion_stats
+                      WHERE "IsMain" AND "IsActive"
+                      ORDER BY "PlatformId", "ChampionId" LIMIT 1)
+                     UNION ALL
+                     SELECT next."PlatformId", next."ChampionId" FROM pairs, LATERAL (
+                       SELECT s."PlatformId", s."ChampionId" FROM main_champion_stats s
+                       WHERE s."IsMain" AND s."IsActive"
+                         AND (s."PlatformId", s."ChampionId") > (pairs.platform, pairs.champion)
+                       ORDER BY s."PlatformId", s."ChampionId" LIMIT 1) next)
+                   SELECT count(DISTINCT champion) FROM pairs) AS "MainChampions",
+                  (SELECT count(*) FROM matches
+                   WHERE "QueueId" = {queueId} AND "SynergyAggregated" = false) AS "PendingSynergyMatches",
+                  (SELECT count(*) FROM match_participants
+                   WHERE "RiotAccountId" IS NOT NULL AND elo_bracket = '') AS "PendingEloBracketParticipants"
+                """)
+            .SingleAsync(ct);
 
     private static AggregationRunReadModel? BuildRunReadModel(
         ProcessRunDocument? latest,
@@ -211,4 +210,14 @@ public sealed class AggregationStatsQueryService(
             LastSuccessSummary = ProcessRunSummaryParsing.Parse(latestSuccess?.SummaryJson)
         };
     }
+
+    internal sealed record TableRowEstimate(string TableName, long RowEstimate);
+
+    internal sealed record CoverageRow(
+        long BuildChampions,
+        long MatchupChampions,
+        long SynergyChampions,
+        long MainChampions,
+        long PendingSynergyMatches,
+        long PendingEloBracketParticipants);
 }

@@ -4,9 +4,15 @@ namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
 /// Health and coverage snapshot of every aggregation pipeline for the admin
-/// Aggregation panel: per-family exact row counts, champion/patch coverage,
-/// data freshness, the latest recorded run, and the ingestion backlogs that
-/// should sit at zero when the pipeline is caught up.
+/// Aggregation panel: per-family row estimates, champion coverage, the latest
+/// recorded run, and the ingestion backlogs that should sit at zero when the
+/// pipeline is caught up.
+///
+/// <para>
+/// Every figure is a catalog lookup or an index probe (#2303): exact counts,
+/// <c>DISTINCT</c>s and <c>max()</c>s over the fold tables were full scans that
+/// took the page past a minute on a cold cache.
+/// </para>
 /// </summary>
 public sealed record AggregationsReadModel
 {
@@ -16,12 +22,15 @@ public sealed record AggregationsReadModel
     public IReadOnlyList<AggregationFamilyReadModel> Families { get; init; } = [];
 
     public AggregationBacklogReadModel Backlog { get; init; } = new();
+
+    /// <summary>When this payload was measured — it is served from a short cache.</summary>
+    public DateTime MeasuredAtUtc { get; init; }
 }
 
 /// <summary>
 /// One aggregation family (builds patterns, matchups, synergies, mains):
-/// the tables it owns with exact row counts, its
-/// champion/patch coverage, and the latest run of the process producing it.
+/// the tables it owns with their planner row estimates, its champion coverage,
+/// and the latest run of the process producing it.
 /// </summary>
 public sealed record AggregationFamilyReadModel
 {
@@ -33,15 +42,14 @@ public sealed record AggregationFamilyReadModel
 
     public IReadOnlyList<AggregationTableCountReadModel> Tables { get; init; } = [];
 
-    public long TotalRows { get; init; }
+    /// <summary>Sum of the tables' planner estimates — approximate, like each of them.</summary>
+    public long TotalRowEstimate { get; init; }
 
+    /// <summary>
+    /// Distinct champions the family holds rows for, exact (an index skip scan). For mains,
+    /// the champions with at least one active main.
+    /// </summary>
     public int DistinctChampions { get; init; }
-
-    /// <summary>Distinct normalized patches covered; null when the family has no patch axis.</summary>
-    public int? DistinctPatches { get; init; }
-
-    /// <summary>Most recent aggregate-row write timestamp — data freshness independent of run records.</summary>
-    public DateTime? LastAggregatedAtUtc { get; init; }
 
     /// <summary>Latest recorded run of the producing process; null when it never ran.</summary>
     public AggregationRunReadModel? LastRun { get; init; }
@@ -51,7 +59,12 @@ public sealed record AggregationTableCountReadModel
 {
     public string Table { get; init; } = string.Empty;
 
-    public long Rows { get; init; }
+    /// <summary>
+    /// The planner's live-row estimate (<c>pg_stat_user_tables.n_live_tup</c>, the figure
+    /// <c>/database</c> prints), falling back to <c>pg_class.reltuples</c> when the statistics
+    /// view has no count yet.
+    /// </summary>
+    public long RowEstimate { get; init; }
 }
 
 /// <summary>
@@ -92,7 +105,10 @@ public sealed record AggregationBacklogReadModel
 
     /// <summary>
     /// Tracked participants still missing their elo bracket stamp — rows the
-    /// rank-scoped aggregations cannot bucket yet.
+    /// rank-scoped aggregations cannot bucket yet. Served by the partial index
+    /// <c>IX_match_participants_elo_bracket_pending</c> (#2303). It does not drain to
+    /// zero on its own: rows of accounts without a rank snapshot stay pending until
+    /// the account's first snapshot arrives.
     /// </summary>
     public long PendingEloBracketParticipants { get; init; }
 }

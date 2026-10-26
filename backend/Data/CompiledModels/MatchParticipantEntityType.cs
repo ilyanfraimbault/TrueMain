@@ -26,7 +26,7 @@ namespace Data.CompiledModels
                 navigationCount: 2,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 3,
-                namedIndexCount: 4,
+                namedIndexCount: 5,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -477,6 +477,11 @@ namespace Data.CompiledModels
                 new[] { championId, teamPosition, eloBracket },
                 name: "IX_match_participants_champion_position_tracked");
             iX_match_participants_champion_position_tracked.AddAnnotation("Relational:Filter", "\"RiotAccountId\" IS NOT NULL");
+
+            var iX_match_participants_elo_bracket_pending = runtimeEntityType.AddIndex(
+                new[] { id },
+                name: "IX_match_participants_elo_bracket_pending");
+            iX_match_participants_elo_bracket_pending.AddAnnotation("Relational:Filter", "\"RiotAccountId\" IS NOT NULL AND elo_bracket = ''");
 
             var iX_match_participants_role_bound_pending = runtimeEntityType.AddIndex(
                 new[] { id },

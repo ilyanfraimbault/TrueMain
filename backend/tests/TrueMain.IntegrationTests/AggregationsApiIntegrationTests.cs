@@ -52,34 +52,49 @@ public sealed class AggregationsApiIntegrationTests : IAsyncLifetime
                 ["builds", "matchups", "synergies", "mains"],
                 options => options.WithStrictOrdering());
 
-        // Builds: two scopes on two hotfix versions of the same patch → one
-        // normalized patch; no pattern rows seeded.
+        root.GetProperty("measuredAtUtc").ValueKind.Should().Be(JsonValueKind.String);
+
+        // Row counts are planner estimates (#2303): every family lists its tables, each with
+        // a non-negative estimate, and the family total is their sum. The exact value
+        // depends on when the statistics last caught up, so it is not asserted.
+        foreach (var family in families)
+        {
+            var tables = family.GetProperty("tables").EnumerateArray().ToList();
+            tables.Should().NotBeEmpty();
+            tables.Should().AllSatisfy(table => table.GetProperty("rowEstimate").GetInt64().Should().BeGreaterThanOrEqualTo(0));
+            family.GetProperty("totalRowEstimate").GetInt64()
+                .Should().Be(tables.Sum(table => table.GetProperty("rowEstimate").GetInt64()));
+            family.TryGetProperty("distinctPatches", out _).Should().BeFalse();
+            family.TryGetProperty("lastAggregatedAtUtc", out _).Should().BeFalse();
+        }
+
+        // Builds: two champions across two scopes.
         var builds = families.Single(family => family.GetProperty("key").GetString() == "builds");
         builds.GetProperty("processName").GetString().Should().Be("ChampionPatternAggregation");
-        builds.GetProperty("totalRows").GetInt64().Should().Be(2);
         builds.GetProperty("distinctChampions").GetInt32().Should().Be(2);
-        builds.GetProperty("distinctPatches").GetInt32().Should().Be(1);
-        builds.GetProperty("lastAggregatedAtUtc").ValueKind.Should().Be(JsonValueKind.String);
         builds.GetProperty("tables").EnumerateArray()
             .Select(table => table.GetProperty("table").GetString())
             .Should().BeEquivalentTo(["champion_aggregate_scopes", "champion_aggregate_patterns"]);
 
         // Matchups: the latest run failed but an older one succeeded — the run
-        // rollup must expose both, plus the success run's summary payload.
+        // rollup must expose both, plus the success run's summary payload. Champion 22
+        // holds two rows, so the skip scan must count it once.
         var matchups = families.Single(family => family.GetProperty("key").GetString() == "matchups");
-        matchups.GetProperty("totalRows").GetInt64().Should().Be(3);
         matchups.GetProperty("distinctChampions").GetInt32().Should().Be(2);
-        matchups.GetProperty("distinctPatches").GetInt32().Should().Be(2);
         var matchupsRun = matchups.GetProperty("lastRun");
         matchupsRun.ValueKind.Should().Be(JsonValueKind.Object);
         matchupsRun.GetProperty("status").GetString().Should().Be("failed");
         matchupsRun.GetProperty("lastSuccessAtUtc").ValueKind.Should().Be(JsonValueKind.String);
         matchupsRun.GetProperty("lastSuccessSummary").GetProperty("matchupRows").GetInt32().Should().Be(3);
 
-        // Mains: per-account aggregate, no patch axis.
+        // Synergies: nothing folded yet — the skip scan over an empty table counts zero.
+        var synergies = families.Single(family => family.GetProperty("key").GetString() == "synergies");
+        synergies.GetProperty("distinctChampions").GetInt32().Should().Be(0);
+
+        // Mains: champions with an active main — the same champion on two platforms counts
+        // once, and a non-main row does not count.
         var mains = families.Single(family => family.GetProperty("key").GetString() == "mains");
-        mains.GetProperty("totalRows").GetInt64().Should().Be(1);
-        mains.GetProperty("distinctPatches").ValueKind.Should().Be(JsonValueKind.Null);
+        mains.GetProperty("distinctChampions").GetInt32().Should().Be(1);
         // MainAnalysis never ran in this seed.
         mains.GetProperty("lastRun").ValueKind.Should().Be(JsonValueKind.Null);
 
@@ -130,19 +145,10 @@ public sealed class AggregationsApiIntegrationTests : IAsyncLifetime
             BuildMatchup(championId: 22, opponent: 99, patch: "16.5", now),
             BuildMatchup(championId: 64, opponent: 22, patch: "16.4", now));
 
-        db.MainChampionStats.Add(new MainChampionStat
-        {
-            Puuid = account.Puuid,
-            PlatformId = "EUW1",
-            ChampionId = 22,
-            TotalMatches = 20,
-            ChampionMatches = 15,
-            PlayRate = 0.75,
-            IsMain = true,
-            IsOtp = false,
-            PrimaryPosition = "MIDDLE",
-            CalculatedAtUtc = now.AddHours(-1)
-        });
+        db.MainChampionStats.AddRange(
+            BuildMain(account.Puuid, "EUW1", championId: 22, isMain: true, now),
+            BuildMain("aggregations-puuid-2", "NA1", championId: 22, isMain: true, now),
+            BuildMain(account.Puuid, "EUW1", championId: 64, isMain: false, now));
 
         // Soloq: two synergy-folded, one pending, one pending without a timeline.
         // Plus one non-soloq match that never counts.
@@ -218,6 +224,21 @@ public sealed class AggregationsApiIntegrationTests : IAsyncLifetime
             Assists = 40,
             LastGameStartTimeUtc = now.AddDays(-1),
             AggregatedAtUtc = now
+        };
+
+    private static MainChampionStat BuildMain(string puuid, string platformId, int championId, bool isMain, DateTime now)
+        => new()
+        {
+            Puuid = puuid,
+            PlatformId = platformId,
+            ChampionId = championId,
+            TotalMatches = 20,
+            ChampionMatches = isMain ? 15 : 5,
+            PlayRate = isMain ? 0.75 : 0.25,
+            IsMain = isMain,
+            IsOtp = false,
+            PrimaryPosition = "MIDDLE",
+            CalculatedAtUtc = now.AddHours(-1)
         };
 
     private static ChampionMatchupStat BuildMatchup(int championId, int opponent, string patch, DateTime now)

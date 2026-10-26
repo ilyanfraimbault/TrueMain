@@ -484,3 +484,19 @@ once every 30 s for the live chain. The header makes the page an index read and 
   more than two days, one `$group` over the runs is merged into the headers (`keepExisting`). The margin keeps
   the leftover runs of a pass whose header the shared 180-day TTL reaped a moment earlier from re-triggering the
   scan. #2124
+
+## The Aggregation panel prints estimates and index probes, never a pass over a fold table (2026-10-26)
+
+**Decision:** `GET /ops/stats/aggregations` reads every Postgres figure from the catalog or an index: table rows are
+the planner's estimate (`n_live_tup`, `reltuples` as fallback, shown `≈`), distinct champions an index skip scan
+on `ChampionId` (mains: the active-main partial index), and the two backlogs counts over partial indexes holding
+only the pending rows (`IX_matches_synergy_pending`, and `IX_match_participants_elo_bracket_pending`, added for it).
+Distinct patches and the per-family newest-row timestamp were **dropped**, and the payload is cached two minutes. #2303
+
+- **Why.** The page took over a minute cold: exact `count(*)`, `DISTINCT` and `max()` over every fold table,
+  sequentially, and the elo backlog walked the whole tracked-participant index to count a few thousand rows.
+  None of those figures needs exactness to be acted on.
+- **Why drop rather than estimate patches and freshness.** No fold table is indexed on its patch or timestamp
+  column, so either figure is a full scan or a guess. `/patch-coverage` already measures every fold per patch, and
+  the producing process's last success says when the family last wrote — the "Last aggregation" tile reads that
+  now. Same rule as #1442: a figure that is not acted on is not paid for.
