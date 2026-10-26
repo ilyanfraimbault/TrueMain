@@ -180,8 +180,8 @@ drives whichever tab is open), and a `UDashboardToolbar` only where there are fi
 name, grouped exactly like the sidebar, and additionally lists the destinations that have no route of their
 own: the *Crashes* tab of `/logs`, the three `/accounts` tabs, the *Riot API* and *Scrapers* tabs of
 `/processes` (`?view=riot-api|scrapers`) and the *Open conflicts* / *Resolved conflicts* / *Homonyms* tabs of
-`/known-players` (`?status=open|resolved|homonyms`, #2299). The sidebar and palette groups are built in
-`app/utils/navigation.ts`.
+`/known-players` (`?status=open|resolved|homonyms`, #2299). The sidebar and palette destinations are one table,
+`app/utils/navigation.json`, shaped by `app/utils/navigation.ts`.
 
 | Route | What it shows |
 |---|---|
