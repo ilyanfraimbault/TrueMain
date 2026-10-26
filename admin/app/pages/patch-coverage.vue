@@ -134,6 +134,7 @@ function dayScale(patch: PatchCoverageRow): number {
                 >
                   <template #info>
                     <p>{{ data.floorNote }}</p>
+                    <p v-if="data.participantsNote">{{ data.participantsNote }}</p>
                     <p>{{ data.sourceNote }}</p>
                   </template>
                 </PanelTitle>
@@ -191,8 +192,8 @@ function dayScale(patch: PatchCoverageRow): number {
             <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
               {{ formatNumber(current.matches) }}
             </p>
-            <p class="text-xs text-muted tabular-nums">
-              {{ formatNumber(current.participants) }} participants
+            <p class="text-xs text-muted tabular-nums" :title="data.participantsNote ?? undefined">
+              {{ formatNumber(current.participants) }} participants (derived)
             </p>
           </UCard>
           <UCard>
@@ -271,9 +272,9 @@ function dayScale(patch: PatchCoverageRow): number {
               </div>
               <div>
                 <dt class="text-xs text-muted uppercase">
-                  Participants
+                  Participants (derived)
                 </dt>
-                <dd class="mt-0.5 text-lg font-semibold text-highlighted tabular-nums">
+                <dd class="mt-0.5 text-lg font-semibold text-highlighted tabular-nums" :title="data.participantsNote ?? undefined">
                   {{ formatNumber(patch.participants) }}
                 </dd>
               </div>

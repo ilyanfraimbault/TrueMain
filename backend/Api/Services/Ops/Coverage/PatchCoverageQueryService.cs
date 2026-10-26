@@ -1,7 +1,7 @@
+using Core.Lol.Map;
 using Core.Lol.Patches;
 using Core.Options;
 using Data;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
@@ -40,6 +40,10 @@ public interface IPatchCoverageQueryService
 /// (#925) — and never on the overview. Each fold is measured in isolation, so one slow
 /// or broken table yields <c>unknown</c> with the reason attached rather than a 500 for
 /// the whole page: a fold that cannot be measured is not a fold that is empty.
+/// The distinct-patch lists are loose index scans and participants are derived from the
+/// match count rather than joined from <c>match_participants</c> (#2302), so no
+/// measurement here reads the participant table; callers get it through
+/// <see cref="CachedPatchCoverageQueryService"/>.
 /// </para>
 ///
 /// <para>
@@ -74,29 +78,19 @@ public sealed class PatchCoverageQueryService(
         // "16.15" — but a value written in any other form still belongs to the same
         // patch, and filtering on an assumed shape rather than on the stored values is
         // what silently empties a breakdown.
-        var scopeVersions = await db.ChampionAggregateScopes
-            .AsNoTracking()
-            .Where(scope => scope.QueueId == queueId)
-            .Select(scope => scope.GameVersion)
-            .Distinct()
-            .ToListAsync(ct);
+        var scopeVersions = await _measurements.LoadScopeVersionsAsync(queueId, ct);
 
         var scopeVersionsByPatch = scopeVersions
             .Where(version => PatchVersion.TryParse(version, out _))
             .GroupBy(PatchVersion.Normalize, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
 
-        var matchVersions = await db.Matches
-            .AsNoTracking()
-            .Where(match => match.QueueId == queueId)
-            .Select(match => match.GameVersion)
-            .Distinct()
-            .ToListAsync(ct);
+        var matchPatches = await _measurements.LoadMatchPatchesAsync(queueId, ct);
 
         // The union, not just the aggregate side: a patch whose matches have landed but
         // whose folds have not run yet is precisely the state this page exists to name,
         // and it has no scope row to be found by.
-        var coveredPatches = matchVersions
+        var coveredPatches = matchPatches
             .Concat(scopeVersions)
             .Where(version => PatchVersion.TryParse(version, out _))
             .Select(PatchVersion.Normalize)
@@ -131,7 +125,11 @@ public sealed class PatchCoverageQueryService(
 
         var patchArray = coveredPatches.ToArray();
 
-        var ingestion = await SafeAsync("ingestion", () => _measurements.LoadIngestionAsync(queueId, patchArray, ct), ct);
+        var expectedParticipants = QueueDataQualityProfile.ForQueue(queueId).ExpectedParticipants;
+        var ingestion = await SafeAsync(
+            "ingestion",
+            () => _measurements.LoadIngestionAsync(queueId, patchArray, expectedParticipants, ct),
+            ct);
         var coverage = await SafeAsync(
             "coverage",
             () => _measurements.LoadCoverageAsync(queueId, coveredPatches, scopeVersionsByPatch, floor, settings, ct),
@@ -209,6 +207,7 @@ public sealed class PatchCoverageQueryService(
             Status = current?.Status ?? DetectorStatus.Unknown.ToWireName(),
             Headline = PatchCoverageRows.BuildHeadline(current, newestIngested),
             Patches = rows,
+            ParticipantsNote = PatchCoverageRows.ParticipantsNote(expectedParticipants),
             SourceNote = PatchCoverageRows.SourceNote,
             EvaluatedAtUtc = now
         };
