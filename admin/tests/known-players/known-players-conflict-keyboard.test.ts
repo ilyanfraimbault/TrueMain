@@ -33,6 +33,10 @@ const ui = {
   UKbd: stub('kbd', p => String(p.value ?? '')),
   FetchErrorAlert: stub('aside', p => String(p.title ?? '')),
   KnownPlayersChannelConflicts: stub('div'),
+  KnownPlayersBulkResolve: defineComponent({
+    props: ['open'],
+    setup: props => () => props.open ? h('dialog', { 'data-bulk': '' }) : null,
+  }),
 }
 
 function press(key: string) {
@@ -142,6 +146,19 @@ describe('KnownPlayersConflicts keyboard triage', () => {
     expect(wrapper.find('[data-help]').exists()).toBe(false)
 
     wrapper.find<HTMLInputElement>('[data-search]').element.focus()
+    press('j')
+    press('Enter')
+    await flushPromises()
+    expect(wrapper.find('[data-selected]').exists()).toBe(false)
+    expect(getPersonaConflict).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps the queue keys quiet while the bulk resolution is open', async () => {
+    const { wrapper, getPersonaConflict } = setup()
+    await flushPromises()
+    await wrapper.find('[data-action="bulk-resolve"]').trigger('click')
+    expect(wrapper.find('[data-bulk]').exists()).toBe(true)
     press('j')
     press('Enter')
     await flushPromises()
