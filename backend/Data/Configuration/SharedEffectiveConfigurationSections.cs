@@ -66,6 +66,7 @@ public static class SharedEffectiveConfigurationSections
             nameof(MongoLoggingOptions.RiotApiCallsRetention),
             nameof(MongoLoggingOptions.MeterRollupsRetention),
             nameof(MongoLoggingOptions.RequestLatencyRetention),
+            nameof(MongoLoggingOptions.HealthAlertsRetention),
             nameof(MongoLoggingOptions.DbTableSizeSnapshotsRetention),
             nameof(MongoLoggingOptions.CandidateStockSnapshotsRetention),
             nameof(MongoLoggingOptions.ProcessRunsRetention),
@@ -95,6 +96,10 @@ public static class SharedEffectiveConfigurationSections
                 nameof(MongoLoggingOptions.RequestLatencyRetention),
                 UnsetCondition.ZeroOrNegative,
                 "No TTL index: the Api's per-minute ops request-latency rollups are kept forever."),
+            new EffectiveConfigurationNotice(
+                nameof(MongoLoggingOptions.HealthAlertsRetention),
+                UnsetCondition.ZeroOrNegative,
+                "No TTL index: every pipeline-health alert the Api sent is kept forever."),
             new EffectiveConfigurationNotice(
                 nameof(MongoLoggingOptions.DbTableSizeSnapshotsRetention),
                 UnsetCondition.ZeroOrNegative,

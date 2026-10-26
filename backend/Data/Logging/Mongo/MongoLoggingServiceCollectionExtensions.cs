@@ -98,6 +98,10 @@ public static class MongoLoggingServiceCollectionExtensions
         // its ops query reads. Direct-call like the meter rollups.
         services.TryAddSingleton<IRequestLatencyStore, RequestLatencyStore>();
 
+        // The Api's pipeline-health alerter (#2292): its state document and the alerts it
+        // sent, read back by the admin /health page.
+        services.TryAddSingleton<IHealthAlertStore, HealthAlertStore>();
+
         // Admin-portal data moved off Postgres: recorded process runs (written by
         // the Ingestor's ProcessRunRecorder, read by the admin process panels) and
         // the seed-request queue (written by the API, claimed by ManualSeedProcess).

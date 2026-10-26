@@ -91,6 +91,35 @@ internal sealed class WarmPayload<T>(string key, TimeSpan ttl, TimeSpan failureB
             ownerAwaitsToCompletion: true);
 
     /// <summary>
+    /// The payload for a background consumer that is not a reader (#2292, the health
+    /// alerter): the cached value while it is still fresh, else a new computation stored for
+    /// the next reader — without marking the payload read either way.
+    /// </summary>
+    /// <remarks>
+    /// Not marking it read is the point. A read keeps the <c>CockpitCacheRefresher</c>
+    /// recomputing the payload for its whole idle window, so a consumer asking every few
+    /// minutes through <see cref="GetAsync"/> would keep it recomputed every few seconds, all
+    /// day, with nobody looking. Through here the consumer costs one computation per call at
+    /// most — none while an open cockpit already keeps the value fresh — and what it computes
+    /// still warms the next visit.
+    /// </remarks>
+    public Task<T> GetUnreadAsync(IMemoryCache cache, Func<Task<T>> compute, TimeProvider clock)
+    {
+        if (TryGetFresh(cache, clock, out var fresh))
+        {
+            return Task.FromResult(fresh);
+        }
+
+        return _coalescer.GetOrJoinAsync(
+            Key,
+            async () => TryGetFresh(cache, clock, out var justStored)
+                ? justStored
+                : await ComputeAndStoreAsync(cache, compute, clock, countsAsRead: false),
+            CancellationToken.None,
+            ownerAwaitsToCompletion: true);
+    }
+
+    /// <summary>
     /// The cached value, fresh or stale, or null when there is none — never computed, never
     /// waited for. Unlike <see cref="GetAsync"/> it is not a read: a glance such as the admin
     /// sidebar's (#2294) must not keep the <c>CockpitCacheRefresher</c> recomputing a payload
@@ -105,16 +134,35 @@ internal sealed class WarmPayload<T>(string key, TimeSpan ttl, TimeSpan failureB
 
     public bool IsBackingOff(IMemoryCache cache) => FailureBackoff.IsOpen(cache, Key);
 
-    private async Task<T> ComputeAndStoreAsync(IMemoryCache cache, Func<Task<T>> compute, TimeProvider clock)
+    private async Task<T> ComputeAndStoreAsync(
+        IMemoryCache cache,
+        Func<Task<T>> compute,
+        TimeProvider clock,
+        bool countsAsRead = true)
     {
         var computed = await FailureBackoff.RunAsync(cache, Key, FailureBackoffWindow, compute, clock);
         var now = clock.GetUtcNow();
 
         // A refresh keeps the read time the payload had: the refresher's own pass is not a
-        // reader, otherwise an unread payload would keep itself warm for ever.
-        var lastReadAt = TryGetEntry(cache, out var previous) ? previous.LastReadAtUtc : now;
+        // reader, otherwise an unread payload would keep itself warm for ever. A first value
+        // stored by a non-reader starts as never read, so the refresher leaves it alone too.
+        var lastReadAt = TryGetEntry(cache, out var previous)
+            ? previous.LastReadAtUtc
+            : countsAsRead ? now : DateTimeOffset.MinValue;
         cache.Store(Key, new Entry(computed, now, lastReadAt), WarmPayloadRetention.Value);
         return computed;
+    }
+
+    private bool TryGetFresh(IMemoryCache cache, TimeProvider clock, out T value)
+    {
+        if (TryGetEntry(cache, out var entry) && clock.GetUtcNow() - entry.ComputedAtUtc < Ttl)
+        {
+            value = entry.Value;
+            return true;
+        }
+
+        value = null!;
+        return false;
     }
 
     private bool TryGetEntry(IMemoryCache cache, out Entry entry)

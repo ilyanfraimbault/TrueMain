@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Services.Ops.Alerting;
 
 namespace TrueMain.Services.Ops.Health;
 
@@ -35,6 +36,9 @@ public static class OpsHealthServiceCollectionExtensions
         services.AddWarmPayload(
             CachedOverviewQueryService.Payload,
             provider => provider.GetRequiredService<OverviewQueryService>().GetAsync(CancellationToken.None));
+
+        // The alerter reads the cockpit's payload above, so it is registered with it (#2292).
+        services.AddTrueMainHealthAlerting();
         return services;
     }
 }

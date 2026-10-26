@@ -154,6 +154,36 @@ public sealed class CockpitCacheRefresherTests : IDisposable
         source.Passes.Should().Be(1);
     }
 
+    [Fact]
+    public async Task GetUnreadAsync_ReusesAFreshValue_AndRecomputesAStaleOne()
+    {
+        var source = new Source();
+        var payload = NewPayload();
+        var read = await ReadAsync(payload, source);
+
+        _clock.Advance(Ttl * 0.5);
+        (await payload.GetUnreadAsync(_cache, source.ComputeAsync, _clock)).Should().BeSameAs(read);
+        source.Passes.Should().Be(1, "a fresh value costs the background consumer nothing");
+
+        _clock.Advance(Ttl);
+        (await payload.GetUnreadAsync(_cache, source.ComputeAsync, _clock)).Version.Should().Be(2);
+        (await ReadAsync(payload, source)).Version.Should().Be(2, "the value it computed serves the next reader");
+    }
+
+    [Fact]
+    public async Task GetUnreadAsync_DoesNotKeepThePayloadRefreshing()
+    {
+        var source = new Source();
+        var payload = NewPayload();
+        using var refresher = NewRefresher((payload, source));
+
+        await payload.GetUnreadAsync(_cache, source.ComputeAsync, _clock);
+        _clock.Advance(Ttl * 0.9);
+
+        (await refresher.RefreshNextAsync()).Should().BeNull("a background consumer is not a reader");
+        source.Passes.Should().Be(1);
+    }
+
     private WarmPayload<Value> NewPayload(TimeSpan? ttl = null)
         => new($"test:{Guid.NewGuid():N}", ttl ?? Ttl, TimeSpan.FromSeconds(30));
 
