@@ -271,7 +271,17 @@ queue's evidence. A channel conflict is derived from the links, not stored: it l
 different people, or the link is removed, and a same-name group holding a pair marked different is left to the operator.
 A merge drops the merged persona's links whose channel the kept one already lists, however a source spelled it.
 
-**Source.** #2016, #2134, #2253, #2019, #2271, #2273, #2277, #2286.
+**The most certain conflicts are merged in bulk, only from an explicit preview (2026-10-26, #2295).** The top of the
+open queue — two known players listing the same Twitch and the same X — gets the same answer every time, so the operator
+picks a score floor, reads every conflict it would touch and the merge it would get, and confirms twice. The rules: a
+conflict qualifies with at least one shared social channel, **no** differing channel (whatever its score: a differing
+channel is the one sign of two people) and a score at the floor (at least 10); it is merged into the **older** known
+player, the slug the site has advertised the longest, as the same-name merge does. The request carries the ids that were
+on screen, never the floor alone, so nothing the operator did not read is touched; the server checks each one again
+(still open, still no differing channel, still at the floor), skips the rest with a reason, and resolves the others one
+by one through the single resolution, so each is audited like one. At most 100 per batch.
+
+**Source.** #2016, #2134, #2253, #2019, #2271, #2273, #2277, #2286, #2295.
 
 **A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
 each main's name, so the count would name its denominator next to the champion page's per-patch count. On the

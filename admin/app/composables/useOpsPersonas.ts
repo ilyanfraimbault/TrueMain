@@ -5,6 +5,9 @@ import type {
   PersonaAutoMerged,
   PersonaChannelConflictsFilters,
   PersonaChannelConflictsResponse,
+  PersonaConflictBulkPreview,
+  PersonaConflictBulkResolveBody,
+  PersonaConflictBulkResolved,
   PersonaConflictDetail,
   PersonaConflictResolveBody,
   PersonaConflictResolved,
@@ -48,6 +51,22 @@ export function resolvePersonaConflict(id: string, body: PersonaConflictResolveB
     method: 'POST',
     body,
   })
+}
+
+/**
+ * `GET /api/ops/personas/conflicts/bulk-resolve/preview` — the open conflicts a bulk
+ * merge at `minScore` would settle (#2295), each with the known player it keeps.
+ */
+export function previewBulkResolve(minScore: number) {
+  return $fetch<PersonaConflictBulkPreview>('/api/ops/personas/conflicts/bulk-resolve/preview', { query: { minScore } })
+}
+
+/**
+ * `POST /api/ops/personas/conflicts/bulk-resolve` — merge exactly the previewed
+ * conflicts; the API re-checks each and answers one outcome per id.
+ */
+export function bulkResolvePersonaConflicts(body: PersonaConflictBulkResolveBody) {
+  return $fetch<PersonaConflictBulkResolved>('/api/ops/personas/conflicts/bulk-resolve', { method: 'POST', body })
 }
 
 /**
