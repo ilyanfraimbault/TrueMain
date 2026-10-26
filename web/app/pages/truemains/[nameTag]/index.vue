@@ -8,6 +8,10 @@ const route = useRoute()
 
 const nameTag = computed(() => parseRouteParam(route.params.nameTag))
 
+// A 404 for an unknown account, and the stored Riot ID's spelling as the
+// canonical (#2335, #2336).
+const indexingReady = useTruemainPageIndexing(nameTag, truemainProfilePath)
+
 const MATCHES_PAGE_SIZE = 20
 
 // URL state for the matches feed — page, position and champion filters are
@@ -136,7 +140,7 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
 // A client-side navigation keeps the outgoing page under the loading bar until
 // the API has answered, so this page opens on its data (#1689). Resolves at
 // once on a server render and a hydration, which keep their skeletons.
-await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
+await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady, indexingReady])
 </script>
 
 <template>
