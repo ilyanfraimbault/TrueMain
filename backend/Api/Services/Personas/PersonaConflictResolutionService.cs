@@ -44,7 +44,7 @@ public sealed class PersonaConflictResolutionService(
 {
     public Task<PersonaConflictResolveOutcome> ResolveAsync(
         Guid id, PersonaConflictResolveRequest request, CancellationToken ct) =>
-        ResolveAsync(id, request, "operator", ct);
+        ResolveAsync(id, request, AuditActors.Operator, ct);
 
     public async Task<PersonaConflictResolveOutcome> ResolveAsync(
         Guid id, PersonaConflictResolveRequest request, string actor, CancellationToken ct)
@@ -356,9 +356,9 @@ public sealed class PersonaConflictResolutionService(
             }
 
             await auditLog.RecordAsync(
-                action: "resolve_persona_conflict",
+                action: AuditActions.ResolvePersonaConflict,
                 actor: actor,
-                targetType: "PersonaAccountConflict",
+                targetType: AuditTargets.PersonaAccountConflict,
                 targetId: id.ToString(),
                 metadata: metadata,
                 ct: ct);

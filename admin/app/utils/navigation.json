@@ -44,7 +44,8 @@
       ["Database", "i-lucide-database", "/database"],
       ["Configuration", "i-lucide-settings", "/configuration"],
       ["Analytics", "i-lucide-chart-line", "/analytics"],
-      ["Desktop app", "i-lucide-monitor-down", "/desktop"]
+      ["Desktop app", "i-lucide-monitor-down", "/desktop"],
+      ["Audit", "i-lucide-history", "/audit"]
     ],
     "tabs": []
   }
