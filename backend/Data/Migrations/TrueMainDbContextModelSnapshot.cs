@@ -20,7 +20,7 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -1999,6 +1999,9 @@ namespace Data.Migrations
 
                     b.HasIndex(new[] { "ChampionId", "TeamPosition", "EloBracket" }, "IX_match_participants_champion_position_tracked")
                         .HasFilter("\"RiotAccountId\" IS NOT NULL");
+
+                    b.HasIndex(new[] { "Id" }, "IX_match_participants_elo_bracket_pending")
+                        .HasFilter("\"RiotAccountId\" IS NOT NULL AND elo_bracket = ''");
 
                     b.HasIndex(new[] { "Id" }, "IX_match_participants_role_bound_pending")
                         .HasFilter("\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
