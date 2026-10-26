@@ -15,7 +15,7 @@ export interface ChampionStaticEntry {
  * `nameFor` falls back to `Champion {id}` so an unmapped id (new champion not
  * yet on the resolved patch) still renders something honest rather than blank.
  */
-const STATIC_CHAMPIONS_KEY = 'static:champions'
+export const STATIC_CHAMPIONS_KEY = 'static:champions'
 
 export function useChampionStatic() {
   const { data, pending, error } = useFetch<ChampionStaticListItem[]>(
