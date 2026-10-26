@@ -1,7 +1,12 @@
 <script setup lang="ts">
 // Overview stat cards: the site-wide totals of `GET /api/ops/stats/overview`,
 // fetched by the page (its navbar button refreshes them).
+//
+// The match-side figures are planner estimates (#2301) — exact counts scanned the
+// two largest tables and timed the endpoint out — so they read `≈`. Unavailable,
+// they read as a dash with the reason, never as zero.
 import type { OverviewStats } from '~~/shared/types/ops'
+import { computed } from 'vue'
 import { formatNumber } from '~~/shared/utils/format'
 
 const props = defineProps<{
@@ -14,6 +19,20 @@ interface StatCard {
   icon: string
   value: string
   hint?: string
+}
+
+function formatEstimate(value: number | null | undefined): string {
+  return value === null || value === undefined ? formatNumber(value) : `≈ ${formatNumber(value)}`
+}
+
+// The reason only stands in for a missing estimate; a measured one keeps its own hint.
+function estimateHint(value: number | null | undefined, hint?: string): string | undefined {
+  const s = props.stats
+  if (!s) return undefined
+  if (value === null || value === undefined) {
+    return s.estimatesUnknownReason ?? undefined
+  }
+  return hint
 }
 
 // Map the raw totals onto cards. `formatNumber` renders an em dash when a field
@@ -47,18 +66,23 @@ const cards = computed<StatCard[]>(() => {
     {
       title: 'Total matches',
       icon: 'i-lucide-database',
-      value: formatNumber(s?.totalMatches),
-      hint: s ? `${formatNumber(s.totalParticipants)} participants` : undefined,
+      value: formatEstimate(s?.totalMatches),
+      hint: estimateHint(
+        s?.totalMatches,
+        s ? `${formatEstimate(s.totalParticipants)} participants` : undefined,
+      ),
     },
     {
       title: 'Matches · last 7d',
       icon: 'i-lucide-calendar-clock',
-      value: formatNumber(s?.matchesLast7Days),
+      value: formatEstimate(s?.matchesLast7Days),
+      hint: estimateHint(s?.matchesLast7Days),
     },
     {
       title: 'Matches · last 30d',
       icon: 'i-lucide-calendar-range',
-      value: formatNumber(s?.matchesLast30Days),
+      value: formatEstimate(s?.matchesLast30Days),
+      hint: estimateHint(s?.matchesLast30Days),
     },
     {
       title: 'Distinct champions',
