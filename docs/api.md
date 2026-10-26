@@ -1611,6 +1611,29 @@ de 10 min — le comptage des participants est la lecture la plus coûteuse de l
   confondre. `consecutiveFailures` est la série d'échecs en cours, `0` quand le dernier
   run a réussi.
 
+## `GET /ops/nav-summary`
+
+Les badges de la barre latérale de l'admin (#2294), redemandés chaque minute par chaque
+onglet ouvert.
+
+```json
+{
+  "openConflicts": 2,
+  "homonymGroups": 1,
+  "countedAtUtc": "2026-10-26T08:00:00Z",
+  "healthStatus": "amber",
+  "healthEvaluatedAtUtc": "2026-10-26T07:59:40Z"
+}
+```
+
+- `openConflicts` et `homonymGroups` sont les totaux des files *Open conflicts* et
+  *Homonyms*, servis par index et mis en cache 30 s (une seule passe pour toutes les
+  requêtes concurrentes).
+- `healthStatus` est le verdict du payload `pipeline-health` tenu chaud (#2305), **lu
+  sans compter comme une lecture** : ce endpoint n'évalue jamais le cockpit et ne garde
+  pas le refresher occupé. Sans évaluation tenue, ou avec une évaluation de plus de
+  15 min, il vaut `unknown` et `healthEvaluatedAtUtc` est `null`.
+
 ## `GET /ops/stats/overview`
 
 Compteurs globaux du corpus.

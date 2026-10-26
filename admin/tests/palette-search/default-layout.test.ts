@@ -30,6 +30,7 @@ describe('default layout', () => {
     const term = ref('')
     const groups = computed(() => [{ id: term.value ? 'entity-match' : 'monitor', items: [] }])
     vi.stubGlobal('usePaletteSearch', () => ({ term, groups, loading: ref(true) }))
+    vi.stubGlobal('useNavSummary', () => ({ summary: ref({ openConflicts: 2, homonymGroups: 0, healthStatus: 'green', healthEvaluatedAtUtc: null }) }))
     vi.stubGlobal('useTemplateRef', useTemplateRef)
     vi.stubGlobal('useEventListener', vi.fn())
     vi.stubGlobal('computed', computed)
@@ -45,6 +46,10 @@ describe('default layout', () => {
     expect(search.props('loading')).toBe(true)
     expect(search.props('placeholder')).toContain('Riot ID')
     expect(search.props('groups')).toEqual([{ id: 'monitor', items: [] }])
+
+    const menu = wrapper.findComponent({ name: 'UNavigationMenu' })
+    // The sidebar carries the nav summary's badges (#2294).
+    expect(JSON.stringify(menu.vm.$attrs.items)).toContain('"label":2')
 
     search.vm.$emit('update:searchTerm', 'EUW1_7012345678')
     await wrapper.vm.$nextTick()

@@ -1,4 +1,5 @@
 using Data;
+using Data.Configurations;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
 
@@ -11,6 +12,9 @@ public interface IPersonaHomonymQueryService
     /// order; <paramref name="search"/> matches a name or slug.
     /// </summary>
     Task<PersonaHomonymsReadModel> GetPageAsync(string? search, int? page, int? pageSize, CancellationToken ct);
+
+    /// <summary>How many homonym groups wait for the operator: the queue's total, unfiltered (#2294).</summary>
+    Task<long> CountPendingAsync(CancellationToken ct);
 }
 
 /// <summary>
@@ -27,17 +31,43 @@ public sealed class PersonaHomonymQueryService(TrueMainDbContext db) : IPersonaH
     private static readonly string LiveSql = $$"""
         SELECT p."Id", p."DisplayName", p."Slug", {{PersonaHomonyms.NameKeySql("p")}} AS key
         FROM personas p
-        WHERE p."MergedIntoPersonaId" IS NULL AND p."RemovedAtUtc" IS NULL
+        WHERE {{PersonaConfiguration.LiveFilterSql}}
         """;
 
-    // A group stays while one pair in it is not marked: n personas make n(n-1)/2 pairs. Two of its
-    // personas listing the same channel is the strongest hint they are one person: those come first.
-    // Only the grouped personas' links are keyed: keying all of them made the query an order of magnitude slower.
-    private static readonly string GroupKeysSql = $$"""
-        WITH live AS ({{LiveSql}}),
+    // A group stays while one pair in it is not marked: n personas make n(n-1)/2 pairs. `live` is
+    // the caller's, so the count reads only the ids and keys the name-key index holds (#2294).
+    private const string PendingGroupsSql = """
         groups AS (
             SELECT key, count(*) AS n FROM live WHERE key <> '' GROUP BY key HAVING count(*) > 1
         ),
+        marked AS (
+            SELECT a.key, count(*) AS m
+            FROM persona_distinct_pairs d
+            JOIN live a ON a."Id" = d."PersonaId"
+            JOIN live b ON b."Id" = d."OtherPersonaId" AND b.key = a.key
+            GROUP BY a.key
+        )
+        """;
+
+    private const string PendingFilterSql = "coalesce(m.m, 0) < g.n * (g.n - 1) / 2";
+
+    private static readonly string PendingCountSql = $$"""
+        WITH live AS (
+            SELECT p."Id", {{PersonaHomonyms.NameKeySql("p")}} AS key FROM personas p WHERE {{PersonaConfiguration.LiveFilterSql}}
+        ),
+        {{PendingGroupsSql}}
+        SELECT count(*) AS "Value"
+        FROM groups g
+        LEFT JOIN marked m ON m.key = g.key
+        WHERE {{PendingFilterSql}}
+        """;
+
+    // Two of a group's personas listing the same channel is the strongest hint they are one person:
+    // those come first. Only the grouped personas' links are keyed: keying all of them made the
+    // query an order of magnitude slower.
+    private static readonly string GroupKeysSql = $$"""
+        WITH live AS ({{LiveSql}}),
+        {{PendingGroupsSql}},
         links AS (
             SELECT live.key, l."PersonaId", {{PersonaHomonyms.LinkKeySql("l")}} AS url
             FROM persona_links l
@@ -48,19 +78,12 @@ public sealed class PersonaHomonymQueryService(TrueMainDbContext db) : IPersonaH
             SELECT DISTINCT a.key
             FROM links a
             JOIN links b ON b.key = a.key AND b.url = a.url AND b."PersonaId" <> a."PersonaId"
-        ),
-        marked AS (
-            SELECT a.key, count(*) AS m
-            FROM persona_distinct_pairs d
-            JOIN live a ON a."Id" = d."PersonaId"
-            JOIN live b ON b."Id" = d."OtherPersonaId" AND b.key = a.key
-            GROUP BY a.key
         )
         SELECT g.key AS "Key", (s.key IS NOT NULL) AS "SharesALink"
         FROM groups g
         LEFT JOIN marked m ON m.key = g.key
         LEFT JOIN shared s ON s.key = g.key
-        WHERE coalesce(m.m, 0) < g.n * (g.n - 1) / 2
+        WHERE {{PendingFilterSql}}
           AND ({0} = '' OR EXISTS (
               SELECT 1 FROM live l
               WHERE l.key = g.key AND (l."DisplayName" ILIKE {0} ESCAPE '\' OR l."Slug" ILIKE {0} ESCAPE '\')))
@@ -92,6 +115,9 @@ public sealed class PersonaHomonymQueryService(TrueMainDbContext db) : IPersonaH
             PageSize = effectivePageSize,
         };
     }
+
+    public Task<long> CountPendingAsync(CancellationToken ct) =>
+        db.Database.SqlQueryRaw<long>(PendingCountSql).SingleAsync(ct);
 
     private async Task<IReadOnlyList<PersonaHomonymGroupReadModel>> LoadGroupsAsync(List<string> keys, CancellationToken ct)
     {
