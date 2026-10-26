@@ -1,0 +1,51 @@
+[
+  {
+    "label": "Monitor",
+    "pages": [
+      ["Overview", "i-lucide-layout-dashboard", "/"],
+      ["Health", "i-lucide-heart-pulse", "/health"],
+      ["Processes", "i-lucide-activity", "/processes"],
+      ["Logs", "i-lucide-scroll-text", "/logs"]
+    ],
+    "tabs": [
+      ["Processes → Riot API", "i-lucide-radio-tower", "/processes?view=riot-api"],
+      ["Processes → Scrapers", "i-lucide-bot", "/processes?view=scrapers"],
+      ["Logs → Crashes", "i-lucide-skull", "/logs?view=crashes"]
+    ]
+  },
+  {
+    "label": "Data",
+    "pages": [
+      ["Champions", "i-lucide-swords", "/champions"],
+      ["Aggregation", "i-lucide-combine", "/aggregation"],
+      ["Patch Coverage", "i-lucide-layers", "/patch-coverage"],
+      ["Data Quality", "i-lucide-shield-alert", "/data-quality"]
+    ],
+    "tabs": []
+  },
+  {
+    "label": "Accounts",
+    "pages": [
+      ["Accounts", "i-lucide-users-round", "/accounts"],
+      ["Known players", "i-lucide-badge-check", "/known-players"]
+    ],
+    "tabs": [
+      ["Accounts → Pipeline", "i-lucide-users-round", "/accounts?view=pipeline"],
+      ["Accounts → Trace", "i-lucide-user-search", "/accounts?view=trace"],
+      ["Accounts → Add mains", "i-lucide-user-plus", "/accounts?view=seed"],
+      ["Known players → Open conflicts", "i-lucide-git-pull-request-arrow", "/known-players?status=open"],
+      ["Known players → Resolved conflicts", "i-lucide-check-check", "/known-players?status=resolved"],
+      ["Known players → Homonyms", "i-lucide-copy", "/known-players?status=homonyms"]
+    ]
+  },
+  {
+    "label": "System",
+    "pages": [
+      ["Database", "i-lucide-database", "/database"],
+      ["Configuration", "i-lucide-settings", "/configuration"],
+      ["Analytics", "i-lucide-chart-line", "/analytics"],
+      ["Desktop app", "i-lucide-monitor-down", "/desktop"]
+    ],
+    "tabs": []
+  }
+]
