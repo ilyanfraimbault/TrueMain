@@ -11,6 +11,7 @@ using TrueMain.Http;
 using TrueMain.LogIngest;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
+using TrueMain.RequestLatency;
 using TrueMain.RequestLogging;
 using TrueMain.Services.Benchmarks;
 using TrueMain.Services.Champions.Builds;
@@ -351,6 +352,7 @@ builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsCo
 builder.Services.AddTrueMainTruemains();
 builder.Services.AddTrueMainOpsHealth();
 builder.Services.AddTrueMainOpsStats();
+builder.Services.AddTrueMainRequestLatency();
 builder.Services.AddTrueMainPersonas();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IDbStorageHistoryQueryService, DbStorageHistoryQueryService>();
@@ -414,8 +416,9 @@ if (app.Environment.IsDevelopment()
 }
 
 // Outermost request middleware, ahead of the exception handler: logs 5xx answers
-// and client aborts with their path and traceId (#1555).
+// and client aborts with their path and traceId (#1555); then the ops-route timer (#2307).
 app.UseRequestOutcomeLogging();
+app.UseOpsRequestLatency();
 
 // Development gets the rich debug page (source snippets, full stack trace);
 // everywhere else keeps the RFC 7807 ProblemDetails handler so clients always
