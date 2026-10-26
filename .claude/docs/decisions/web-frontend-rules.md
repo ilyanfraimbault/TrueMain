@@ -386,7 +386,7 @@ tried first (#1617) and rejected.
   moves from preprod to prod) — re-reading each value on the client instead would leave the same trap for the
   next `runtimeConfig.public` consumer.
 - **Why one hour.** The TTL matches the champion slug map's own server cache
-  (`server/api/static/champion-slugs.get.ts`), the only backend-derived value in these pages' payload, so a
+  (`web/layers/nitro/server/api/static/champion-slugs.get.ts`), the only backend-derived value in these pages' payload, so a
   cached page is never staler than a freshly rendered one.
 - **Measured**: served locally, a cached response answers in ~3.5 ms against ~117 ms for a full render, and
   the env, version, Umami host/id and canonical URL are the running container's.
