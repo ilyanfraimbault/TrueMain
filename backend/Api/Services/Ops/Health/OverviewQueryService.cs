@@ -19,8 +19,8 @@ public interface IOverviewQueryService
 /// pushed the endpoint past the API's statement timeout, leaving the landing page empty.
 ///
 /// <list type="bullet">
-/// <item>Corpus totals — the planner's live-tuple estimates (<see cref="RawCorpusEstimates"/>),
-/// the figure <c>/health</c> and <c>/database</c> already print.</item>
+/// <item>Corpus totals — the planner's row estimates (<see cref="RawCorpusEstimates"/>),
+/// the figure <c>/health</c> already prints.</item>
 /// <item>Matches in the last 7 / 30 days — the planner's row estimate for the window. No index
 /// leads on <c>GameStartTimeUtc</c>, and retention keeps about a month, so the 30-day window
 /// is nearly the whole table: an exact count stays a full pass whatever the index.</item>

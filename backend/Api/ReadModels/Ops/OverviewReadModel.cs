@@ -19,10 +19,10 @@ public sealed record OverviewReadModel
 {
     public int TrackedAccounts { get; init; }
 
-    /// <summary>Planner estimate of the stored matches (<c>pg_stat_user_tables.n_live_tup</c>).</summary>
+    /// <summary>Planner estimate of the stored matches (<c>RawCorpusEstimates</c>).</summary>
     public long? TotalMatches { get; init; }
 
-    /// <summary>Planner estimate of the stored participant rows (<c>n_live_tup</c>).</summary>
+    /// <summary>Planner estimate of the stored participant rows (<c>RawCorpusEstimates</c>).</summary>
     public long? TotalParticipants { get; init; }
 
     /// <summary>

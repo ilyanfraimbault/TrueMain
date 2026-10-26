@@ -1614,7 +1614,7 @@ Compteurs globaux du corpus.
 
 Cached 2 min and single-flighted across concurrent callers (#2301); `computedAtUtc` says when
 the payload was computed. `totalMatches`, `totalParticipants`, `matchesLast7Days` and
-`matchesLast30Days` are **planner estimates** (`pg_stat_user_tables.n_live_tup`, and
+`matchesLast30Days` are **planner estimates** (`pg_class.reltuples` scaled to the table's current size, and
 `EXPLAIN`'s row estimate for the two windows), not exact counts — `null` with
 `estimatesUnknownReason` when they could not be read. `distinctChampionsWithGames` reads
 `champion_game_counts` (the ingestor's periodic recount). Everything else is exact.
