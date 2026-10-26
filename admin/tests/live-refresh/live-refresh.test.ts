@@ -138,4 +138,38 @@ describe('useLiveRefresh', () => {
     await vi.advanceTimersByTimeAsync(200)
     expect(refresh).toHaveBeenCalledTimes(2)
   })
+
+  it('keeps a hiddenEvery source refreshing at the slower cadence in a background tab', async () => {
+    const refresh = vi.fn()
+    run(() => useLiveRefresh(refresh, { every: 1000, hiddenEvery: 5000 }))
+    await settle()
+
+    setVisibility('hidden')
+    await settle()
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(refresh).toHaveBeenCalledTimes(0)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(refresh).toHaveBeenCalledTimes(1)
+
+    // Back in front: one immediate read, then the visible cadence again.
+    setVisibility('visible')
+    await settle()
+    expect(refresh).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(refresh).toHaveBeenCalledTimes(3)
+  })
+
+  it('still lets the operator pause a hiddenEvery source', async () => {
+    const refresh = vi.fn()
+    const live = run(() => useLiveRefresh(refresh, { every: 1000, hiddenEvery: 5000 }))
+    await settle()
+
+    live.toggle()
+    setVisibility('hidden')
+    await settle()
+    await vi.advanceTimersByTimeAsync(10_000)
+    setVisibility('visible')
+    await settle()
+    expect(refresh).toHaveBeenCalledTimes(0)
+  })
 })

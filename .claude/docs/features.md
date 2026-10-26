@@ -194,6 +194,14 @@ name fields prefilled (`?view=seed&riotId=`); known players matching the name or
 loaded on the first such term) → `/champions?search=` with the table filtered. Nothing is matched — and no request
 is sent — under two characters, so the pages still list instantly. Each target page reads its value from the query
 string on arrival and again when the palette jumps while it is already open (`useQueryValue`). Type, arrow, Enter.
+**Browser-tab titles** (#2296, `app/utils/page-title.ts`): `%s · TrueMain admin`, each page and tab named off that
+same navigation table (`Processes — Riot API`, `Known players — Homonyms`), so a destination added there is titled
+for free; a route it does not name (login, redirects) reads `TrueMain admin`. `/health` and the Overview prefix the
+title with a non-green verdict (`● Red — Health`, `● Amber — Overview`) and swap the favicon for a dotted variant
+(`public/favicon-{red,amber}.svg`), from the pipeline-health payload they already poll every 30 s
+(`useVerdictTitle`, no request of its own) — and, in a background tab, once a minute instead of stopping
+(`useLiveRefresh`'s `hiddenEvery`); green and *not measured* leave both alone, and leaving the page
+restores them.
 
 | Route | What it shows |
 |---|---|

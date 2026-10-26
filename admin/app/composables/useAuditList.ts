@@ -36,7 +36,7 @@ export function useAuditList() {
     page.value = 1
   })
 
-  const { data, pending, error, refresh } = useAuditEvents(filters)
+  const { data, pending, refreshing, error, refresh } = useAuditEvents(filters)
 
   const all = (label: string) => ({ label, value: ALL })
   const actionItems = computed(() => [
@@ -84,6 +84,7 @@ export function useAuditList() {
     clearTarget,
     resetFilters,
     pending,
+    refreshing,
     error,
     refresh,
     entries: computed(() => data.value?.entries ?? []),
