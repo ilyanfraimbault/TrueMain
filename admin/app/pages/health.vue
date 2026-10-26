@@ -17,7 +17,7 @@ import {
   processStatusColor,
 } from '~~/shared/utils/pipeline-health'
 
-const { data: fetched, pending, error, refresh } = usePipelineHealth()
+const { data: fetched, pending, refreshing, error, refresh } = usePipelineHealth()
 
 // What the cockpit draws (#1427): the current payload, or the last good one when a refresh
 // failed — Nuxt resets `data` on error, and a slow evaluation timing out at the proxy used to
@@ -95,7 +95,7 @@ const visibleProcesses = computed(() =>
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="refreshing"
             aria-label="Refresh"
             @click="refreshNow()"
           />

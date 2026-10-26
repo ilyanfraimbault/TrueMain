@@ -405,6 +405,7 @@ Last verified against `develop` on 2026-09-02.
 - The admin portal has one status vocabulary and one duration ladder (2026-08-28) — #924, #1024
 - The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28) — #1249
 - The cockpit's region balance is informational, and its coverage deficit is the claim allocator's own arithmetic over the same counts (2026-10-04) — #1153, #1150
+- Admin ops reads are stale-while-revalidate across navigations: in-memory only, 10 min TTL, emptied when the session ends; `useOps`' `pending` means "nothing to draw yet", `refreshing` is a request in flight (2026-10-26) — #2306, #2300
 
 ## Desktop companion — [`decisions/desktop.md`](decisions/desktop.md)
 
