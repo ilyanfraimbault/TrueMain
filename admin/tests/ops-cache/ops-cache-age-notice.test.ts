@@ -17,12 +17,12 @@ function mountWith(shown: Map<string, number>) {
 
 describe('OpsCacheAgeNotice', () => {
   it('renders nothing when no payload is drawn from the cache', () => {
-    expect(mountWith(new Map()).find('[role="status"]').exists()).toBe(false)
+    expect(mountWith(new Map()).find('output').exists()).toBe(false)
   })
 
   it('stays silent below the threshold', () => {
     const wrapper = mountWith(new Map([['k', NOW - OPS_CACHE_LABEL_AFTER_MS]]))
-    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    expect(wrapper.find('output').exists()).toBe(false)
   })
 
   it('labels the oldest cached payload in minutes, then hours', () => {
@@ -35,9 +35,9 @@ describe('OpsCacheAgeNotice', () => {
   it('clears once the revalidation lands', async () => {
     const shown = shallowReactive(new Map([['a', NOW - 5 * 60_000]]))
     const wrapper = mountWith(shown)
-    expect(wrapper.find('[role="status"]').exists()).toBe(true)
+    expect(wrapper.find('output').exists()).toBe(true)
     shown.delete('a')
     await nextTick()
-    expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    expect(wrapper.find('output').exists()).toBe(false)
   })
 })

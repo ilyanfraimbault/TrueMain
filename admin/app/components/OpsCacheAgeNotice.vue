@@ -37,12 +37,12 @@ const label = computed(() => {
 </script>
 
 <template>
-  <div
+  <output
     v-if="label"
-    role="status"
+    aria-label="Age of the cached figures"
     class="pointer-events-none fixed bottom-4 right-4 z-50 flex items-center gap-1.5 rounded-full bg-elevated/90 px-3 py-1.5 text-xs text-muted ring ring-default"
   >
     <UIcon name="i-lucide-history" class="size-3.5 shrink-0" />
     <span class="tabular-nums">Showing figures cached {{ label }}</span>
-  </div>
+  </output>
 </template>
