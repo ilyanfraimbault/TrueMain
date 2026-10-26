@@ -1,5 +1,17 @@
 import type { CommandPaletteGroup, CommandPaletteItem, NavigationMenuItem } from '@nuxt/ui'
 
+// One destination: label, icon, route. Declared as tuples so the tables below
+// stay one line per destination.
+type Destination = readonly [label: string, icon: string, to: string]
+
+function link([label, icon, to]: Destination) {
+  return { label, icon, to }
+}
+
+function navGroup(label: string, pages: Destination[]): NavigationMenuItem[] {
+  return [{ label, type: 'label' }, ...pages.map(link)]
+}
+
 // Four labelled groups (#1410) rather than one flat list of 15: the portal
 // answers three questions — is ingestion flowing, is the data right, what is
 // failing — and the sidebar should say so before the operator has to guess which
@@ -9,32 +21,43 @@ import type { CommandPaletteGroup, CommandPaletteItem, NavigationMenuItem } from
 // tabs, and Riot API is a tab of Processes — those routes still resolve, via
 // redirect pages.
 export const NAV_GROUPS: NavigationMenuItem[][] = [
-  [
-    { label: 'Monitor', type: 'label' },
-    { label: 'Overview', icon: 'i-lucide-layout-dashboard', to: '/' },
-    { label: 'Health', icon: 'i-lucide-heart-pulse', to: '/health' },
-    { label: 'Processes', icon: 'i-lucide-activity', to: '/processes' },
-    { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
-  ],
-  [
-    { label: 'Data', type: 'label' },
-    { label: 'Champions', icon: 'i-lucide-swords', to: '/champions' },
-    { label: 'Aggregation', icon: 'i-lucide-combine', to: '/aggregation' },
-    { label: 'Patch Coverage', icon: 'i-lucide-layers', to: '/patch-coverage' },
-    { label: 'Data Quality', icon: 'i-lucide-shield-alert', to: '/data-quality' },
-  ],
-  [
-    { label: 'Accounts', type: 'label' },
-    { label: 'Accounts', icon: 'i-lucide-users-round', to: '/accounts' },
-    { label: 'Known players', icon: 'i-lucide-badge-check', to: '/known-players' },
-  ],
-  [
-    { label: 'System', type: 'label' },
-    { label: 'Database', icon: 'i-lucide-database', to: '/database' },
-    { label: 'Configuration', icon: 'i-lucide-settings', to: '/configuration' },
-    { label: 'Analytics', icon: 'i-lucide-chart-line', to: '/analytics' },
-    { label: 'Desktop app', icon: 'i-lucide-monitor-down', to: '/desktop' },
-  ],
+  navGroup('Monitor', [
+    ['Overview', 'i-lucide-layout-dashboard', '/'],
+    ['Health', 'i-lucide-heart-pulse', '/health'],
+    ['Processes', 'i-lucide-activity', '/processes'],
+    ['Logs', 'i-lucide-scroll-text', '/logs'],
+  ]),
+  navGroup('Data', [
+    ['Champions', 'i-lucide-swords', '/champions'],
+    ['Aggregation', 'i-lucide-combine', '/aggregation'],
+    ['Patch Coverage', 'i-lucide-layers', '/patch-coverage'],
+    ['Data Quality', 'i-lucide-shield-alert', '/data-quality'],
+  ]),
+  navGroup('Accounts', [
+    ['Accounts', 'i-lucide-users-round', '/accounts'],
+    ['Known players', 'i-lucide-badge-check', '/known-players'],
+  ]),
+  navGroup('System', [
+    ['Database', 'i-lucide-database', '/database'],
+    ['Configuration', 'i-lucide-settings', '/configuration'],
+    ['Analytics', 'i-lucide-chart-line', '/analytics'],
+    ['Desktop app', 'i-lucide-monitor-down', '/desktop'],
+  ]),
+]
+
+const MONITOR_TABS: Destination[] = [
+  ['Processes → Riot API', 'i-lucide-radio-tower', '/processes?view=riot-api'],
+  ['Processes → Scrapers', 'i-lucide-bot', '/processes?view=scrapers'],
+  ['Logs → Crashes', 'i-lucide-skull', '/logs?view=crashes'],
+]
+
+const ACCOUNTS_TABS: Destination[] = [
+  ['Accounts → Pipeline', 'i-lucide-users-round', '/accounts?view=pipeline'],
+  ['Accounts → Trace', 'i-lucide-user-search', '/accounts?view=trace'],
+  ['Accounts → Add mains', 'i-lucide-user-plus', '/accounts?view=seed'],
+  ['Known players → Open conflicts', 'i-lucide-git-pull-request-arrow', '/known-players?status=open'],
+  ['Known players → Resolved conflicts', 'i-lucide-check-check', '/known-players?status=resolved'],
+  ['Known players → Homonyms', 'i-lucide-copy', '/known-players?status=homonyms'],
 ]
 
 // Pages that live behind a `?view=` / `?status=` tab rather than their own route:
@@ -42,47 +65,8 @@ export const NAV_GROUPS: NavigationMenuItem[][] = [
 // reachable by name. Keyed by the sidebar group they belong to so each lands under
 // the same heading as its hub; the icons are the ones each tab wears on its page.
 export const TAB_ENTRIES: Record<string, CommandPaletteItem[]> = {
-  Monitor: [
-    {
-      label: 'Processes → Riot API',
-      icon: 'i-lucide-radio-tower',
-      to: '/processes?view=riot-api',
-    },
-    { label: 'Processes → Scrapers', icon: 'i-lucide-bot', to: '/processes?view=scrapers' },
-    { label: 'Logs → Crashes', icon: 'i-lucide-skull', to: '/logs?view=crashes' },
-  ],
-  Accounts: [
-    {
-      label: 'Accounts → Pipeline',
-      icon: 'i-lucide-users-round',
-      to: '/accounts?view=pipeline',
-    },
-    {
-      label: 'Accounts → Trace',
-      icon: 'i-lucide-user-search',
-      to: '/accounts?view=trace',
-    },
-    {
-      label: 'Accounts → Add mains',
-      icon: 'i-lucide-user-plus',
-      to: '/accounts?view=seed',
-    },
-    {
-      label: 'Known players → Open conflicts',
-      icon: 'i-lucide-git-pull-request-arrow',
-      to: '/known-players?status=open',
-    },
-    {
-      label: 'Known players → Resolved conflicts',
-      icon: 'i-lucide-check-check',
-      to: '/known-players?status=resolved',
-    },
-    {
-      label: 'Known players → Homonyms',
-      icon: 'i-lucide-copy',
-      to: '/known-players?status=homonyms',
-    },
-  ],
+  Monitor: MONITOR_TABS.map(link),
+  Accounts: ACCOUNTS_TABS.map(link),
 }
 
 // ⌘K palette (#1415): jumping by name beats hunting the sidebar. Same groups,
