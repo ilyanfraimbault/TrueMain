@@ -1,6 +1,21 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
 import { buildSearchGroups, NAV_GROUPS } from '~/utils/navigation'
+import { createOpsPrefetcher, hoveredRoute } from '~/utils/ops-cache'
+
+const prefetch = createOpsPrefetcher((url, query) => $fetch(url, { query }))
+
+function warm(event: Event) {
+  const route = hoveredRoute(event.target)
+  if (route) {
+    void prefetch(route)
+  }
+}
+
+// Bound in script rather than as template handlers: the wrapper is not itself
+// interactive, its links are, and keyboard focus is covered by `focusin`.
+const navWrapper = useTemplateRef<HTMLElement>('navWrapper')
+useEventListener(navWrapper, ['mouseover', 'focusin'], warm)
 
 const open = ref(false)
 
@@ -47,13 +62,17 @@ const groups = computed<NavigationMenuItem[][]>(() =>
       <template #default="{ collapsed }">
         <UDashboardSearchButton :collapsed="collapsed" tooltip class="mb-2" />
 
-        <UNavigationMenu
-          :collapsed="collapsed"
-          :items="groups"
-          orientation="vertical"
-          tooltip
-          popover
-        />
+        <!-- Hovering or focusing an entry warms its page's main reads (#2306). Listened
+             on the wrapper — the events bubble from the menu's own links. -->
+        <div ref="navWrapper">
+          <UNavigationMenu
+            :collapsed="collapsed"
+            :items="groups"
+            orientation="vertical"
+            tooltip
+            popover
+          />
+        </div>
       </template>
 
       <template #footer="{ collapsed }">
@@ -74,5 +93,7 @@ const groups = computed<NavigationMenuItem[][]>(() =>
     />
 
     <slot />
+
+    <OpsCacheAgeNotice />
   </UDashboardGroup>
 </template>

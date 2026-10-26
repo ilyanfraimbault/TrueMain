@@ -372,3 +372,31 @@ signal**: it does not move the verdict.
 - *Cached five minutes* (`measuredAtUtc` stated on the panel): the cockpit refreshes every 30 s and the
   distinct-account count takes seconds on a production-sized corpus, while the balance moves on a cadence of
   hours.
+
+## Admin ops reads are stale-while-revalidate across navigations (2026-10-26)
+
+**Decision.** Every ops read (`useOps`) goes through one client-side cache (`admin/app/utils/ops-cache.ts`,
+#2306): a panel mounting a key fetched in the last 10 minutes draws the stored payload at once and revalidates
+behind it; a payload under 5 s old (a hover prefetch, a sibling panel) is drawn without a request. The cache
+lives in memory only and is emptied whenever `loggedIn` turns false — logout and the session-expiry sign-out
+alike. `useOps`' `pending` means **nothing to draw yet** (the skeleton's condition) and `refreshing` is any
+request in flight (the refresh button's spinner). A cached payload older than one minute whose revalidation has
+not landed is labelled with its age by one corner notice (`OpsCacheAgeNotice`). Hovering or focusing a sidebar
+entry warms the cheap main reads of the pages listed in `OPS_PREFETCH_TARGETS`.
+
+**Why.**
+
+- *Returning to a page must not re-pay its load* (#2300): the operator moves between Overview, Health and
+  Processes constantly, and each visit used to refetch everything behind skeletons.
+- *Redefining `pending` rather than every skeleton condition.* About thirty panels and child components draw
+  their skeleton on `pending`; changing its meaning once in `useOps` keeps them all — and any new panel — from
+  blanking cached content, at the cost of re-pointing the navbar refresh spinners to `refreshing`.
+- *The error rule is unchanged* (#1668): a failed revalidation falls back to the stored payload (Nuxt resets
+  `data` to `default()`, which reads the cache) under the page's own single `FetchErrorAlert`; the age notice
+  is a label, not a second error surface.
+- *Never another session's figures*: no `localStorage`, a response landing after logout is not stored, and
+  `clearNuxtData()` runs with the cache clear.
+- *Live panels keep their cadence* (#1411): a live tick or a manual refresh always goes to the network; only a
+  mount can be served from the cache without a request.
+- *Prefetch stays narrow*: unfiltered, cheap reads only. A heavy scan (`/patch-coverage`) or a paginated table
+  is not worth a request the operator may never follow.

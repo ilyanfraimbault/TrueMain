@@ -24,7 +24,7 @@ import type {
 import { detectorStatusMeta } from '~~/shared/utils/detector-status'
 import { formatDateTime, formatNumber, formatPercent, formatTimeAgo } from '~~/shared/utils/format'
 
-const { data, pending, error, refresh } = usePatchCoverage()
+const { data, pending, refreshing, error, refresh } = usePatchCoverage()
 
 const patches = computed<PatchCoverageRow[]>(() => data.value?.patches ?? [])
 const current = computed<PatchCoverageRow | null>(
@@ -98,7 +98,7 @@ function dayScale(patch: PatchCoverageRow): number {
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="refreshing"
             aria-label="Refresh"
             @click="refresh()"
           />

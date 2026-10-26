@@ -15,13 +15,24 @@ export interface ChampionStaticEntry {
  * `nameFor` falls back to `Champion {id}` so an unmapped id (new champion not
  * yet on the resolved patch) still renders something honest rather than blank.
  */
+const STATIC_CHAMPIONS_KEY = 'static:champions'
+
 export function useChampionStatic() {
   const { data, pending, error } = useFetch<ChampionStaticListItem[]>(
     '/api/static/champions',
     {
       // No `server` option: the whole admin app is `ssr: false`
       // (`nuxt.config.ts`), so every fetch already runs client-side.
-      key: 'static:champions',
+      key: STATIC_CHAMPIONS_KEY,
+      // Names and icons do not move between two navigations, so a stored list is
+      // drawn without revalidating (#2306) until the shared cache's TTL drops it.
+      getCachedData: (key, _nuxtApp, ctx) =>
+        ctx.cause === 'initial' ? opsCache.get(key)?.value as ChampionStaticListItem[] | undefined : undefined,
+      onResponse: ({ response }) => {
+        if (response.ok) {
+          opsCache.set(STATIC_CHAMPIONS_KEY, response._data)
+        }
+      },
     },
   )
 

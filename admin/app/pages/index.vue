@@ -9,7 +9,7 @@
 // verdict. The histograms and the top-champions chart own their requests
 // (`components/overview/`): they were never part of the manual refresh.
 
-const { data: stats, pending, error, refresh } = useOverviewStats()
+const { data: stats, pending, refreshing, error, refresh } = useOverviewStats()
 
 // --- Health verdict strip (#1031) --------------------------------------------
 // One line: the cockpit's rolled-up verdict, linking to /health for the signals
@@ -60,7 +60,7 @@ async function refreshAll() {
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="refreshing"
             aria-label="Refresh"
             @click="refreshAll()"
           />
