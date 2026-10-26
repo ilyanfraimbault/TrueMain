@@ -386,6 +386,7 @@ Last verified against `develop` on 2026-09-02.
 - The ops scripts kept outside the repo report their runs into `process_runs` through allow-listed ops endpoints, and the Processes page shows them on a *Scrapers* tab (2026-10-19) — #2119
 - Iterations are paged from a header per pass (`process_iterations`), not grouped from the runs (2026-10-19) — #2124
 - The Aggregation panel prints planner estimates and index probes, never a pass over a fold table; distinct patches and per-row freshness dropped (2026-10-26) — #2303
+- The audit trail's wording is one backend catalog served with the events, and a known player's History is the events targeting it (2026-10-26) — #2288
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 

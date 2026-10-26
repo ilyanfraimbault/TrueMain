@@ -41,6 +41,11 @@ describe('buildSearchGroups', () => {
     }
   })
 
+  it('lists the Audit page under System (#2288)', () => {
+    const system = groups.find(group => group.id === 'system')
+    expect(system?.items?.find(item => item.label === 'Audit')).toMatchObject({ to: '/audit', icon: 'i-lucide-history' })
+  })
+
   it('tolerates a group without a label or tab entries', () => {
     expect(buildSearchGroups([[{ label: 'Solo', to: '/solo' }]], {})).toEqual([
       { id: '', label: '', items: [{ label: 'Solo', icon: undefined, to: '/solo' }] },

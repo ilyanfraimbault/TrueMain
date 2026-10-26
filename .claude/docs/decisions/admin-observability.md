@@ -526,3 +526,18 @@ off the summed histogram; the admin shows it as the *Performance* tab of `/proce
   (`MongoLogging:RequestLatencyRetention`).
 - **Slow = p95 over 1 s**, the epic's target; the tab sorts by p95 and badges those routes.
 
+## The audit trail's wording is one backend catalog, and a History is the events that target the entity (2026-10-26)
+
+**Decision:** every action name an `IAuditLog` writer records is a constant of `Data/Logging/Mongo/AuditCatalog.cs`
+(`AuditActions`, with `AuditActors` and `AuditTargets`), and the same table holds the plain words the admin shows.
+`GET /ops/audit-events` words each row (`label`) and carries the catalogs on every page, like `/ops/logs` carries
+its event types; an action with no words is shown by its name. A known player's **History** is the events whose
+target is that player (`targetType=Persona&targetId=<id>`, served by `ix_target_timestamp`), nothing inferred from
+metadata. #2288
+
+- **Why one catalog in Data.** The Api and the Ingestor both write the trail; words kept in the admin would drift
+  from the names the writers emit, silently, while a constant without words fails `AuditCatalogTests`.
+- **Why target-only History.** A conflict resolution targets the conflict and a merge the kept player; the
+  players they touch appear only as slugs in metadata. Matching metadata text would mix in a homonym's events, so
+  the History shows exactly what targeted the player and the Audit page's search covers the rest.
+

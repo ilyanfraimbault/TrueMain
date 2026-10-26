@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // One known player in the edit panel (#2019): rename, accounts, links, what holds
-// it against its sources, and removal. Every edit is written where the weekly
+// it against its sources, its history (#2288), and removal. Every edit is written where the weekly
 // scrapers cannot undo it, and audited. Emits `changed` after each one so the list
 // behind the panel catches up, and `removed` once the player is gone.
 import type { PersonaAccountInput, PersonaAdminAccount, PersonaAdminDetail, PersonaAdminLink, PersonaLinkInput } from '~~/shared/types/ops'
@@ -14,6 +14,8 @@ const emit = defineEmits<{ changed: [], removed: [] }>()
 const detail = ref<PersonaAdminDetail | null>(null)
 const loadError = ref<unknown>(null)
 const busy = ref(false)
+// Moves after each edit so the History reloads with the action just recorded.
+const historyVersion = ref(0)
 const toast = useActionToast()
 
 async function load() {
@@ -47,6 +49,7 @@ async function edit(failureTitle: string, call: () => Promise<unknown>, success:
   finally {
     busy.value = false
     await load()
+    historyVersion.value++
   }
 }
 
@@ -155,6 +158,7 @@ defineExpose({ reload: load })
         <KnownPlayersLinksPanel :links="detail.links" :busy="busy" @add="addLink" @remove="removeLink" />
       </template>
       <KnownPlayersDecisions :conflicts="detail.conflicts" :exclusions="detail.exclusions" :removed-links="detail.removedLinks" />
+      <KnownPlayersHistory :persona-id="personaId" :version="historyVersion" />
       <template v-if="live">
         <USeparator />
         <KnownPlayersRemoval :display-name="detail.displayName" :busy="busy" @remove="remove" />
