@@ -7,6 +7,8 @@ import type { TableColumn } from '@nuxt/ui'
 import type { ProcessRun } from '~~/shared/types/ops'
 import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
+import { flaggedCounters } from '~~/shared/utils/process-baseline'
+import { humanizeKey } from '~~/shared/utils/process-summary'
 
 defineProps<{
   runs: ProcessRun[]
@@ -138,9 +140,28 @@ const tableMeta = {
           <span v-if="row.original.status === 'Running'" class="text-dimmed">
             —
           </span>
-          <template v-else>
+          <span v-else class="inline-flex items-center justify-end gap-2">
+            <ProcessesBaselineBadge
+              v-if="row.original.baseline"
+              :metric="row.original.baseline.duration"
+              :sample-count="row.original.baseline.sampleCount"
+              kind="duration"
+            />
+            <!-- Bind the flagged counters once via a single-item v-for. -->
+            <template v-for="off in [flaggedCounters(row.original.baseline)]" :key="off.join()">
+              <UTooltip v-if="off.length" :text="`Off their median: ${off.map(humanizeKey).join(', ')}`">
+                <UBadge
+                  color="warning"
+                  variant="outline"
+                  size="sm"
+                  icon="i-lucide-activity"
+                  :label="String(off.length)"
+                  :aria-label="`${off.length} summary counters off their median`"
+                />
+              </UTooltip>
+            </template>
             {{ formatElapsed(row.original.durationMs) }}
-          </template>
+          </span>
         </div>
       </template>
       <template #host-cell="{ row }">
