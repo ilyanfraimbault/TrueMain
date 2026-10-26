@@ -5,7 +5,7 @@
 // holds against the next scraper runs (an exclusion, or a merged page's pointer).
 // Below the open queue, the known players sharing a social channel (#2286).
 // The open queue is worked from the keyboard (#2293, `useConflictTriage`): settling
-// one conflict opens the next.
+// one conflict opens the next. Its most certain top is merged in bulk (#2295).
 import type { PersonaConflict, PersonaConflictDetail, PersonaConflictResolveBody, PersonaConflictStatus } from '~~/shared/types/ops'
 import { useConflictTriage } from '~/composables/useConflictTriage'
 import { computed, ref, watch } from 'vue'
@@ -73,10 +73,13 @@ async function open(conflict: Pick<PersonaConflict, 'id'>) {
   }
 }
 
+// The bulk resolution's dialog: the queue's keys stay quiet while it is open.
+const bulkOpen = ref(false)
+
 const triage = useConflictTriage({
   rows: conflicts,
   detailOpen,
-  enabled: () => status.value === 'Open',
+  enabled: () => status.value === 'Open' && !bulkOpen.value,
   canAct: () => detail.value?.conflict.status === 'Open' && !busy.value,
   armed: () => Boolean(actions.value?.armed),
   open,
@@ -173,12 +176,22 @@ defineExpose({
       <UButton v-if="hasFilters" icon="i-lucide-x" color="neutral" variant="ghost" label="Clear" @click="sourceFilter = ALL; searchFilter = ''" />
       <UButton
         v-if="status === 'Open'"
+        data-action="bulk-resolve"
+        icon="i-lucide-list-checks"
+        color="primary"
+        variant="subtle"
+        label="Resolve the certain ones"
+        class="sm:ml-auto"
+        :disabled="autoMerging || busy"
+        @click="bulkOpen = true"
+      />
+      <UButton
+        v-if="status === 'Open'"
         data-action="auto-merge"
         icon="i-lucide-merge"
         color="primary"
         variant="subtle"
         label="Merge same-name conflicts"
-        class="sm:ml-auto"
         :loading="autoMerging"
         :disabled="autoMerging || busy"
         @click="autoMerge()"
@@ -257,5 +270,6 @@ defineExpose({
     </USlideover>
 
     <KnownPlayersShortcutsHelp v-model:open="helpOpen" />
+    <KnownPlayersBulkResolve v-if="status === 'Open'" v-model:open="bulkOpen" @resolved="refresh()" />
   </section>
 </template>
