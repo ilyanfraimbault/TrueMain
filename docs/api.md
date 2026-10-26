@@ -1611,6 +1611,46 @@ de 10 min — le comptage des participants est la lecture la plus coûteuse de l
   confondre. `consecutiveFailures` est la série d'échecs en cours, `0` quand le dernier
   run a réussi.
 
+## `GET /ops/health-alerts`
+
+Ce que l'alerting du verdict de santé a envoyé (#2292) : s'il est actif (un webhook
+Discord est configuré, `Alerting:DiscordWebhookUrl`), ses règles (intervalle
+d'évaluation, nombre d'évaluations rouges consécutives, cooldown par signal, seuil
+d'échecs consécutifs d'un process), sa dernière évaluation, les incidents ouverts
+(`openIncidents`, clés de signal ou `process:<Nom>`) et les derniers envois, du plus
+récent au plus ancien. `limit` : 10 par défaut, 50 au plus. L'URL du webhook n'est
+jamais renvoyée.
+
+**Réponse `200`** — `HealthAlertsReadModel`
+
+```json
+{
+  "enabled": true,
+  "channel": "discord",
+  "evaluationIntervalSeconds": 300,
+  "redConfirmations": 2,
+  "cooldownMinutes": 60,
+  "processFailureThreshold": 3,
+  "lastEvaluatedAtUtc": "2026-10-26T08:05:00Z",
+  "openIncidents": ["dataQuality"],
+  "alerts": [
+    {
+      "id": "671cb2f0a1b2c3d4e5f60718",
+      "sentAtUtc": "2026-10-26T08:05:00Z",
+      "kind": "failing",
+      "title": "[prod] Pipeline health: 1 signal failing",
+      "verdict": "red",
+      "channel": "discord",
+      "delivered": true,
+      "error": null,
+      "changes": [
+        { "key": "dataQuality", "title": "Data quality", "change": "failing", "status": "red", "headline": "1 check is failing." }
+      ]
+    }
+  ]
+}
+```
+
 ## `GET /ops/stats/overview`
 
 Compteurs globaux du corpus.

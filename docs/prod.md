@@ -383,3 +383,8 @@ because their unit is easy to misread:
 `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
 projects against (#925); unset means no forecast, which the panel says rather
 than fitting a line to a guessed capacity.
+
+`ALERTING_DISCORD_WEBHOOK_URL` turns the pipeline-health alerts on (#2292): the
+Discord webhook the Api posts to when the `/health` verdict turns red or recovers.
+Unset means no alerts, which `/health` and the configuration page both say. It is a
+credential — keep it in the stack `.env`, never in a commit.
