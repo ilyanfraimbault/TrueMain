@@ -77,5 +77,13 @@ public sealed class MainCandidateConfiguration : IEntityTypeConfiguration<MainCa
         // ChampionId predicate is the composite-covered (PlatformId, Puuid,
         // ChampionId) lookup in MainCandidateRepository).
         entity.HasIndex(e => new { e.PlatformId, e.Status, e.Score });
+
+        // The admin candidate list's ordering (Score, DiscoveredAtUtc, Id, all
+        // descending — walked backwards), unfiltered and per status, so a page is
+        // read off the index instead of sorting the whole table (#2304).
+        entity.HasIndex(e => new { e.Score, e.DiscoveredAtUtc, e.Id })
+            .HasDatabaseName("IX_main_candidates_list_order");
+        entity.HasIndex(e => new { e.Status, e.Score, e.DiscoveredAtUtc, e.Id })
+            .HasDatabaseName("IX_main_candidates_status_list_order");
     }
 }

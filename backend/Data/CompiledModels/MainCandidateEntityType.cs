@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 typeof(MainCandidate),
                 baseEntityType,
                 propertyCount: 16,
-                unnamedIndexCount: 2,
+                unnamedIndexCount: 4,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -178,6 +178,14 @@ namespace Data.CompiledModels
 
             var index0 = runtimeEntityType.AddIndex(
                 new[] { platformId, status, score });
+
+            var index1 = runtimeEntityType.AddIndex(
+                new[] { score, discoveredAtUtc, id });
+            index1.AddAnnotation("Relational:Name", "IX_main_candidates_list_order");
+
+            var index2 = runtimeEntityType.AddIndex(
+                new[] { status, score, discoveredAtUtc, id });
+            index2.AddAnnotation("Relational:Name", "IX_main_candidates_status_list_order");
 
             return runtimeEntityType;
         }

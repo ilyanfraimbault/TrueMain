@@ -74,6 +74,12 @@ public sealed class CandidateQueryService(
     private const int MinPageSize = 1;
     private const int MaxPageSize = 100;
 
+    /// <summary>
+    /// The most rows the pager total counts; a filter matching more answers
+    /// <see cref="CandidatesReadModel.TotalCapped"/> with this as the total.
+    /// </summary>
+    public const int TotalCap = 10_000;
+
     public async Task<CandidatesReadModel> GetCandidatesAsync(
         string? status,
         string? platformId,
@@ -87,103 +93,130 @@ public sealed class CandidateQueryService(
         var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, MinPageSize, MaxPageSize);
 
-        // Left-join each candidate to its RiotAccount on PUUID. A candidate is
-        // surfaced from mastery before the account is upserted, so the account
-        // (and thus the Riot ID) can be absent — the join must not drop the row.
-        var query =
-            from candidate in db.MainCandidates.AsNoTracking()
-            join account in db.RiotAccounts.AsNoTracking()
-                on candidate.Puuid equals account.Puuid into accounts
-            from account in accounts.DefaultIfEmpty()
-            select new { candidate, account };
+        // Filters run on main_candidates alone, so the default list (no search)
+        // never touches riot_accounts until the 25 rows of the page are known: the
+        // ordering walks IX_main_candidates_list_order (or its Status-led twin)
+        // and stops after the page instead of hash-joining the whole table and
+        // sorting it (#2304). The Riot-ID search is an uncorrelated
+        // `Puuid IN (matching accounts)`, which Postgres runs as one hashed pass
+        // over riot_accounts; riot_accounts.Puuid is unique, so it keeps exactly
+        // the rows the former left join + filter kept.
+        var candidates = db.MainCandidates.AsNoTracking();
 
         if (TryParseStatus(status, out var parsedStatus))
         {
-            query = query.Where(row => row.candidate.Status == parsedStatus);
+            candidates = candidates.Where(candidate => candidate.Status == parsedStatus);
         }
 
         if (!string.IsNullOrWhiteSpace(platformId))
         {
             var platform = platformId.Trim().ToUpperInvariant();
-            query = query.Where(row => row.candidate.PlatformId.ToUpper() == platform);
+            candidates = candidates.Where(candidate => candidate.PlatformId.ToUpper() == platform);
         }
 
-        var (namePart, tagPart) = RiotIdSearchTerm.Split(search);
+        candidates = ApplySearch(candidates, search);
 
-        if (tagPart is not null)
-        {
-            // The term carries a '#', so it is a Riot ID: its halves are matched
-            // against the two columns they name, and never against the PUUID or
-            // the champion id, neither of which can contain one. Matching the
-            // joined string as a whole would find nothing — no column stores it.
-            var tagPattern = $"%{LikeEscaping.Escape(tagPart)}%";
-            query = query.Where(row =>
-                row.account != null && row.account.TagLine != null
-                && EF.Functions.ILike(row.account.TagLine, tagPattern, LikeEscaping.EscapeChar));
+        // Capped count (#2304): counting every row of a wide filter read the whole
+        // table on each page turn. A narrow filter still gets its exact total; a
+        // wide one stops at the cap and says so.
+        var counted = await candidates.Take(TotalCap + 1).LongCountAsync(ct);
+        var totalCapped = counted > TotalCap;
 
-            if (namePart is not null)
-            {
-                var namePattern = $"%{LikeEscaping.Escape(namePart)}%";
-                query = query.Where(row =>
-                    row.account != null
-                    && EF.Functions.ILike(row.account.GameName, namePattern, LikeEscaping.EscapeChar));
-            }
-        }
-        else if (namePart is not null)
-        {
-            var pattern = $"%{LikeEscaping.Escape(namePart)}%";
-
-            // championId is matched only when the whole term is an integer, so a
-            // Riot ID like "abc" never accidentally filters on a champion.
-            int? championId = int.TryParse(namePart, out var parsedChampionId) ? parsedChampionId : null;
-
-            query = query.Where(row =>
-                (row.account != null && EF.Functions.ILike(row.account.GameName, pattern, LikeEscaping.EscapeChar))
-                || (row.account != null && row.account.TagLine != null
-                    && EF.Functions.ILike(row.account.TagLine, pattern, LikeEscaping.EscapeChar))
-                || EF.Functions.ILike(row.candidate.Puuid, pattern, LikeEscaping.EscapeChar)
-                || (championId != null && row.candidate.ChampionId == championId));
-        }
-
-        var total = await query.LongCountAsync(ct);
-
-        var rows = await query
-            // Most-relevant first: highest score, then most recently discovered.
-            // Id breaks ties so paging is stable when rows share a score + time.
-            // Offset rather than keyset on purpose (#1635): the operator's page
-            // numbers need the count above, which reads the whole filtered set
-            // anyway, and the free-text search can't seek an index.
-            .OrderByDescending(row => row.candidate.Score)
-            .ThenByDescending(row => row.candidate.DiscoveredAtUtc)
-            .ThenByDescending(row => row.candidate.Id)
+        // Most-relevant first: highest score, then most recently discovered. Id
+        // breaks ties so paging is stable when rows share a score + time. Offset
+        // rather than keyset on purpose (#1635): the operator pages by number.
+        var pageOfCandidates = candidates
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenByDescending(candidate => candidate.DiscoveredAtUtc)
+            .ThenByDescending(candidate => candidate.Id)
             .Skip((effectivePage - 1) * effectivePageSize)
-            .Take(effectivePageSize)
-            .Select(row => new CandidateRowReadModel
-            {
-                Id = row.candidate.Id,
-                PlatformId = row.candidate.PlatformId,
-                Puuid = row.candidate.Puuid,
-                GameName = row.account != null ? row.account.GameName : null,
-                TagLine = row.account != null ? row.account.TagLine : null,
-                ChampionId = row.candidate.ChampionId,
-                ChampionPoints = row.candidate.ChampionPoints,
-                ChampionRankInMasteryTop = row.candidate.ChampionRankInMasteryTop,
-                Score = row.candidate.Score,
-                Status = row.candidate.Status.ToString(),
-                DiscoveredAtUtc = row.candidate.DiscoveredAtUtc,
-                ScoredAtUtc = row.candidate.ScoredAtUtc,
-                ValidatedAtUtc = row.candidate.ValidatedAtUtc,
-                LastPlayTimeUtc = row.candidate.LastPlayTimeUtc
-            })
+            .Take(effectivePageSize);
+
+        // Left-join the page to its RiotAccount on PUUID. A candidate is surfaced
+        // from mastery before the account is upserted, so the account (and thus
+        // the Riot ID) can be absent — the join must not drop the row.
+        var rows = await (
+                from candidate in pageOfCandidates
+                join account in db.RiotAccounts.AsNoTracking()
+                    on candidate.Puuid equals account.Puuid into accounts
+                from account in accounts.DefaultIfEmpty()
+                orderby candidate.Score descending, candidate.DiscoveredAtUtc descending, candidate.Id descending
+                select new CandidateRowReadModel
+                {
+                    Id = candidate.Id,
+                    PlatformId = candidate.PlatformId,
+                    Puuid = candidate.Puuid,
+                    GameName = account != null ? account.GameName : null,
+                    TagLine = account != null ? account.TagLine : null,
+                    ChampionId = candidate.ChampionId,
+                    ChampionPoints = candidate.ChampionPoints,
+                    ChampionRankInMasteryTop = candidate.ChampionRankInMasteryTop,
+                    Score = candidate.Score,
+                    Status = candidate.Status.ToString(),
+                    DiscoveredAtUtc = candidate.DiscoveredAtUtc,
+                    ScoredAtUtc = candidate.ScoredAtUtc,
+                    ValidatedAtUtc = candidate.ValidatedAtUtc,
+                    LastPlayTimeUtc = candidate.LastPlayTimeUtc
+                })
             .ToListAsync(ct);
 
         return new CandidatesReadModel
         {
             Candidates = rows,
-            Total = total,
+            Total = totalCapped ? TotalCap : counted,
+            TotalCapped = totalCapped,
             Page = effectivePage,
             PageSize = effectivePageSize
         };
+    }
+
+    /// <summary>
+    /// The free-text search: a term with a '#' is a Riot ID whose halves are
+    /// matched against the two columns they name (#1340), never against the
+    /// PUUID or the champion id, neither of which can contain one. Any other term
+    /// matches the Riot ID, the PUUID, or — when the whole term is an integer —
+    /// the champion id.
+    /// </summary>
+    private IQueryable<MainCandidate> ApplySearch(IQueryable<MainCandidate> candidates, string? search)
+    {
+        var (namePart, tagPart) = RiotIdSearchTerm.Split(search);
+
+        if (tagPart is not null)
+        {
+            var tagPattern = $"%{LikeEscaping.Escape(tagPart)}%";
+            var accounts = db.RiotAccounts.AsNoTracking().Where(account =>
+                account.TagLine != null
+                && EF.Functions.ILike(account.TagLine, tagPattern, LikeEscaping.EscapeChar));
+
+            if (namePart is not null)
+            {
+                var namePattern = $"%{LikeEscaping.Escape(namePart)}%";
+                accounts = accounts.Where(account =>
+                    EF.Functions.ILike(account.GameName, namePattern, LikeEscaping.EscapeChar));
+            }
+
+            var matchingPuuids = accounts.Select(account => account.Puuid);
+            return candidates.Where(candidate => matchingPuuids.Contains(candidate.Puuid));
+        }
+
+        if (namePart is null)
+        {
+            return candidates;
+        }
+
+        var pattern = $"%{LikeEscaping.Escape(namePart)}%";
+        int? championId = int.TryParse(namePart, out var parsedChampionId) ? parsedChampionId : null;
+        var puuidsByRiotId = db.RiotAccounts.AsNoTracking()
+            .Where(account =>
+                EF.Functions.ILike(account.GameName, pattern, LikeEscaping.EscapeChar)
+                || (account.TagLine != null
+                    && EF.Functions.ILike(account.TagLine, pattern, LikeEscaping.EscapeChar)))
+            .Select(account => account.Puuid);
+
+        return candidates.Where(candidate =>
+            puuidsByRiotId.Contains(candidate.Puuid)
+            || EF.Functions.ILike(candidate.Puuid, pattern, LikeEscaping.EscapeChar)
+            || (championId != null && candidate.ChampionId == championId));
     }
 
     public async Task<CandidateDetailReadModel?> GetByIdAsync(Guid id, CancellationToken ct)
