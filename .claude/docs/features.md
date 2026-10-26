@@ -196,7 +196,15 @@ name, grouped exactly like the sidebar, and additionally lists the destinations 
 own: the *Crashes* tab of `/logs`, the three `/accounts` tabs, the *Riot API* and *Scrapers* tabs of
 `/processes` (`?view=riot-api|scrapers|performance`) and the *Open conflicts* / *Resolved conflicts* / *Homonyms* tabs of
 `/known-players` (`?status=open|resolved|homonyms`, #2299). The sidebar and palette destinations are one table,
-`app/utils/navigation.json`, shaped by `app/utils/navigation.ts`.
+`app/utils/navigation.json`, shaped by `app/utils/navigation.ts`. **Above the pages, the palette recognises the
+typed term** (#2290, `app/utils/palette-search.ts`, `usePaletteSearch`): a Riot ID (`Name#TAG` or `Name-TAG`, judged
+by `shared/utils/riot-id`) → *Trace* already run for it (`/accounts?view=trace&riotId=`) and *Add mains* with the
+name fields prefilled (`?view=seed&riotId=`); known players matching the name or slug (debounced
+`GET /ops/personas?search=`, six at most) → their edit panel (`/known-players?player=<id>`); a match ID
+(`EUW1_7012345678`) → the Data Quality match slide-over (`?match=`); a champion name (the static champion list,
+loaded on the first such term) → `/champions?search=` with the table filtered. Nothing is matched — and no request
+is sent — under two characters, so the pages still list instantly. Each target page reads its value from the query
+string on arrival and again when the palette jumps while it is already open (`useQueryValue`). Type, arrow, Enter.
 
 | Route | What it shows |
 |---|---|

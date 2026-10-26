@@ -47,6 +47,10 @@ const detailOpen = computed({
     }
   },
 })
+// A ⌘K jump to another player while this tab is open only moves the query (#2290).
+useQueryValue('player', (id) => {
+  openId.value = id
+})
 watch(openId, (id) => {
   router.replace({ query: { ...route.query, player: id ?? undefined } })
 })
