@@ -526,6 +526,27 @@ off the summed histogram; the admin shows it as the *Performance* tab of `/proce
   (`MongoLogging:RequestLatencyRetention`).
 - **Slow = p95 over 1 s**, the epic's target; the tab sorts by p95 and badges those routes.
 
+## The cockpit payloads are kept warm, only while someone reads them (2026-10-26)
+
+**Decision:** pipeline health, the data-quality detectors, the Overview counters, the aggregation stats and the patch
+coverage are recomputed in the background by one hosted service (`CockpitCacheRefresher`) shortly before their cache
+goes stale (75 % of the TTL), and a value older than its TTL is **served stale, with its own computed-at time**, while
+the refresher catches up. Only a payload with no value at all makes the operator's click wait. The detector suite,
+which used to run on every call, is cached one minute. #2305
+
+- **Why.** The first click after a cache expiry paid the whole cold path — tens of seconds for the cockpit and the
+  detectors on a busy host — although none of these figures moves faster than the pipeline cadences behind them.
+  Serving the last value is honest because every payload states when it was computed and the admin prints it.
+- **Only while read.** A payload is refreshed only if it was read in the last 15 minutes and never before its first
+  read, so an admin nobody has open costs Postgres nothing; the last value is kept 24 h for the next visit.
+- **One at a time.** The refresher runs at most one computation per 5-second tick, most overdue first, through the
+  same single-flight key as the request path — refreshes never pile onto Postgres together, and a refresh never
+  duplicates a cold request's pass.
+- **A failure keeps the last good value.** A failed refresh leaves the cached value and its computed-at time in
+  place and opens the payload's failure backoff (#2132), which the refresher also waits out.
+- **Not pre-warmed at startup.** A deploy's first click on each page still pays the cold path once: warming
+  everything on every API start would spend the scans whether anyone looks or not.
+
 ## The audit trail's wording is one backend catalog, and a History is the events that target the entity (2026-10-26)
 
 **Decision:** every action name an `IAuditLog` writer records is a constant of `Data/Logging/Mongo/AuditCatalog.cs`

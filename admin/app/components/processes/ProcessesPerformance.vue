@@ -16,7 +16,7 @@ const WINDOW_ITEMS: { label: string, value: RequestLatencyWindow }[] = [
 ]
 
 const selectedWindow = ref<RequestLatencyWindow>('24h')
-const { data, pending, error, refresh } = useRequestLatency(selectedWindow)
+const { data, pending, refreshing, error, refresh } = useRequestLatency(selectedWindow)
 // The last good payload for this window when a re-fetch failed (#1426): a failed read must
 // not blank the table into a quiet-looking one.
 const latency = useLastGoodPayload(data, () => selectedWindow.value)
@@ -30,7 +30,9 @@ const measuredSince = computed(() => {
   return oldest && latency.value && Date.parse(oldest) > Date.parse(latency.value.sinceUtc) ? oldest : null
 })
 
-defineExpose({ refresh, pending })
+// `pending` is "nothing to draw yet" (#2319) and gates the skeleton; the navbar spinner
+// follows any request in flight.
+defineExpose({ refresh, pending: refreshing })
 </script>
 
 <template>

@@ -143,7 +143,7 @@ describe('ProcessesPerformance', () => {
     const window = vi.fn()
     vi.stubGlobal('useRequestLatency', (selected: unknown) => {
       window(selected)
-      return { data: ref(data), pending: ref(options.pending ?? false), error: ref(options.error ?? null), refresh }
+      return { data: ref(data), pending: ref(options.pending ?? false), refreshing: ref(options.pending ?? false), error: ref(options.error ?? null), refresh }
     })
     vi.stubGlobal('useLastGoodPayload', (payload: unknown) => payload)
     return { refresh, window }

@@ -1545,7 +1545,10 @@ pointe. Le verdict vit ici et non dans le front, parce qu'un seuil est une déci
 métier et qu'un second consommateur (l'alerting) doit obtenir la même réponse.
 
 Pas de paramètre. La réponse est mise en cache 30 s et single-flightée (#1427) : des
-appels concurrents partagent une seule évaluation, et `evaluatedAtUtc` dit son âge. Les
+appels concurrents partagent une seule évaluation, et `evaluatedAtUtc` dit son âge. Tant
+qu'on la lit, un rafraîchisseur en arrière-plan la recalcule avant expiration (#2305) ;
+une valeur plus vieille que son TTL est servie aussitôt, avec son `evaluatedAtUtc`, pendant
+qu'il la rattrape. Les
 compteurs du corpus brut (`rawMatchCount`, `rawParticipantCount`) ont leur propre cache
 de 10 min — le comptage des participants est la lecture la plus coûteuse de l'évaluation.
 
@@ -2374,6 +2377,9 @@ chiffre-titre, les lignes du détail et les seuils configurés (`DataQualityDete
 lesquels il a jugé.
 
 Pas de paramètre : les seuils sont de la configuration serveur, pas des query params.
+
+Mise en cache 1 min, single-flightée et gardée chaude en arrière-plan tant qu'on la lit
+(#2305) ; `evaluatedAtUtc` dit quand les détecteurs ont tourné.
 
 `status` vaut `green`, `amber`, `red` ou `unknown`. **`unknown` ne signifie jamais « mesuré et
 correct »** : c'est « je n'ai pas pu mesurer », et il l'emporte sur `green` dans l'agrégation
