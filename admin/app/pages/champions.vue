@@ -67,6 +67,8 @@ const rows = computed<ChampionRowView[]>(() =>
 // Client-side champion-name search. Scoped to the TABLE only — the charts keep
 // showing the full top-N so they stay a stable overview while you look one up.
 const search = ref('')
+// `?search=` prefills it — the ⌘K palette's champion results (#2290).
+useQueryValue('search', (value) => { search.value = value }, { immediate: true })
 const tableRows = computed<ChampionRowView[]>(() => {
   const q = search.value.trim().toLowerCase()
   if (!q) return rows.value

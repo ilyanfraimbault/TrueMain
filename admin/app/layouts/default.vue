@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
-import { buildSearchGroups, NAV_GROUPS } from '~/utils/navigation'
+import { NAV_GROUPS } from '~/utils/navigation'
 import { createOpsPrefetcher, hoveredRoute } from '~/utils/ops-cache'
 
 const prefetch = createOpsPrefetcher((url, query) => $fetch(url, { query }))
@@ -19,8 +19,9 @@ useEventListener(navWrapper, ['mouseover', 'focusin'], warm)
 
 const open = ref(false)
 
-// Sidebar groups and the ⌘K palette's groups live in `utils/navigation.ts`.
-const searchGroups = buildSearchGroups()
+// Sidebar groups live in `utils/navigation.ts`; the ⌘K palette adds, above its
+// pages, what it recognises in the typed term (#2290, `usePaletteSearch`).
+const { term: searchTerm, groups: searchGroups, loading: searchLoading } = usePaletteSearch()
 
 // Closing the mobile drawer is a link concern; the group labels are not links.
 const groups = computed<NavigationMenuItem[][]>(() =>
@@ -85,11 +86,13 @@ const groups = computed<NavigationMenuItem[][]>(() =>
          dark-only (no theme switch anywhere), so the palette's built-in
          light/dark commands are dropped rather than offering a dead end. -->
     <UDashboardSearch
+      v-model:search-term="searchTerm"
       :groups="searchGroups"
+      :loading="searchLoading"
       :color-mode="false"
-      placeholder="Jump to a page…"
-      title="Search pages"
-      description="Jump to any page of the admin portal."
+      placeholder="Page, Riot ID, known player, match ID, champion…"
+      title="Search"
+      description="Jump to a page, or straight to the account, known player, match or champion typed."
     />
 
     <slot />
