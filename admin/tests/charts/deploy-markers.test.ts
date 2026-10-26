@@ -79,6 +79,7 @@ describe('indexToPixelFromTicks', () => {
   })
 
   it('refuses to guess from fewer than two distinct ticks', () => {
+    expect(indexToPixelFromTicks([])).toBeNull()
     expect(indexToPixelFromTicks([{ value: 2, position: 40 }])).toBeNull()
     expect(indexToPixelFromTicks([{ value: 2, position: 40 }, { value: 2, position: 40 }])).toBeNull()
     expect(indexToPixelFromTicks([{ value: Number.NaN, position: 1 }, { value: 1, position: 2 }])).toBeNull()
