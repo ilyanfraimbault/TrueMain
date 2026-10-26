@@ -501,6 +501,31 @@ Distinct patches and the per-family newest-row timestamp were **dropped**, and t
   the producing process's last success says when the family last wrote — the "Last aggregation" tile reads that
   now. Same rule as #1442: a figure that is not acted on is not paid for.
 
+## Ops request latency is measured by the Api, per route template, into per-minute histograms (2026-10-26)
+
+**Decision:** the Api times every request that routes to an `/ops/*` endpoint and folds it into
+`request_latency_rollups` — one document per minute, route template and method, carrying count, sum, max,
+timeouts, 5xx and a fixed histogram of duration buckets. `GET /ops/request-latency?window=24h|7d` reads p50/p95
+off the summed histogram; the admin shows it as the *Performance* tab of `/processes` — #2307, epic #2300.
+
+- **Why.** Nothing said which admin reads were slow: #2300's list came from timing every endpoint by hand, and
+  slow paths regressed silently (#2132 fixed pipeline-health, the Overview kept the same pattern).
+- **A fixed histogram, not stored samples or exact percentiles.** Percentiles do not add across minutes; bucket
+  counts do. The bounds (10 ms to 30 s, dense around 1 s and 5 s) are part of the stored format — changing them
+  is a new collection. The estimate interpolates inside a bucket and never exceeds the measured max.
+- **Route templates, not paths**, like the frontends' error forwarding (#1556): `/ops/accounts/{puuid}` is one
+  row, and no account id is stored.
+- **Server-side only.** The figure starts when the request reaches the Api; the admin proxy's hop and the
+  browser are not in it. A client that gave up, a cancellation, a 408/504 count as timeouts; other 5xx as server
+  errors — never both.
+- **Buffered, bounded, dropped rather than retried.** The middleware updates an in-memory fold under a lock no
+  I/O holds; a background flusher writes it every 30 s and on shutdown. Past 2,000 pending keys a new key is
+  dropped, and a failed write is dropped too; both are counted and shown on the tab (measured but not persisted
+  since the Api started), so a gap never reads as a quiet route.
+- **Retention 30 days**, a TTL on `bucketStartUtc` like the Riot and meter rollups
+  (`MongoLogging:RequestLatencyRetention`).
+- **Slow = p95 over 1 s**, the epic's target; the tab sorts by p95 and badges those routes.
+
 ## The cockpit payloads are kept warm, only while someone reads them (2026-10-26)
 
 **Decision:** pipeline health, the data-quality detectors, the Overview counters, the aggregation stats and the patch

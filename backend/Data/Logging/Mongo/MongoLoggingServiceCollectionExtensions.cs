@@ -94,6 +94,10 @@ public static class MongoLoggingServiceCollectionExtensions
         // writes, the Api reads for the admin Riot API tab. Direct-call like the snapshots.
         services.TryAddSingleton<IMeterRollupStore, MeterRollupStore>();
 
+        // Per-minute latency rollups of the Api's ops routes (#2307): the Api's flusher writes,
+        // its ops query reads. Direct-call like the meter rollups.
+        services.TryAddSingleton<IRequestLatencyStore, RequestLatencyStore>();
+
         // Admin-portal data moved off Postgres: recorded process runs (written by
         // the Ingestor's ProcessRunRecorder, read by the admin process panels) and
         // the seed-request queue (written by the API, claimed by ManualSeedProcess).

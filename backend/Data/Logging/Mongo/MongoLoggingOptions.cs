@@ -147,6 +147,20 @@ public sealed class MongoLoggingOptions
     public TimeSpan MeterRollupsRetention { get; set; } = TimeSpan.FromDays(30);
 
     /// <summary>
+    /// Collection holding the Api's per-minute request-latency rollups of the ops routes
+    /// (#2307), written by its request-latency flusher and read by the admin Processes →
+    /// Performance tab.
+    /// </summary>
+    public string RequestLatencyCollection { get; set; } = "request_latency_rollups";
+
+    /// <summary>
+    /// Retention window for <see cref="RequestLatencyCollection"/>, a TTL index on
+    /// <c>bucketStartUtc</c>. Thirty days, like the other per-minute rollups; the panel reads
+    /// at most seven. Zero or negative disables it.
+    /// </summary>
+    public TimeSpan RequestLatencyRetention { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>
     /// Master switch. When false (or when <see cref="ConnectionString"/> is
     /// blank) the provider is still registered but drops every record, so
     /// persisted logging can be turned off without code changes.

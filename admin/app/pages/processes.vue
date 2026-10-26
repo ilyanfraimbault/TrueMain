@@ -20,12 +20,14 @@ import { pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
 
 // --- Tabs (#1410) ------------------------------------------------------------
 // `runs` is the default and stays out of the URL; `/riot-api` redirects here with
-// `?view=riot-api`. `scrapers` (#2119) holds the ops scripts kept outside the repo.
-type ProcessesView = 'runs' | 'riot-api' | 'scrapers'
+// `?view=riot-api`. `scrapers` (#2119) holds the ops scripts kept outside the repo;
+// `performance` (#2307) how fast the ops API answers the admin.
+type ProcessesView = 'runs' | 'riot-api' | 'scrapers' | 'performance'
+const TAB_VIEWS: ReadonlySet<string> = new Set(['riot-api', 'scrapers', 'performance'])
 const route = useRoute()
 const router = useRouter()
 function parseView(raw: unknown): ProcessesView {
-  return raw === 'riot-api' || raw === 'scrapers' ? raw : 'runs'
+  return typeof raw === 'string' && TAB_VIEWS.has(raw) ? raw as ProcessesView : 'runs'
 }
 const view = ref<ProcessesView>(parseView(route.query.view))
 watch(view, (value) => {
@@ -45,12 +47,13 @@ watch(() => route.query.view, (raw) => {
 interface TabPanel { refresh: () => void, pending: boolean }
 const riotPanel = ref<TabPanel | null>(null)
 const scrapersPanel = ref<TabPanel | null>(null)
-const activePanel = computed(() => {
-  if (view.value === 'riot-api') {
-    return riotPanel.value
-  }
-  return view.value === 'scrapers' ? scrapersPanel.value : null
-})
+const performancePanel = ref<TabPanel | null>(null)
+const activePanel = computed(() => ({
+  'runs': null,
+  'riot-api': riotPanel.value,
+  'scrapers': scrapersPanel.value,
+  'performance': performancePanel.value,
+})[view.value])
 
 // --- Filters -----------------------------------------------------------------
 const processName = ref('')
@@ -284,6 +287,13 @@ function openIterationDetail(iteration: ProcessIteration) {
               label="Scrapers"
               @click="void (view = 'scrapers')"
             />
+            <UButton
+              :color="view === 'performance' ? 'primary' : 'neutral'"
+              :variant="view === 'performance' ? 'solid' : 'ghost'"
+              icon="i-lucide-timer"
+              label="Performance"
+              @click="void (view = 'performance')"
+            />
           </div>
         </template>
       </UDashboardToolbar>
@@ -328,6 +338,7 @@ function openIterationDetail(iteration: ProcessIteration) {
     <template #body>
       <ProcessesRiotApi v-if="view === 'riot-api'" ref="riotPanel" />
       <ProcessesScrapers v-else-if="view === 'scrapers'" ref="scrapersPanel" />
+      <ProcessesPerformance v-else-if="view === 'performance'" ref="performancePanel" />
 
       <template v-else>
         <FetchErrorAlert

@@ -10,6 +10,7 @@
     "tabs": [
       ["Processes → Riot API", "i-lucide-radio-tower", "/processes?view=riot-api"],
       ["Processes → Scrapers", "i-lucide-bot", "/processes?view=scrapers"],
+      ["Processes → Performance", "i-lucide-timer", "/processes?view=performance"],
       ["Logs → Crashes", "i-lucide-skull", "/logs?view=crashes"]
     ]
   },

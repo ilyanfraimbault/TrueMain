@@ -26,6 +26,7 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string DesktopUsageCollection = "desktop_usage_days";
     public const string DesktopDownloadsCollection = "desktop_download_days";
     public const string MeterRollupsCollection = "meter_rollups";
+    public const string RequestLatencyCollection = "request_latency_rollups";
 
     private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0")
         // Match PostgresFixture's reasoning: keep Testcontainers' Ryuk reaper
@@ -100,5 +101,7 @@ public sealed class MongoFixture : IAsyncLifetime
         await db.DropCollectionAsync(DesktopDownloadsCollection);
         // The meter rollups (#1636): unique (minute, meter, instrument, series) key.
         await db.DropCollectionAsync(MeterRollupsCollection);
+        // The ops request-latency rollups (#2307): unique (minute, route, method) key.
+        await db.DropCollectionAsync(RequestLatencyCollection);
     }
 }

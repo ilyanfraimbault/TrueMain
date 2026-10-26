@@ -380,6 +380,7 @@ Last verified against `develop` on 2026-09-02.
 - Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
 - The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
 - A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
+- Ops request latency is measured server-side per route template into per-minute Mongo rollups with a fixed duration histogram, p50/p95 computed at read time; shown on a Processes → Performance tab, slow = p95 over 1 s (2026-10-26) — #2307, #2300
 - The edge's own failures reach the ops logs through the admin, which receives Caddy's error log over TCP — no sidecar, no log-file reader (2026-10-24) — #1580
 - The Ingestor's own meter is folded into Mongo per minute and shown on the Riot API tab — no OpenTelemetry pipeline, no tracing (2026-10-05) — #1636
 - The ops scripts kept outside the repo report their runs into `process_runs` through allow-listed ops endpoints, and the Processes page shows them on a *Scrapers* tab (2026-10-19) — #2119
