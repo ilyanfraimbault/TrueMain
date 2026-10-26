@@ -137,14 +137,100 @@ public sealed class PersonaHomonymsApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
         await BatchAsync(client, "alpha", "Alpha", "leaguepedia", ("Alpha One", "EUW"));
         await BatchAsync(client, "alpha-dpm", "alpha", "dpm", ("Alpha Two", "EUW"));
-        await BatchAsync(client, "yongi", "Yongi", "deeplol", [new { kind = "youtube", url = "https://www.youtube.com/@yongi" }], ("Yongi One", "KR"));
-        await BatchAsync(client, "yongi-dpm", "yongi", "dpm", [new { kind = "youtube", url = "https://youtube.com/@Yongi/" }], ("Yongi Two", "KR"));
+        // A shared reference page, not a social channel: that one would merge them (#2286).
+        await BatchAsync(client, "yongi", "Yongi", "deeplol", [new { kind = "leaguepedia", url = "https://lol.fandom.com/wiki/Yongi" }], ("Yongi One", "KR"));
+        await BatchAsync(client, "yongi-dpm", "yongi", "dpm", [new { kind = "leaguepedia", url = "https://lol.fandom.com/wiki/Yongi/" }], ("Yongi Two", "KR"));
 
         var groups = await GetAsync<PersonaHomonymsReadModel>(client, "/ops/personas/homonyms");
 
         groups.Groups.Select(g => g.Key).Should().Equal("yongi", "alpha");
-        groups.Groups[0].SharedLinks.Should().Equal("youtube.com/@yongi");
+        groups.Groups[0].SharedLinks.Should().Equal("lol.fandom.com/wiki/yongi");
         groups.Groups[1].SharedLinks.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Batch_MergesSameNamePlayersSharingASocialChannel_IntoTheOlder()
+    {
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+        await BatchAsync(client, "irelking", "IRELKING", "deeplol", [Chzzk("https://chzzk.naver.com/993db7ed")], ("aileri", "KR1"));
+        await BatchAsync(client, "unrelated", "Unrelated", "deeplol", [Chzzk("https://chzzk.naver.com/other")], ("Unrelated", "KR1"));
+
+        // Another source, another account, the same channel spelled its own way: one person (#2286).
+        await BatchAsync(client, "irelking-irelking", "IRELKING", "dpm", [Chzzk("http://www.chzzk.naver.com/993DB7ED/")], ("Kasumi", "1899"));
+
+        (await GetAsync<PersonaChannelConflictsReadModel>(client, "/ops/personas/channel-conflicts")).Total.Should().Be(0);
+        await using var db = _fixture.CreateDbContext();
+        (await db.Personas.SingleAsync(p => p.Slug == "irelking-irelking")).MergedIntoPersonaId.Should().Be(await PersonaIdAsync("irelking"));
+        (await db.PersonaAccounts.CountAsync(a => a.Persona!.Slug == "irelking")).Should().Be(2);
+        (await db.PersonaLinks.CountAsync(l => l.Persona!.Slug == "irelking")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ChannelConflicts_ListDifferentNamesSharingAChannel_UntilMarkedDifferent()
+    {
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+        await BatchAsync(client, "faker", "Faker", "leaguepedia", [Twitch("https://www.twitch.tv/faker")], ("Hide on bush", "KR1"));
+        await BatchAsync(client, "unrelated", "Unrelated", "dpm", [Twitch("https://www.twitch.tv/someone")], ("Unrelated", "KR1"));
+        await BatchAsync(
+            client,
+            "rosen",
+            "Rosén",
+            "deeplol",
+            [Twitch("https://twitch.tv/Faker"), new { kind = "youtube", url = "https://www.youtube.com/@Ros%C3%A9n" }],
+            ("Rosen", "KR1"));
+        await BatchAsync(client, "rosen-dpm", "Rosen Dpm", "dpm", [new { kind = "youtube", url = "https://youtube.com/@Rosén" }], ("Rosen Two", "KR1"));
+
+        var conflicts = await GetAsync<PersonaChannelConflictsReadModel>(client, "/ops/personas/channel-conflicts");
+
+        conflicts.Total.Should().Be(2);
+        conflicts.Conflicts.Select(c => (c.Older.Slug, c.Newer.Slug)).Should().BeEquivalentTo([("faker", "rosen"), ("rosen", "rosen-dpm")]);
+        conflicts.Conflicts.Single(c => c.Older.Slug == "faker").SharedChannels.Should().ContainSingle(c => c.Kind == "twitch");
+        conflicts.Conflicts.Single(c => c.Older.Slug == "faker").Newer.Accounts.Single().GameName.Should().Be("Rosen");
+        (await GetAsync<PersonaChannelConflictsReadModel>(client, "/ops/personas/channel-conflicts?search=dpm")).Total.Should().Be(1);
+        var directory = await GetAsync<PersonasPageReadModel>(client, "/ops/personas?view=Conflicts");
+        directory.Personas.Select(p => (p.Slug, p.OpenConflicts)).Should().BeEquivalentTo([("faker", 1), ("rosen", 2), ("rosen-dpm", 1)]);
+
+        var faker = await PersonaIdAsync("faker");
+        var rosen = await PersonaIdAsync("rosen");
+        await PostAsync<PersonaHomonymDistinctResponse>(client, "/ops/personas/homonyms/distinct", new { personaIds = new[] { faker, rosen } });
+        await PostAsync<PersonaHomonymMergeResponse>(
+            client, "/ops/personas/homonyms/merge", new { keepId = rosen, mergeIds = new[] { await PersonaIdAsync("rosen-dpm") } });
+
+        (await GetAsync<PersonaChannelConflictsReadModel>(client, "/ops/personas/channel-conflicts")).Total.Should().Be(0);
+        (await GetAsync<PersonasPageReadModel>(client, "/ops/personas?view=Conflicts")).Total.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AutoMerge_LeavesASameNameChannelGroup_HoldingAPairMarkedDifferent()
+    {
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+        await BatchAsync(client, "kim-a", "Kim", "leaguepedia", ("Kim A", "KR1"));
+        await BatchAsync(client, "kim-b", "Kim", "dpm", ("Kim B", "KR1"));
+        await BatchAsync(client, "kim-c", "KIM", "deeplol", ("Kim C", "KR1"));
+        var a = await PersonaIdAsync("kim-a");
+        var b = await PersonaIdAsync("kim-b");
+        var c = await PersonaIdAsync("kim-c");
+        await PostAsync<PersonaHomonymDistinctResponse>(client, "/ops/personas/homonyms/distinct", new { personaIds = new[] { a, b } });
+
+        // kim-c shares a channel with each: merging the three would undo the operator's mark.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            db.PersonaLinks.AddRange(
+                new PersonaLink { PersonaId = a, Kind = PersonaLinkKind.Twitch, Url = "https://twitch.tv/kim", Source = PersonaSource.Leaguepedia },
+                new PersonaLink { PersonaId = c, Kind = PersonaLinkKind.Twitch, Url = "https://twitch.tv/kim", Source = PersonaSource.DeepLol },
+                new PersonaLink { PersonaId = c, Kind = PersonaLinkKind.Chzzk, Url = "https://chzzk.naver.com/kim", Source = PersonaSource.DeepLol },
+                new PersonaLink { PersonaId = b, Kind = PersonaLinkKind.Chzzk, Url = "https://chzzk.naver.com/kim", Source = PersonaSource.Dpm });
+            await db.SaveChangesAsync();
+        }
+
+        var swept = await PostAsync<PersonaAutoMergeResponse>(client, "/ops/personas/conflicts/auto-merge", new { });
+
+        swept.MergedByChannel.Should().Be(0);
+        swept.Skipped.Should().Be(1);
+        (await GetAsync<PersonaChannelConflictsReadModel>(client, "/ops/personas/channel-conflicts")).Total.Should().Be(2);
     }
 
     [Fact]
@@ -192,6 +278,10 @@ public sealed class PersonaHomonymsApiIntegrationTests : IAsyncLifetime
         (await anonymous.GetAsync("/ops/personas/homonyms")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await anonymous.PostAsJsonAsync("/ops/personas/conflicts/auto-merge", new { })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    private static object Chzzk(string url) => new { kind = "chzzk", url };
+
+    private static object Twitch(string url) => new { kind = "twitch", url };
 
     private async Task SeedTrackedAsync(string puuid, string gameName, string tagLine)
     {

@@ -217,53 +217,11 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
     private async Task<PersonaOpsReadModel> LoadPersonaAsync(
         Guid personaId, PersonaConflictAccountReadModel disputed, CancellationToken ct)
     {
-        var persona = await db.Personas
-            .AsNoTracking()
-            .Where(p => p.Id == personaId)
-            .Select(p => new { p.Id, p.Slug, p.DisplayName, p.Source, p.CreatedAtUtc })
-            .FirstAsync(ct);
-
-        var accounts = await db.PersonaAccounts
-            .AsNoTracking()
-            .Where(a => a.PersonaId == personaId)
-            .OrderBy(a => a.PlatformId)
-            .ThenBy(a => a.GameName)
-            .Select(a => new { a.GameName, a.TagLine, a.PlatformId, a.Source, a.RiotAccountId })
-            .ToListAsync(ct);
-
-        var links = await db.PersonaLinks
-            .AsNoTracking()
-            .Where(l => l.PersonaId == personaId)
-            .OrderBy(l => l.Kind)
-            .ThenBy(l => l.Url)
-            .Select(l => new { l.Kind, l.Url, l.Source })
-            .ToListAsync(ct);
-
-        return new PersonaOpsReadModel
+        var persona = (await PersonaOpsReads.LoadAsync(db, [personaId], ct))[personaId];
+        return persona with
         {
-            Id = persona.Id,
-            Slug = persona.Slug,
-            DisplayName = persona.DisplayName,
-            Source = persona.Source.ToString(),
-            CreatedAtUtc = persona.CreatedAtUtc,
-            Accounts = accounts
-                .Select(a => new PersonaOpsAccountReadModel
-                {
-                    GameName = a.GameName,
-                    TagLine = a.TagLine,
-                    PlatformId = a.PlatformId,
-                    Source = a.Source.ToString(),
-                    RiotAccountId = a.RiotAccountId,
-                    Disputed = IsDisputed(a.PlatformId, a.GameName, a.TagLine, a.RiotAccountId, disputed),
-                })
-                .ToList(),
-            Links = links
-                .Select(l => new PersonaOpsLinkReadModel
-                {
-                    Kind = l.Kind.ToString().ToLowerInvariant(),
-                    Url = l.Url,
-                    Source = l.Source.ToString(),
-                })
+            Accounts = persona.Accounts
+                .Select(a => a with { Disputed = IsDisputed(a.PlatformId, a.GameName, a.TagLine, a.RiotAccountId, disputed) })
                 .ToList(),
         };
     }

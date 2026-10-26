@@ -27,6 +27,9 @@ public static class PersonaConflictConfidence
         PersonaLinkKind.Chzzk,
     ];
 
+    /// <summary>The kinds whose channel belongs to one person: a shared one raises a channel conflict (#2286).</summary>
+    public static IReadOnlyCollection<PersonaLinkKind> SocialLinkKinds => SocialKinds;
+
     public static bool IsSocial(PersonaLinkKind kind) => SocialKinds.Contains(kind);
 
     /// <summary>What the two link lists have in common, and what sets them apart.</summary>

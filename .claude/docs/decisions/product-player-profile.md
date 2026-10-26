@@ -261,7 +261,17 @@ each other's wiki links. Score: 10 per shared social channel, 3 per shared refer
 different channels; ties by last sighting. Links are compared decoded, case-insensitive, without scheme, `www.`, query
 or trailing slash, the same key the conflict drawer's comparison uses.
 
-**Source.** #2016, #2134, #2253, #2019, #2271, #2273, #2277.
+**A shared social channel is a conflict, and with the same name a merge (2026-10-26, #2286).** Two `IRELKING` known
+players — one from DeepLoL, one from dpm.lol — listed the same Chzzk channel and different accounts, and no conflict
+showed. The operator's rule: two known players listing the same social channel (the kinds above, compared by the same
+key) are a conflict even without a common account, since nobody else streams on it or posts from it; same name **and**
+a shared social channel is one person, merged without asking into the older one, like a same-name account conflict
+(after every batch, at startup, from the button). A shared reference page is not enough — that stays the homonyms
+queue's evidence. A channel conflict is derived from the links, not stored: it leaves when the two are merged, marked as
+different people, or the link is removed, and a same-name group holding a pair marked different is left to the operator.
+A merge drops the merged persona's links whose channel the kept one already lists, however a source spelled it.
+
+**Source.** #2016, #2134, #2253, #2019, #2271, #2273, #2277, #2286.
 
 **A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
 each main's name, so the count would name its denominator next to the champion page's per-patch count. On the
