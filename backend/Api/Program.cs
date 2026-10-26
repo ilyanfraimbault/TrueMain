@@ -358,6 +358,7 @@ builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
 builder.Services.AddScoped<IExternalProcessRunService, ExternalProcessRunService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
+builder.Services.AddScoped<IAuditEventsQueryService, AuditEventsQueryService>();
 builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
 builder.Services.AddScoped<IIncompleteMatchesQueryService, IncompleteMatchesQueryService>();
 builder.Services.AddScoped<IMatchDataQualityDetailQueryService, MatchDataQualityDetailQueryService>();

@@ -1,5 +1,6 @@
 using Data;
 using Data.Entities;
+using Data.Logging.Mongo;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
 
@@ -85,7 +86,7 @@ public sealed class PersonaRemovalService(TrueMainDbContext db, PersonaAudit aud
         await db.SaveChangesAsync(ct);
 
         await audit.RecordAsync(
-            "remove_persona",
+            AuditActions.RemovePersona,
             id,
             persona.Slug,
             new()

@@ -1,3 +1,4 @@
+using Data.Logging.Mongo;
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.Diagnostics;
@@ -5,13 +6,14 @@ using TrueMain.Services.Ops.Diagnostics;
 namespace TrueMain.Controllers.Ops;
 
 /// <summary>
-/// What went wrong: the application log and the crash reports. Both read Mongo rather than the
-/// relational side, both are paged and filtered the same way, and both are what an incident
+/// What went wrong: the application log, the crash reports and the operator-action trail. All read Mongo rather than the
+/// relational side, all are paged and filtered the same way, and all are what an incident
 /// starts from.
 /// </summary>
 public sealed class OpsDiagnosticsController(
     ILogsQueryService logsQueryService,
-    ICrashesQueryService crashesQueryService) : OpsControllerBase
+    ICrashesQueryService crashesQueryService,
+    IAuditEventsQueryService auditEventsQueryService) : OpsControllerBase
 {
     /// <summary>
     /// One page of persisted diagnostic logs, newest-first. <paramref name="level"/>
@@ -64,6 +66,32 @@ public sealed class OpsDiagnosticsController(
         CancellationToken ct = default)
     {
         var readModel = await crashesQueryService.GetAsync(since, process, source, search, page, pageSize, ct);
+        return Ok(readModel);
+    }
+
+    /// <summary>
+    /// One page of the operator-action trail (#2288), newest-first. <paramref name="action"/>,
+    /// <paramref name="targetType"/>, <paramref name="targetId"/> and <paramref name="actor"/> are
+    /// exact filters; <paramref name="since"/> (inclusive) and <paramref name="until"/> (exclusive)
+    /// bound the time; <paramref name="search"/> matches any metadata value case-insensitively.
+    /// </summary>
+    [HttpGet("audit-events")]
+    [ProducesResponseType(typeof(AuditEventsReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AuditEventsReadModel>> GetAuditEventsAsync(
+        [FromQuery] string? action,
+        [FromQuery] string? targetType,
+        [FromQuery] string? targetId,
+        [FromQuery] string? actor,
+        [FromQuery] DateTime? since,
+        [FromQuery] DateTime? until,
+        [FromQuery] string? search,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken ct = default)
+    {
+        var readModel = await auditEventsQueryService.GetAsync(
+            new AuditEventFilter(action, targetType, targetId, actor, since, until, search, page, pageSize), ct);
         return Ok(readModel);
     }
 }

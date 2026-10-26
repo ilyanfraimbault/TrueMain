@@ -1,4 +1,5 @@
 using Data;
+using Data.Logging.Mongo;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Requests.Ops;
@@ -44,7 +45,7 @@ public sealed class PersonaAutoMergeService(
             var outcome = await resolution.ResolveAsync(
                 next.Id,
                 new PersonaConflictResolveRequest { Action = "merge", Keep = next.KeepClaimant ? "claimant" : "owner" },
-                "auto",
+                AuditActors.Auto,
                 ct);
             if (outcome.Resolved is { } resolved)
             {
@@ -107,7 +108,7 @@ public sealed class PersonaAutoMergeService(
             }
 
             var request = new PersonaHomonymMergeRequest { KeepId = group[0], MergeIds = group.Skip(1).ToList() };
-            var outcome = await homonyms.MergeAsync(request, "auto", ct);
+            var outcome = await homonyms.MergeAsync(request, AuditActors.Auto, ct);
             if (outcome.Response is { } response)
             {
                 merged += response.MergedSlugs.Count;

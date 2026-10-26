@@ -11,7 +11,7 @@ public sealed class PersonaAudit(IAuditLog auditLog, ILogger<PersonaAudit> logge
 {
     public Task RecordAsync(
         string action, Guid personaId, string slug, Dictionary<string, string> metadata, CancellationToken ct) =>
-        RecordAsync(action, personaId, slug, metadata, "operator", ct);
+        RecordAsync(action, personaId, slug, metadata, AuditActors.Operator, ct);
 
     /// <summary>The same, under <paramref name="actor"/>: <c>auto</c> for the same-name merges (#2271, #2286).</summary>
     public async Task RecordAsync(
@@ -23,7 +23,7 @@ public sealed class PersonaAudit(IAuditLog auditLog, ILogger<PersonaAudit> logge
             await auditLog.RecordAsync(
                 action: action,
                 actor: actor,
-                targetType: "Persona",
+                targetType: AuditTargets.Persona,
                 targetId: personaId.ToString(),
                 metadata: metadata,
                 ct: ct);
