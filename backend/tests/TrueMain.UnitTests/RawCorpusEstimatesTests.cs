@@ -12,7 +12,7 @@ public sealed class RawCorpusEstimatesTests
     [Fact]
     public void From_ReadsBothTables_WhenTheyAreListed()
     {
-        var estimates = PipelineHealthQueryService.RawCorpusEstimates.From(
+        var estimates = RawCorpusEstimates.From(
         [
             new("matches", 120_000),
             new("match_participants", 1_200_000),
@@ -27,7 +27,7 @@ public sealed class RawCorpusEstimatesTests
     [Fact]
     public void From_ReportsAReason_RatherThanZero_WhenATableIsMissing()
     {
-        var estimates = PipelineHealthQueryService.RawCorpusEstimates.From([new("matches", 120_000)]);
+        var estimates = RawCorpusEstimates.From([new("matches", 120_000)]);
 
         estimates.Participants.Should().BeNull();
         estimates.UnknownReason.Should().NotBeNullOrWhiteSpace();
