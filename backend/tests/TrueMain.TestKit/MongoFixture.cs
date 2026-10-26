@@ -27,6 +27,7 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string DesktopDownloadsCollection = "desktop_download_days";
     public const string MeterRollupsCollection = "meter_rollups";
     public const string RequestLatencyCollection = "request_latency_rollups";
+    public const string ProcessBootsCollection = "process_boots";
 
     private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0")
         // Match PostgresFixture's reasoning: keep Testcontainers' Ryuk reaper
@@ -103,5 +104,8 @@ public sealed class MongoFixture : IAsyncLifetime
         await db.DropCollectionAsync(MeterRollupsCollection);
         // The ops request-latency rollups (#2307): unique (minute, route, method) key.
         await db.DropCollectionAsync(RequestLatencyCollection);
+        // The boot log (#2297): every factory boot appends to it, so a test would otherwise see
+        // the previous test's boots as its process's predecessors.
+        await db.DropCollectionAsync(ProcessBootsCollection);
     }
 }
