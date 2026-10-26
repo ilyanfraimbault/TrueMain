@@ -1612,6 +1612,13 @@ de 10 min — le comptage des participants est la lecture la plus coûteuse de l
 
 Compteurs globaux du corpus.
 
+Cached 2 min and single-flighted across concurrent callers (#2301); `computedAtUtc` says when
+the payload was computed. `totalMatches`, `totalParticipants`, `matchesLast7Days` and
+`matchesLast30Days` are **planner estimates** (`pg_stat_user_tables.n_live_tup`, and
+`EXPLAIN`'s row estimate for the two windows), not exact counts — `null` with
+`estimatesUnknownReason` when they could not be read. `distinctChampionsWithGames` reads
+`champion_game_counts` (the ingestor's periodic recount). Everything else is exact.
+
 **Réponse `200`** — `OverviewReadModel`
 
 ```json
@@ -1625,7 +1632,9 @@ Compteurs globaux du corpus.
   "distinctChampionsWithGames": 168,
   "distinctChampionsWithMains": 165,
   "matchesLast7Days": 42000,
-  "matchesLast30Days": 180000
+  "matchesLast30Days": 180000,
+  "estimatesUnknownReason": null,
+  "computedAtUtc": "2026-10-26T10:00:00Z"
 }
 ```
 

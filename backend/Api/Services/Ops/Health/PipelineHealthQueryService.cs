@@ -241,18 +241,9 @@ public sealed class PipelineHealthQueryService(
     }
 
     /// <summary>
-    /// The raw-corpus totals, as the planner's live-tuple estimates of <c>matches</c> and
-    /// <c>match_participants</c> (#2132) — the same <c>pg_stat_user_tables.n_live_tup</c> the
-    /// <c>/database</c> panel prints as each table's rows, so the two pages cannot disagree.
-    ///
-    /// <para>
-    /// An exact count is a full scan of the participant table: it was the most expensive read
-    /// of the whole evaluation (#1427), and on a cold cache it ran into the API's 60 s
-    /// <c>statement_timeout</c>, failing the whole cockpit for a figure no signal is judged
-    /// from. The estimate is a catalog lookup. It is table-wide rather than filtered on the
-    /// queue, which costs nothing in practice: storage keeps the ranked queue only (#680) and
-    /// retention drains anything else on every pass.
-    /// </para>
+    /// The raw-corpus totals as planner estimates (<see cref="RawCorpusEstimates"/>, #2132):
+    /// the exact participant count was the most expensive read of the whole evaluation
+    /// (#1427), failing the whole cockpit for a figure no signal is judged from.
     ///
     /// <para>
     /// Degraded like a signal: a failed read costs this block its numbers (null, with the
@@ -264,15 +255,7 @@ public sealed class PipelineHealthQueryService(
     {
         try
         {
-            var rows = await db.Database
-                .SqlQuery<TableRowEstimate>($"""
-                    SELECT relname AS "TableName", n_live_tup::bigint AS "RowEstimate"
-                    FROM pg_catalog.pg_stat_user_tables
-                    WHERE schemaname = 'public' AND relname IN ('matches', 'match_participants')
-                    """)
-                .ToListAsync(ct);
-
-            return RawCorpusEstimates.From(rows);
+            return await RawCorpusEstimates.ReadAsync(db, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -467,29 +450,5 @@ public sealed class PipelineHealthQueryService(
         // type names. The status field already carries the failure signal;
         // operators reach for logs/tracing for the real cause.
         return InternalError;
-    }
-
-    internal sealed record TableRowEstimate(string TableName, long RowEstimate);
-
-    internal sealed record RawCorpusEstimates(long? Matches, long? Participants, string? UnknownReason)
-    {
-        /// <summary>
-        /// Picks the two tables out of the catalog rows. A table the statistics view does
-        /// not list has no estimate to give, which is reported as such rather than as zero.
-        /// </summary>
-        public static RawCorpusEstimates From(IReadOnlyCollection<TableRowEstimate> rows)
-        {
-            long? Estimate(string table) => rows
-                .Where(row => row.TableName == table)
-                .Select(row => (long?)row.RowEstimate)
-                .FirstOrDefault();
-
-            var matches = Estimate("matches");
-            var participants = Estimate("match_participants");
-
-            return matches is null || participants is null
-                ? new RawCorpusEstimates(matches, participants, "The table statistics do not list the raw match tables.")
-                : new RawCorpusEstimates(matches, participants, null);
-        }
     }
 }
