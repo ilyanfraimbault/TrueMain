@@ -190,7 +190,11 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture) : 
         var older = payload.Patches.Single(patch => patch.Patch == "16.14");
 
         older.Matches.Should().Be(4);
-        older.Participants.Should().Be(40, "each seeded match carries the full ten participants");
+        // Derived, not counted (#2302): ten per ranked match, even though one stored 16.14
+        // match is missing a participant row — naming that is the wrongParticipantCount
+        // check's job, and counting it here meant joining the largest table in the store.
+        older.Participants.Should().Be(40, "participants are the match count times the queue's roster of ten");
+        payload.ParticipantsNote.Should().Contain("derived, not counted").And.Contain("10 per match");
         older.Daily.Should().HaveCount(2, "the 16.14 matches straddle two game dates");
         older.Daily.Sum(day => day.Matches).Should().Be(older.Matches);
         older.Daily.Sum(day => day.Participants).Should().Be(older.Participants);
@@ -309,7 +313,10 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture) : 
                      "PC_16_16_0", "PC_16_16_1", "PC_16_16_2", "PC_16_16_3", "PC_16_16_4"
                  })
         {
-            for (var participantId = 1; participantId <= 10; participantId++)
+            // One 16.14 match is stored a participant short, so the participant figures can
+            // only come out at ten per match if they are derived rather than counted.
+            var roster = matchId == "PC_16_14_D" ? 9 : 10;
+            for (var participantId = 1; participantId <= roster; participantId++)
             {
                 db.MatchParticipants.Add(BuildParticipant(matchId, participantId));
             }
@@ -445,6 +452,7 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture) : 
         public string Status { get; init; } = string.Empty;
         public string Headline { get; init; } = string.Empty;
         public IReadOnlyList<PatchRowContract> Patches { get; init; } = [];
+        public string? ParticipantsNote { get; init; }
     }
 
     private sealed class PatchRowContract
