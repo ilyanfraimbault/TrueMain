@@ -156,6 +156,18 @@ public interface IProcessRunStore
         CancellationToken ct);
 
     /// <summary>
+    /// The duration and raw summary of the <paramref name="limit"/> most recent
+    /// <em>successful</em> runs of <paramref name="processName"/> recorded under
+    /// <paramref name="jobMode"/> (null = runs that carry no mode), newest finish first —
+    /// the history a run is compared against on the Processes page (#2298).
+    /// </summary>
+    Task<IReadOnlyList<ProcessRunBaselineSample>> GetRecentSuccessesAsync(
+        string processName,
+        string? jobMode,
+        int limit,
+        CancellationToken ct);
+
+    /// <summary>
     /// How many terminal (non-Running) runs of <paramref name="processName"/> started
     /// strictly after <paramref name="afterUtc"/>; null counts every terminal run.
     /// </summary>
@@ -177,6 +189,9 @@ public interface IProcessRunStore
 /// in flight.
 /// </summary>
 public sealed record ProcessRunSummarySample(string ProcessName, DateTime StartedAtUtc, string? SummaryJson);
+
+/// <summary>One successful run reduced to what a baseline needs: its duration and raw summary JSON.</summary>
+public sealed record ProcessRunBaselineSample(int DurationMs, string? SummaryJson);
 
 /// <summary>One page of <see cref="ProcessRunDocument"/>s plus the filtered total.</summary>
 public sealed record ProcessRunPage(IReadOnlyList<ProcessRunDocument> Runs, long Total);

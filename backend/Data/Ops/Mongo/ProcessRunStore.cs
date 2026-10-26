@@ -388,6 +388,34 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
         return latest.OfType<ProcessRunDocument>().ToList();
     }
 
+    public async Task<IReadOnlyList<ProcessRunBaselineSample>> GetRecentSuccessesAsync(
+        string processName, string? jobMode, int limit, CancellationToken ct)
+    {
+        if (!context.IsActive || limit <= 0)
+        {
+            return [];
+        }
+
+        await EnsureIndexesOnceAsync(ct);
+
+        // Walks ix_process_finished newest-first within one process and stops at the
+        // limit; status and mode are residual filters on the fetched entries. A null
+        // mode matches the runs recorded before #1362 stamped one.
+        var builder = Builders<ProcessRunDocument>.Filter;
+        var filter = builder.Eq(doc => doc.ProcessName, processName)
+                     & builder.Eq(doc => doc.Status, ProcessRunStatus.Success)
+                     & builder.Eq(doc => doc.JobMode, jobMode);
+
+        return await context.ProcessRuns
+            .Find(filter)
+            .Sort(Builders<ProcessRunDocument>.Sort
+                .Ascending(doc => doc.ProcessName)
+                .Descending(doc => doc.FinishedAtUtc))
+            .Limit(limit)
+            .Project(doc => new ProcessRunBaselineSample(doc.DurationMs, doc.SummaryJson))
+            .ToListAsync(ct);
+    }
+
     public async Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct)
     {
         if (!context.IsActive)
