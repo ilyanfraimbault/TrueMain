@@ -1,14 +1,40 @@
 // Known players sharing a name (#2271): `POST /ops/personas/conflicts/auto-merge`,
-// `GET /ops/personas/homonyms` and `POST /ops/personas/homonyms/{merge,distinct}`.
+// `GET /ops/personas/homonyms` and `POST /ops/personas/homonyms/{merge,distinct}`;
+// and sharing a social channel (#2286): `GET /ops/personas/channel-conflicts`.
 import type { PersonaOps } from './personas'
 
 export interface PersonaAutoMerged {
   /** Same-name conflicts settled as merges. */
   merged: number
-  /** Other open conflicts those merges settled too. */
+  /** Same-name known players sharing a social channel merged into their oldest (#2286). */
+  mergedByChannel: number
+  /** Other open account conflicts those merges settled too. */
   alsoResolved: number
-  /** Same-name conflicts that changed under the sweep and stay in the queue. */
+  /** Conflicts that changed under the sweep, and channel groups holding a pair marked different: they stay. */
   skipped: number
+}
+
+/** Two live known players listing the same social channel (#2286), both in full. */
+export interface PersonaChannelConflict {
+  /** The one created first: the one a merge keeps by default. `disputed` is always false here. */
+  older: PersonaOps
+  newer: PersonaOps
+  /** The channels both list; kinds lowercase. */
+  sharedChannels: { kind: string, url: string }[]
+}
+
+export interface PersonaChannelConflictsResponse {
+  conflicts: PersonaChannelConflict[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface PersonaChannelConflictsFilters {
+  [key: string]: string | number | undefined
+  search?: string
+  page?: number
+  pageSize?: number
 }
 
 export interface PersonaHomonymGroup {

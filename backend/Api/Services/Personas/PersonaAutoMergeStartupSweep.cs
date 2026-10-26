@@ -37,7 +37,10 @@ public sealed class PersonaAutoMergeStartupSweep : BackgroundService
             var sweep = scope.ServiceProvider.GetRequiredService<IPersonaAutoMergeService>();
             var result = await sweep.MergeHomonymConflictsAsync(stoppingToken);
             _logger.LogInformation(
-                "Startup same-name conflict sweep: {Merged} merged, {Skipped} left in the queue.", result.Merged, result.Skipped);
+                "Startup same-name conflict sweep: {Merged} merged, {MergedByChannel} merged by a shared channel, {Skipped} left in the queue.",
+                result.Merged,
+                result.MergedByChannel,
+                result.Skipped);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

@@ -11,6 +11,10 @@ public interface IPersonaHomonymService
     /// <summary>Merges known players the operator recognised as one person into the one kept, in one transaction.</summary>
     Task<PersonaHomonymOutcome<PersonaHomonymMergeResponse>> MergeAsync(PersonaHomonymMergeRequest request, CancellationToken ct);
 
+    /// <summary>The same, audited under <paramref name="actor"/>: <c>auto</c> for the channel merge (#2286).</summary>
+    Task<PersonaHomonymOutcome<PersonaHomonymMergeResponse>> MergeAsync(
+        PersonaHomonymMergeRequest request, string actor, CancellationToken ct);
+
     /// <summary>Marks every pair among the given known players as different people.</summary>
     Task<PersonaHomonymOutcome<PersonaHomonymDistinctResponse>> MarkDistinctAsync(
         PersonaHomonymDistinctRequest request, CancellationToken ct);
@@ -30,8 +34,12 @@ public sealed class PersonaHomonymService(TrueMainDbContext db, PersonaMerger me
     /// <summary>More than any group the queue shows; a guard against a runaway request.</summary>
     public const int MaxPersonas = 20;
 
+    public Task<PersonaHomonymOutcome<PersonaHomonymMergeResponse>> MergeAsync(
+        PersonaHomonymMergeRequest request, CancellationToken ct) =>
+        MergeAsync(request, "operator", ct);
+
     public async Task<PersonaHomonymOutcome<PersonaHomonymMergeResponse>> MergeAsync(
-        PersonaHomonymMergeRequest request, CancellationToken ct)
+        PersonaHomonymMergeRequest request, string actor, CancellationToken ct)
     {
         var mergeIds = (request.MergeIds ?? []).Distinct().ToList();
         if (request.KeepId is not { } keepId || mergeIds.Count is 0 or > MaxPersonas || mergeIds.Contains(keepId))
@@ -73,7 +81,7 @@ public sealed class PersonaHomonymService(TrueMainDbContext db, PersonaMerger me
         if (outcome.Response is { } merged)
         {
             await audit.RecordAsync(
-                "merge_personas", keepId, merged.KeptSlug, new() { ["merged"] = string.Join(",", merged.MergedSlugs) }, ct);
+                "merge_personas", keepId, merged.KeptSlug, new() { ["merged"] = string.Join(",", merged.MergedSlugs) }, actor, ct);
         }
 
         return outcome;
