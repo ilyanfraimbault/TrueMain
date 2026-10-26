@@ -13,11 +13,12 @@ export function queryString(raw: unknown): string | null {
  * setup does not re-run, and only the query moves, so reading it once on mount
  * misses the second jump.
  */
-export function useQueryValue(key: string, apply: (value: string) => void, options: { immediate?: boolean } = {}) {
+export function useQueryValue(key: string, apply: (value: string) => void | Promise<void>, options: { immediate?: boolean } = {}) {
   const route = useRoute()
-  watch(() => queryString(route.query[key]), (value) => {
+  // An async `apply` is awaited, so a rejection reaches Vue's error handler.
+  watch(() => queryString(route.query[key]), async (value) => {
     if (value !== null) {
-      apply(value)
+      await apply(value)
     }
   }, { immediate: options.immediate ?? false })
 }
