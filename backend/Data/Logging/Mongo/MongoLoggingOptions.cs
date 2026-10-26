@@ -107,6 +107,23 @@ public sealed class MongoLoggingOptions
     public string EffectiveConfigurationCollection { get; set; } = "effective_configuration";
 
     /// <summary>
+    /// Collection holding one document per process boot (#2297): its version and start time,
+    /// appended by every Api and Ingestor at startup and read back as the deploy markers of the
+    /// admin charts. Unlike <see cref="EffectiveConfigurationCollection"/> it is never
+    /// overwritten. Retention is split by what a boot was: a plain restart expires after
+    /// <see cref="ProcessBootRestartsRetention"/>, a boot that changed the version (a deploy)
+    /// is kept for good — deploys are a handful a week.
+    /// </summary>
+    public string ProcessBootsCollection { get; set; } = "process_boots";
+
+    /// <summary>
+    /// How long a boot that did NOT change its process's version is kept, a partial TTL index on
+    /// <c>startedAtUtc</c>. Thirty days, like the other operational rollups: restarts are only
+    /// read as the predecessor a new boot compares itself to. Zero or negative disables it.
+    /// </summary>
+    public TimeSpan ProcessBootRestartsRetention { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>
     /// Collection holding the desktop app's usage (#1805): one document per anonymous install
     /// per UTC day, folded from the batches the app sends to <c>POST /desktop/telemetry</c>.
     /// </summary>

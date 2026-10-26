@@ -358,6 +358,7 @@ builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IDbStorageHistoryQueryService, DbStorageHistoryQueryService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
+builder.Services.AddTrueMainDeployments();
 builder.Services.AddScoped<IExternalProcessRunService, ExternalProcessRunService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
 builder.Services.AddScoped<IAuditEventsQueryService, AuditEventsQueryService>();
