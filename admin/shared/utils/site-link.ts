@@ -14,11 +14,15 @@ import type { ChampionSlugMap } from '#site-shared/types/static-data'
  * button is hidden then rather than pointing at the admin's own origin.
  */
 export function siteHref(baseUrl: string | null | undefined, path: string | null | undefined): string | null {
-  const base = baseUrl?.trim().replace(/\/+$/, '')
+  let base = baseUrl?.trim() ?? ''
+  while (base.endsWith('/')) {
+    base = base.slice(0, -1)
+  }
   if (!base || !path) {
     return null
   }
-  return `${base}${path.startsWith('/') ? path : `/${path}`}`
+  const absolutePath = path.startsWith('/') ? path : '/' + path
+  return base + absolutePath
 }
 
 /** A known player's page, `/players/{slug}`. */
