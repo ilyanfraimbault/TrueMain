@@ -1733,10 +1733,11 @@ ingéré.
 
 ## `GET /ops/stats/aggregations`
 
-Instantané des pipelines d'agrégation pour le panneau Aggregation : par famille les
-comptes de lignes **exacts** de ses tables, la couverture champions/patchs, la
-fraîcheur des données et le dernier run enregistré ; plus les backlogs d'ingestion qui
-doivent lire zéro quand les agrégations ont rattrapé leur retard.
+Instantané des pipelines d'agrégation pour le panneau Aggregation : par famille
+l'**estimation** du planificateur pour le nombre de lignes de chaque table, la
+couverture champions et le dernier run enregistré ; plus les backlogs d'ingestion qui
+doivent lire zéro quand les agrégations ont rattrapé leur retard. Servi depuis un cache
+de deux minutes (#2303) ; `measuredAtUtc` date la mesure.
 
 Quatre familles, dans cet ordre, identifiées par leur `key` — valeurs de contrat, le
 front branche ses libellés dessus : `builds`, `matchups`, `synergies`, `mains`.
@@ -1748,15 +1749,14 @@ Pas de paramètre.
 ```json
 {
   "queueId": 420,
+  "measuredAtUtc": "2026-08-05T09:13:00Z",
   "families": [
     {
       "key": "builds",
       "processName": "ChampionPatternAggregation",
-      "tables": [ { "table": "champion_dim_item_paths", "rows": 4200000 } ],
-      "totalRows": 9800000,
+      "tables": [ { "table": "champion_aggregate_scopes", "rowEstimate": 530000 } ],
+      "totalRowEstimate": 1770000,
       "distinctChampions": 168,
-      "distinctPatches": 3,
-      "lastAggregatedAtUtc": "2026-08-05T09:12:00Z",
       "lastRun": {
         "status": "Success",
         "lastStartedAtUtc": "2026-08-05T09:00:00Z",
@@ -1774,16 +1774,23 @@ Pas de paramètre.
 }
 ```
 
-- `lastAggregatedAtUtc` est l'écriture de ligne d'agrégat la plus récente : une
-  fraîcheur **de la donnée**, indépendante des enregistrements de run. `lastRun` est
-  `null` quand le process n'a jamais tourné, et son `lastSuccessAtUtc` diffère de
-  `lastFinishedAtUtc` quand le dernier run a échoué.
-- `distinctPatches` est `null` pour une famille sans axe patch.
+- `rowEstimate` est `n_live_tup` de `pg_stat_user_tables` (le chiffre de `/database`),
+  `reltuples` à défaut : une estimation, jamais un `count(*)`, qui parcourt toute la
+  table (#2303).
+- `distinctChampions` est exact (parcours d'index par saut sur `ChampionId`) ; pour
+  `mains`, ce sont les champions qui ont au moins un main actif.
+- Plus de `distinctPatches` ni de `lastAggregatedAtUtc` (#2303) : aucune table de
+  repli n'est indexée sur ces colonnes, `/ops/patch-coverage` mesure chaque repli par
+  patch, et `lastRun.lastSuccessAtUtc` dit quand la famille a écrit pour la dernière
+  fois. `lastRun` est `null` quand le process n'a jamais tourné, et son
+  `lastSuccessAtUtc` diffère de `lastFinishedAtUtc` quand le dernier run a échoué.
 - `pendingSynergyMatches` démarre au **nombre total de matchs retenus** : le drapeau
   de repli est livré à `false` sur toutes les lignes préexistantes, donc ce compteur
   affiche un gros backlog au premier déploiement puis se vide au fil des runs (#922).
 - Les deux compteurs n'ont pas la même unité : `pendingSynergyMatches` compte des
-  matchs de la queue, `pendingEloBracketParticipants` des **participants**.
+  matchs de la queue, `pendingEloBracketParticipants` des **participants**. Chacun est
+  servi par un index partiel qui ne contient que les lignes en attente
+  (`IX_matches_synergy_pending`, `IX_match_participants_elo_bracket_pending`).
 
 ## `GET /ops/patch-coverage`
 

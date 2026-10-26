@@ -10,13 +10,15 @@ export interface AggregationFamily {
   key: string
   /** The recorded ingestor process producing this family. */
   processName: string
-  tables: { table: string, rows: number }[]
-  totalRows: number
+  /**
+   * The family's tables with the planner's live-row estimate of each (#2303) — the
+   * figure `/database` prints, approximate by nature, so the page shows it with `≈`.
+   */
+  tables: { table: string, rowEstimate: number }[]
+  /** Sum of the tables' estimates. */
+  totalRowEstimate: number
+  /** Distinct champions with rows, exact; for mains, champions with an active main. */
   distinctChampions: number
-  /** Distinct normalized patches; null when the family has no patch axis (mains). */
-  distinctPatches: number | null
-  /** Most recent aggregate-row write — data freshness independent of run records. */
-  lastAggregatedAtUtc: string | null
   /** Latest recorded run of the producing process; null when it never ran. */
   lastRun: AggregationRun | null
 }
@@ -50,6 +52,8 @@ export interface AggregationBacklog {
 /** `GET /api/ops/stats/aggregations` — the Aggregation panel payload. */
 export interface AggregationsResponse {
   queueId: number
+  /** When the payload was measured — the API serves it from a two-minute cache. */
+  measuredAtUtc: string
   families: AggregationFamily[]
   backlog: AggregationBacklog
 }
