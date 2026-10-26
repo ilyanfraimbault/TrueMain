@@ -194,6 +194,7 @@ services:
       NUXT_SESSION_COOKIE_SECURE: "true"
       NUXT_TRUST_PROXY: "true"
       NUXT_PUBLIC_UMAMI_URL: https://analytics.truemain.lol
+      NUXT_PUBLIC_SITE_URL: https://truemain.lol
       NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
     depends_on:
       api:

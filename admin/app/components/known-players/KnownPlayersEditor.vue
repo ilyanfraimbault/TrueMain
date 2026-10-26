@@ -7,6 +7,7 @@ import type { PersonaAccountInput, PersonaAdminAccount, PersonaAdminDetail, Pers
 import { computed, ref, watch } from 'vue'
 import { formatDateTime } from '~~/shared/utils/format'
 import { accountOutcomeMessage, displayNameError, editErrorMessage } from '~~/shared/utils/known-players'
+import { knownPlayerPath } from '~~/shared/utils/site-link'
 
 const props = defineProps<{ personaId: string }>()
 const emit = defineEmits<{ changed: [], removed: [] }>()
@@ -127,6 +128,7 @@ defineExpose({ reload: load })
             {{ detail.displayName }}
           </p>
           <UButton v-if="live" data-rename icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" aria-label="Rename" @click="startRename" />
+          <SiteLink v-if="!detail.removedAtUtc" :path="knownPlayerPath(detail.slug)" />
         </div>
         <p class="text-xs text-muted">
           <span class="font-mono">{{ detail.slug }}</span> · from {{ detail.source }} · since {{ formatDateTime(detail.createdAtUtc) }}

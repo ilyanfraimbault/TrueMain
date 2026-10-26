@@ -19,6 +19,7 @@ import type { TableColumn } from '@nuxt/ui'
 import type { ChampionStatsRow } from '~~/shared/types/ops'
 import { ALL_POSITIONS_ICON_URL, POSITION_OPTIONS } from '~/utils/positions'
 import { formatNumber } from '~~/shared/utils/format'
+import { championSitePath } from '~~/shared/utils/site-link'
 
 interface ChampionRowView extends ChampionStatsRow {
   name: string
@@ -54,6 +55,7 @@ function resetFilters() {
 
 const { data, pending, refreshing, error, refresh } = useChampionStats(filters)
 const { nameFor, iconFor, pending: staticPending } = useChampionStatic()
+const { slugs } = useChampionSlugs()
 
 // Join the ops rows with DDragon names/icons.
 const rows = computed<ChampionRowView[]>(() =>
@@ -352,6 +354,7 @@ const mainsLabelFormatter = computed(() =>
               <span class="font-medium text-highlighted">
                 {{ row.original.name }}
               </span>
+              <SiteLink :path="championSitePath(row.original.championId, slugs)" :label="`Open ${row.original.name} on the site`" />
             </div>
           </template>
           <template #games-cell="{ row }">
