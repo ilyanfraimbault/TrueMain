@@ -400,3 +400,30 @@ entry warms the cheap main reads of the pages listed in `OPS_PREFETCH_TARGETS`.
   mount can be served from the cache without a request.
 - *Prefetch stays narrow*: unfiltered, cheap reads only. A heavy scan (`/patch-coverage`) or a paginated table
   is not worth a request the operator may never follow.
+
+## Deploy markers come from a boot log flagged at write time (2026-10-26)
+
+**Decision.** Every Api and Ingestor container appends its boot — the deploy-time `APP_VERSION` (passed to
+the backend as `AppVersion`), its job mode for the ingestor, the start time — to the Mongo `process_boots`
+collection (`ProcessBootRecorder`, #2297). Whether a boot is a deploy is decided once, at write time, against
+that process and role's previous boot that knew its version; `GET /ops/deployments?from=&to=` returns only
+those changes. A partial TTL expires restarts after 30 days; deploys have none. The admin chart wrappers take
+`markers` and draw them as an overlay placed from the rendered x-axis ticks; several deploys in one bucket
+collapse into one label.
+
+**Why.**
+
+- *Append-only, not `effective_configuration`'s overwrite*: that collection answers "what runs now", a marker
+  needs "when did it change".
+- *Flag at write time*: an ingestor on `RunOnce` boots many times a day, so deriving deploys at read time would
+  scan every restart for a handful of changes. The read still collapses consecutive identical versions per
+  process and role, for two containers of one role booting the same release at once.
+- *No version, no deploy*: every build carries the same `1.0.0` assembly version, so a boot without
+  `AppVersion` (local run, manual redeploy) is recorded but never drawn, and does not hide the next change.
+- *Retention split*: deploys are a handful a week and the database growth chart spans a year, so they are kept;
+  restarts only serve as the predecessor of the next boot.
+- *An overlay, not a Unovis component*: vue-chrts builds its `VisXYContainer` children itself with no slot
+  inside it, so neither a crosshair annotation nor a plot line can be added from a wrapper. The x-axis ticks
+  carry their row index as d3 data, which pins the index scale exactly; without readable ticks nothing is drawn
+  rather than a marker drawn in the wrong place.
+

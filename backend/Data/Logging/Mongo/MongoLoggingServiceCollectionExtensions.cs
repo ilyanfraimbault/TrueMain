@@ -112,6 +112,10 @@ public static class MongoLoggingServiceCollectionExtensions
         // like the stores above — the Api never writes, the Ingestor never reads.
         services.TryAddSingleton<IEffectiveConfigurationStore, EffectiveConfigurationStore>();
 
+        // Process boots (#2297): appended by each host's ProcessBootRecorder, read by the Api
+        // for the deploy markers.
+        services.TryAddSingleton<IProcessBootStore, ProcessBootStore>();
+
         // The desktop app's usage and the site's installer downloads (#1805): written by the
         // Api from the app's batches and the site's download route, read by the admin page.
         services.TryAddSingleton<IDesktopTelemetryStore, DesktopTelemetryStore>();

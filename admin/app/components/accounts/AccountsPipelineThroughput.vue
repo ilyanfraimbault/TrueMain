@@ -108,6 +108,8 @@ const progressChartCategories = {
   promoted: { name: 'Promoted', color: CHART_SERIES[1] },
 }
 
+// Deploy markers (#2297), shared by the intake and progression bars: same buckets.
+const funnelMarkers = useDeployMarkers(() => funnelBuckets.value.map(bucket => bucket.bucket))
 const intakeXFormatter = computed(() =>
   indexLabelFormatter(intakeChartData.value, row => row.label),
 )
@@ -227,6 +229,7 @@ defineExpose({ refresh, pending })
             :x-formatter="intakeXFormatter"
             :y-formatter="formatCount"
             :tooltip-title-formatter="labelTooltipTitle"
+            :markers="funnelMarkers"
             v-bind="multiTimeBarProps()"
           />
           <p class="mt-3 text-xs text-dimmed tabular-nums">
@@ -252,6 +255,7 @@ defineExpose({ refresh, pending })
             :x-formatter="progressXFormatter"
             :y-formatter="formatCount"
             :tooltip-title-formatter="labelTooltipTitle"
+            :markers="funnelMarkers"
             v-bind="multiTimeBarProps()"
           />
           <p class="mt-3 text-xs text-dimmed tabular-nums">

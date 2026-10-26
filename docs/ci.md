@@ -257,7 +257,10 @@ already-present `:latest`.
 footer states which build serves the page (`preprod · 1.20.0-rc.4`, `1.19.0`
 in prod). It is a deploy-time value, not a build arg: the image stays
 promotable as-is and a version that changes every merge never invalidates a
-layer. A manual redeploy without it simply hides the label.
+layer. A manual redeploy without it simply hides the label. The same value
+reaches the Api and every ingestor container as `AppVersion`, which they record
+in the `process_boots` collection at boot — the admin charts' deploy markers
+(#2297); a boot without it is recorded but never counted as a deploy.
 
 Prod builds and checks out the release tag rather than the triggering ref: a
 release can be published from a tag that is no longer the tip of any branch.
