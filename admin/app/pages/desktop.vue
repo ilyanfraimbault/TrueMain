@@ -12,7 +12,7 @@ const WINDOW_ITEMS = [
 ]
 const windowDays = ref(30)
 
-const { data, pending, error, refresh } = useDesktopUsage(windowDays)
+const { data, pending, refreshing, error, refresh } = useDesktopUsage(windowDays)
 
 const measured = computed(() => Boolean(data.value?.earliestDayUtc))
 
@@ -149,7 +149,7 @@ const featureRows = computed(() => keyRows(data.value?.features, FEATURE_LABELS)
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="refreshing"
             aria-label="Refresh"
             @click="refresh()"
           />
