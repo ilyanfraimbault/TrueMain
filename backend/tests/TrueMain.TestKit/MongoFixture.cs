@@ -29,6 +29,7 @@ public sealed class MongoFixture : IAsyncLifetime
     public const string RequestLatencyCollection = "request_latency_rollups";
     public const string HealthAlertsCollection = "health_alerts";
     public const string HealthAlertStateCollection = "health_alert_state";
+    public const string ProcessBootsCollection = "process_boots";
 
     private readonly MongoDbContainer _container = new MongoDbBuilder("mongo:8.0")
         // Match PostgresFixture's reasoning: keep Testcontainers' Ryuk reaper
@@ -109,5 +110,8 @@ public sealed class MongoFixture : IAsyncLifetime
         // first evaluation continue an incident it never opened.
         await db.DropCollectionAsync(HealthAlertsCollection);
         await db.DropCollectionAsync(HealthAlertStateCollection);
+        // The boot log (#2297): every factory boot appends to it, so a test would otherwise see
+        // the previous test's boots as its process's predecessors.
+        await db.DropCollectionAsync(ProcessBootsCollection);
     }
 }
