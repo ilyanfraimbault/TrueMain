@@ -20,7 +20,11 @@ public static class OpsStatsServiceCollectionExtensions
         services.AddScoped<AggregationStatsQueryService>();
         services.AddScoped<IAggregationStatsQueryService>(provider => new CachedAggregationStatsQueryService(
             provider.GetRequiredService<AggregationStatsQueryService>(),
-            provider.GetRequiredService<IMemoryCache>()));
+            provider.GetRequiredService<IMemoryCache>(),
+            provider.GetRequiredService<TimeProvider>()));
+        services.AddWarmPayload(
+            CachedAggregationStatsQueryService.Payload,
+            provider => provider.GetRequiredService<AggregationStatsQueryService>().GetAsync(CancellationToken.None));
         services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
         services.AddScoped<IRiotQuotaQueryService, RiotQuotaQueryService>();
         services.AddScoped<IIngestorMetricsQueryService, IngestorMetricsQueryService>();
