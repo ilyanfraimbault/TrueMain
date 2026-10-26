@@ -13,7 +13,7 @@ import { CHAMPION_SLUGS_STATE_KEY } from '~/composables/useChampionSlugs'
  *
  * The cost is one Nitro-cached call per SSR render and ~2.5 kB of payload on
  * every page. That is the price of the slug scheme, and it is why this endpoint
- * carries ids and slugs *only* — see `server/api/static/champion-slugs.get.ts`.
+ * carries ids and slugs *only* — see `layers/nitro/server/api/static/champion-slugs.get.ts`.
  *
  * `useState` rather than the payload-cache trick `static-prefetch.client.ts`
  * uses: this value is app state, not a page's async data, and it must survive
