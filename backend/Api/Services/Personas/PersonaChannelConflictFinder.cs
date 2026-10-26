@@ -27,7 +27,7 @@ public sealed class PersonaChannelConflictFinder(TrueMainDbContext db)
 
         var channels = links
             .GroupBy(l => (l.Kind, Key: PersonaConflictConfidence.ChannelKey(l.Url)))
-            .Select(g => (g.Key.Kind, Url: g.First().Url, PersonaIds: g.Select(l => l.PersonaId).Distinct().ToList()))
+            .Select(g => (g.Key.Kind, g.First().Url, PersonaIds: g.Select(l => l.PersonaId).Distinct().ToList()))
             .Where(c => c.PersonaIds.Count > 1)
             .ToList();
         if (channels.Count == 0)
