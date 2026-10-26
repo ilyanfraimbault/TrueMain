@@ -55,6 +55,15 @@ export function formatNumber(value: number | null | undefined): string {
 }
 
 /**
+ * A count that may have been cut at a cap (a list total counted up to N, #2304):
+ * `10,000+` when `capped`, so a lower bound never reads as the exact figure.
+ */
+export function formatCappedCount(value: number | null | undefined, capped: boolean): string {
+  const formatted = formatNumber(value)
+  return capped && formatted !== '—' ? `${formatted}+` : formatted
+}
+
+/**
  * Format an ISO datetime string as a compact, locale-aware date+time
  * (e.g. "Jun 9, 2026, 14:32"). `null`/empty renders as an em dash.
  */
