@@ -4,10 +4,16 @@ using Microsoft.EntityFrameworkCore;
 namespace TrueMain.Services.Ops.Health;
 
 /// <summary>
-/// The raw-corpus totals, as the planner's live-tuple estimates of <c>matches</c> and
-/// <c>match_participants</c> (#2132) — the same <c>pg_stat_user_tables.n_live_tup</c> the
-/// <c>/database</c> panel prints as each table's rows, so the pages that show them
-/// (<c>/health</c>, the Overview since #2301) cannot disagree.
+/// The raw-corpus totals of <c>matches</c> and <c>match_participants</c>, as the planner
+/// estimates them (#2132): <c>pg_class.reltuples</c> scaled to the table's current size,
+/// the figure the Overview's 7/30-day windows are estimated from too (#2301).
+///
+/// <para>
+/// Not <c>pg_stat_user_tables.n_live_tup</c>, which this read used at first: the cumulative
+/// statistics are discarded on crash recovery and only rebuilt by the next autovacuum, so
+/// after an unclean restart they reported a fraction of a percent of the table's rows — and
+/// the windows capped at that total read the same. <c>reltuples</c> lives in the catalog and survives.
+/// </para>
 ///
 /// <para>
 /// An exact count is a full scan of the participant table: on a cold cache it ran into the
@@ -20,11 +26,22 @@ internal sealed record RawCorpusEstimates(long? Matches, long? Participants, str
 {
     public static async Task<RawCorpusEstimates> ReadAsync(TrueMainDbContext db, CancellationToken ct)
     {
+        // The planner's own arithmetic (estimate_rel_size): the tuple density recorded by the
+        // last VACUUM/ANALYZE, scaled to the table's current size. A table never vacuumed nor
+        // analyzed has no density yet (reltuples = -1) and falls back to the live-tuple counter.
         var rows = await db.Database
             .SqlQuery<TableRowEstimate>($"""
-                SELECT relname AS "TableName", n_live_tup::bigint AS "RowEstimate"
-                FROM pg_catalog.pg_stat_user_tables
-                WHERE schemaname = 'public' AND relname IN ('matches', 'match_participants')
+                SELECT c.relname AS "TableName",
+                       (CASE
+                            WHEN c.reltuples < 0 OR c.relpages = 0 THEN COALESCE(s.n_live_tup, 0)
+                            ELSE c.reltuples / c.relpages
+                                 * (pg_catalog.pg_relation_size(c.oid) / current_setting('block_size')::int)
+                        END)::bigint AS "RowEstimate"
+                FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                LEFT JOIN pg_catalog.pg_stat_user_tables s ON s.relid = c.oid
+                WHERE n.nspname = 'public' AND c.relkind = 'r'
+                  AND c.relname IN ('matches', 'match_participants')
                 """)
             .ToListAsync(ct);
 
