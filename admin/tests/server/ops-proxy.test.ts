@@ -95,6 +95,15 @@ describe('ops proxy handler', () => {
     expect(proxyRequest.mock.calls[0]![1]).toBe(`${BASE}/ops/logs?level=Error&pageSize=50`)
   })
 
+  it('forwards the path still encoded, so a Riot ID keeps its tag', async () => {
+    const handler = await loadHandler()
+
+    // h3 hands the handler a decoded `event.path`; the raw URL is the one to forward.
+    await handler({ path: '/api/ops/accounts/Faker#KR1', node: { req: { originalUrl: '/api/ops/accounts/Faker%23KR1?region=KR' } } } as unknown as H3Event)
+
+    expect(proxyRequest.mock.calls[0]![1]).toBe(`${BASE}/ops/accounts/Faker%23KR1?region=KR`)
+  })
+
   it('proxies the collection root when the path is empty', async () => {
     const handler = await loadHandler()
 

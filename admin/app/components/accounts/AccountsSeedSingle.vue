@@ -6,7 +6,7 @@
 import type { FormError, FormSubmitEvent } from '@nuxt/ui'
 import type { SeedRequestStatus } from '~~/shared/types/ops'
 import { TRACKED_REGION_ITEMS, TRACKED_REGIONS_LABEL } from '~~/shared/utils/regions'
-import { formatRiotId } from '~~/shared/utils/riot-id'
+import { formatRiotId, parseRiotIdOrSlug } from '~~/shared/utils/riot-id'
 import { SEED_POLL_TIMEOUT_MS } from '~/composables/useSeedTracking'
 
 const emit = defineEmits<{
@@ -31,6 +31,16 @@ const state = reactive<SeedFormState>({
   tagLine: '',
   region: '',
 })
+
+// `?riotId=` prefills the two name fields (the ⌘K palette's "Add … as a main",
+// #2290); the region stays the operator's pick, a Riot ID does not carry it.
+useQueryValue('riotId', (riotId) => {
+  const parsed = parseRiotIdOrSlug(riotId)
+  if (parsed) {
+    state.gameName = parsed.gameName.trim()
+    state.tagLine = parsed.tagLine.trim()
+  }
+}, { immediate: true })
 
 // Normalize a tag line: drop a leading '#' (people paste `Name#TAG`) and trim.
 function normalizeTag(raw: string): string {

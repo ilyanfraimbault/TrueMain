@@ -99,6 +99,15 @@ export function usePersonas(filters: MaybeRefOrGetter<PersonaListFilters>) {
   return useOps<PersonasPage>('/personas', () => ({ ...toValue(filters) }))
 }
 
+/**
+ * `GET /api/ops/personas?search=` as a one-shot read, for the ⌘K palette (#2290):
+ * it fires per debounced keystroke and its answer only lives while the palette is
+ * open, so it stays out of `useOps` and its cache.
+ */
+export function searchPersonas(search: string, pageSize: number) {
+  return $fetch<PersonasPage>('/api/ops/personas', { query: { search, pageSize } })
+}
+
 /** `GET /api/ops/personas/{id}` — one known player in full. */
 export function getPersona(id: string) {
   return $fetch<PersonaAdminDetail>(personaPath(id))
