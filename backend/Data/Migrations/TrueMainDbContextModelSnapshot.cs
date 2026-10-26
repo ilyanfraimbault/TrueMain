@@ -20,7 +20,7 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -1520,6 +1520,12 @@ namespace Data.Migrations
                         .IsUnique();
 
                     b.HasIndex("PlatformId", "Status", "Score");
+
+                    b.HasIndex("Score", "DiscoveredAtUtc", "Id")
+                        .HasDatabaseName("IX_main_candidates_list_order");
+
+                    b.HasIndex("Status", "Score", "DiscoveredAtUtc", "Id")
+                        .HasDatabaseName("IX_main_candidates_status_list_order");
 
                     b.ToTable("main_candidates", (string)null);
                 });
