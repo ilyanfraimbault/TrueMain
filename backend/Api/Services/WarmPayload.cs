@@ -119,6 +119,14 @@ internal sealed class WarmPayload<T>(string key, TimeSpan ttl, TimeSpan failureB
             ownerAwaitsToCompletion: true);
     }
 
+    /// <summary>
+    /// The cached value, fresh or stale, or null when there is none — never computed, never
+    /// waited for. Unlike <see cref="GetAsync"/> it is not a read: a glance such as the admin
+    /// sidebar's (#2294) must not keep the <c>CockpitCacheRefresher</c> recomputing a payload
+    /// nobody has open.
+    /// </summary>
+    public T? PeekValue(IMemoryCache cache) => TryGetEntry(cache, out var entry) ? entry.Value : null;
+
     public WarmPayloadState? Peek(IMemoryCache cache)
         => TryGetEntry(cache, out var entry)
             ? new WarmPayloadState(entry.ComputedAtUtc, entry.LastReadAtUtc)

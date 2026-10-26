@@ -35,6 +35,7 @@ using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
 using TrueMain.Services.Ops.Diagnostics;
 using TrueMain.Services.Ops.Health;
+using TrueMain.Services.Ops.Navigation;
 using TrueMain.Services.Ops.Processes;
 using TrueMain.Services.Ops.Stats;
 using TrueMain.Services.Personas;
@@ -351,6 +352,7 @@ builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
 builder.Services.AddTrueMainTruemains();
 builder.Services.AddTrueMainOpsHealth();
+builder.Services.AddTrueMainOpsNavigation();
 builder.Services.AddTrueMainOpsStats();
 builder.Services.AddTrueMainRequestLatency();
 builder.Services.AddTrueMainPersonas();
