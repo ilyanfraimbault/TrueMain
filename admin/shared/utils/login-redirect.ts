@@ -14,7 +14,7 @@ export const DEFAULT_REDIRECT = '/'
 // A parsing scaffold only: a candidate that resolves to any other origin
 // (protocol-relative, absolute, backslash tricks the URL parser normalises to
 // `//`) is exactly what the check rejects.
-const BASE = 'http://admin.invalid'
+const BASE = 'https://admin.invalid'
 
 // Whitespace and control characters are stripped or reinterpreted by URL
 // parsers (`/\t/evil.com` parses as `//evil.com`), so they are refused outright.
