@@ -410,6 +410,8 @@ Last verified against `develop` on 2026-09-02.
 - The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28) — #1249
 - The cockpit's region balance is informational, and its coverage deficit is the claim allocator's own arithmetic over the same counts (2026-10-04) — #1153, #1150
 - Admin ops reads are stale-while-revalidate across navigations: in-memory only, 10 min TTL, emptied when the session ends; `useOps`' `pending` means "nothing to draw yet", `refreshing` is a request in flight (2026-10-26) — #2306, #2300
+- Deploy markers come from a boot log every backend process appends to, flagged as a deploy at write time; restarts expire after 30 days, deploys are kept; the charts read the rendered axis back to place them (2026-10-26) — #2297
+- The health verdict keeps refreshing in a background tab, once a minute, so the tab title and favicon can carry a non-green verdict; every other live panel still stops when hidden (2026-10-26) — #2296, #1411
 
 ## Desktop companion — [`decisions/desktop.md`](decisions/desktop.md)
 
