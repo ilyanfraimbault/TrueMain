@@ -62,8 +62,10 @@ internal sealed class PipelineHealthAlerter(
                 {
                     await EvaluateOnceAsync(stoppingToken);
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
+                    // Any failure that is not the host stopping — a timed-out read included,
+                    // which is an OperationCanceledException too — costs one pass, never the host.
                     logger.LogWarning(ex, "Pipeline-health alert evaluation failed; the next one runs in {Interval}", _options.EvaluationInterval);
                 }
             }
@@ -123,11 +125,23 @@ internal sealed class PipelineHealthAlerter(
             alert.Delivered = true;
             logger.LogInformation("Sent pipeline-health alert {AlertTitle}", message.Title);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            alert.Error = ex is HttpRequestException { StatusCode: { } status }
-                ? $"HTTP {(int)status}"
-                : ex.GetType().Name;
+            // Shutting down mid-send: the state already says "announced", so undo it for the
+            // next boot to retry, on a token the shutdown does not cancel.
+            await RollBackAsync(decision, CancellationToken.None);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Filtered on the caller's token, not the exception type: an HttpClient timeout is a
+            // TaskCanceledException too, and it is a failed delivery, not a shutdown.
+            alert.Error = ex switch
+            {
+                HttpRequestException { StatusCode: { } status } => $"HTTP {(int)status}",
+                OperationCanceledException => "Timeout",
+                _ => ex.GetType().Name
+            };
             logger.LogWarning("Pipeline-health alert {AlertTitle} was not delivered: {AlertError}", message.Title, alert.Error);
             await RollBackAsync(decision, ct);
         }

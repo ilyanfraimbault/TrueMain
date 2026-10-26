@@ -106,6 +106,45 @@ public sealed class PipelineHealthAlerterTests
     }
 
     [Fact]
+    public async Task ATimedOutDelivery_IsRecordedUndelivered_AndRetriedNextPass()
+    {
+        using var alerter = NewAlerter();
+        _source.Next = Health("red");
+        await EvaluateAsync(alerter);
+        // What HttpClient throws when its own timeout fires: a cancellation nobody asked for.
+        _notifier.Throws = new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.");
+
+        var timedOut = await EvaluateAsync(alerter);
+        _notifier.Throws = null;
+        var retried = await EvaluateAsync(alerter);
+
+        timedOut!.Delivered.Should().BeFalse();
+        timedOut.Error.Should().Be("Timeout");
+        retried!.Delivered.Should().BeTrue("the timed-out alert was rolled back, not marked announced");
+        _notifier.Sent.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ACancellationTheHostDidNotAskFor_CostsOnePass_NotTheLoop()
+    {
+        using var alerter = NewAlerter();
+        _source.Throws = new TaskCanceledException("statement timeout");
+
+        await alerter.StartAsync(CancellationToken.None);
+        // Advance the fake clock past each interval until two passes ran (or give up after 5 s).
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (_source.Reads < 2 && !alerter.ExecuteTask!.IsCompleted && DateTime.UtcNow < deadline)
+        {
+            _clock.Advance(TimeSpan.FromMinutes(5));
+            await Task.Delay(20);
+        }
+
+        _source.Reads.Should().BeGreaterThanOrEqualTo(2, "the loop kept evaluating after the first pass threw");
+        alerter.ExecuteTask!.IsCompleted.Should().BeFalse();
+        await alerter.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task ADisabledAlerter_ReturnsWithoutEvaluating()
     {
         using var alerter = NewAlerter(new AlertingOptions());
@@ -192,10 +231,12 @@ public sealed class PipelineHealthAlerterTests
 
         public int Reads { get; private set; }
 
+        public Exception? Throws { get; set; }
+
         public Task<PipelineHealthReadModel> GetAsync(CancellationToken ct)
         {
             Reads++;
-            return Task.FromResult(Next);
+            return Throws is null ? Task.FromResult(Next) : Task.FromException<PipelineHealthReadModel>(Throws);
         }
     }
 
@@ -207,8 +248,15 @@ public sealed class PipelineHealthAlerterTests
 
         public string Channel => "discord";
 
+        public Exception? Throws { get; set; }
+
         public Task SendAsync(HealthAlertMessage message, CancellationToken ct)
         {
+            if (Throws is not null)
+            {
+                throw Throws;
+            }
+
             if (FailWith is { } status)
             {
                 throw new HttpRequestException("refused", null, status);
