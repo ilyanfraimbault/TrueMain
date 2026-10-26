@@ -45,7 +45,15 @@ describe('isSessionExpiry', () => {
 
 describe('loginRedirectTarget', () => {
   it('sends an expired session to the login page', () => {
-    expect(loginRedirectTarget('/logs')).toBe(LOGIN_PATH)
+    expect(loginRedirectTarget('/health')).toEqual({ path: LOGIN_PATH, query: { redirect: '/health' } })
+  })
+
+  it('remembers the query of the page the session expired on', () => {
+    // #2289: signing back in after an expiry on the Crashes tab lands on it again.
+    expect(loginRedirectTarget('/logs', '/logs?view=crashes')).toEqual({
+      path: LOGIN_PATH,
+      query: { redirect: '/logs?view=crashes' },
+    })
   })
 
   it('returns nothing when the login page is already showing', () => {
