@@ -343,8 +343,10 @@ stored successes only, so the next refresh re-ran the same scan.
   accounts' own games only, never the untracked teammates and opponents the count includes. The games figure is
   now as fresh as the last `ChampionGameCountRefresh` run (at most every 30 min, aggregate lane) rather than live;
   an operator page reading it on a 10-minute cache loses nothing it used.
-- **The cockpit's raw-corpus totals are planner estimates** (`pg_stat_user_tables.n_live_tup`, the figure
-  `/database` prints per table), table-wide rather than queue-filtered — storage is ranked-only (#680) — and the
+- **The cockpit's raw-corpus totals are planner estimates** — `pg_class.reltuples` scaled to the table's
+  current size, the planner's own arithmetic, since #2301 (they were `pg_stat_user_tables.n_live_tup` at first,
+  but the cumulative statistics are discarded on crash recovery and read a near-empty table until the next
+  autovacuum; the Overview shares the same read), table-wide rather than queue-filtered — storage is ranked-only (#680) — and the
   block degrades on its own: a failed read nulls the two counts with `countsUnknownReason` instead of failing the
   payload, like any composed signal.
 - **A failed pass is not re-run for a short window** (`FailureBackoff`, a negative entry through `ApiCache`): one
