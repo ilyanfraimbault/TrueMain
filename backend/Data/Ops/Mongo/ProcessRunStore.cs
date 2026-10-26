@@ -358,29 +358,34 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
 
         await EnsureIndexesOnceAsync(ct);
 
-        // The Mongo shape of Postgres' DISTINCT ON: newest-first by finish time,
-        // then $first of the whole document per process.
-        var match = new BsonDocument("processName", new BsonDocument("$in", new BsonArray(processNames)));
-        if (onlySuccesses)
-        {
-            match.Add("status", nameof(ProcessRunStatus.Success));
-        }
+        // One newest-first lookup per process, each served by ix_process_finished
+        // (processName, finishedAtUtc desc): it reads the first index entry of that
+        // process (or the first few, skipping non-successes). The former $in + $sort +
+        // $group pipeline sorted every run of every named process in memory to keep one
+        // row each, and the retained history only grows (#2303).
+        // The sort keys match the index exactly, so no in-memory SORT stage is planned;
+        // two runs of one process finishing on the same millisecond is not a case.
+        var builder = Builders<ProcessRunDocument>.Filter;
+        var sort = Builders<ProcessRunDocument>.Sort
+            .Ascending(doc => doc.ProcessName)
+            .Descending(doc => doc.FinishedAtUtc);
 
-        var pipeline = new List<BsonDocument>
-        {
-            new("$match", match),
-            new("$sort", new BsonDocument { { "finishedAtUtc", -1 }, { "_id", -1 } }),
-            new("$group", new BsonDocument
+        var lookups = processNames
+            .Distinct(StringComparer.Ordinal)
+            .Select(processName =>
             {
-                { "_id", "$processName" },
-                { "doc", new BsonDocument("$first", "$$ROOT") }
-            }),
-            new("$replaceRoot", new BsonDocument("newRoot", "$doc"))
-        };
+                var filter = builder.Eq(doc => doc.ProcessName, processName);
+                if (onlySuccesses)
+                {
+                    filter &= builder.Eq(doc => doc.Status, ProcessRunStatus.Success);
+                }
 
-        return await context.ProcessRuns
-            .Aggregate<ProcessRunDocument>(pipeline, cancellationToken: ct)
-            .ToListAsync(ct);
+                return context.ProcessRuns.Find(filter).Sort(sort).Limit(1).FirstOrDefaultAsync(ct);
+            })
+            .ToList();
+
+        var latest = await Task.WhenAll(lookups);
+        return latest.OfType<ProcessRunDocument>().ToList();
     }
 
     public async Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct)
