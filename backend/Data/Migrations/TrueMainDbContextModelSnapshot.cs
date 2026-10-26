@@ -2006,6 +2006,9 @@ namespace Data.Migrations
                     b.HasIndex(new[] { "ChampionId", "TeamPosition", "EloBracket" }, "IX_match_participants_champion_position_tracked")
                         .HasFilter("\"RiotAccountId\" IS NOT NULL");
 
+                    b.HasIndex(new[] { "Id" }, "IX_match_participants_elo_bracket_pending")
+                        .HasFilter("\"RiotAccountId\" IS NOT NULL AND elo_bracket = ''");
+
                     b.HasIndex(new[] { "Id" }, "IX_match_participants_role_bound_pending")
                         .HasFilter("\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
 

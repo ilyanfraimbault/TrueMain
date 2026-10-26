@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Aggregation panel — health and coverage of every aggregation pipeline from
-// `GET /api/ops/stats/aggregations`: per-family exact row counts, champion and
-// patch coverage, data freshness, the latest recorded run (with its summary),
+// `GET /api/ops/stats/aggregations`: per-family row estimates (≈, the planner's
+// figure, #2303), champion coverage, the latest recorded run (with its summary),
 // and the ingestion backlogs that should sit at zero when the pipeline is
 // caught up.
 import type { AggregationFamily, AggregationRun } from '~~/shared/types/ops'
@@ -23,6 +23,11 @@ const FAMILY_META: Record<string, { title: string, icon: string, hint: string }>
     icon: 'i-lucide-swords',
     hint: 'Champion vs champion win rates per lane, patch and rank.',
   },
+  synergies: {
+    title: 'Synergies',
+    icon: 'i-lucide-users',
+    hint: 'Champion + teammate win rates per lane pair, patch and rank.',
+  },
   mains: {
     title: 'Mains',
     icon: 'i-lucide-user-check',
@@ -34,13 +39,15 @@ function familyMeta(key: string) {
 }
 
 const totalAggregateRows = computed(() =>
-  families.value.reduce((sum, family) => sum + family.totalRows, 0),
+  families.value.reduce((sum, family) => sum + family.totalRowEstimate, 0),
 )
 
-// Latest write across every family — the "aggregation data is this fresh" tile.
-const latestAggregatedAtUtc = computed<string | null>(() => {
+// Newest successful run across every family — the "aggregation data is this
+// fresh" tile. A family writes its rows when its process succeeds, so this is
+// the freshness the per-row max() used to measure with a full scan (#2303).
+const latestSuccessAtUtc = computed<string | null>(() => {
   const timestamps = families.value
-    .map(family => family.lastAggregatedAtUtc)
+    .map(family => family.lastRun?.lastSuccessAtUtc)
     .filter((iso): iso is string => !!iso)
   if (!timestamps.length) {
     return null
@@ -117,10 +124,10 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
             Aggregate rows
           </p>
           <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
-            {{ formatNumber(totalAggregateRows) }}
+            ≈ {{ formatNumber(totalAggregateRows) }}
           </p>
           <p class="text-xs text-muted">
-            across {{ families.length }} families
+            across {{ families.length }} families · measured {{ formatTimeAgo(data?.measuredAtUtc) }}
           </p>
         </UCard>
         <UCard>
@@ -128,10 +135,10 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
             Last aggregation
           </p>
           <p class="mt-1 text-2xl font-semibold text-highlighted tabular-nums">
-            {{ formatTimeAgo(latestAggregatedAtUtc) }}
+            {{ formatTimeAgo(latestSuccessAtUtc) }}
           </p>
           <p class="text-xs text-muted tabular-nums">
-            {{ formatDateTime(latestAggregatedAtUtc) }}
+            {{ formatDateTime(latestSuccessAtUtc) }}
           </p>
         </UCard>
         <UCard>
@@ -188,29 +195,21 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
             </div>
           </template>
 
-          <div class="grid grid-cols-3 gap-4 mb-4">
+          <div class="grid grid-cols-2 gap-4 mb-4">
             <div>
               <p class="text-xs text-muted uppercase">
                 Rows
               </p>
               <p class="mt-0.5 text-lg font-semibold text-highlighted tabular-nums">
-                {{ formatNumber(family.totalRows) }}
+                ≈ {{ formatNumber(family.totalRowEstimate) }}
               </p>
             </div>
             <div>
               <p class="text-xs text-muted uppercase">
-                Champions
+                {{ family.key === 'mains' ? 'Champions with a main' : 'Champions' }}
               </p>
               <p class="mt-0.5 text-lg font-semibold text-highlighted tabular-nums">
                 {{ formatNumber(family.distinctChampions) }}
-              </p>
-            </div>
-            <div>
-              <p class="text-xs text-muted uppercase">
-                Patches
-              </p>
-              <p class="mt-0.5 text-lg font-semibold text-highlighted tabular-nums">
-                {{ family.distinctPatches === null ? '—' : formatNumber(family.distinctPatches) }}
               </p>
             </div>
           </div>
@@ -222,17 +221,11 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
               class="flex items-center justify-between text-sm"
             >
               <span class="font-mono text-xs text-muted">{{ table.table }}</span>
-              <span class="tabular-nums text-highlighted">{{ formatNumber(table.rows) }}</span>
+              <span class="tabular-nums text-highlighted">≈ {{ formatNumber(table.rowEstimate) }}</span>
             </div>
           </div>
 
           <dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-            <dt class="text-muted">
-              Data freshness
-            </dt>
-            <dd class="text-right tabular-nums text-highlighted" :title="formatDateTime(family.lastAggregatedAtUtc)">
-              {{ formatTimeAgo(family.lastAggregatedAtUtc) }}
-            </dd>
             <dt class="text-muted">
               Last run
             </dt>
