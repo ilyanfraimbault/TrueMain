@@ -3,6 +3,11 @@ import type {
   PersonaAccountInput,
   PersonaAdminDetail,
   PersonaAutoMerged,
+  PersonaChannelConflictsFilters,
+  PersonaChannelConflictsResponse,
+  PersonaConflictBulkPreview,
+  PersonaConflictBulkResolveBody,
+  PersonaConflictBulkResolved,
   PersonaConflictDetail,
   PersonaConflictResolveBody,
   PersonaConflictResolved,
@@ -49,12 +54,37 @@ export function resolvePersonaConflict(id: string, body: PersonaConflictResolveB
 }
 
 /**
+ * `GET /api/ops/personas/conflicts/bulk-resolve/preview` — the open conflicts a bulk
+ * merge at `minScore` would settle (#2295), each with the known player it keeps.
+ */
+export function previewBulkResolve(minScore: number) {
+  return $fetch<PersonaConflictBulkPreview>('/api/ops/personas/conflicts/bulk-resolve/preview', { query: { minScore } })
+}
+
+/**
+ * `POST /api/ops/personas/conflicts/bulk-resolve` — merge exactly the previewed
+ * conflicts; the API re-checks each and answers one outcome per id.
+ */
+export function bulkResolvePersonaConflicts(body: PersonaConflictBulkResolveBody) {
+  return $fetch<PersonaConflictBulkResolved>('/api/ops/personas/conflicts/bulk-resolve', { method: 'POST', body })
+}
+
+/**
  * `POST /api/ops/personas/conflicts/auto-merge` — settle as merges the open
  * conflicts whose two known players share a name (#2271). The intake runs the
  * same sweep after every batch; this one clears the backlog.
  */
 export function autoMergePersonaConflicts() {
   return $fetch<PersonaAutoMerged>('/api/ops/personas/conflicts/auto-merge', { method: 'POST' })
+}
+
+/**
+ * `GET /api/ops/personas/channel-conflicts` — known players listing the same social
+ * channel (#2286), the most channels in common first, paged. Settled with the
+ * homonyms actions below: a merge, or a mark as different people.
+ */
+export function usePersonaChannelConflicts(filters: MaybeRefOrGetter<PersonaChannelConflictsFilters>) {
+  return useOps<PersonaChannelConflictsResponse>('/personas/channel-conflicts', () => ({ ...toValue(filters) }))
 }
 
 // Known players sharing a name without a common account (#2271): the operator
@@ -86,6 +116,15 @@ const personaPath = (id: string) => `/api/ops/personas/${encodeURIComponent(id)}
 /** `GET /api/ops/personas` — known players, most recently updated first, paged. */
 export function usePersonas(filters: MaybeRefOrGetter<PersonaListFilters>) {
   return useOps<PersonasPage>('/personas', () => ({ ...toValue(filters) }))
+}
+
+/**
+ * `GET /api/ops/personas?search=` as a one-shot read, for the ⌘K palette (#2290):
+ * it fires per debounced keystroke and its answer only lives while the palette is
+ * open, so it stays out of `useOps` and its cache.
+ */
+export function searchPersonas(search: string, pageSize: number) {
+  return $fetch<PersonasPage>('/api/ops/personas', { query: { search, pageSize } })
 }
 
 /** `GET /api/ops/personas/{id}` — one known player in full. */

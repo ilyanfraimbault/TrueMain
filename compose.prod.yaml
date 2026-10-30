@@ -1,5 +1,6 @@
 x-ingestor-environment: &ingestor-environment
       DOTNET_ENVIRONMENT: Production
+      AppVersion: ${APP_VERSION:-}
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=5;No Reset On Close=true;Application Name=truemain-ingestor
       MongoLogging__ConnectionString: "mongodb://${MONGO_USER:?set MONGO_USER before deploying}:${MONGO_PASSWORD:?set MONGO_PASSWORD before deploying}@mongo:27017/?authSource=admin"
       Riot__ApiKey: ${RIOT_API_KEY}
@@ -122,6 +123,7 @@ services:
     init: true
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      AppVersion: ${APP_VERSION:-}
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=22;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
@@ -130,6 +132,9 @@ services:
       Ops__ApiKey: "${OPS_API_KEY:?set OPS_API_KEY before deploying}"
       LogIngest__ApiKey: ${LOG_INGEST_KEY:-}
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
+      Alerting__DiscordWebhookUrl: "${ALERTING_DISCORD_WEBHOOK_URL:-}"
+      Alerting__AdminBaseUrl: "https://admin.truemain.lol"
+      Alerting__EnvironmentLabel: prod
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
       RateLimit__WindowSeconds: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
       RateLimit__QueueLimit: "${RATE_LIMIT_QUEUE:-10}"
@@ -194,6 +199,7 @@ services:
       NUXT_SESSION_COOKIE_SECURE: "true"
       NUXT_TRUST_PROXY: "true"
       NUXT_PUBLIC_UMAMI_URL: https://analytics.truemain.lol
+      NUXT_PUBLIC_SITE_URL: https://truemain.lol
       NUXT_PUBLIC_UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
     depends_on:
       api:

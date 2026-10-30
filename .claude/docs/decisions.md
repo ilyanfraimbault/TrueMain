@@ -139,7 +139,9 @@ Last verified against `develop` on 2026-09-02.
 - Known players' account conflicts are recorded and settled by the operator (move / keep / detach / merge); exclusions and merged-persona pointers keep the scrapers from undoing it (2026-10-23) — #2253
 - Operators add, edit, unlink and remove known players from the admin; every edit holds against the scrapers, removal keeps the slug, a takedown bars the accounts from every persona (2026-10-24) — #2019
 - Two same-name known players claiming one account are merged automatically (into the older); same-name ones without a common account go to a homonyms queue to merge or mark as different people (2026-10-25) — #2271
+- Two known players listing the same social channel are a conflict even without a common account; with the same name too they are merged automatically into the older (2026-10-26) — #2286
 - The open conflict queue is ordered most certain first: shared social channels (Twitch, YouTube, X…) weigh most, shared reference pages less, differing channels count against (2026-10-25) — #2277
+- The most certain conflicts are merged in bulk into the older known player, from the explicit list previewed at a score floor, never one with a differing channel, each re-checked and audited (2026-10-26) — #2295
 - A main champion row reads its lane and play rate only: the `80 of last 200` sample line is gone (2026-10-13, reverses #1498's line)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
@@ -153,6 +155,7 @@ Last verified against `develop` on 2026-09-02.
 - OG image URLs are signed with a secret regenerated at every build, and that is left as the default — #926
 - The sitemap advertises champions, not truemain profiles; known players with a tracked account are in it, their page being server-rendered (2026-09-01, extended 2026-10-14) — #862, #1337, #551, #2018
 - The sitemap is an index over one sitemap per family (pages, champions, players); a player's `lastmod` moves only when the page changes (2026-10-23) — #1538
+- A truemain profile answers 404 for an unknown account (server-side), and its canonical is the stored Riot ID's slug, not the lowercased URL (2026-10-26) — #2335, #2336
 
 ## Web frontend rules (hydration, fetches, icons, tooltips) — [`decisions/web-frontend-rules.md`](decisions/web-frontend-rules.md)
 
@@ -379,10 +382,16 @@ Last verified against `develop` on 2026-09-02.
 - Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
 - The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
 - A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
+- Ops request latency is measured server-side per route template into per-minute Mongo rollups with a fixed duration histogram, p50/p95 computed at read time; shown on a Processes → Performance tab, slow = p95 over 1 s (2026-10-26) — #2307, #2300
 - The edge's own failures reach the ops logs through the admin, which receives Caddy's error log over TCP — no sidecar, no log-file reader (2026-10-24) — #1580
 - The Ingestor's own meter is folded into Mongo per minute and shown on the Riot API tab — no OpenTelemetry pipeline, no tracing (2026-10-05) — #1636
 - The ops scripts kept outside the repo report their runs into `process_runs` through allow-listed ops endpoints, and the Processes page shows them on a *Scrapers* tab (2026-10-19) — #2119
 - Iterations are paged from a header per pass (`process_iterations`), not grouped from the runs (2026-10-19) — #2124
+- The Aggregation panel prints planner estimates and index probes, never a pass over a fold table; distinct patches and per-row freshness dropped (2026-10-26) — #2303
+- The cockpit payloads are kept warm by one background refresher, only while read, one at a time; a stale value is served with its computed-at time rather than making the click wait (2026-10-26) — #2305
+- A process run is compared with the median of its last 20 successes of the same process and mode, flagged at ≥ +100 % / ≤ −50 %, nothing under 5 runs; thresholds in the Api only (2026-10-26) — #2298
+- The audit trail's wording is one backend catalog served with the events, and a known player's History is the events targeting it (2026-10-26) — #2288
+- The pipeline-health verdict is announced on a Discord webhook, on transitions only (red held 2 evaluations, a process at 3 failed runs, recoveries), 1 h cooldown per signal, state in Mongo, from the cockpit payload read without counting as a visit (2026-10-26) — #2292
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
@@ -403,6 +412,9 @@ Last verified against `develop` on 2026-09-02.
 - The admin portal has one status vocabulary and one duration ladder (2026-08-28) — #924, #1024
 - The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28) — #1249
 - The cockpit's region balance is informational, and its coverage deficit is the claim allocator's own arithmetic over the same counts (2026-10-04) — #1153, #1150
+- Admin ops reads are stale-while-revalidate across navigations: in-memory only, 10 min TTL, emptied when the session ends; `useOps`' `pending` means "nothing to draw yet", `refreshing` is a request in flight (2026-10-26) — #2306, #2300
+- Deploy markers come from a boot log every backend process appends to, flagged as a deploy at write time; restarts expire after 30 days, deploys are kept; the charts read the rendered axis back to place them (2026-10-26) — #2297
+- The health verdict keeps refreshing in a background tab, once a minute, so the tab title and favicon can carry a non-green verdict; every other live panel still stops when hidden (2026-10-26) — #2296, #1411
 
 ## Desktop companion — [`decisions/desktop.md`](decisions/desktop.md)
 

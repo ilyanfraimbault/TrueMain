@@ -76,17 +76,16 @@ public sealed partial class PersonaUpsertService(
                 string.Join(", ", untracked));
         }
 
-        if (results.Any(r => r.Accounts.Any(a => a.Status == AccountStatus.Conflict)))
-        {
-            await MergeHomonymConflictsAsync(ct);
-        }
+        // Every batch, not only one that raised a conflict: a link it brought may be another
+        // persona's channel (#2286), which no account status shows.
+        await MergeHomonymConflictsAsync(ct);
 
         return results;
     }
 
     /// <summary>
-    /// A conflict between two same-name personas is one person published twice (#2271): settled at
-    /// once rather than queued. Best effort — the batch is written; what fails stays in the queue.
+    /// A conflict between two same-name personas is one person published twice (#2271), and so are
+    /// two of them listing one social channel (#2286): settled at once rather than queued. Best effort — the batch is written; what fails stays in the queue.
     /// </summary>
     private async Task MergeHomonymConflictsAsync(CancellationToken ct)
     {

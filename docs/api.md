@@ -1545,7 +1545,10 @@ pointe. Le verdict vit ici et non dans le front, parce qu'un seuil est une déci
 métier et qu'un second consommateur (l'alerting) doit obtenir la même réponse.
 
 Pas de paramètre. La réponse est mise en cache 30 s et single-flightée (#1427) : des
-appels concurrents partagent une seule évaluation, et `evaluatedAtUtc` dit son âge. Les
+appels concurrents partagent une seule évaluation, et `evaluatedAtUtc` dit son âge. Tant
+qu'on la lit, un rafraîchisseur en arrière-plan la recalcule avant expiration (#2305) ;
+une valeur plus vieille que son TTL est servie aussitôt, avec son `evaluatedAtUtc`, pendant
+qu'il la rattrape. Les
 compteurs du corpus brut (`rawMatchCount`, `rawParticipantCount`) ont leur propre cache
 de 10 min — le comptage des participants est la lecture la plus coûteuse de l'évaluation.
 
@@ -1608,9 +1611,79 @@ de 10 min — le comptage des participants est la lecture la plus coûteuse de l
   confondre. `consecutiveFailures` est la série d'échecs en cours, `0` quand le dernier
   run a réussi.
 
+## `GET /ops/health-alerts`
+
+Ce que l'alerting du verdict de santé a envoyé (#2292) : s'il est actif (un webhook
+Discord est configuré, `Alerting:DiscordWebhookUrl`), ses règles (intervalle
+d'évaluation, nombre d'évaluations rouges consécutives, cooldown par signal, seuil
+d'échecs consécutifs d'un process), sa dernière évaluation, les incidents ouverts
+(`openIncidents`, clés de signal ou `process:<Nom>`) et les derniers envois, du plus
+récent au plus ancien. `limit` : 10 par défaut, 50 au plus. L'URL du webhook n'est
+jamais renvoyée.
+
+**Réponse `200`** — `HealthAlertsReadModel`
+
+```json
+{
+  "enabled": true,
+  "channel": "discord",
+  "evaluationIntervalSeconds": 300,
+  "redConfirmations": 2,
+  "cooldownMinutes": 60,
+  "processFailureThreshold": 3,
+  "lastEvaluatedAtUtc": "2026-10-26T08:05:00Z",
+  "openIncidents": ["dataQuality"],
+  "alerts": [
+    {
+      "id": "671cb2f0a1b2c3d4e5f60718",
+      "sentAtUtc": "2026-10-26T08:05:00Z",
+      "kind": "failing",
+      "title": "[prod] Pipeline health: 1 signal failing",
+      "verdict": "red",
+      "channel": "discord",
+      "delivered": true,
+      "error": null,
+      "changes": [
+        { "key": "dataQuality", "title": "Data quality", "change": "failing", "status": "red", "headline": "1 check is failing." }
+      ]
+    }
+  ]
+}
+```
+
+## `GET /ops/nav-summary`
+
+Les badges de la barre latérale de l'admin (#2294), redemandés chaque minute par chaque
+onglet ouvert.
+
+```json
+{
+  "openConflicts": 2,
+  "homonymGroups": 1,
+  "countedAtUtc": "2026-10-26T08:00:00Z",
+  "healthStatus": "amber",
+  "healthEvaluatedAtUtc": "2026-10-26T07:59:40Z"
+}
+```
+
+- `openConflicts` et `homonymGroups` sont les totaux des files *Open conflicts* et
+  *Homonyms*, servis par index et mis en cache 30 s (une seule passe pour toutes les
+  requêtes concurrentes).
+- `healthStatus` est le verdict du payload `pipeline-health` tenu chaud (#2305), **lu
+  sans compter comme une lecture** : ce endpoint n'évalue jamais le cockpit et ne garde
+  pas le refresher occupé. Sans évaluation tenue, ou avec une évaluation de plus de
+  15 min, il vaut `unknown` et `healthEvaluatedAtUtc` est `null`.
+
 ## `GET /ops/stats/overview`
 
 Compteurs globaux du corpus.
+
+Cached 2 min and single-flighted across concurrent callers (#2301); `computedAtUtc` says when
+the payload was computed. `totalMatches`, `totalParticipants`, `matchesLast7Days` and
+`matchesLast30Days` are **planner estimates** (`pg_class.reltuples` scaled to the table's current size, and
+`EXPLAIN`'s row estimate for the two windows), not exact counts — `null` with
+`estimatesUnknownReason` when they could not be read. `distinctChampionsWithGames` reads
+`champion_game_counts` (the ingestor's periodic recount). Everything else is exact.
 
 **Réponse `200`** — `OverviewReadModel`
 
@@ -1625,7 +1698,9 @@ Compteurs globaux du corpus.
   "distinctChampionsWithGames": 168,
   "distinctChampionsWithMains": 165,
   "matchesLast7Days": 42000,
-  "matchesLast30Days": 180000
+  "matchesLast30Days": 180000,
+  "estimatesUnknownReason": null,
+  "computedAtUtc": "2026-10-26T10:00:00Z"
 }
 ```
 
@@ -1724,10 +1799,11 @@ ingéré.
 
 ## `GET /ops/stats/aggregations`
 
-Instantané des pipelines d'agrégation pour le panneau Aggregation : par famille les
-comptes de lignes **exacts** de ses tables, la couverture champions/patchs, la
-fraîcheur des données et le dernier run enregistré ; plus les backlogs d'ingestion qui
-doivent lire zéro quand les agrégations ont rattrapé leur retard.
+Instantané des pipelines d'agrégation pour le panneau Aggregation : par famille
+l'**estimation** du planificateur pour le nombre de lignes de chaque table, la
+couverture champions et le dernier run enregistré ; plus les backlogs d'ingestion qui
+doivent lire zéro quand les agrégations ont rattrapé leur retard. Servi depuis un cache
+de deux minutes (#2303) ; `measuredAtUtc` date la mesure.
 
 Quatre familles, dans cet ordre, identifiées par leur `key` — valeurs de contrat, le
 front branche ses libellés dessus : `builds`, `matchups`, `synergies`, `mains`.
@@ -1739,15 +1815,14 @@ Pas de paramètre.
 ```json
 {
   "queueId": 420,
+  "measuredAtUtc": "2026-08-05T09:13:00Z",
   "families": [
     {
       "key": "builds",
       "processName": "ChampionPatternAggregation",
-      "tables": [ { "table": "champion_dim_item_paths", "rows": 4200000 } ],
-      "totalRows": 9800000,
+      "tables": [ { "table": "champion_aggregate_scopes", "rowEstimate": 530000 } ],
+      "totalRowEstimate": 1770000,
       "distinctChampions": 168,
-      "distinctPatches": 3,
-      "lastAggregatedAtUtc": "2026-08-05T09:12:00Z",
       "lastRun": {
         "status": "Success",
         "lastStartedAtUtc": "2026-08-05T09:00:00Z",
@@ -1765,16 +1840,23 @@ Pas de paramètre.
 }
 ```
 
-- `lastAggregatedAtUtc` est l'écriture de ligne d'agrégat la plus récente : une
-  fraîcheur **de la donnée**, indépendante des enregistrements de run. `lastRun` est
-  `null` quand le process n'a jamais tourné, et son `lastSuccessAtUtc` diffère de
-  `lastFinishedAtUtc` quand le dernier run a échoué.
-- `distinctPatches` est `null` pour une famille sans axe patch.
+- `rowEstimate` est `n_live_tup` de `pg_stat_user_tables` (le chiffre de `/database`),
+  `reltuples` à défaut : une estimation, jamais un `count(*)`, qui parcourt toute la
+  table (#2303).
+- `distinctChampions` est exact (parcours d'index par saut sur `ChampionId`) ; pour
+  `mains`, ce sont les champions qui ont au moins un main actif.
+- Plus de `distinctPatches` ni de `lastAggregatedAtUtc` (#2303) : aucune table de
+  repli n'est indexée sur ces colonnes, `/ops/patch-coverage` mesure chaque repli par
+  patch, et `lastRun.lastSuccessAtUtc` dit quand la famille a écrit pour la dernière
+  fois. `lastRun` est `null` quand le process n'a jamais tourné, et son
+  `lastSuccessAtUtc` diffère de `lastFinishedAtUtc` quand le dernier run a échoué.
 - `pendingSynergyMatches` démarre au **nombre total de matchs retenus** : le drapeau
   de repli est livré à `false` sur toutes les lignes préexistantes, donc ce compteur
   affiche un gros backlog au premier déploiement puis se vide au fil des runs (#922).
 - Les deux compteurs n'ont pas la même unité : `pendingSynergyMatches` compte des
-  matchs de la queue, `pendingEloBracketParticipants` des **participants**.
+  matchs de la queue, `pendingEloBracketParticipants` des **participants**. Chacun est
+  servi par un index partiel qui ne contient que les lignes en attente
+  (`IX_matches_synergy_pending`, `IX_match_participants_elo_bracket_pending`).
 
 ## `GET /ops/patch-coverage`
 
@@ -2358,6 +2440,9 @@ chiffre-titre, les lignes du détail et les seuils configurés (`DataQualityDete
 lesquels il a jugé.
 
 Pas de paramètre : les seuils sont de la configuration serveur, pas des query params.
+
+Mise en cache 1 min, single-flightée et gardée chaude en arrière-plan tant qu'on la lit
+(#2305) ; `evaluatedAtUtc` dit quand les détecteurs ont tourné.
 
 `status` vaut `green`, `amber`, `red` ou `unknown`. **`unknown` ne signifie jamais « mesuré et
 correct »** : c'est « je n'ai pas pu mesurer », et il l'emporte sur `green` dans l'agrégation

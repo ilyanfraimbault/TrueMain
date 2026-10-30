@@ -1,6 +1,6 @@
-import type { ChampionSlugMap } from '~~/shared/types/static-data'
-import { isLiveChampionId, toChampionSlug } from '~~/shared/utils/ddragon'
-import { resolveDDragonVersion } from '~~/layers/nitro/server/utils/ddragon-patch'
+import type { ChampionSlugMap } from '../../../../../shared/types/static-data'
+import { isLiveChampionId, toChampionSlug } from '../../../../../shared/utils/ddragon'
+import { resolveDDragonVersion } from '../../utils/ddragon-patch'
 
 /**
  * `championId → url slug` for every live champion (#1124).
@@ -16,6 +16,10 @@ import { resolveDDragonVersion } from '~~/layers/nitro/server/utils/ddragon-patc
  * cache and the client state for a value that is the same in every entry. The
  * latest patch is resolved only so a *newly released* champion appears without
  * a deploy.
+ *
+ * In `web/layers/nitro` since #2291: the admin builds its "Open on the site"
+ * champion links from the same map, so it cannot mint a slug the site's router
+ * does not resolve. Behind the operator session there, like every `/api/static/*`.
  */
 interface ChampionListResponse {
   data: Record<string, { id: string, key: string }>

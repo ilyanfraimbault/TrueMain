@@ -16,6 +16,13 @@ export type LiveRefreshSource
 export interface LiveRefreshOptions {
   /** Milliseconds between two automatic refreshes while the tab is visible. */
   every?: number
+  /**
+   * Milliseconds between two refreshes while the tab is hidden. Unset (the
+   * default) stops the timer in a background tab. Only the health verdict sets
+   * it (#2296): that one payload is what a background tab exists to watch, its
+   * title and favicon being the only part of the page still on screen.
+   */
+  hiddenEvery?: number
 }
 
 export interface LiveRefresh {
@@ -39,7 +46,8 @@ const DEFAULT_INTERVAL_MS = 30_000
  * Re-runs the given sources every `every` ms while the document is visible,
  * pauses when it is hidden — a background tab must not keep hammering the ops
  * API — and fires one immediate refresh when it comes back, since whatever it
- * shows is by then at least as stale as the time spent away.
+ * shows is by then at least as stale as the time spent away. `hiddenEvery`
+ * opts a source into a slower background cadence instead of the pause.
  *
  * Refreshes never overlap: a tick that lands while the previous one is still in
  * flight is dropped rather than queued, so a slow endpoint degrades to "one
@@ -81,9 +89,19 @@ export function useLiveRefresh(
   }
 
   const visibility = useDocumentVisibility()
-  const active = computed(() => !paused.value && visibility.value !== 'hidden')
+  const hidden = computed(() => visibility.value === 'hidden')
+  const active = computed(() => !paused.value && (!hidden.value || options.hiddenEvery !== undefined))
+  const interval = computed(() => (hidden.value ? options.hiddenEvery ?? every : every))
 
-  const { pause, resume } = useIntervalFn(run, every, { immediate: false })
+  const { pause, resume } = useIntervalFn(run, interval, { immediate: false })
+
+  // A timer kept running in the background still owes the operator a fresh read
+  // on their return: whatever it shows is up to `hiddenEvery` old by then.
+  watch(hidden, (isHidden) => {
+    if (!isHidden && active.value && options.hiddenEvery !== undefined) {
+      void run()
+    }
+  })
 
   watch(active, (isActive, wasActive) => {
     if (!isActive) {

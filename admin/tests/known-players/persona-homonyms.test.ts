@@ -52,12 +52,14 @@ afterEach(() => {
 
 describe('persona-homonyms utils', () => {
   it('words the automatic merge', () => {
-    expect(autoMergedMessage({ merged: 0, alsoResolved: 0, skipped: 0 })).toEqual({ title: 'No same-name conflict to merge', description: undefined })
-    expect(autoMergedMessage({ merged: 0, alsoResolved: 0, skipped: 2 }).description).toBe('2 conflicts changed meanwhile; reload the queue.')
-    expect(autoMergedMessage({ merged: 1, alsoResolved: 0, skipped: 0 })).toEqual({ title: '1 same-name conflict merged', description: undefined })
-    expect(autoMergedMessage({ merged: 3, alsoResolved: 1, skipped: 1 })).toEqual({
-      title: '3 same-name conflicts merged',
-      description: '1 other conflict settled with them. 1 conflict changed meanwhile and stay open.',
+    expect(autoMergedMessage({ merged: 0, mergedByChannel: 0, alsoResolved: 0, skipped: 0 })).toEqual({ title: 'Nothing same-name to merge', description: undefined })
+    expect(autoMergedMessage({ merged: 0, mergedByChannel: 0, alsoResolved: 0, skipped: 2 }).description)
+      .toBe('2 conflicts left open: changed meanwhile, or marked as different people.')
+    expect(autoMergedMessage({ merged: 1, mergedByChannel: 0, alsoResolved: 0, skipped: 0 })).toEqual({ title: '1 same-name conflict merged', description: undefined })
+    expect(autoMergedMessage({ merged: 0, mergedByChannel: 2, alsoResolved: 0, skipped: 0 }).title).toBe('2 same-name players sharing a channel merged')
+    expect(autoMergedMessage({ merged: 3, mergedByChannel: 1, alsoResolved: 1, skipped: 1 })).toEqual({
+      title: '3 same-name conflicts merged, 1 same-name player sharing a channel merged',
+      description: '1 other conflict settled with them. 1 conflict left open: changed meanwhile, or marked as different people.',
     })
   })
 

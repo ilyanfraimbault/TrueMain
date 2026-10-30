@@ -3,6 +3,7 @@
 // account. Split out of `AccountsTrace.vue` (#1436).
 import type { AccountExplorerIdentity } from '~~/shared/types/ops'
 import { formatNumber } from '~~/shared/utils/format'
+import { truemainPath } from '~~/shared/utils/site-link'
 
 defineProps<{
   identity: AccountExplorerIdentity
@@ -12,10 +13,13 @@ defineProps<{
 <template>
   <UCard class="mb-8">
     <template #header>
-      <PanelTitle
-        title="Identity &amp; refresh"
-        subtitle="When each half of the pipeline last touched this account."
-      />
+      <div class="flex items-start justify-between gap-2">
+        <PanelTitle
+          title="Identity &amp; refresh"
+          subtitle="When each half of the pipeline last touched this account."
+        />
+        <SiteLink :path="truemainPath(identity.gameName, identity.tagLine)" label="Open the profile on the site" />
+      </div>
     </template>
 
     <UAlert

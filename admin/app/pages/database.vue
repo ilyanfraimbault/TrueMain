@@ -11,7 +11,7 @@
 import type { DbTableRow } from '~~/shared/types/ops'
 import { humanizeBytes } from '~~/shared/utils/format'
 
-const { data, pending, error, refresh } = useDbTables()
+const { data, pending, refreshing, error, refresh } = useDbTables()
 
 // Client-side name filter — the dataset is small (one row per table) so
 // filtering in the browser is fine and avoids a round-trip.
@@ -46,7 +46,7 @@ const { data: history, pending: historyPending, error: historyError } = useDbSto
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="refreshing"
             aria-label="Refresh"
             @click="refresh()"
           />

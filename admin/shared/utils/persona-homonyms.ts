@@ -1,23 +1,27 @@
-// Known players sharing a name (#2271): the toasts of the automatic merge and of
-// the homonyms queue's two actions, and what a group's selection sends.
+// Known players sharing a name (#2271): the toasts of the automatic merge (which
+// also merges the ones sharing a social channel, #2286) and of the homonyms queue's
+// two actions, and what a group's selection sends.
 import type { PersonaAutoMerged, PersonaHomonymGroup, PersonaHomonymMarked, PersonaHomonymMerged } from '~~/shared/types/ops'
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 
 export function autoMergedMessage(result: PersonaAutoMerged): { title: string, description?: string } {
-  if (result.merged === 0) {
-    return {
-      title: 'No same-name conflict to merge',
-      description: result.skipped > 0 ? `${plural(result.skipped, 'conflict')} changed meanwhile; reload the queue.` : undefined,
-    }
+  const byChannel = result.mergedByChannel ?? 0
+  const left = result.skipped > 0 ? `${plural(result.skipped, 'conflict')} left open: changed meanwhile, or marked as different people.` : null
+  if (result.merged === 0 && byChannel === 0) {
+    return { title: 'Nothing same-name to merge', description: left ?? undefined }
   }
 
+  const merged = [
+    result.merged > 0 ? `${plural(result.merged, 'same-name conflict')} merged` : null,
+    byChannel > 0 ? `${plural(byChannel, 'same-name player')} sharing a channel merged` : null,
+  ].filter(Boolean)
   const details = [
     result.alsoResolved > 0 ? `${plural(result.alsoResolved, 'other conflict')} settled with them.` : null,
-    result.skipped > 0 ? `${plural(result.skipped, 'conflict')} changed meanwhile and stay open.` : null,
+    left,
   ].filter(Boolean)
   return {
-    title: `${plural(result.merged, 'same-name conflict')} merged`,
+    title: merged.join(', '),
     description: details.length > 0 ? details.join(' ') : undefined,
   }
 }

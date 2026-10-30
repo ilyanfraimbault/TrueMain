@@ -372,3 +372,73 @@ signal**: it does not move the verdict.
 - *Cached five minutes* (`measuredAtUtc` stated on the panel): the cockpit refreshes every 30 s and the
   distinct-account count takes seconds on a production-sized corpus, while the balance moves on a cadence of
   hours.
+
+## Admin ops reads are stale-while-revalidate across navigations (2026-10-26)
+
+**Decision.** Every ops read (`useOps`) goes through one client-side cache (`admin/app/utils/ops-cache.ts`,
+#2306): a panel mounting a key fetched in the last 10 minutes draws the stored payload at once and revalidates
+behind it; a payload under 5 s old (a hover prefetch, a sibling panel) is drawn without a request. The cache
+lives in memory only and is emptied whenever `loggedIn` turns false — logout and the session-expiry sign-out
+alike. `useOps`' `pending` means **nothing to draw yet** (the skeleton's condition) and `refreshing` is any
+request in flight (the refresh button's spinner). A cached payload older than one minute whose revalidation has
+not landed is labelled with its age by one corner notice (`OpsCacheAgeNotice`). Hovering or focusing a sidebar
+entry warms the cheap main reads of the pages listed in `OPS_PREFETCH_TARGETS`.
+
+**Why.**
+
+- *Returning to a page must not re-pay its load* (#2300): the operator moves between Overview, Health and
+  Processes constantly, and each visit used to refetch everything behind skeletons.
+- *Redefining `pending` rather than every skeleton condition.* About thirty panels and child components draw
+  their skeleton on `pending`; changing its meaning once in `useOps` keeps them all — and any new panel — from
+  blanking cached content, at the cost of re-pointing the navbar refresh spinners to `refreshing`.
+- *The error rule is unchanged* (#1668): a failed revalidation falls back to the stored payload (Nuxt resets
+  `data` to `default()`, which reads the cache) under the page's own single `FetchErrorAlert`; the age notice
+  is a label, not a second error surface.
+- *Never another session's figures*: no `localStorage`, a response landing after logout is not stored, and
+  `clearNuxtData()` runs with the cache clear.
+- *Live panels keep their cadence* (#1411): a live tick or a manual refresh always goes to the network; only a
+  mount can be served from the cache without a request.
+- *Prefetch stays narrow*: unfiltered, cheap reads only. A heavy scan (`/patch-coverage`) or a paginated table
+  is not worth a request the operator may never follow.
+
+## Deploy markers come from a boot log flagged at write time (2026-10-26)
+
+**Decision.** Every Api and Ingestor container appends its boot — the deploy-time `APP_VERSION` (passed to
+the backend as `AppVersion`), its job mode for the ingestor, the start time — to the Mongo `process_boots`
+collection (`ProcessBootRecorder`, #2297). Whether a boot is a deploy is decided once, at write time, against
+that process and role's previous boot that knew its version; `GET /ops/deployments?from=&to=` returns only
+those changes. A partial TTL expires restarts after 30 days; deploys have none. The admin chart wrappers take
+`markers` and draw them as an overlay placed from the rendered x-axis ticks; several deploys in one bucket
+collapse into one label.
+
+**Why.**
+
+- *Append-only, not `effective_configuration`'s overwrite*: that collection answers "what runs now", a marker
+  needs "when did it change".
+- *Flag at write time*: an ingestor on `RunOnce` boots many times a day, so deriving deploys at read time would
+  scan every restart for a handful of changes. The read still collapses consecutive identical versions per
+  process and role, for two containers of one role booting the same release at once.
+- *No version, no deploy*: every build carries the same `1.0.0` assembly version, so a boot without
+  `AppVersion` (local run, manual redeploy) is recorded but never drawn, and does not hide the next change.
+- *Retention split*: deploys are a handful a week and the database growth chart spans a year, so they are kept;
+  restarts only serve as the predecessor of the next boot.
+- *An overlay, not a Unovis component*: vue-chrts builds its `VisXYContainer` children itself with no slot
+  inside it, so neither a crosshair annotation nor a plot line can be added from a wrapper. The x-axis ticks
+  carry their row index as d3 data, which pins the index scale exactly; without readable ticks nothing is drawn
+  rather than a marker drawn in the wrong place.
+
+## The health verdict keeps refreshing in a background tab, once a minute (2026-10-26)
+
+**Decision.** `/health` and the Overview put a non-green verdict in the browser tab (`● Red — Health`, a dotted
+favicon, #2296). Their verdict source passes `hiddenEvery: 60_000` to `useLiveRefresh`: while the tab is hidden
+it re-reads `GET /ops/pipeline-health` every minute instead of stopping, and reads it once more on return. Every
+other live panel still stops in a hidden tab, as #1411 set.
+
+**Why.**
+
+- *A tab title that never updates in the background is useless*: the title and favicon are the only part of a
+  background tab still on screen, and the acceptance of #2296 is a red verdict showing there after a refresh.
+- *One small payload a minute*, not the 30 s visible cadence: the #1411 concern was a background tab hammering
+  the ops API with every panel; a single verdict read at half the rate is the cheapest way to keep the signal.
+- *Green and `unknown` leave the tab alone*: green is the resting state and `unknown` is "not measured", neither
+  a pass nor an alarm (#1031's vocabulary).

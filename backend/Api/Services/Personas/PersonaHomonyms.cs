@@ -7,9 +7,15 @@ namespace TrueMain.Services.Personas;
 /// </summary>
 public static partial class PersonaHomonyms
 {
-    /// <summary>The name key of <c>{alias}."DisplayName"</c>, as a Postgres expression.</summary>
-    public static string NameKeySql(string alias) =>
-        $"regexp_replace(lower({alias}.\"DisplayName\"), '[[:space:]._-]+', '', 'g')";
+    /// <summary>
+    /// The name key of <c>{alias}</c>'s display name, as a Postgres expression: the stored
+    /// <c>"NameKey"</c> column Postgres computes (<c>PersonaConfiguration.NameKeySql</c>, #2294).
+    /// </summary>
+    public static string NameKeySql(string alias) => $"{alias}.\"NameKey\"";
+
+    /// <summary>The same name key in C#, for the personas already loaded (#2286).</summary>
+    public static string NameKey(string displayName) =>
+        NameKeyPattern().Replace(displayName.ToLowerInvariant(), string.Empty);
 
     /// <summary>
     /// The key two links of the same channel share (#2273): lowercased, without the scheme, a
@@ -28,6 +34,9 @@ public static partial class PersonaHomonyms
     /// </summary>
     public static (Guid Low, Guid High) Ordered(Guid a, Guid b) =>
         string.CompareOrdinal(a.ToString("D"), b.ToString("D")) < 0 ? (a, b) : (b, a);
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"[\s._-]+")]
+    private static partial System.Text.RegularExpressions.Regex NameKeyPattern();
 
     [System.Text.RegularExpressions.GeneratedRegex("^https?://(www\\.)?|/+$")]
     private static partial System.Text.RegularExpressions.Regex LinkKeyPattern();

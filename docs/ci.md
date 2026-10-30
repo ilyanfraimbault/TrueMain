@@ -257,7 +257,10 @@ already-present `:latest`.
 footer states which build serves the page (`preprod · 1.20.0-rc.4`, `1.19.0`
 in prod). It is a deploy-time value, not a build arg: the image stays
 promotable as-is and a version that changes every merge never invalidates a
-layer. A manual redeploy without it simply hides the label.
+layer. A manual redeploy without it simply hides the label. The same value
+reaches the Api and every ingestor container as `AppVersion`, which they record
+in the `process_boots` collection at boot — the admin charts' deploy markers
+(#2297); a boot without it is recorded but never counted as a deploy.
 
 Prod builds and checks out the release tag rather than the triggering ref: a
 release can be published from a tag that is no longer the tip of any branch.
@@ -1098,6 +1101,12 @@ leaves a misleading version on the page (#1637).
   in `docs/prod.md`, #1598; preprod's plain-HTTP edge in `docs/preprod.md`,
   #1558). The preprod stack requires `PREPROD_SITE_URL` and
   `PREPROD_ADMIN_URL`, which is why the compose-config job sets both.
+- The admin gets the public site's origin as `NUXT_PUBLIC_SITE_URL` for its
+  "Open on the site" buttons (#2291): `https://truemain.lol` on prod, the
+  stack's own `PREPROD_SITE_URL` on preprod (the web service's origin, so no
+  new variable and no host in the repo), `http://localhost:3000` in the two
+  local stacks. Passed as `${PREPROD_SITE_URL:-}` on the admin rather than
+  required: an empty value only hides the buttons.
 - Both deployed stacks publish the API's port on the loopback interface only
   (`127.0.0.1:8080:8080` on prod, `127.0.0.1:8081:8080` on preprod). Nothing
   external needs it: web and admin reach the API over the internal network as
@@ -1122,6 +1131,12 @@ leaves a misleading version on the page (#1637).
   of `Abandoned`, which means the host died instead of stopping — and the claims
   the dead incarnation held are released at the next boot rather than a full
   `MatchIngestion:ClaimLeaseMinutes` later.
+- `ALERTING_DISCORD_WEBHOOK_URL` turns the Api's pipeline-health alerts on (#2292):
+  the Discord webhook they are posted to, passed as `Alerting__DiscordWebhookUrl` and
+  defaulting to empty, which leaves alerting off. It is a credential, so it lives in
+  the stack `.env` only. The compose files also set `Alerting__AdminBaseUrl` (the
+  `/health` link) and `Alerting__EnvironmentLabel` (the title prefix that tells the
+  two stacks apart in one channel).
 - `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
   projects against (#925). Unset means no forecast at all, which the admin
   panel says explicitly instead of fitting a line to a guessed capacity.

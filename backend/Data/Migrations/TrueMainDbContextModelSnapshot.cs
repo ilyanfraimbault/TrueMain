@@ -20,7 +20,7 @@ namespace Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -1521,6 +1521,12 @@ namespace Data.Migrations
 
                     b.HasIndex("PlatformId", "Status", "Score");
 
+                    b.HasIndex("Score", "DiscoveredAtUtc", "Id")
+                        .HasDatabaseName("IX_main_candidates_list_order");
+
+                    b.HasIndex("Status", "Score", "DiscoveredAtUtc", "Id")
+                        .HasDatabaseName("IX_main_candidates_status_list_order");
+
                     b.ToTable("main_candidates", (string)null);
                 });
 
@@ -2000,6 +2006,9 @@ namespace Data.Migrations
                     b.HasIndex(new[] { "ChampionId", "TeamPosition", "EloBracket" }, "IX_match_participants_champion_position_tracked")
                         .HasFilter("\"RiotAccountId\" IS NOT NULL");
 
+                    b.HasIndex(new[] { "Id" }, "IX_match_participants_elo_bracket_pending")
+                        .HasFilter("\"RiotAccountId\" IS NOT NULL AND elo_bracket = ''");
+
                     b.HasIndex(new[] { "Id" }, "IX_match_participants_role_bound_pending")
                         .HasFilter("\"RoleBoundItemId\" IS NULL AND \"TeamPosition\" = 'BOTTOM'");
 
@@ -2195,6 +2204,12 @@ namespace Data.Migrations
                     b.Property<Guid?>("MergedIntoPersonaId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasComputedColumnSql("regexp_replace(lower(\"DisplayName\"), '[[:space:]._-]+', '', 'g')", true);
+
                     b.Property<DateTime?>("RemovedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -2216,6 +2231,11 @@ namespace Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("MergedIntoPersonaId");
+
+                    b.HasIndex("NameKey")
+                        .HasFilter("\"MergedIntoPersonaId\" IS NULL AND \"RemovedAtUtc\" IS NULL");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("NameKey"), new[] { "Id" });
 
                     b.HasIndex("Slug")
                         .IsUnique();

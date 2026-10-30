@@ -13,6 +13,12 @@ public interface IPersonaConflictQueryService
     /// </summary>
     Task<PersonaConflictsReadModel> GetPageAsync(PersonaConflictFilter filter, int? page, int? pageSize, CancellationToken ct);
 
+    /// <summary>
+    /// The open conflicts a bulk merge at <paramref name="minScore"/> would settle (#2295), most
+    /// certain first, at most <see cref="PersonaConflictBulk.BatchLimit"/>, each with the side it keeps.
+    /// </summary>
+    Task<PersonaConflictBulkPreviewReadModel> GetBulkPreviewAsync(int minScore, CancellationToken ct);
+
     /// <summary>One conflict and both personas in full; null when unknown.</summary>
     Task<PersonaConflictDetailReadModel?> GetAsync(Guid id, CancellationToken ct);
 }
@@ -43,22 +49,9 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
         List<PersonaConflictReadModel> rows;
         if (filter.Status == PersonaConflictStatus.Open)
         {
-            // The queue to settle reads most certain first (#2277). The score comes from both
-            // personas' links, so it is ranked here: an open queue holds dozens of rows, not millions.
-            var open = await query
-                .Select(c => new { c.Id, c.ClaimantPersonaId, c.OwnerPersonaId, c.LastSeenAtUtc })
-                .ToListAsync(ct);
-            var evidence = await EvidenceAsync(open.Select(c => (c.Id, c.ClaimantPersonaId, c.OwnerPersonaId)), ct);
-            var pageIds = open
-                .OrderByDescending(c => evidence[c.Id].Score)
-                .ThenByDescending(c => c.LastSeenAtUtc)
-                .ThenBy(c => c.Id)
-                .Skip(skip)
-                .Take(effectivePageSize)
-                .Select(c => c.Id)
-                .ToList();
-            var byId = (await Project(query.Where(c => pageIds.Contains(c.Id))).ToListAsync(ct)).ToDictionary(c => c.Id);
-            rows = pageIds.Where(byId.ContainsKey).Select(id => WithEvidence(byId[id], evidence[id])).ToList();
+            // The queue to settle reads most certain first (#2277).
+            var ranked = await RankOpenAsync(query, ct);
+            rows = await ProjectRankedAsync(query, ranked.Skip(skip).Take(effectivePageSize).ToList(), ct);
         }
         else
         {
@@ -89,6 +82,57 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
         };
     }
 
+    public async Task<PersonaConflictBulkPreviewReadModel> GetBulkPreviewAsync(int minScore, CancellationToken ct)
+    {
+        var query = db.PersonaAccountConflicts.AsNoTracking().Where(c => c.Status == PersonaConflictStatus.Open);
+        var eligible = (await RankOpenAsync(query, ct)).Where(c => PersonaConflictBulk.IsEligible(c.Evidence, minScore)).ToList();
+        var rows = await ProjectRankedAsync(query, eligible.Take(PersonaConflictBulk.BatchLimit).ToList(), ct);
+        return new PersonaConflictBulkPreviewReadModel
+        {
+            MinScore = minScore,
+            Limit = PersonaConflictBulk.BatchLimit,
+            Eligible = eligible.Count,
+            Conflicts = rows.Select(c =>
+            {
+                var keepClaimant = PersonaConflictBulk.KeepClaimant(c.Claimant.CreatedAtUtc, c.Claimant.Id, c.Owner.CreatedAtUtc, c.Owner.Id);
+                return new PersonaConflictBulkCandidateReadModel
+                {
+                    Conflict = c,
+                    Keep = keepClaimant ? "claimant" : "owner",
+                    KeptSlug = keepClaimant ? c.Claimant.Slug : c.Owner.Slug,
+                    MergedSlug = keepClaimant ? c.Owner.Slug : c.Claimant.Slug,
+                };
+            }).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// The open conflicts most certain first (#2277). The score comes from both personas' links, so
+    /// it is ranked here: an open queue holds dozens of rows, not millions.
+    /// </summary>
+    private async Task<List<(Guid Id, PersonaConflictEvidence Evidence)>> RankOpenAsync(
+        IQueryable<PersonaAccountConflict> query, CancellationToken ct)
+    {
+        var open = await query
+            .Select(c => new { c.Id, c.ClaimantPersonaId, c.OwnerPersonaId, c.LastSeenAtUtc })
+            .ToListAsync(ct);
+        var evidence = await EvidenceAsync(open.Select(c => (c.Id, c.ClaimantPersonaId, c.OwnerPersonaId)), ct);
+        return open
+            .OrderByDescending(c => evidence[c.Id].Score)
+            .ThenByDescending(c => c.LastSeenAtUtc)
+            .ThenBy(c => c.Id)
+            .Select(c => (c.Id, evidence[c.Id]))
+            .ToList();
+    }
+
+    private static async Task<List<PersonaConflictReadModel>> ProjectRankedAsync(
+        IQueryable<PersonaAccountConflict> query, List<(Guid Id, PersonaConflictEvidence Evidence)> ranked, CancellationToken ct)
+    {
+        var ids = ranked.Select(c => c.Id).ToList();
+        var byId = (await Project(query.Where(c => ids.Contains(c.Id))).ToListAsync(ct)).ToDictionary(c => c.Id);
+        return ranked.Where(c => byId.ContainsKey(c.Id)).Select(c => WithEvidence(byId[c.Id], c.Evidence)).ToList();
+    }
+
     public async Task<PersonaConflictDetailReadModel?> GetAsync(Guid id, CancellationToken ct)
     {
         var conflict = await Project(db.PersonaAccountConflicts.AsNoTracking().Where(c => c.Id == id))
@@ -107,22 +151,9 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
         };
     }
 
-    /// <summary>What the two personas of each conflict share, from their links (<see cref="PersonaConflictConfidence"/>).</summary>
-    private async Task<Dictionary<Guid, PersonaConflictEvidence>> EvidenceAsync(
-        IEnumerable<(Guid Id, Guid ClaimantId, Guid OwnerId)> conflicts, CancellationToken ct)
-    {
-        var pairs = conflicts.ToList();
-        var personaIds = pairs.SelectMany(c => new[] { c.ClaimantId, c.OwnerId }).Distinct().ToList();
-        var links = (await db.PersonaLinks
-                .AsNoTracking()
-                .Where(l => personaIds.Contains(l.PersonaId))
-                .Select(l => new { l.PersonaId, l.Kind, l.Url })
-                .ToListAsync(ct))
-            .ToLookup(l => l.PersonaId, l => (l.Kind, l.Url));
-        return pairs.ToDictionary(
-            c => c.Id,
-            c => PersonaConflictConfidence.Evaluate(links[c.ClaimantId].ToList(), links[c.OwnerId].ToList()));
-    }
+    private Task<Dictionary<Guid, PersonaConflictEvidence>> EvidenceAsync(
+        IEnumerable<(Guid Id, Guid ClaimantId, Guid OwnerId)> conflicts, CancellationToken ct) =>
+        PersonaConflictBulk.EvidenceAsync(db, conflicts, ct);
 
     private static PersonaConflictReadModel WithEvidence(PersonaConflictReadModel conflict, PersonaConflictEvidence evidence) =>
         conflict with
@@ -200,6 +231,7 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
                 Slug = c.Claimant!.Slug,
                 DisplayName = c.Claimant.DisplayName,
                 Source = c.Claimant.Source.ToString(),
+                CreatedAtUtc = c.Claimant.CreatedAtUtc,
                 AccountCount = c.Claimant.Accounts.Count,
                 LinkCount = c.Claimant.Links.Count,
             },
@@ -209,6 +241,7 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
                 Slug = c.Owner!.Slug,
                 DisplayName = c.Owner.DisplayName,
                 Source = c.Owner.Source.ToString(),
+                CreatedAtUtc = c.Owner.CreatedAtUtc,
                 AccountCount = c.Owner.Accounts.Count,
                 LinkCount = c.Owner.Links.Count,
             },
@@ -217,53 +250,11 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
     private async Task<PersonaOpsReadModel> LoadPersonaAsync(
         Guid personaId, PersonaConflictAccountReadModel disputed, CancellationToken ct)
     {
-        var persona = await db.Personas
-            .AsNoTracking()
-            .Where(p => p.Id == personaId)
-            .Select(p => new { p.Id, p.Slug, p.DisplayName, p.Source, p.CreatedAtUtc })
-            .FirstAsync(ct);
-
-        var accounts = await db.PersonaAccounts
-            .AsNoTracking()
-            .Where(a => a.PersonaId == personaId)
-            .OrderBy(a => a.PlatformId)
-            .ThenBy(a => a.GameName)
-            .Select(a => new { a.GameName, a.TagLine, a.PlatformId, a.Source, a.RiotAccountId })
-            .ToListAsync(ct);
-
-        var links = await db.PersonaLinks
-            .AsNoTracking()
-            .Where(l => l.PersonaId == personaId)
-            .OrderBy(l => l.Kind)
-            .ThenBy(l => l.Url)
-            .Select(l => new { l.Kind, l.Url, l.Source })
-            .ToListAsync(ct);
-
-        return new PersonaOpsReadModel
+        var persona = (await PersonaOpsReads.LoadAsync(db, [personaId], ct))[personaId];
+        return persona with
         {
-            Id = persona.Id,
-            Slug = persona.Slug,
-            DisplayName = persona.DisplayName,
-            Source = persona.Source.ToString(),
-            CreatedAtUtc = persona.CreatedAtUtc,
-            Accounts = accounts
-                .Select(a => new PersonaOpsAccountReadModel
-                {
-                    GameName = a.GameName,
-                    TagLine = a.TagLine,
-                    PlatformId = a.PlatformId,
-                    Source = a.Source.ToString(),
-                    RiotAccountId = a.RiotAccountId,
-                    Disputed = IsDisputed(a.PlatformId, a.GameName, a.TagLine, a.RiotAccountId, disputed),
-                })
-                .ToList(),
-            Links = links
-                .Select(l => new PersonaOpsLinkReadModel
-                {
-                    Kind = l.Kind.ToString().ToLowerInvariant(),
-                    Url = l.Url,
-                    Source = l.Source.ToString(),
-                })
+            Accounts = persona.Accounts
+                .Select(a => a with { Disputed = IsDisputed(a.PlatformId, a.GameName, a.TagLine, a.RiotAccountId, disputed) })
                 .ToList(),
         };
     }

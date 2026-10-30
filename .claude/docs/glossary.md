@@ -54,8 +54,13 @@ A plain *removal* only retires a persona that should not exist and leaves its ac
 
 **Homonyms** (known players):
 Live known players with the same name once case, spaces, dots, dashes and underscores are ignored. Claiming the same
-account makes them one person (merged automatically); without one, the operator merges them or marks them as
-*different people*.
+account or listing the same social channel makes them one person (merged automatically); without either, the operator
+merges them or marks them as *different people*.
+
+**Conflict** (known players):
+Two known players that look like one person and need a decision. An *account conflict* is a Riot account one claims
+while the other holds it (recorded, settled by move / keep / detach / merge); a *channel conflict* is a social channel
+both list (derived from their links, settled by a merge or *different people*).
 
 **Candidate**:
 A (player, champion) pair proposed as a possible true main, found on the apex ladder, added by an operator, or

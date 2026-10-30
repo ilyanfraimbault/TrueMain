@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // One known player in the edit panel (#2019): rename, accounts, links, what holds
-// it against its sources, and removal. Every edit is written where the weekly
+// it against its sources, its history (#2288), and removal. Every edit is written where the weekly
 // scrapers cannot undo it, and audited. Emits `changed` after each one so the list
 // behind the panel catches up, and `removed` once the player is gone.
 import type { PersonaAccountInput, PersonaAdminAccount, PersonaAdminDetail, PersonaAdminLink, PersonaLinkInput } from '~~/shared/types/ops'
 import { computed, ref, watch } from 'vue'
 import { formatDateTime } from '~~/shared/utils/format'
 import { accountOutcomeMessage, displayNameError, editErrorMessage } from '~~/shared/utils/known-players'
+import { knownPlayerPath } from '~~/shared/utils/site-link'
 
 const props = defineProps<{ personaId: string }>()
 const emit = defineEmits<{ changed: [], removed: [] }>()
@@ -14,6 +15,8 @@ const emit = defineEmits<{ changed: [], removed: [] }>()
 const detail = ref<PersonaAdminDetail | null>(null)
 const loadError = ref<unknown>(null)
 const busy = ref(false)
+// Moves after each edit so the History reloads with the action just recorded.
+const historyVersion = ref(0)
 const toast = useActionToast()
 
 async function load() {
@@ -47,6 +50,7 @@ async function edit(failureTitle: string, call: () => Promise<unknown>, success:
   finally {
     busy.value = false
     await load()
+    historyVersion.value++
   }
 }
 
@@ -124,6 +128,7 @@ defineExpose({ reload: load })
             {{ detail.displayName }}
           </p>
           <UButton v-if="live" data-rename icon="i-lucide-pencil" size="xs" color="neutral" variant="ghost" aria-label="Rename" @click="startRename" />
+          <SiteLink v-if="!detail.removedAtUtc" :path="knownPlayerPath(detail.slug)" />
         </div>
         <p class="text-xs text-muted">
           <span class="font-mono">{{ detail.slug }}</span> · from {{ detail.source }} · since {{ formatDateTime(detail.createdAtUtc) }}
@@ -155,6 +160,7 @@ defineExpose({ reload: load })
         <KnownPlayersLinksPanel :links="detail.links" :busy="busy" @add="addLink" @remove="removeLink" />
       </template>
       <KnownPlayersDecisions :conflicts="detail.conflicts" :exclusions="detail.exclusions" :removed-links="detail.removedLinks" />
+      <KnownPlayersHistory :persona-id="personaId" :version="historyVersion" />
       <template v-if="live">
         <USeparator />
         <KnownPlayersRemoval :display-name="detail.displayName" :busy="busy" @remove="remove" />

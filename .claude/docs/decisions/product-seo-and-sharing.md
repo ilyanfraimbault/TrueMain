@@ -138,3 +138,20 @@ encoding.** The app's own `to`/`href` builders correctly `encodeURIComponent` a 
 sitemap source encodes it twice, and `Álec Lightwood-Jace` gets advertised as `%25C3%2581lec%2520Lightwood-Jace`,
 which the route hands to the backend as literal text — a 404. Riot IDs are full Unicode, so this hit 2,334 of
 the first 5,000 profiles before the family was dropped. Encoding is per-consumer, and a `loc` is not an href.
+
+## A truemain profile answers 404 for an unknown account, and its canonical is the stored Riot ID (2026-10-26)
+
+**Decision.** `/truemains/{nameTag}` and `/truemains/{nameTag}/champions/{slug}` resolve, on the server, who the
+slug names (`GET /api/truemain-identity/{nameTag}`, a cached Nitro route over the profile endpoint). An unknown
+account answers a real **404**; a known one declares as its canonical the slug of the Riot ID **as TrueMain stores
+it** (`truemainNameTag`, the builder every profile link uses), whatever casing the visitor typed. With no verdict
+(API down, throttled) the page keeps a `200` and the route's own slug — an outage never becomes a 404.
+
+**Why.** The page's content is client-only (#862), so its server render knew nothing about the account: an
+unknown Riot ID was a `200` that drew "not found" in the browser, which Search Console filed as soft 404s; and
+`nuxt-seo-utils` lowercases canonicals by default, so `/truemains/Known%20Ghoster-False` declared a spelling no
+link used, which Google refused and indexed the mixed-case URL instead. Only the slug crosses into the SSR
+payload — the profile itself stays client-only. `canonicalLowercase` stays on for the rest of the site, whose
+slugs are lowercase already; the profile pages override it.
+
+**Source.** #2335, #2336.
