@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { AutoClipKind } from '~/types/recordings'
-import { AUTO_CLIP_KINDS, toggleAutoClip } from '~/utils/auto-clips'
+import { AUTO_CLIP_KINDS, DEFAULT_AUTO_CLIPS, toggleAutoClip } from '~/utils/auto-clips'
 
 /**
  * The automatic clips (#1766): once a game is finalised, the plays the player
  * picks here are cut as clips of their own, titled from what the game's events
- * show. Off when none is picked; turning it back on picks them all.
+ * show (a Flash play also reads the player's Flash key, #2382). Off when none
+ * is picked; turning it back on picks the defaults: multi-kills, Flash plays.
  */
 const props = defineProps<{ kinds: AutoClipKind[] }>()
 const emit = defineEmits<{ change: [kinds: AutoClipKind[]] }>()
@@ -13,7 +14,7 @@ const emit = defineEmits<{ change: [kinds: AutoClipKind[]] }>()
 const on = computed(() => props.kinds.length > 0)
 
 function toggle(enabled: boolean) {
-  emit('change', enabled ? AUTO_CLIP_KINDS.map(kind => kind.value) : [])
+  emit('change', enabled ? [...DEFAULT_AUTO_CLIPS] : [])
 }
 </script>
 

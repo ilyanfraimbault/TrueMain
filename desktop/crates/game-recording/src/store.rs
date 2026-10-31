@@ -76,6 +76,9 @@ pub struct RecordingMeta {
     /// The moments the player marked with the mark key, in video time (#2079).
     #[serde(default)]
     pub marks: Vec<Mark>,
+    /// The counted presses of the player's Flash key, in video time (#2382).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flashes: Vec<u64>,
     /// The steals, aces and first blood the live feed announced, in game time
     /// (#1766).
     #[serde(default)]
@@ -112,6 +115,7 @@ impl RecordingMeta {
             highlights_source: None,
             objectives: Vec::new(),
             marks: Vec::new(),
+            flashes: Vec::new(),
             plays: Vec::new(),
             teamfights: Vec::new(),
             champion_name: None,

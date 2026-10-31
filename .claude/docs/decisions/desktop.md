@@ -455,6 +455,16 @@ while a game records.
   until recording's cost in game is measured. No usage counter yet — the desktop telemetry catalogue is the API's
   (#1952) — #2079, #1767.
 
+**Automatic clips default to multi-kills from the double and Flash plays (2026-10-31, revises the entry below).** The
+product owner found a game clipped too much with every kind on: the default is now multi-kills **from a double kill**
+and a new kind, **Flash plays** — a kill of the player's within 6 s after a press of the key the game binds to the
+summoner spell slot holding Flash (the live feed's spells, the client's input settings), read like the mark key: the
+keyboard's state, over the game, only while it records with the kind chosen, no hook. A press within 200 s of the
+last counted one is not counted (Flash is down: 300 s, ~230 s with every haste); a press typed in chat can still
+count, and only a kill right after it makes a clip. The press is the one input not read from the game's events; the
+title says what it is ("Flash double kill on Ahri"). The other kinds stay as opt-ins; a settings file of version 1
+listing exactly the six old kinds — that version's default, saved untouched — moves to the new default — #2382.
+
 **Automatic clips cut the plays the player picks once a game is finalised, titled only from what the events show
 (2026-10-21).** The product owner's reference is DPM's "Recording & clips": the plays worth keeping cut out on their
 own, listed beside the full games. Deferred on 2026-10-05 until the manual clips proved used, then put on Sprint 9 by
