@@ -389,6 +389,23 @@ impl GameBinds {
         Some(Self { binds, own: true })
     }
 
+    /// The keys that cast the summoner spell in `slot` (1 for D, 2 for F by
+    /// default), whatever the cast mode the player bound them to
+    /// (`evtCastAvatarSpell1`, `evtSmartCastAvatarSpell1`, …), modifiers
+    /// aside: the Flash plays read them (#2382).
+    pub fn summoner_spell_keys(&self, slot: u8) -> Vec<KeyCode> {
+        let suffix = format!("CastAvatarSpell{slot}");
+        let mut keys: Vec<KeyCode> = self
+            .binds
+            .iter()
+            .filter(|bind| bind.event.starts_with("evt") && bind.event.ends_with(&suffix))
+            .map(|bind| bind.key)
+            .collect();
+        keys.sort();
+        keys.dedup();
+        keys
+    }
+
     /// What pressing `chord` also does in game, if anything: the game sees its
     /// key with its modifiers (TAB is no modifier to it, so Tab+Q casts Q).
     pub fn conflict(&self, chord: &Chord) -> Option<String> {
@@ -499,6 +516,25 @@ fn capitalise(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn summoner_spell_keys_follow_the_players_binds() {
+        assert_eq!(
+            GameBinds::defaults().summoner_spell_keys(1),
+            vec![KeyCode::KeyD]
+        );
+        assert_eq!(
+            GameBinds::defaults().summoner_spell_keys(2),
+            vec![KeyCode::KeyF]
+        );
+        let body = r#"{ "GameEvents": { "evtCastAvatarSpell1": "[f]", "evtCastAvatarSpell2": "[d]", "evtSmartCastAvatarSpell2": "[Shift][g]" } }"#;
+        let binds = GameBinds::from_input_settings(body).unwrap();
+        assert_eq!(binds.summoner_spell_keys(1), vec![KeyCode::KeyF]);
+        assert_eq!(
+            binds.summoner_spell_keys(2),
+            vec![KeyCode::KeyD, KeyCode::KeyG]
+        );
+    }
 
     fn held(tab: bool, alt: bool, shift: bool, keys: &[KeyCode]) -> KeysDown {
         KeysDown {

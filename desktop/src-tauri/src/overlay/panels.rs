@@ -466,10 +466,13 @@ fn dragged(app: &AppHandle, which: OverlayPanel, position: tauri::PhysicalPositi
 fn watch(app: &AppHandle) {
     let mut held = false;
     let mut marking = false;
+    let mut flashing = false;
+    let mut flash_keys = Vec::new();
     let mut tick: u32 = 0;
     loop {
         tick = tick.wrapping_add(1);
         if tick.is_multiple_of(FRONTMOST_EVERY) {
+            flash_keys = read_flash_keys(app);
             let handle = app.clone();
             let _ = app.run_on_main_thread(move || {
                 let front = platform::game_frontmost();
@@ -502,6 +505,7 @@ fn watch(app: &AppHandle) {
         let keys = if front {
             let mut named = overlay.settings().chord_keys();
             named.extend(mark_key.and_then(|chord| chord.key));
+            named.extend(flash_keys.iter().copied());
             platform::keys::read(&named)
         } else {
             KeysDown::default()
@@ -520,6 +524,35 @@ fn watch(app: &AppHandle) {
             });
         }
         marking = down;
+        let down = flash_keys.iter().any(|key| keys.keys.contains(key));
+        if let (true, false, Some(recorder)) = (down, flashing, app.try_state::<SharedRecorder>()) {
+            let recorder = recorder.inner().clone();
+            std::thread::spawn(move || recorder.flash());
+        }
+        flashing = down;
         std::thread::sleep(KEYS_EVERY);
+    }
+}
+
+/// The keys that cast the player's Flash (#2382): the summoner spell slot the
+/// game's feed shows Flash in, through the player's binds. None unless a game
+/// records with the Flash plays chosen, or without Flash.
+fn read_flash_keys(app: &AppHandle) -> Vec<shell_state::keys::KeyCode> {
+    let reads = app
+        .try_state::<SharedRecorder>()
+        .is_some_and(|recorder| recorder.reads_flash());
+    if !reads {
+        return Vec::new();
+    }
+    let slot = app.try_state::<crate::game::SharedGame>().and_then(|game| {
+        let feed = game.lock().expect("game mutex poisoned");
+        let me = feed.current()?.players.iter().find(|player| player.is_me)?;
+        me.spells
+            .iter()
+            .position(|spell| spell.key == "SummonerFlash")
+    });
+    match slot.and_then(|slot| u8::try_from(slot + 1).ok()) {
+        Some(slot) => app.state::<SharedOverlay>().summoner_spell_keys(slot),
+        None => Vec::new(),
     }
 }
