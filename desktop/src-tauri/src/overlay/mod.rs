@@ -215,6 +215,14 @@ impl Overlay {
         *self.hud.lock().expect("overlay hud poisoned")
     }
 
+    /// The keys bound to cast the summoner spell in `slot`, from the binds read.
+    pub fn summoner_spell_keys(&self, slot: u8) -> Vec<shell_state::keys::KeyCode> {
+        self.binds
+            .lock()
+            .expect("overlay binds poisoned")
+            .summoner_spell_keys(slot)
+    }
+
     /// How `chord` reads and what it also does in game, from the binds read.
     pub fn chord_view(&self, chord: &shell_state::keys::Chord) -> ChordView {
         chord_view(&self.binds.lock().expect("overlay binds poisoned"), chord)
