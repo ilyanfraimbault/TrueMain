@@ -938,6 +938,13 @@ hovered champion when the timer runs out is the client's rule; the app says so a
 spells, skins, swaps and trades are not written. Nothing about the enemy that champion select hides is read for
 this — #1909.
 
+**During our pick, a click on a suggested champion hovers it; a ban keeps its own button (2026-10-31).** The
+product owner found a separate "Hover" button a needless step: in the client a click on a champion hovers it, so a
+click on the card does here, while the build it used to open moves to an icon in the card's corner (and out of turn
+the click still opens the build). It is still the player's click and a hover is reversible, so #1909's rule holds;
+a ban, which is not, keeps a bar under the card that arms ("Confirm") and writes on a second click, the confirmation
+popover gone; an ally's pick intent arms the card the same way. The cards no longer grow on hover — #2381.
+
 **A player keeps their own builds as kits: an item tree, a rune page and two spells per champion and position, used
 in champion select and the overlay (2026-10-21).** Benchmarked on a competitor's "My builds" (a flat item route per
 role); ours is a loadout — the item path *and* the rune page *and* the spells — and the path is a tree like our

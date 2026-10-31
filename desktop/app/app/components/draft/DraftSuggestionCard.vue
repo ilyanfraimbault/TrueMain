@@ -13,9 +13,10 @@ import type { DamageNote } from '~/utils/draft-damage'
  * ranking score, which is not a number to read. On the card in focus, its lane
  * numbers from the tier list, on every card.
  *
- * The default slot covers the card (the click that previews its build); the
- * `action` slot is the bar under the art, above that cover (the hover or ban
- * control). Focus only rings the card: nothing on it grows or appears, so the
+ * The default slot covers the card (its click: a hover on our pick, else the
+ * build); the `corner` slot sits over the art's top-right corner and the
+ * `action` slot is the bar under the art (a ban's control), both above that
+ * cover. A `status` says, over the art, what writing it would do. Focus only rings the card: nothing on it grows or appears, so the
  * podium holds still under the cursor.
  * A pick that answers a one-sided team's damage mix carries a note (#1907), and
  * the player's own recent games on it are said on hover (#1906) — both said,
@@ -37,6 +38,8 @@ const props = defineProps<{
   note?: DamageNote | null
   /** The player's own recent games on the champion, from their client — said, never scored. */
   comfort?: string | null
+  /** What the card says about writing it: hovered in the client, why it cannot be, or the question an armed click asks. */
+  status?: { text: string, tone: 'primary' | 'warning' | 'muted' } | null
 }>()
 
 const { nameOf } = useChampionStatics()
@@ -100,6 +103,15 @@ const why = computed(() => {
         </span>
       </div>
       <TierBadge v-if="entry" stacked :tier="entry.tier" class="absolute left-2 top-2 scale-75 origin-top-left" />
+      <span
+        v-if="status"
+        class="absolute inset-x-1.5 top-1/2 -translate-y-1/2 rounded bg-ink-950/80 px-1.5 py-1 text-center text-[11px] font-semibold leading-tight ring-1 backdrop-blur-sm"
+        :class="{ primary: 'text-primary ring-primary/40', warning: 'text-warning ring-warning/40', muted: 'text-muted ring-white/10' }[status.tone]"
+      >{{ status.text }}</span>
+      <!-- Inside the art yet above the card's cover: the art box makes no stacking context. -->
+      <div v-if="$slots.corner" class="absolute right-1.5 top-1.5 z-10">
+        <slot name="corner" />
+      </div>
     </div>
     <slot />
     <div v-if="$slots.action" class="relative z-10">

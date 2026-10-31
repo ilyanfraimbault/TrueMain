@@ -401,15 +401,17 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   mains'; no share, reason or runner-up. Once the kit has nothing left the mains' answer comes back, the game page
   saying "Your kit is complete" (`useKitStep`, `utils/kit-tree.ts`). No sharing yet.
 - **Hover, lock and ban from the app** (#1909) — the strip over the draft says whose turn it is ("Your ban", "Your
-  pick", "Declare your pick" in ranked planning, "Your pick in N turns"). Each pick card carries a full-width "Hover" bar
-  ("Ban" during our ban) under its art, separate from the card's own click (which still previews the build); the
-  cards never grow on hover, focus only rings one. Typing in the pick search also lists every other champion it
-  names, with a compact version of the same control. A ban always asks first: the control arms ("Confirm") and a
-  second click on it bans, disarming after 4 s — no popover; a hover, ban or lock of a champion an ally is hovering
-  asks too, naming the ally's lane. "Lock in
+  pick", "Declare your pick" in ranked planning, "Your pick in N turns"). During our pick a click on a card hovers that champion
+  in the client, as a click in the client would — no button (#2381); a book icon in the card's corner opens its
+  build, and out of turn the card's click opens the build as before. During our ban each card carries a full-width
+  "Ban" bar under its art. The cards never grow on hover, focus only rings one; over the art a card says
+  "Hovered", or why it cannot be (banned, already picked, not owned or disabled). Typing in the pick search also
+  lists every other champion it names, a click on the row hovering it (a compact "Ban" control during our ban). A
+  ban always asks first: the bar arms ("Confirm") and a second click bans, disarming after 4 s — no popover; a
+  hover, ban or lock of a champion an ally is hovering asks too (the card armed: "your Jungle's pick — click
+  again"). "Lock in
   <Champion>" sits in the strip beside the clock, enabled during our pick once the client shows our hover, and locks
-  only that hovered champion. Disabled controls say why (not your turn in the tooltip, the champion's own reason —
-  banned, already picked, not owned or disabled — written on the bar). The shell re-reads the session and the client's pickable/bannable lists before every write,
+  only that hovered champion. A disabled ban bar says the champion's own reason on it, "not your turn" in its tooltip. The shell re-reads the session and the client's pickable/bannable lists before every write,
   resolves our open action itself, and refuses with a reason toast (`champselect.rs`, `lcu::champ_select`). Nothing
   is ever written without the click: no auto-lock, no auto-ban, no auto-accept. Hidden on a tape replay.
 - **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a champion select filled by clicking
