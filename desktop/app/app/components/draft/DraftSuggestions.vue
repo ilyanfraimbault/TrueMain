@@ -157,7 +157,7 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
           :note="notes.get(item.championId) ?? null"
           :comfort="comforts.get(item.championId) ?? null"
         >
-          <!-- The card's click previews the build; the write is the control over its corner, a separate target. -->
+          <!-- The card's click previews the build; the write is the bar under it, a separate target. -->
           <button
             type="button"
             class="absolute inset-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -166,7 +166,7 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
             @click="emit('preview', item.championId)"
           />
           <template #action>
-            <DraftChampionAction :champion-id="item.championId" />
+            <DraftChampionAction :champion-id="item.championId" block />
           </template>
         </DraftSuggestionCard>
       </div>
