@@ -55,7 +55,7 @@ const spelled = computed(() => props.block && !state.value.allowed && !!state.va
 const label = computed(() => {
   if (armed.value) return 'Confirm'
   if (hovered.value) return 'Hovered'
-  if (spelled.value) return state.value.reason
+  if (spelled.value && state.value.reason) return state.value.reason
   return isBan.value ? 'Ban' : 'Hover'
 })
 
