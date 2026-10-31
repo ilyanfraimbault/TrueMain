@@ -94,7 +94,7 @@ function click() {
 <template>
   <UTooltip v-if="writable" :text="tooltip ?? undefined" :disabled="!tooltip" :content="{ side: 'top' }">
     <!-- A disabled button takes no pointer events: the span is what the tooltip hangs on. -->
-    <span class="inline-flex" :class="block && 'w-full'" @click.stop>
+    <span class="inline-flex" :class="block && 'w-full'">
       <UButton
         :size="block ? 'sm' : 'xs'"
         :color="!state.allowed && !hovered ? 'neutral' : isBan ? 'error' : 'primary'"
