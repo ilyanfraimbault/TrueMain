@@ -11,10 +11,13 @@ import type { DamageNote } from '~/utils/draft-damage'
  * under the name, every reason on hover (#1906). The figures are the draft
  * endpoint's — a measured delta in win-rate points or a rate, never the
  * ranking score, which is not a number to read. On the card in focus, its lane
- * numbers from the tier list.
+ * numbers from the tier list, on every card.
  *
- * The default slot covers the card (the click that previews its build); the
- * `action` slot sits over the art's corner, above it (the hover or ban control).
+ * The default slot covers the card (its click: a hover on our pick, else the
+ * build); the `corner` slot sits over the art's top-right corner and the
+ * `action` slot is the bar under the art (a ban's control), both above that
+ * cover. A `status` says, over the art, what writing it would do. Focus only rings the card: nothing on it grows or appears, so the
+ * podium holds still under the cursor.
  * A pick that answers a one-sided team's damage mix carries a note (#1907), and
  * the player's own recent games on it are said on hover (#1906) — both said,
  * never scored.
@@ -35,6 +38,8 @@ const props = defineProps<{
   note?: DamageNote | null
   /** The player's own recent games on the champion, from their client — said, never scored. */
   comfort?: string | null
+  /** What the card says about writing it: hovered in the client, why it cannot be, or the question an armed click asks. */
+  status?: { text: string, tone: 'primary' | 'warning' | 'muted' } | null
 }>()
 
 const { nameOf } = useChampionStatics()
@@ -62,7 +67,7 @@ const why = computed(() => {
 
 <template>
   <div class="relative flex h-full w-[112px] shrink-0 flex-col justify-end gap-1.5" :title="why">
-    <p class="text-center font-bold tabular-nums leading-none tracking-tight" :class="[tone, focused ? 'text-[26px]' : 'text-[22px]']">
+    <p class="text-center text-[22px] font-bold tabular-nums leading-none tracking-tight" :class="tone">
       <template v-if="lead">{{ lead.headline }}<span class="text-xs"> {{ lead.unit }}</span></template>
       <template v-else-if="entry">{{ formatPercentage(entry.winRate) }}<span class="text-xs"> WR</span></template>
     </p>
@@ -78,7 +83,7 @@ const why = computed(() => {
       <div class="absolute inset-x-0 bottom-0 flex flex-col gap-1 p-2">
         <p class="truncate text-[13px] font-semibold text-highlighted">{{ nameOf(championId) }}</p>
         <p v-if="lead" class="truncate text-[11px] leading-tight text-muted">{{ lead.short }}</p>
-        <div v-if="focused && entry" class="grid grid-cols-2 gap-1">
+        <div v-if="entry" class="grid grid-cols-2 gap-1">
           <div class="flex flex-col">
             <span class="stat-label text-[9px]!">Win rate</span>
             <span class="stat-value text-xs">{{ formatPercentage(entry.winRate) }}</span>
@@ -98,10 +103,19 @@ const why = computed(() => {
         </span>
       </div>
       <TierBadge v-if="entry" stacked :tier="entry.tier" class="absolute left-2 top-2 scale-75 origin-top-left" />
-      <div v-if="$slots.action" class="absolute right-1.5 top-1.5 z-10">
-        <slot name="action" />
+      <span
+        v-if="status"
+        class="absolute inset-x-1.5 top-1/2 -translate-y-1/2 rounded bg-ink-950/80 px-1.5 py-1 text-center text-[11px] font-semibold leading-tight ring-1 backdrop-blur-sm"
+        :class="{ primary: 'text-primary ring-primary/40', warning: 'text-warning ring-warning/40', muted: 'text-muted ring-white/10' }[status.tone]"
+      >{{ status.text }}</span>
+      <!-- Inside the art yet above the card's cover: the art box makes no stacking context. -->
+      <div v-if="$slots.corner" class="absolute right-1.5 top-1.5 z-10">
+        <slot name="corner" />
       </div>
     </div>
     <slot />
+    <div v-if="$slots.action" class="relative z-10">
+      <slot name="action" />
+    </div>
   </div>
 </template>
