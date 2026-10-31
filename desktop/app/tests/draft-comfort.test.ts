@@ -122,6 +122,7 @@ describe('DraftSuggestions', () => {
     vi.stubGlobal('ref', ref)
     vi.stubGlobal('useChampionStatics', () => ({ nameOf: (id: number) => (id === 103 ? 'Ahri' : 'Zed'), champions: ref(new Map()) }))
     vi.stubGlobal('useChampSelectActions', () => ({ writable: ref(true) }))
+    vi.stubGlobal('useDraftCardClick', () => ({ hovers: () => false, status: () => null, click: () => {} }))
     vi.stubGlobal('useTierList', () => ({ entryOf: () => null, status: ref('ready') }))
     vi.stubGlobal('useDamageProfiles', () => ({ profileOf: () => null }))
     vi.stubGlobal('usePlayerRecord', () => ({ games: ref([game(103, true), game(103, false), game(64, true)]) }))
