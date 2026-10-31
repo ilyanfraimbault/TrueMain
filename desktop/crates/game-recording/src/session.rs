@@ -15,6 +15,7 @@ use lcu::record::HistoryGame;
 use lcu::GameflowPhase;
 
 use crate::anchor::{Anchor, ClockSample};
+use crate::auto_clips;
 use crate::highlights::{self, HighlightSource};
 use crate::marks::{self, Mark};
 use crate::moments;
@@ -257,6 +258,25 @@ impl<C: Capture> Session<C> {
             video_ms,
             window_ms,
         });
+        active.dir.write_meta(&active.meta)?;
+        Ok(Some(video_ms))
+    }
+
+    /// The player pressed their Flash key: note this second of the video
+    /// for the Flash plays (#2382), written at once like a mark. The second
+    /// noted, or `None` when no game records or Flash is still down after
+    /// the last press counted (`auto_clips::counts_flash`).
+    pub fn flash(&mut self) -> Result<Option<u64>, SessionError> {
+        let State::Recording(active) = &mut self.state else {
+            return Ok(None);
+        };
+        let Some(video_ms) = self.capture.elapsed_ms() else {
+            return Ok(None);
+        };
+        if !auto_clips::counts_flash(&active.meta.flashes, video_ms) {
+            return Ok(None);
+        }
+        active.meta.flashes.push(video_ms);
         active.dir.write_meta(&active.meta)?;
         Ok(Some(video_ms))
     }

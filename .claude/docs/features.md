@@ -584,9 +584,11 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   length before it, titled with the champion and the game clock at the press ("Ahri at 12:34"; "Marked at 12:34"
   when the game named no champion), a saved clip like any other — never deleted by the budget. **Automatic clips** (#1766):
   once the game is finalised, the plays picked in the recording settings ("Automatic clips": multi-kills from a
-  triple, kills into an objective, steals, aces, teamfights, first blood — all on by default, none = off) are cut as
+  double, Flash plays — a kill within 6 s after the player pressed the key bound to their Flash, read like the mark
+  key —, kills into an objective, steals, aces, teamfights, first blood; multi-kills and Flash plays on by default,
+  #2382; none = off) are cut as
   saved clips, each 10 s (20 s for a steal or an ace) before the play to 5 s after, overlapping ones merged and
-  titled after the most telling ("Pentakill on Ahri", "Triple kill into Baron", "Elder Dragon stolen", "Ace",
+  titled after the most telling ("Pentakill on Ahri", "Flash double kill on Ahri", "Triple kill into Baron", "Elder Dragon stolen", "Ace",
   "Teamfight 3/0/1", "First blood on Ahri"), thumbnailed at the play, marked with a sparkles icon on the cards and in
   the recap's saved clips. Steals, aces and first blood come from the live feed sided by its player list, the rest
   from the timeline (or the live feed without it). A game that closes on its loading screen
