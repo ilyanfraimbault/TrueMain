@@ -212,6 +212,12 @@ still run the old bundle. The same daily pass therefore rewrites anything that s
 shape — referrer path `/` and empty query, same-site referrers blanked, campaign columns nulled and the
 parameters cut from `url_query` — which also scrubs the rows recorded before #2092 on its first run. Keep the parameter list
 in `analytics-payload.ts` and the sidecar's regex in step. Remaining known gap: Umami's Sessions view.
+**Custom events, counted anonymously (2026-11-01, #2357).** The first two custom events count a moment — a Riot ID
+search that found nobody, a profile page that answered "player not found" — by name only: no Riot ID, no query, no
+property a report could filter a person by, so they stay inside the exemption like a page view. Before building a
+public "analyse this player" write path, the owner chose to measure: a first look at production traffic found the
+unknown-profile hits to be crawlers and the searches too few to size anything. The request button is decided on
+these counts.
 
 **`/ops/*` is the only authenticated API surface** (`X-Ops-Key`, min 32 chars, rotated independently of the
 Riot key). Everything else is public and rate-limited to 500 req/min per *visitor* — `docs/api.md`.
