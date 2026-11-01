@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useElementSize } from '@vueuse/core'
+import { useElementSize, useEventListener } from '@vueuse/core'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { ALL_POSITIONS, positionLabel, type PositionFilter } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
@@ -121,7 +121,8 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
 // touch, the first tap on an icon selects it and the line under the strip reads its
 // rate and links to the matchup; a second tap on the same icon follows its link.
 // The strip catches the tap in its capture phase: the icon's own link handler would
-// otherwise navigate before anything on the icon could cancel it.
+// otherwise navigate before anything on the icon could cancel it. Keyboard and mouse
+// readers are untouched — they reach the rate through the icon's tooltip.
 const selectedId = ref<number | null>(null)
 let lastPointerType = ''
 watch(() => props.position, () => { selectedId.value = null })
@@ -141,6 +142,9 @@ function onStripClick(event: MouseEvent) {
   event.stopPropagation()
   selectedId.value = id
 }
+
+useEventListener(strip, 'pointerdown', notePointer, { capture: true })
+useEventListener(strip, 'click', onStripClick, { capture: true })
 
 const NuxtLinkComponent = resolveComponent('NuxtLink')
 </script>
@@ -165,8 +169,6 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
       class="relative overflow-hidden rounded-md"
       :class="RESULT_SPREAD_WASH"
       :style="{ height: `${layout.height}px` }"
-      @pointerdown.capture="notePointer"
-      @click.capture="onStripClick"
     >
       <div class="absolute inset-y-2 left-1/2 w-px bg-accented" aria-hidden="true" />
       <UTooltip
