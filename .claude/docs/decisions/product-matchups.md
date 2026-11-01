@@ -140,12 +140,13 @@ is the same measure but not a lane; the accessible name keeps the opponent's nam
 rows' result colours (`result-tone.ts`: red on the losing left, blue on the winning right) rather than the
 rose-gold `data-*` axis — product call, 2026-10-22.
 
-**The spread says "Lane WR @15", and a touch reader can read it (2026-11-01).** Revises the "WR" half of the entry
+**The spread says "Lane WR … (at 15 minutes)", and a touch reader can read it (2026-11-01).** Revises the "WR" half of the entry
 above: everywhere else on the site "WR" is the game win rate, and the SSR build summary ranks best and worst
 matchups by game win rate, so one page answered "what counters this champion" with two metrics under one label.
-The tooltip and the accessible name now read `Lane WR @15 43%`; the terse tooltip stays. Tooltips are hover-only,
-so on touch the first tap on an icon selects it (outlined) and one line under the strip reads its name, rate and
-an "Open matchup" link; a second tap follows the icon's link. The strip catches the tap in its capture phase,
+The tooltip and the accessible name now read `Lane WR 43% (at 15 minutes)` — the minute spelled out, not an
+`@15` shorthand; the terse tooltip stays. Tooltips are hover-only,
+so on touch the first tap on an icon selects it (outlined) and one line under the strip reads its rate alone (no
+name, no link: the outlined icon already names the opponent); a second tap follows the icon's link. The strip catches the tap in its capture phase,
 because the icon's link would otherwise navigate first. The optional hardest/easiest list was left out: the
 strip still carries no counts or extremes — #2354.
 
