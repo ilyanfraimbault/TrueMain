@@ -70,3 +70,11 @@ became the default, put an incident-sized banner at the top of the page for a sl
 sampled. It now rides the header's warning idiom (a triangle then, a dot since 2026-10-13) (the one the retired-sample card and the builder
 panels already use) and says only what a reader deciding whether to trust the build needs: how many games it
 rests on. What share of the all-rank population the bracket covers is not that.
+
+**The champion banner's moves and the trend chart read the page's rank and population (2026-11-01).** The
+banner's win, pick and ban rate tiles and their move against the previous patch came from
+`/champions/{id}/trend` over every rank and mains only, beside a sample line that names the page's slice
+(Master+ and mains by default): a move could have the opposite sign from the one the displayed population had.
+The page now forwards its `eloBracket` and `truemainsOnly` (the endpoint gained the population, which the light
+per-patch record already carries as `IsMain`), keyed on both, and the move tooltip drops its "every rank"
+caveat. The desktop app's champion page keeps the API's default series and its caveat — #2353.
