@@ -8,19 +8,29 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
  * The plugin relies on Nuxt auto-imports, stubbed as globals here.
  */
 const umami = { host: '', websiteId: '' }
-const useScriptUmamiAnalytics = vi.fn()
+interface UmamiOptions {
+  websiteId: string
+  scriptInput: { src: string }
+  beforeSend: (type: string, payload: Record<string, unknown>) => Record<string, unknown>
+}
+const track = vi.fn()
+const useScriptUmamiAnalytics = vi.fn((_options: UmamiOptions) => ({ proxy: { track } }))
+const hooks = new Map<string, () => void>()
+const app = { hook: (name: string, handler: () => void) => hooks.set(name, handler) }
 
-let plugin: () => void
+let plugin: (nuxtApp: typeof app) => void
 
 beforeAll(async () => {
   vi.stubGlobal('defineNuxtPlugin', (setup: () => void) => setup)
   vi.stubGlobal('useRuntimeConfig', () => ({ public: { umami } }))
   vi.stubGlobal('useScriptUmamiAnalytics', useScriptUmamiAnalytics)
-  plugin = (await import('~/plugins/umami.client')).default as unknown as () => void
+  plugin = (await import('~/plugins/umami.client')).default as unknown as (nuxtApp: typeof app) => void
 })
 
 afterEach(() => {
-  useScriptUmamiAnalytics.mockReset()
+  useScriptUmamiAnalytics.mockClear()
+  track.mockClear()
+  hooks.clear()
   window.localStorage.clear()
   umami.host = ''
   umami.websiteId = ''
@@ -31,7 +41,7 @@ describe('umami plugin', () => {
     umami.host = 'https://analytics.example.test/'
     umami.websiteId = 'site-id'
 
-    plugin()
+    plugin(app)
 
     expect(useScriptUmamiAnalytics).toHaveBeenCalledOnce()
     const options = useScriptUmamiAnalytics.mock.calls[0]![0]
@@ -41,7 +51,7 @@ describe('umami plugin', () => {
   })
 
   it('loads nothing when the instance is not configured', () => {
-    plugin()
+    plugin(app)
 
     expect(useScriptUmamiAnalytics).not.toHaveBeenCalled()
   })
@@ -51,7 +61,7 @@ describe('umami plugin', () => {
     umami.websiteId = 'site-id'
     window.localStorage.setItem('umami.disabled', '1')
 
-    plugin()
+    plugin(app)
 
     expect(useScriptUmamiAnalytics).not.toHaveBeenCalled()
     expect(window.localStorage.getItem('truemain.visitor')).toBeNull()
@@ -61,8 +71,8 @@ describe('umami plugin', () => {
     umami.host = 'https://analytics.example.test'
     umami.websiteId = 'site-id'
 
-    plugin()
-    plugin()
+    plugin(app)
+    plugin(app)
 
     const [first, second] = useScriptUmamiAnalytics.mock.calls.map(([options]) => options.beforeSend)
     const { id } = JSON.parse(window.localStorage.getItem('truemain.visitor')!)
@@ -80,7 +90,7 @@ describe('umami plugin', () => {
       },
     } as unknown as Storage)
 
-    plugin()
+    plugin(app)
 
     localStorage.mockRestore()
     expect(useScriptUmamiAnalytics).toHaveBeenCalledOnce()
@@ -92,7 +102,7 @@ describe('umami plugin', () => {
     umami.host = 'https://analytics.example.test'
     umami.websiteId = 'site-id'
 
-    plugin()
+    plugin(app)
 
     const { beforeSend } = useScriptUmamiAnalytics.mock.calls[0]![0]
     const payload = beforeSend('event', {
@@ -111,8 +121,21 @@ describe('umami plugin', () => {
     window.localStorage.setItem('truemain.visitor', JSON.stringify({ id: 'x', createdAt: Date.now() }))
     window.localStorage.setItem('umami.disabled', '1')
 
-    plugin()
+    plugin(app)
 
     expect(window.localStorage.getItem('truemain.visitor')).toBeNull()
+  })
+
+  it('turns the layer hooks into anonymous events, and only when loaded (#2357)', () => {
+    plugin(app)
+    expect(hooks.size).toBe(0)
+
+    umami.host = 'https://analytics.example.test'
+    umami.websiteId = 'site-id'
+    plugin(app)
+    hooks.get('truemain:search-miss')!()
+    hooks.get('truemain:profile-not-found')!()
+
+    expect(track.mock.calls).toEqual([['truemain-search-miss', {}], ['truemain-profile-not-found', {}]])
   })
 })
