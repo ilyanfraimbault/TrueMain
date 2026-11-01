@@ -50,6 +50,29 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RunAsync_KeepsTheDeletedRankedMatchesTruncated_NeverANonRankedOne()
+    {
+        await SeedRetentionDataAsync();
+
+        await BuildRecordedProcess(retainedPatchCount: 1).RunCoreAsync(CancellationToken.None);
+
+        // #2368: RET_1 and RET_3 left the full-match window and are kept truncated, in the
+        // same transaction that deleted them; RET_5 (ARAM) is drained whole.
+        await using var db = _fixture.CreateDbContext();
+        var seats = await db.TruncatedMatchSeats.AsNoTracking().OrderBy(seat => seat.MatchId).ToListAsync();
+        seats.Select(seat => seat.MatchId).Should().Equal("RET_1", "RET_3");
+        seats.Select(seat => seat.Patch).Should().Equal("16.3", "16.4");
+        seats.Should().AllSatisfy(seat =>
+        {
+            seat.ChampionId.Should().Be(22);
+            seat.TeamPosition.Should().Be("BOTTOM");
+            seat.Win.Should().BeTrue();
+            (seat.Summoner1Id, seat.Summoner2Id).Should().Be((4, 7));
+            seat.Kills.Should().Be(1);
+        });
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldDrainNonRankedMatchesEvenWithNoRankedMatchesPresent()
     {
         var now = DateTime.UtcNow;
@@ -356,7 +379,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
             {
                 Enabled = false
             }),
-            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
+            Microsoft.Extensions.Options.Options.Create(new IntakeOptions()),
+            new NoItemMetadataProvider());
 
         return new RecordedProcess<MatchDataRetentionProcess>(
             process,
