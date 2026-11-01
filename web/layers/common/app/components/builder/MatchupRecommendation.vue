@@ -60,7 +60,20 @@ const missingMatchupNotice = computed(() => {
        that dimmed itself, while its stale numbers stay legible enough to be
        taken for the new ones. The header is scaffolded here because the panel
        owning it is what we're waiting for. -->
-  <SectionCard v-if="loading">
+  <!-- With the matchup pinned, the first answer is the cached matchup slice
+       (#2361): it lands in well under a second for a cached pair, and the
+       composition build replaces it once the draft has refined it. -->
+  <BuilderFallbackBuild
+    v-if="loading && opponentChampion"
+    :champion-id="playedChampionId"
+    :position="playedPosition"
+    :champion-name="playedChampion?.name ?? null"
+    :opponent-champion-id="opponentChampion.championId"
+    :opponent-name="opponentChampion.name"
+    refining
+  />
+
+  <SectionCard v-else-if="loading">
     <template #title>
       <div
         class="flex flex-wrap items-center gap-x-2.5 gap-y-1"

@@ -13,16 +13,13 @@ interface UseTruemainsLeaderboardOptions {
   /** Ranking column. Omitted / `rank` keeps the default ranked-standing order. */
   sort?: MaybeRefOrGetter<LeaderboardSort | null | undefined>
   /**
-   * Resolve the first page during SSR. Defaults to `true`: on `/truemains` and
-   * the homepage teaser the leaderboard *is* the page's content, so it is worth
-   * the backend round-trip.
+   * Resolve the first page during SSR. Defaults to `true`: on `/truemains`, the
+   * homepage teaser and the champion page's Truemains card (since #2359, which
+   * reversed #1231 and #1570 so a crawler reads a champion's top truemains) the
+   * rows are content worth the backend round-trip.
    *
-   * Pass `false` where the panel is secondary — the champion page's Truemains
-   * card (#1231) and its mains comparison picker (#1570). There, `server: true` bought nothing (the card is below the
-   * fold and `hydrate-on-visible` defers its hydration anyway) and cost a
-   * backend call, uncached by Nitro, on every SSR of every champion page. That
-   * page's SSR budget is deliberately spent on the build summary alone
-   * (#1123 / #926); this one had arrived as a side effect of the default.
+   * Pass `false` for a panel whose rows are not content for a crawler, so its
+   * skeleton is the server-rendered state and no SSR round-trip is spent on it.
    */
   server?: boolean
   /**
