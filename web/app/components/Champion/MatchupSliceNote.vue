@@ -21,7 +21,6 @@ const countedGames = computed(() => `${props.games} ${props.games === 1 ? 'game'
   <div
     class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm"
     :class="thin ? 'text-warning' : 'text-muted'"
-    role="status"
   >
     <UIcon
       v-if="thin"
