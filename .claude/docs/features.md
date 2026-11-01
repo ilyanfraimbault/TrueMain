@@ -449,7 +449,9 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   a live game.
   Over the board, when we are a player, **the next item** (#1751, `game/GameNextItem.vue`): the legendary the mains
   complete next from where our build stands in a game like this one (`POST /champions/{id}/next-item`, #1749 — asked on
-  every item change of any of the ten, settled 600 ms, never on a timer), its share of the mains, the strongest situation
+  every item change of any of the ten, settled 600 ms, never on a timer; a legendary we completed off the mains' advice
+  covers its need — magic resistance, armour, anti-heal, armour or magic penetration, tenacity — so no candidate meeting
+  that need is suggested again unless nothing else is left, `NextItemNeedCoverage`, `ItemNeeds`, #2371), its share of the mains, the strongest situation
   behind it in the site's item-context wording (the in-game axes of what the enemies have built, #1750, in the app's own game-state wording, `utils/built-reasons.ts` — the request carries each enemy's inventory), the gold left to complete it and **its build path** (#2183,
   `game/GameBuildPath.vue`, `utils/build-path.ts`): its components in the order the mains buy them (`route` on each
   candidate; the recipe's order, said "in recipe order", under 20 games), each owned (dimmed, checked), bought now
