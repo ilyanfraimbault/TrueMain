@@ -70,3 +70,12 @@ became the default, put an incident-sized banner at the top of the page for a sl
 sampled. It now rides the header's warning idiom (a triangle then, a dot since 2026-10-13) (the one the retired-sample card and the builder
 panels already use) and says only what a reader deciding whether to trust the build needs: how many games it
 rests on. What share of the all-rank population the bracket covers is not that.
+
+**The truemains toggle is shown only where the wider population is folded (2026-11-01).** Production leaves
+`MainAnalysis:AggregateNonMainPopulation` off, so the toggle's off state, titled "Every tracked player", returned
+the same games as its on state: a mislabelled scope (#1224). Turning the fold on was measured first on preprod,
+where the non-main rows far outnumber the mains' and carry several times their games — several
+gigabytes of aggregates more in production plus a re-fold to drain, on the process #601 once took down. The
+product call was to hide the control instead: a public runtime flag, `populationToggle`
+(`NUXT_PUBLIC_POPULATION_TOGGLE`), off by default and on in `compose.preprod.yaml` beside the fold flag. Turning
+the widened population on in production is its own decision, with a capacity plan — #2352.
