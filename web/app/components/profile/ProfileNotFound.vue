@@ -2,6 +2,13 @@
 defineProps<{
   nameTag: string
 }>()
+
+// Counted (#2357): how often a visitor reaches a player we do not track sizes
+// an "analyse this player" request. The event carries no Riot ID.
+const nuxtApp = useNuxtApp()
+onMounted(() => {
+  void nuxtApp.callHook('truemain:profile-not-found')
+})
 </script>
 
 <template>

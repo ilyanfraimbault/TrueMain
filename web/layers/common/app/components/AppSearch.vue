@@ -163,6 +163,20 @@ const truemainState = computed(() => truemainSearchState({
   status: status.value,
   results: matches.value,
 }))
+// An exact Riot ID that finds nobody is the demand an "analyse this player"
+// request would answer, so the host is told — once per opened palette, not per
+// keystroke — to count it (#2357). The champion-mains narrowing is a filter,
+// not a search for a person, and stays out.
+const nuxtApp = useNuxtApp()
+let searchMissReported = false
+watch(truemainState, (state) => {
+  if (state.kind !== 'empty' || searchMissReported || props.mainsOf != null || !term.value.includes('#')) return
+  searchMissReported = true
+  void nuxtApp.callHook('truemain:search-miss')
+})
+watch(open, (value) => {
+  if (!value) searchMissReported = false
+})
 const failedMessage = computed(() => describeFetchError(truemainSearchError.value))
 const emptyMessage = computed(() => (props.mainsOf == null ? TRUEMAIN_SEARCH_MESSAGES.empty : TRUEMAIN_SEARCH_MESSAGES.emptyOnChampion))
 
