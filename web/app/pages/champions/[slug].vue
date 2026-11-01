@@ -2,6 +2,7 @@
 import type { FavoriteChampionInput } from '#common/utils/favorites'
 import { POSITION_BY_VALUE, isChampionPosition } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
+import { championDisplayName } from '#shared/utils/champion-name'
 
 // Layout plus wiring: the fetching and derivation live in composables
 // (`useChampionBuildSummary`, `useChampionPageSeo`, `useChampionSliceControls`,
@@ -136,6 +137,13 @@ const {
 const { data: championTrend, pending: trendPending } = useChampionTrend(championId, trendPosition, trendReady, {
   eloBracket: eloBracketParam,
   truemainsOnly: () => filters.value.truemainsOnly,
+})
+
+// The matchup filter's opponent, named for the build column's sample line (#2355).
+const opponentName = computed(() => {
+  const id = filters.value.opponentChampionId
+  if (!id) return null
+  return championDisplayName(id, staticList.value?.find(entry => entry.championId === id) ?? null)
 })
 
 // Win rate by game duration (issue #537). Follows the resolved lane like the
@@ -298,8 +306,10 @@ const snapshots = useChampionPanelSnapshots({
           :patch="selectedPatch || null"
           :elo-bracket="eloBracketParam"
           :opponent-champion-id="filters.opponentChampionId ?? null"
+          :opponent-name="opponentName"
           :loading="championLoading"
           :snapshots="snapshots"
+          @clear-opponent="onOpponentChange(null)"
         />
 
         <ChampionSideRail

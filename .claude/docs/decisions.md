@@ -114,6 +114,7 @@ Last verified against `develop` on 2026-09-02.
 - Draft reads use the current patch with the previous one as a per-champion fallback, not every stored patch — #1906
 - The draft's enemy team is its own opposing-pair aggregate behind its own match flag, weight 0 until a back-test sets it — #1713, #1906
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
+- A matchup slice states its games above the build tabs; under 20 it warns and offers the standard build (2026-11-01) — #2355
 - The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent — #939
 - The recommendation shows no situational-items row — #921, #939
 - The matchup tool judges the lane over its own sampled games — this finishes #1111's merge
