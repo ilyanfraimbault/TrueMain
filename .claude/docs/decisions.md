@@ -162,6 +162,7 @@ Last verified against `develop` on 2026-09-02.
 - The sitemap advertises champions, known players with a tracked account and, since 2026-11-01, the top 500 truemain profiles — the pages a crawler gets server-rendered (2026-09-01, extended 2026-10-14 and 2026-11-01) — #862, #1337, #551, #2018, #2359
 - The sitemap is an index over one sitemap per family (pages, champions, players); a player's `lastmod` moves only when the page changes (2026-10-23) — #1538
 - A truemain profile answers 404 for an unknown account (server-side), and its canonical is the stored Riot ID's slug, not the lowercased URL (2026-10-26) — #2335, #2336
+- English only: search volume is too small to show a language worth localising; revisit from the weekly SEO review (2026-11-01) — #2366
 
 ## Web frontend rules (hydration, fetches, icons, tooltips) — [`decisions/web-frontend-rules.md`](decisions/web-frontend-rules.md)
 
@@ -260,6 +261,7 @@ Last verified against `develop` on 2026-09-02.
 - A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
 - The pace benchmark is a per-minute CS / gold-earned histogram per (patch, tier, position), folded from the timeline in memory at ingestion, once per match, the lobby at its tracked account's tier — never a per-minute grid (2026-10-05) — #1912
 - The form benchmark (KDA, KP, CS/min, deaths, vision/min) is a whole-game histogram in its own table, folded in the pace benchmark's pass under its claim, so both describe the same games; no back-fill (2026-10-20) — #2076
+- One truncated-match table outlives retention: ten seats for ~4 patches (matchups, drafts), tracked seats to season end (profiles) (2026-11-01) — #2358, #2368
 
 ## Backend code conventions — [`decisions/backend-conventions.md`](decisions/backend-conventions.md)
 
@@ -297,6 +299,7 @@ Last verified against `develop` on 2026-09-02.
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150
 - Region balance is a target, not a quota: coverage deficit allocates every budget (2026-08-19) — #1149, #495, #900
 - Iron → Platinum are sampled into the pace benchmark by `PaceSampling` under a hard per-day call cap (every call counted), the games never stored — only a ledger of ids and the bins (2026-10-05) — #1912
+- Every ingested match is kept, the seatless fifth included: profiles, the lobby-wide folds, play rates and harvest read them (2026-11-01) — #2378
 
 ## Ingestion pipeline — processes, leases and resilience — [`decisions/pipeline-ingestion.md`](decisions/pipeline-ingestion.md)
 
@@ -496,6 +499,7 @@ Last verified against `develop` on 2026-09-02.
 - In game the next item sends the five enemies' inventories (champion select sends none, which is not an empty one) and reads what they have built; its reason for those axes is the app's own game-state wording (2026-10-21) — #1750
 - The overlay's pace sets CS/min and gold/min against the median of games at the player's Solo/Duo tier (every tier fetched, the tier picked locally); no Solo/Duo standing → no comparison; a reference, never advice (2026-10-05) — #1912
 - The dashboard's form tiles carry the median of the player's own Solo/Duo tier (not the tier above) on their main role, in muted text with the tier's emblem; under the floor or without a standing, none; dashboard only (2026-10-20) — #2076
+- Game recording is frozen; kept only if ≥ 25% of installs that play with the app open record a game within 30 days, read after the next production release (2026-11-01) — #2364
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 
