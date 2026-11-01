@@ -78,3 +78,12 @@ banner's win, pick and ban rate tiles and their move against the previous patch 
 The page now forwards its `eloBracket` and `truemainsOnly` (the endpoint gained the population, which the light
 per-patch record already carries as `IsMain`), keyed on both, and the move tooltip drops its "every rank"
 caveat. The desktop app's champion page keeps the API's default series and its caveat — #2353.
+
+**The truemains toggle is shown only where the wider population is folded (2026-11-01).** Production leaves
+`MainAnalysis:AggregateNonMainPopulation` off, so the toggle's off state, titled "Every tracked player", returned
+the same games as its on state: a mislabelled scope (#1224). Turning the fold on was measured first on preprod,
+where the non-main rows far outnumber the mains' and carry several times their games — several
+gigabytes of aggregates more in production plus a re-fold to drain, on the process #601 once took down. The
+product call was to hide the control instead: a public runtime flag, `populationToggle`
+(`NUXT_PUBLIC_POPULATION_TOGGLE`), off by default and on in `compose.preprod.yaml` beside the fold flag. Turning
+the widened population on in production is its own decision, with a capacity plan — #2352.

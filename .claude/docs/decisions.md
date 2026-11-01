@@ -34,6 +34,7 @@ Last verified against `develop` on 2026-09-02.
 - The patch the site serves is resolved over mains only, never over the selected population — #1349, #1346, #1109
 - Widening the aggregate meant auditing every existing read, because the dangerous direction is silent
 - The widened population is gated on a flag, because "a separate ops step" was not true otherwise — #1346, #1349, #601
+- The truemains toggle is shown only where the wider population is folded (`populationToggle`, on in preprod only) (2026-11-01) — #2352
 - A demoted account's scopes are demoted, not deleted — once the widening is on — #1346
 - Matchups reject the widened population rather than ignoring it — #1346, #1087
 - The thin-sample caveat is a header tooltip, and it counts games rather than coverage — #1346

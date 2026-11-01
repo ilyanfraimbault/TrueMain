@@ -1107,6 +1107,10 @@ leaves a misleading version on the page (#1637).
   new variable and no host in the repo), `http://localhost:3000` in the two
   local stacks. Passed as `${PREPROD_SITE_URL:-}` on the admin rather than
   required: an empty value only hides the buttons.
+- Preprod's web service sets `NUXT_PUBLIC_POPULATION_TOGGLE: "true"` because its
+  ingestor sets `MainAnalysis__AggregateNonMainPopulation`: the truemains toggle
+  is shown only where the wider population is folded (#2352). Prod sets neither,
+  so the toggle stays hidden there; turning one on means turning on the other.
 - Both deployed stacks publish the API's port on the loopback interface only
   (`127.0.0.1:8080:8080` on prod, `127.0.0.1:8081:8080` on preprod). Nothing
   external needs it: web and admin reach the API over the internal network as
