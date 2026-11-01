@@ -6,9 +6,10 @@ import { formatPercentage } from '~~/shared/utils/ddragon'
 import { winRateTone } from '#common/utils/rate-tone'
 import { POSITION_BY_VALUE } from '#common/utils/positions'
 
-// Homepage teaser of the champion tier list: the strongest rows of the
-// active patch, linking through to the full /champions directory. Purely
-// presentational — the page owns the fetch and passes the already-sorted,
+// Homepage teaser of the champion tier list: the top rows of the active
+// patch, tier first — a presence ranking (pick and ban rate lead), so it is
+// labelled for what it measures, never as strength (#2356) — linking through
+// to the full /champions directory. Purely presentational — the page owns the fetch and passes the already-sorted,
 // already-limited rows down (`GET /champions/overview`, #972); this
 // component only enriches them with name/icon and renders them. Loading is
 // the page's own concern too — see `HomeTierlistPanelSkeleton`, rendered by
@@ -47,7 +48,7 @@ const rows = computed(() =>
         id="home-tierlist-title"
         class="text-xs font-semibold uppercase tracking-wide text-muted"
       >
-        Strongest picks
+        Most played and banned
       </h3>
       <UButton
         to="/champions"

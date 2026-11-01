@@ -3,7 +3,7 @@ import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 import { lanePicksView } from '~/utils/lane-picks'
 
 /**
- * The patch at a glance, drawn like the site's "Strongest picks": one column
+ * The patch at a glance, drawn like the site's tier-list teaser: one column
  * per lane on the site's tier list, its best pick over its loading art and the
  * next four under it with their tier and win rate. A champion opens its builds.
  */
@@ -20,7 +20,7 @@ const view = computed(() => lanePicksView(laneEntries, status.value))
         <p class="eyebrow">
           This patch<template v-if="patch"> · {{ patch }}</template>
         </p>
-        <h2 class="mt-1 text-2xl font-semibold tracking-tight text-highlighted">The strongest picks, lane by lane.</h2>
+        <h2 class="mt-1 text-2xl font-semibold tracking-tight text-highlighted">The most played and banned, lane by lane.</h2>
       </div>
       <UButton to="/tierlist" label="Full tier list" trailing-icon="i-lucide-arrow-right" color="primary" variant="link" size="xs" />
     </div>

@@ -71,6 +71,7 @@ Last verified against `develop` on 2026-09-02.
 ## Champion directory, tier list and served patch — [`decisions/product-directory-and-tiers.md`](decisions/product-directory-and-tiers.md)
 
 - Tier score is presence-first (pick rate + ban rate, weighted above a sample-shrunk win rate) — this reverses #920's "bans don't feed the tier score"
+- A presence ranking is never labelled as strength: the homepage and desktop say "Most played and banned" (2026-11-01) — #2356
 - The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions — #966
 - A champion gets at most two lines in the directory — its dominant lanes — and the cap is applied before tiering — #1082
 - A tier-list chip is a portrait and its lane badge — the name and the three rates are tooltip content
