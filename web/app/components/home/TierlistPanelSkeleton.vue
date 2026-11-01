@@ -13,7 +13,7 @@ const ROW_COUNT = 8
     aria-hidden="true"
   >
     <header class="flex min-h-6 items-center justify-between">
-      <span class="text-xs font-semibold uppercase tracking-wide text-muted">Strongest picks</span>
+      <span class="text-xs font-semibold uppercase tracking-wide text-muted">Most played and banned</span>
       <UButton
         to="/champions"
         color="primary"
