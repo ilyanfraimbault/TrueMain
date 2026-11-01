@@ -158,13 +158,13 @@ Last verified against `develop` on 2026-09-02.
 - OG image rendering is on, pinned to Satori + resvg, and deliberately reaches exactly two pages — #551, #926, #600
 - A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04) — #1545
 - OG image URLs are signed with a secret regenerated at every build, and that is left as the default — #926
-- The sitemap advertises champions, not truemain profiles; known players with a tracked account are in it, their page being server-rendered (2026-09-01, extended 2026-10-14) — #862, #1337, #551, #2018
+- The sitemap advertises champions, known players with a tracked account and, since 2026-11-01, the top 500 truemain profiles — the pages a crawler gets server-rendered (2026-09-01, extended 2026-10-14 and 2026-11-01) — #862, #1337, #551, #2018, #2359
 - The sitemap is an index over one sitemap per family (pages, champions, players); a player's `lastmod` moves only when the page changes (2026-10-23) — #1538
 - A truemain profile answers 404 for an unknown account (server-side), and its canonical is the stored Riot ID's slug, not the lowercased URL (2026-10-26) — #2335, #2336
 
 ## Web frontend rules (hydration, fetches, icons, tooltips) — [`decisions/web-frontend-rules.md`](decisions/web-frontend-rules.md)
 
-- "Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only — #862, #1234
+- "Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only; the profile read itself rides the SSR payload since #2359 — #862, #1234, #2359
 - A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own `pending` — #1234
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
 - A backend request nobody waits for any more is cancelled: every fetch forwards an abort signal (2026-09-27) — #1712
