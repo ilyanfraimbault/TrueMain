@@ -529,6 +529,15 @@ build's starter basket for the ten champions on their lanes, asked once per game
 item-context counters see a starter item by item, and a basket (Doran's Ring and two potions) is what is bought
 (2026-10-08) — #1989.
 
+**The next item treats an off-advice item as covering its need (2026-11-01).** When the player completes a legendary the
+mains rarely take at that point, few or no games sit behind that prefix, and the panel kept suggesting the need the
+player had just answered another way. The advice is a need, not an item: an item that a build-tree branch starts from
+re-anchors the advice on that branch (as `ResolveBuildPath` already did); otherwise the legendary's situational needs
+— magic resistance, armour, anti-heal, armour or magic penetration, tenacity, read off CommunityDragon's categories and
+the Grievous Wounds flag (`ItemNeeds`, the situational whitelist's own attributes) — count as covered, and no candidate
+answering one of them is suggested again. Damage and health are no need: every legendary carries one. Components and
+boots cover nothing. A branch made only of covered needs still answers rather than going quiet — #2371.
+
 **The next item also says where the game stands in the build, and when the boots come.** Under the item, the build
 is one row: completed items, the next one, the rest of the tree walked forward from it (each branch's best candidate
 for this game), and the boots at the step the mains most often complete them at — before the first legendary, after
