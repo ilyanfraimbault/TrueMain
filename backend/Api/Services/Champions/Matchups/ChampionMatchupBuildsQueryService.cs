@@ -9,6 +9,7 @@ using TrueMain.ReadModels.Champions;
 
 using TrueMain.RequestLogging;
 using TrueMain.Services.Champions.Builds;
+using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Scopes;
 
 namespace TrueMain.Services.Champions.Matchups;
@@ -154,17 +155,31 @@ public sealed class ChampionMatchupBuildsQueryService(
             .Select(row => new ParticipantKey(row.MatchId, row.ParticipantId))
             .ToListAsync(ct);
 
-        if (keys.Count == 0)
+        // Past the full-match window the matchup is still asked of the truncated seats
+        // retention leaves behind (#2368), newest first under the same cap. A match is live or
+        // truncated, never both, so the two never count a game twice.
+        var truncated = keys.Count >= MaxMatchupGames
+            ? []
+            : await TruncatedMatchupQuery.Facing(db, championId, opponentChampionId, position, queueId, normalizedPatch, bracketFilter)
+                .OrderByDescending(seat => seat.GameStartTimeUtc)
+                .ThenBy(seat => seat.MatchId)
+                .Take(MaxMatchupGames - keys.Count)
+                .ToListAsync(ct);
+
+        if (keys.Count == 0 && truncated.Count == 0)
         {
-            // No game of this matchup in the retained window. Null rather than an empty
-            // build list, so the caller renders "no data for this matchup" instead of a
-            // page that looks aggregated and happens to be blank.
+            // No game of this matchup, live or truncated. Null rather than an empty build
+            // list, so the caller renders "no data for this matchup" instead of a page that
+            // looks aggregated and happens to be blank.
             return null;
         }
 
         // Unweighted: within a matchup no game is "closer" than another, unlike the
         // composition search where similarity to the requested draft is the ranking.
-        var facts = await factsLoader.LoadAsync(keys, championId, position, weightFor: null, ct);
+        var facts = keys.Count == 0
+            ? []
+            : await factsLoader.LoadAsync(keys, championId, position, weightFor: null, ct);
+        facts.AddRange(truncated.Select(seat => TruncatedSeatFacts.From(seat)));
 
         var builds = LiveBuildVariationAggregator.Aggregate(facts);
         var wins = facts.Count(fact => fact.Win);
@@ -195,8 +210,8 @@ public sealed class ChampionMatchupBuildsQueryService(
     }
 
     /// <summary>
-    /// The newest patch this matchup was played on, or null when it was never played.
-    /// One index-ordered read of the pair's newest game.
+    /// The newest patch this matchup was played on, live or truncated (#2368), or null when it
+    /// was never played. One index-ordered read of the pair's newest game on each side.
     /// </summary>
     private async Task<string?> ResolveNewestPatchAsync(
         int championId,
@@ -215,11 +230,22 @@ public sealed class ChampionMatchupBuildsQueryService(
             participants = participants.Where(p => bracketFilter.Contains(p.EloBracket));
         }
 
-        var newestVersion = await MatchupParticipantQuery.Facing(db, participants, opponentChampionId, position, queueId, patch: null)
+        var newestLive = await MatchupParticipantQuery.Facing(db, participants, opponentChampionId, position, queueId, patch: null)
             .OrderByDescending(row => row.GameStartTimeUtc)
-            .Select(row => row.GameVersion)
+            .Select(row => new { row.GameStartTimeUtc, row.GameVersion })
+            .FirstOrDefaultAsync(ct);
+        if (newestLive is not null)
+        {
+            // Retention only truncates matches older than the live window, so a live game is
+            // always the newest one.
+            return PatchVersion.Normalize(newestLive.GameVersion);
+        }
+
+        var newestTruncated = await TruncatedMatchupQuery.Facing(db, championId, opponentChampionId, position, queueId, patch: null, bracketFilter)
+            .OrderByDescending(seat => seat.GameStartTimeUtc)
+            .Select(seat => seat.Patch)
             .FirstOrDefaultAsync(ct);
 
-        return string.IsNullOrEmpty(newestVersion) ? null : PatchVersion.Normalize(newestVersion);
+        return string.IsNullOrEmpty(newestTruncated) ? null : newestTruncated;
     }
 }
