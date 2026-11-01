@@ -8,6 +8,10 @@
 // product's own term and the mark is where the reader has already met it. The
 // mark is never the whole control: the label sits next to it, so the button
 // still reads without knowing the brand.
+//
+// Rendered only where the wider population is aggregated (`populationToggle`,
+// #2352): without the non-main rows, "off" would claim a population it does not
+// count.
 const props = withDefaults(defineProps<{
   modelValue: boolean
   /**
@@ -50,6 +54,8 @@ const tooltip = computed<{ title: string, description: string }>(() => {
       }
 })
 
+const shown = useRuntimeConfig().public.populationToggle === true
+
 function toggle() {
   if (props.disabled) return
   emit('update:modelValue', !props.modelValue)
@@ -58,6 +64,7 @@ function toggle() {
 
 <template>
   <UTooltip
+    v-if="shown"
     :delay-duration="150"
     :ui="{ content: 'max-w-xs h-auto items-start' }"
   >

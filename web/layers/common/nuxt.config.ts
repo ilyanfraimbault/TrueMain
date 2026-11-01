@@ -27,6 +27,16 @@ export default defineNuxtConfig({
       { prefix: 'region', dir: fileURLToPath(new URL('./app/assets/icons/region', import.meta.url)) },
     ],
   },
+  runtimeConfig: {
+    public: {
+      // Shows the truemains toggle (#1346). Its "every tracked player" side only
+      // exists where the ingestor folds non-mains (`MainAnalysis:AggregateNonMainPopulation`);
+      // elsewhere both sides return the same games under two labels, so the toggle
+      // stays hidden (#2352). Off by default; preprod turns it on with
+      // NUXT_PUBLIC_POPULATION_TOGGLE, alongside the flag that folds the rows.
+      populationToggle: false,
+    },
+  },
   // The design system is dark-only (`theme.css` defines no light surfaces), so
   // neither app may follow a light system preference.
   colorMode: {
