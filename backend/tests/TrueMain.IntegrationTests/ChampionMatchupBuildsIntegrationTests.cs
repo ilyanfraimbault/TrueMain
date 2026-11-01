@@ -154,6 +154,74 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
         result.Should().BeNull();
     }
 
+    [Fact]
+    public async Task GetAsync_ReadsAMatchupRetentionKeptTruncated()
+    {
+        // #2368: a patch that left the full-match window only lives on as truncated seats.
+        // The matchup is still answered from them, on that patch, and an opponent of the same
+        // team or in another lane still does not count.
+        await using (var seed = _fixture.CreateDbContext())
+        {
+            seed.TruncatedMatchSeats.AddRange(
+                Seat("TR_1", 1, 100, Champion, Position, win: true, buildItems: [3031, 3153]),
+                Seat("TR_1", 6, 200, Opponent, Position, win: false),
+                Seat("TR_2", 1, 100, Champion, Position, win: false, buildItems: [3031, 3153]),
+                Seat("TR_2", 2, 100, Opponent, Position, win: false),
+                Seat("TR_3", 1, 100, Champion, Position, win: true, buildItems: [3072, 3026]),
+                Seat("TR_3", 7, 200, Opponent, "TOP", win: false));
+            await seed.SaveChangesAsync();
+        }
+
+        var result = await CreateService().GetAsync(
+            Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.Patch.Should().Be("16.2", "the newest patch the pair was played on, truncated or not");
+        result.TotalGames.Should().Be(1);
+        result.TotalWins.Should().Be(1);
+        result.Builds.Should().ContainSingle().Which.FirstItemId.Should().Be(3031);
+    }
+
+    private static TruncatedMatchSeat Seat(
+        string matchId,
+        int participantId,
+        int teamId,
+        int championId,
+        string position,
+        bool win,
+        int[]? buildItems = null)
+        => new()
+        {
+            MatchId = matchId,
+            ParticipantId = participantId,
+            PlatformId = "EUW1",
+            QueueId = 420,
+            Patch = "16.2",
+            GameVersion = "16.2.1",
+            GameStartTimeUtc = new DateTime(2026, 1, 20, 12, 0, 0, DateTimeKind.Utc),
+            GameDurationSeconds = 1800,
+            EloBracket = "MASTER",
+            TeamId = teamId,
+            Win = win,
+            ChampionId = championId,
+            TeamPosition = position,
+            Puuid = $"{matchId}-{participantId}",
+            Summoner1Id = 4,
+            Summoner2Id = 14,
+            // A build is keyed on its first item and keystone, so a seat needs its page.
+            PrimaryStyleId = 8100,
+            SubStyleId = 8200,
+            RunePerkIds = [8112, 8139, 8126, 8106, 8226, 8234],
+            PerksOffense = 5008,
+            PerksFlex = 5008,
+            PerksDefense = 5001,
+            BuildItemIds = buildItems ?? [],
+            BuildItemMinutes = [.. (buildItems ?? []).Select((_, index) => 12 + index * 8)],
+            BootsItemId = 3020,
+            SkillOrderKey = "Q-W-E",
+            TruncatedAtUtc = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+        };
+
     private ChampionMatchupBuildsQueryService CreateService()
     {
         var db = _fixture.CreateDbContext();
