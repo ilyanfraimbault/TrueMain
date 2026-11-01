@@ -278,12 +278,29 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
 
         await seeder.SaveAsync(db);
 
-        // Games by tracked players who are not mains of the champion (#1346).
+        // Games by a tracked player who is not a main of the champion (#1346): another
+        // account, as the scope's unique key does not carry the population.
         if (includeNonMainRows)
         {
+            var nonMainAccountId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Id = nonMainAccountId,
+                PlatformId = "KR",
+                Puuid = "trend-puuid-2",
+                GameName = "trend-two",
+                SummonerId = "trend-two-summoner",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                LastProfileSyncAtUtc = now,
+                CreatedAtUtc = now.AddDays(-10),
+                UpdatedAtUtc = now.AddDays(-1),
+            });
+            await db.SaveChangesAsync();
+
             var nonMains = new ChampionAggregateSeeder().WithPopulation(isMain: false);
             nonMains.AddPatternWithRune(
-                accountId, ChampionId, "16.5", "KR", 420, "MIDDLE",
+                nonMainAccountId, ChampionId, "16.5", "KR", 420, "MIDDLE",
                 summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
                 buildItems: [3153, 3006, 3031], bootsItemId: 3006,
                 primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
