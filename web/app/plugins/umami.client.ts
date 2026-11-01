@@ -47,8 +47,13 @@ import { clearVisitorId, getOrCreateVisitorId } from '~/utils/analytics-visitor-
  * tracker renders nothing and reads the current URL when it starts, then
  * follows client-side navigation. The cost is a page view lost when a visitor
  * leaves before the page ever goes idle.
+ *
+ * Custom events (#2357): the two layer hooks below become anonymous Umami
+ * events — a name and nothing else, no Riot ID — to size an "analyse this
+ * player" request before building one. Counting a moment, like counting a page
+ * view, stays inside the exemption.
  */
-export default defineNuxtPlugin(() => {
+export default defineNuxtPlugin((nuxtApp) => {
   const { host, websiteId } = useRuntimeConfig().public.umami
   if (!host || !websiteId) {
     return
@@ -61,7 +66,7 @@ export default defineNuxtPlugin(() => {
   const origin = host.replace(/\/+$/, '')
   const visitorId = getOrCreateVisitorId()
 
-  useScriptUmamiAnalytics({
+  const { proxy } = useScriptUmamiAnalytics({
     websiteId,
     scriptInput: { src: `${origin}/script.js` },
     beforeSend: (_type: string, payload: Record<string, unknown>) => ({
@@ -75,4 +80,7 @@ export default defineNuxtPlugin(() => {
     // this site instead of our instance — and the build would need the network.
     scriptOptions: { trigger: 'onNuxtReady', bundle: false },
   })
+
+  nuxtApp.hook('truemain:search-miss', () => proxy.track('truemain-search-miss', {}))
+  nuxtApp.hook('truemain:profile-not-found', () => proxy.track('truemain-profile-not-found', {}))
 })
