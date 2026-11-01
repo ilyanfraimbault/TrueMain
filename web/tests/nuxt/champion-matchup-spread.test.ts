@@ -80,7 +80,7 @@ describe('champion matchup spread', () => {
       '/matchup?champion=1&position=MIDDLE&opponent=4',
       '/matchup?champion=1&position=MIDDLE&opponent=3',
     ])
-    expect(links[0]!.attributes('aria-label')).toBe('Xerath: Lane WR @15 43%')
+    expect(links[0]!.attributes('aria-label')).toBe('Xerath: Lane WR 43% (at 15 minutes)')
 
     // Only the axis: no caption, no band labels, no counts or extremes under it.
     const text = wrapper.text()
@@ -100,20 +100,17 @@ describe('champion matchup spread', () => {
     const wrapper = await mountSpread(1, 'MIDDLE')
 
     await tap(wrapper, 'Xerath', 'touch')
-    expect(wrapper.text()).toContain('Xerath')
-    expect(wrapper.text()).toContain('Lane WR @15 43%')
-    expect(wrapper.find('p a[href="/matchup?champion=1&position=MIDDLE&opponent=2"]').exists()).toBe(true)
+    expect(wrapper.find('p[aria-live]').text()).toBe('Lane WR 43% (at 15 minutes)')
 
     await tap(wrapper, 'Ryze', 'touch')
-    expect(wrapper.text()).toContain('Lane WR @15 57%')
-    expect(wrapper.text()).not.toContain('Lane WR @15 43%')
+    expect(wrapper.find('p[aria-live]').text()).toBe('Lane WR 57% (at 15 minutes)')
   })
 
   it('leaves a mouse click to the link', async () => {
     const wrapper = await mountSpread(1, 'MIDDLE')
 
     await tap(wrapper, 'Xerath', 'mouse')
-    expect(wrapper.text()).not.toContain('Open matchup')
+    expect(wrapper.find('p[aria-live]').exists()).toBe(false)
   })
 
   it('has no role picker and asks the API again when the page changes lane', async () => {
