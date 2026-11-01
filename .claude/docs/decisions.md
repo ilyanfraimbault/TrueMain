@@ -116,6 +116,7 @@ Last verified against `develop` on 2026-09-02.
 - The draft's enemy team is its own opposing-pair aggregate behind its own match flag, weight 0 until a back-test sets it — #1713, #1906
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
 - A matchup slice states its games above the build tabs; under 20 it warns and offers the standard build (2026-11-01) — #2355
+- The matchup tool shows the cached `?vs=` slice first, labelled as refining, then the composition build (2026-11-01) — #2361
 - The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent — #939
 - The recommendation shows no situational-items row — #921, #939
 - The matchup tool judges the lane over its own sampled games — this finishes #1111's merge

@@ -455,3 +455,12 @@ now carries the count ("Build against Zed · 64 games"); under 20 games, the dra
 `LOW_SAMPLE_GAMES`, it turns into a warning with a button back to the standard build. Widening a thin slice across
 the retained patches was the alternative and was left out: it would change what the slice means, and the standard
 build is one click away — #2355.
+
+**The matchup tool answers first from the cached matchup slice, then refines (2026-11-01).** The composition build
+refolds `match_participants` live on every debounced draft edit, and a cold recommendation runs for tens of seconds
+— too long for champion select, where the page is most useful. With champion, role and opponent set, the
+recommendation card now shows the champion page's `?vs=` matchup slice (behind the champion read cache) while the
+composition build runs, labelled "Refining with the draft", and the refined answer replaces it, labelled "Refined
+with the draft" when the draft holds picks beyond the matchup. The two are different selections (the slice is every
+game of the pair, the recommendation a mains-first similarity sample), which is why both states are labelled rather
+than swapped silently. Pre-warming the most played pairs was left out — #2361.

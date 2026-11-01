@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { LOW_SAMPLE_GAMES } from '#common/utils/sample-floor'
+import { refinesBeyondMatchup } from '#common/utils/draft-context'
 import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/types/composition'
 import { indexItemContext } from '#shared/utils/item-context'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
@@ -77,6 +78,7 @@ const headline = computed(() => {
 })
 
 const draftRequested = computed(() => confidence.value.maxPossibleScore > 0)
+const refinedByDraft = computed(() => refinesBeyondMatchup(props.draftRequest))
 const lowSample = computed(() => confidence.value.sampleSize < LOW_SAMPLE_GAMES)
 const lowSimilarity = computed(() =>
   draftRequested.value && confidence.value.meanSimilarity < LOW_SIMILARITY_FLOOR)
@@ -136,6 +138,16 @@ const gamesDrawerOpen = computed({
         <!-- Thin-data qualifier: only the dot shows next to the title; the
              message lives in its tooltip so it never crowds the header. -->
         <WarningDot v-if="lowDataMessage" :text="lowDataMessage" />
+        <!-- The refined state (#2361): the matchup slice shown while this loaded
+             said it was refining; this says the draft has now been weighed. -->
+        <UBadge
+          v-if="refinedByDraft"
+          color="primary"
+          variant="soft"
+          size="sm"
+          icon="i-lucide-check"
+          label="Refined with the draft"
+        />
       </div>
     </template>
     <div class="space-y-6">
