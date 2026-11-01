@@ -175,7 +175,7 @@ public sealed class NextItemQueryService(
     /// The situational needs of the patch's completed legendaries (#2371). An item data outage
     /// costs the coverage, never the panel: every need then reads as uncovered.
     /// </summary>
-    private async Task<IReadOnlyDictionary<int, ItemNeed>> ItemNeedsAsync(string patch, CancellationToken ct)
+    private async Task<ItemNeedCatalog> ItemNeedsAsync(string patch, CancellationToken ct)
     {
         try
         {
@@ -188,12 +188,12 @@ public sealed class NextItemQueryService(
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogWarning(exception, "Item data unavailable for patch {Patch}; serving the next item without need coverage.", patch);
-            return new Dictionary<int, ItemNeed>();
+            return ItemNeedCatalog.Empty;
         }
     }
 
     /// <summary>The needs already covered, with the catalogue that reads a candidate's.</summary>
-    private sealed record Coverage(ItemNeed Covered, IReadOnlyDictionary<int, ItemNeed> Needs);
+    private sealed record Coverage(ItemNeed Covered, ItemNeedCatalog Needs);
 
     /// <summary>Each candidate with its build path (#2183), so the app needs no second call.</summary>
     private static NextItemSlotReadModel? WithRoutes(NextItemSlotReadModel? slot, ItemRouteBook paths)

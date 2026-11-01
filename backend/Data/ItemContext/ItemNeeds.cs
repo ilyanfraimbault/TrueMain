@@ -19,6 +19,17 @@ public enum ItemNeed
 }
 
 /// <summary>
+/// The needs of a patch's completed items (#2371). <see cref="Needs"/> reads any candidate's —
+/// legendaries and completed boots, so Mercury's Treads is dropped once magic resistance is
+/// covered — while only the <see cref="Covering"/> items, the legendaries, cover a need when
+/// bought off advice: a component is a step towards an item, and boots are their own slot.
+/// </summary>
+public sealed record ItemNeedCatalog(IReadOnlyDictionary<int, ItemNeed> Needs, IReadOnlySet<int> Covering)
+{
+    public static ItemNeedCatalog Empty { get; } = new(new Dictionary<int, ItemNeed>(), new HashSet<int>());
+}
+
+/// <summary>
 /// Reads an item's <see cref="ItemNeed"/>s off the same attributes the situational whitelist
 /// (<see cref="ItemContextWhitelist"/>) reads: CommunityDragon's categories and the Grievous
 /// Wounds flag. Damage and health are no need here: every legendary carries one or the other,
@@ -74,23 +85,29 @@ public static class ItemNeeds
     }
 
     /// <summary>
-    /// The needs of every completed legendary of a patch, keyed by item id: the catalogue the
-    /// next item reads a player's off-advice purchases against. Components and boots are left
-    /// out — a Null-Magic Mantle is a step towards an item, not a need covered.
+    /// The needs of every completed legendary and completed boots of a patch, keyed by item id,
+    /// with the legendaries marked as the items that can cover one (<see cref="ItemNeedCatalog"/>).
     /// </summary>
-    public static IReadOnlyDictionary<int, ItemNeed> Catalog(IReadOnlyDictionary<int, ItemMetadata> metadata)
+    public static ItemNeedCatalog Catalog(IReadOnlyDictionary<int, ItemMetadata> metadata)
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
         var needs = new Dictionary<int, ItemNeed>();
+        var covering = new HashSet<int>();
         foreach (var item in metadata.Values)
         {
             if (FinalBuildResolver.IsEligibleFinalBuildItem(item))
             {
-                needs[FinalBuildResolver.GetDisplayedBuildItemId(item)] = Of(item);
+                var itemId = FinalBuildResolver.GetDisplayedBuildItemId(item);
+                needs[itemId] = Of(item);
+                covering.Add(itemId);
+            }
+            else if (item.IsFinalBoots)
+            {
+                needs[item.Id] = Of(item);
             }
         }
 
-        return needs;
+        return new ItemNeedCatalog(needs, covering);
     }
 }

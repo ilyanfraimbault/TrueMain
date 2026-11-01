@@ -26,12 +26,14 @@ public sealed class NextItemNeedCoverageTests
     private const int Sunfire = 3068;     // armour
     private const int Titanic = 3748;     // health and damage: no situational need
     private const int Mantle = 1033;      // Null-Magic Mantle — a component, never a covered need
+    private const int Mercs = 3111;       // Mercury's Treads — magic resistance and tenacity, in the boots slot
+    private const int Steelcaps = 3047;   // Plated Steelcaps — armour, in the boots slot
 
     private static readonly DateTime Now = new(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
     private static readonly IReadOnlyDictionary<ItemContextAxis, ItemContextBucket> NoSituation =
         new Dictionary<ItemContextAxis, ItemContextBucket>();
 
-    private static readonly IReadOnlyDictionary<int, ItemNeed> Needs = ItemNeeds.Catalog(new Dictionary<int, ItemMetadata>
+    private static readonly ItemNeedCatalog Needs = ItemNeeds.Catalog(new Dictionary<int, ItemMetadata>
     {
         [Spirit] = Legendary(Spirit, "SpellBlock", "Health"),
         [Kaenic] = Legendary(Kaenic, "SpellBlock", "Health"),
@@ -39,6 +41,8 @@ public sealed class NextItemNeedCoverageTests
         [Sunfire] = Legendary(Sunfire, "Armor", "Health"),
         [Titanic] = Legendary(Titanic, "Damage", "Health"),
         [Mantle] = new ItemMetadata(Mantle, 400, true, false, false, false, false, false) { Categories = Set("SpellBlock") },
+        [Mercs] = Boots(Mercs, "SpellBlock", "Tenacity"),
+        [Steelcaps] = Boots(Steelcaps, "Armor"),
     });
 
     [Fact]
@@ -53,10 +57,29 @@ public sealed class NextItemNeedCoverageTests
     }
 
     [Fact]
-    public void TheCatalogueHoldsCompletedLegendariesOnly()
+    public void TheCatalogueReadsLegendariesAndBoots_ButOnlyLegendariesCover()
     {
-        Needs.Should().ContainKey(Spirit);
-        Needs.Should().NotContainKey(Mantle, "a component is a step towards an item, not a need covered");
+        Needs.Needs.Should().ContainKey(Spirit);
+        Needs.Needs.Should().ContainKey(Mercs);
+        Needs.Needs.Should().NotContainKey(Mantle, "a component is a step towards an item, not a need covered");
+        Needs.Covering.Should().Contain(Spirit).And.NotContain(Mercs);
+        NextItemNeedCoverage.Covered([Mercs], Needs).Should().Be(ItemNeed.None, "boots are their own slot and cover nothing");
+    }
+
+    [Fact]
+    public void ACoveredNeedDropsTheBootsThatAnswerIt()
+    {
+        // Kaenic Rookern bought off advice covers magic resistance: the boots slot then stops
+        // pushing Mercury's Treads for it.
+        var model = Model(
+            [Stat(Root, Sunfire, 1000), Stat(Root, Mercs, 600, ItemContextSlot.Boots), Stat(Root, Steelcaps, 400, ItemContextSlot.Boots)],
+            [Total(Root, 1000), Total(Root, 1000, ItemContextSlot.Boots)]);
+        var covered = NextItemNeedCoverage.Covered(model.OffAdviceItems([Kaenic]), Needs);
+        var boots = model.Branch(ItemContextSlot.Boots, Root)!;
+
+        var scores = NextItemScorer.Score(boots, NoSituation, NextItemNeedCoverage.Excluded(boots, new HashSet<int> { Kaenic }, covered, Needs));
+
+        scores.Select(score => score.ItemId).Should().Equal(Steelcaps);
     }
 
     [Fact]
@@ -122,19 +145,22 @@ public sealed class NextItemNeedCoverageTests
     private static ItemMetadata Legendary(int id, params string[] categories)
         => new(id, 3000, true, false, false, false, true, false) { Categories = Set(categories) };
 
+    private static ItemMetadata Boots(int id, params string[] categories)
+        => new(id, 1100, true, false, true, false, false, true) { Categories = Set(categories) };
+
     private static FrozenSet<string> Set(params string[] categories) => categories.ToFrozenSet(StringComparer.Ordinal);
 
     private static NextItemModel Model(ChampionItemContextStat[] stats, ChampionItemContextTotal[] totals)
         => NextItemModel.From(NextItemTermBuilder.Build(
             new ItemContextScope(Champion, Position, Patch), stats, totals, [Patch], new NextItemModelOptions(), Now));
 
-    private static ChampionItemContextStat Stat(int parent, int item, int games)
+    private static ChampionItemContextStat Stat(int parent, int item, int games, ItemContextSlot slot = ItemContextSlot.Build)
         => new()
         {
             ChampionId = Champion,
             Position = Position,
             Patch = Patch,
-            Slot = ItemContextSlot.Build,
+            Slot = slot,
             ParentItemId = parent,
             ItemId = item,
             Axis = ItemContextAxis.Overall,
@@ -143,13 +169,13 @@ public sealed class NextItemNeedCoverageTests
             Wins = games / 2,
         };
 
-    private static ChampionItemContextTotal Total(int parent, int games)
+    private static ChampionItemContextTotal Total(int parent, int games, ItemContextSlot slot = ItemContextSlot.Build)
         => new()
         {
             ChampionId = Champion,
             Position = Position,
             Patch = Patch,
-            Slot = ItemContextSlot.Build,
+            Slot = slot,
             ParentItemId = parent,
             Axis = ItemContextAxis.Overall,
             Bucket = ItemContextBucket.All,

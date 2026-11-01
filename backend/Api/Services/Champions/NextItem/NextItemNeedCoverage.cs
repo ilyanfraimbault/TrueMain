@@ -12,15 +12,18 @@ namespace TrueMain.Services.Champions.NextItem;
 public static class NextItemNeedCoverage
 {
     /// <summary>The needs the off-advice legendaries cover; components and boots cover none.</summary>
-    public static ItemNeed Covered(IEnumerable<int> offAdviceItems, IReadOnlyDictionary<int, ItemNeed> needs)
+    public static ItemNeed Covered(IEnumerable<int> offAdviceItems, ItemNeedCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(offAdviceItems);
-        ArgumentNullException.ThrowIfNull(needs);
+        ArgumentNullException.ThrowIfNull(catalog);
 
         var covered = ItemNeed.None;
         foreach (var itemId in offAdviceItems)
         {
-            covered |= needs.GetValueOrDefault(itemId);
+            if (catalog.Covering.Contains(itemId))
+            {
+                covered |= catalog.Needs.GetValueOrDefault(itemId);
+            }
         }
 
         return covered;
@@ -34,11 +37,11 @@ public static class NextItemNeedCoverage
         NextItemBranch branch,
         IReadOnlySet<int> owned,
         ItemNeed covered,
-        IReadOnlyDictionary<int, ItemNeed> needs)
+        ItemNeedCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(branch);
         ArgumentNullException.ThrowIfNull(owned);
-        ArgumentNullException.ThrowIfNull(needs);
+        ArgumentNullException.ThrowIfNull(catalog);
 
         if (covered == ItemNeed.None)
         {
@@ -48,7 +51,7 @@ public static class NextItemNeedCoverage
         var excluded = new HashSet<int>(owned);
         foreach (var candidate in branch.Candidates)
         {
-            if ((needs.GetValueOrDefault(candidate.ItemId) & covered) != ItemNeed.None)
+            if ((catalog.Needs.GetValueOrDefault(candidate.ItemId) & covered) != ItemNeed.None)
             {
                 excluded.Add(candidate.ItemId);
             }
