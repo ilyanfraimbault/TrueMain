@@ -89,12 +89,12 @@ function opponentName(point: MatchupSpreadPoint): string {
   return championDisplayName(id, championById.value.get(id) ?? null)
 }
 
-// The tooltip sits on the opponent's own icon, so it states only the rate: a
-// plain "WR", since "lanes won" reads wrong on a jungler (#2094's rate at 15 min
-// is the same measure whatever the role). One player's games are a handful per
-// opponent, so theirs also states the sample; the aggregate needs no such caveat.
+// The tooltip sits on the opponent's own icon, so it states only the rate. It is
+// the lane win rate at 15 min, never the game win rate the rest of the site calls
+// "WR", so it says so (#2354). One player's games are a handful per opponent, so
+// theirs also states the sample; the aggregate needs no such caveat.
 function rateLabel(point: MatchupSpreadPoint): string {
-  const rate = `${formatPercentage(point.laneWinRate, 0)} WR`
+  const rate = `Lane WR @15 ${formatPercentage(point.laneWinRate, 0)}`
   if (!props.nameTag) return rate
   const games = point.entry.decidedLaneGames
   return `${rate} (${games} ${games === 1 ? 'game' : 'games'})`
@@ -115,6 +115,31 @@ function matchupToolLink(opponentChampionId: number): string | undefined {
     opponent: String(opponentChampionId),
   })
   return `/matchup?${query.toString()}`
+}
+
+// A tooltip is hover-only, so a touch reader would never see a rate (#2354). On
+// touch, the first tap on an icon selects it and the line under the strip reads its
+// rate and links to the matchup; a second tap on the same icon follows its link.
+// The strip catches the tap in its capture phase: the icon's own link handler would
+// otherwise navigate before anything on the icon could cancel it.
+const selectedId = ref<number | null>(null)
+let lastPointerType = ''
+watch(() => props.position, () => { selectedId.value = null })
+const selected = computed(() =>
+  layout.value.marks.find(mark => mark.point.entry.opponentChampionId === selectedId.value)?.point ?? null)
+
+function notePointer(event: PointerEvent) {
+  lastPointerType = event.pointerType
+}
+
+function onStripClick(event: MouseEvent) {
+  if (lastPointerType !== 'touch') return
+  const mark = (event.target as Element | null)?.closest<HTMLElement>('[data-opponent-id]')
+  const id = Number(mark?.dataset.opponentId)
+  if (!mark || selectedId.value === id) return
+  event.preventDefault()
+  event.stopPropagation()
+  selectedId.value = id
 }
 
 const NuxtLinkComponent = resolveComponent('NuxtLink')
@@ -140,6 +165,8 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
       class="relative overflow-hidden rounded-md"
       :class="RESULT_SPREAD_WASH"
       :style="{ height: `${layout.height}px` }"
+      @pointerdown.capture="notePointer"
+      @click.capture="onStripClick"
     >
       <div class="absolute inset-y-2 left-1/2 w-px bg-accented" aria-hidden="true" />
       <UTooltip
@@ -151,7 +178,9 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
           :is="matchupToolLink(mark.point.entry.opponentChampionId) ? NuxtLinkComponent : 'div'"
           :to="matchupToolLink(mark.point.entry.opponentChampionId)"
           :aria-label="accessibleLabel(mark.point)"
+          :data-opponent-id="mark.point.entry.opponentChampionId"
           class="absolute rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          :class="{ 'outline-2 outline-offset-2 outline-primary': selectedId === mark.point.entry.opponentChampionId }"
           :style="{ left: `${mark.left}px`, top: `${mark.top}px`, width: `${ICON}px`, height: `${ICON}px` }"
         >
           <SkeletonImage
@@ -167,5 +196,17 @@ const NuxtLinkComponent = resolveComponent('NuxtLink')
         </component>
       </UTooltip>
     </div>
+
+    <p v-if="hasPoints && selected" class="mt-2 flex flex-wrap items-center gap-x-2 text-sm text-muted" aria-live="polite">
+      <span class="font-medium text-highlighted">{{ opponentName(selected) }}</span>
+      <span>{{ rateLabel(selected) }}</span>
+      <ULink
+        v-if="matchupToolLink(selected.entry.opponentChampionId)"
+        :to="matchupToolLink(selected.entry.opponentChampionId)"
+        class="text-primary"
+      >
+        Open matchup
+      </ULink>
+    </p>
   </SectionCard>
 </template>
