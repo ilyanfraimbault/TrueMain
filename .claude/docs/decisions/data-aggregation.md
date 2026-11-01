@@ -459,3 +459,14 @@ the floor meanwhile. Same read rules as the pace benchmark: newest three patches
 `Core/Lol/Benchmarks/FormHistogram.cs` (0.1 KDA, 1 % KP, 0.1 CS/min, one death, 0.05 vision/min, clamped to a ceiling)
 — #2076.
 
+**One truncated-match table outlives match retention, for matchups and drafts first and profiles after (2026-11-01,
+#2358, #2368).** Both issues keep part of a match past the full-match window; they share one table rather than two.
+When retention deletes a match, its ten seats are written as truncated rows: patch, elo bracket and winning team on
+the match; per seat the champion, position, summoner spells, keystone and secondary tree, the completed items in
+purchase order with their purchase minute, the account key, and the end-of-game line a profile row draws (K/D/A,
+result, LP, performance score). Measured on production, a truncated seat is a few percent of the full participant
+row, and a patch of truncated matches fits in the disk headroom many times over; the measurement was accepted before
+any write path. Retention is two-tier: all ten seats for about four patches (cut sooner for a champion or item a patch
+changed heavily), which widens matchup and draft samples; past that only tracked accounts' seats stay, to the end of
+the season, so a profile lists games older than match retention. No timelines, no participant JSON (#680 still
+applies) — #2358, #2368.
