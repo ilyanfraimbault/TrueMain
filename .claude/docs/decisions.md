@@ -38,6 +38,7 @@ Last verified against `develop` on 2026-09-02.
 - A demoted account's scopes are demoted, not deleted — once the widening is on — #1346
 - Matchups reject the widened population rather than ignoring it — #1346, #1087
 - The thin-sample caveat is a header tooltip, and it counts games rather than coverage — #1346
+- The champion banner's moves and the trend chart read the page's rank and population, not every rank (2026-11-01) — #2353
 
 ## Champion page — builds, SSR prose — [`decisions/product-champion-page.md`](decisions/product-champion-page.md)
 

@@ -78,15 +78,12 @@ const {
 const latestVersion = computed(() => versions.value?.[0] ?? null)
 
 // Winrate/pickrate trend across the last five patches (#89, #112). Follows the
-// resolved lane but is deliberately cross-patch: only the position is sent,
-// never the pinned patch. Gated on the champion fetch so it fires once with the
-// resolved lane instead of twice (null lane first, then the real one).
+// resolved lane, the rank filter and the population (#2353) but is deliberately
+// cross-patch: the pinned patch is never sent. Gated on the champion fetch so it
+// fires once with the resolved lane instead of twice (null lane first, then the
+// real one). The fetch itself sits below the slice controls it reads.
 const trendReady = computed(() => champion.value !== null)
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
-// `pending` rather than `status`: while the gate is shut the composable
-// resolves an empty series to `success`, so `status` alone would flash the
-// chart's no-data state for the whole champion fetch.
-const { data: championTrend, pending: trendPending } = useChampionTrend(championId, trendPosition, trendReady)
 
 // SSR-safe champion name for `<head>` — see useChampionSeoName for why this
 // page can't use `displayName` there, and why the fetch is awaited on the
@@ -132,6 +129,14 @@ const {
   setFilter,
   staticList,
   selectedPosition,
+})
+
+// `pending` rather than `status`: while the gate is shut the composable
+// resolves an empty series to `success`, so `status` alone would flash the
+// chart's no-data state for the whole champion fetch.
+const { data: championTrend, pending: trendPending } = useChampionTrend(championId, trendPosition, trendReady, {
+  eloBracket: eloBracketParam,
+  truemainsOnly: () => filters.value.truemainsOnly,
 })
 
 // The matchup filter's opponent, named for the build column's sample line (#2355).
@@ -260,6 +265,7 @@ const snapshots = useChampionPanelSnapshots({
         :truemains-only="filters.truemainsOnly"
         :tier="tier"
         :trend="championTrend?.points ?? null"
+        trend-follows-slice
         :trend-loading="trendPending"
         :loading="!champion"
       >
