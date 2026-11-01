@@ -13,10 +13,12 @@ import { POSITION_BY_VALUE } from '#common/utils/positions'
  * and the games behind them. The dashboard's banner (`PageHero`), shared by the
  * site and the app.
  *
- * The four figures come from the trend series (`/champions/{id}/trend`), which
- * takes no rank filter: they describe the lane across every rank, which the
- * tooltip on each move says, while the sample line under the name is the
- * page's own slice.
+ * The four figures come from the trend series (`/champions/{id}/trend`). On the
+ * champion page that series follows the page's rank and population, so the
+ * figures and their moves describe the slice the sample line names (#2353),
+ * and `trendFollowsSlice` drops the "every rank" caveat from the move tooltip.
+ * The app's champion page reads the API's default series (every rank, mains),
+ * and its tooltip says so.
  *
  * The one champion banner (#2026): the champion page, the player-scoped
  * champion page and the desktop app's champion page all draw it. What differs
@@ -45,6 +47,8 @@ const props = withDefaults(defineProps<{
    * while it loads (or where there is none to read), the tiles show dashes.
    */
   trend?: ChampionTrendPoint[] | null
+  /** The series is the page's own rank and population: the move tooltip names no other scope. */
+  trendFollowsSlice?: boolean
   loading?: boolean
   trendLoading?: boolean
 }>(), { truemainsOnly: undefined, totalWins: null, patch: null, lowSampleMessage: null, tier: null, trend: undefined })
@@ -79,7 +83,12 @@ function move(now: number | null | undefined, before: number | null | undefined,
     good: higherIsGood === null ? null : (delta >= 0) === higherIsGood,
   }
 }
-const hint = computed(() => previous.value ? `Every rank, against patch ${previous.value.patch}` : undefined)
+const hint = computed(() => {
+  if (!previous.value) return undefined
+  return props.trendFollowsSlice
+    ? `Against patch ${previous.value.patch}`
+    : `Every rank, against patch ${previous.value.patch}`
+})
 
 const tiles = computed(() => {
   const now = current.value

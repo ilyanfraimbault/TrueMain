@@ -160,6 +160,7 @@ public sealed class ChampionDirectoryController(
         int championId,
         [FromQuery] string? position,
         [FromQuery] string? eloBracket,
+        [FromQuery] bool truemainsOnly = true,
         CancellationToken ct = default)
     {
         if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
@@ -172,7 +173,7 @@ public sealed class ChampionDirectoryController(
             return bracketProblem;
         }
 
-        var trend = await trendQueryService.GetTrendAsync(championId, normalizedPosition, normalizedBracket, ct);
+        var trend = await trendQueryService.GetTrendAsync(championId, normalizedPosition, normalizedBracket, truemainsOnly, ct);
         return Ok(trend);
     }
 }

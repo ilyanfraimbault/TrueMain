@@ -21,13 +21,17 @@ public interface IChampionTrendQueryService
     /// The position is the requested one when given and canonical, otherwise
     /// the champion's dominant lane on its latest patch. <paramref name="eloBracket"/>
     /// is the usual rank filter (a tier or <c>TIER_PLUS</c>; null or <c>ALL</c>
-    /// for every rank). Returns an empty series (not null) when the champion has
-    /// no record, so the caller can render a "not enough data" state without a 404.
+    /// for every rank). <paramref name="truemainsOnly"/> selects the population like
+    /// the directory's: mains only, or every tracked player's rows (#1346), so the
+    /// moves the champion banner shows describe the page's own slice (#2353).
+    /// Returns an empty series (not null) when the champion has no record, so the
+    /// caller can render a "not enough data" state without a 404.
     /// </summary>
     Task<ChampionTrendReadModel> GetTrendAsync(
         int championId,
         string? position,
         string? eloBracket,
+        bool truemainsOnly,
         CancellationToken ct);
 }
 
@@ -51,16 +55,18 @@ public sealed class ChampionTrendQueryService(
         int championId,
         string? position,
         string? eloBracket,
+        bool truemainsOnly,
         CancellationToken ct)
         => cache.GetOrComputeAsync(
-            $"champions:trend:{championId}:{position ?? "auto"}:{EloBracket.ResolveToken(eloBracket)}",
-            token => ComputeTrendAsync(championId, position, EloBracket.ResolveFilterOrEmpty(eloBracket), token),
+            $"champions:trend:{championId}:{position ?? "auto"}:{EloBracket.ResolveToken(eloBracket)}:{(truemainsOnly ? "truemains" : "everyone")}",
+            token => ComputeTrendAsync(championId, position, EloBracket.ResolveFilterOrEmpty(eloBracket), truemainsOnly, token),
             ct);
 
     private async Task<ChampionTrendReadModel> ComputeTrendAsync(
         int championId,
         string? position,
         IReadOnlyList<string>? bracketBands,
+        bool truemainsOnly,
         CancellationToken ct)
     {
         // Cast the configured queue (a LolQueueId) to the int the record stores,
@@ -74,7 +80,7 @@ public sealed class ChampionTrendQueryService(
         // positions are the "no lane" sentinel and never belong on a per-lane
         // trend; Trim() mirrors the directory's scope filter so a whitespace-only
         // position can't leak a phantom lane the directory hides.
-        var champRows = await ForTrend(queueId, bracketBands)
+        var champRows = await ForTrend(queueId, bracketBands, truemainsOnly)
             .Where(stat => stat.ChampionId == championId)
             .Where(stat => stat.Position.Trim() != string.Empty)
             .GroupBy(stat => new { stat.Patch, stat.Position })
@@ -123,7 +129,7 @@ public sealed class ChampionTrendQueryService(
         }
 
         var patchesInSeries = lanePatches.Select(row => row.Patch).ToList();
-        var laneTotals = await LoadLaneTotalsAsync(queueId, bracketBands, resolvedPosition, patchesInSeries, ct);
+        var laneTotals = await LoadLaneTotalsAsync(queueId, bracketBands, truemainsOnly, resolvedPosition, patchesInSeries, ct);
 
         // No rank filter reads the stored ALL band, a filter sums its bands (#920)
         // — the directory's rule, through the same helper. Patches older than ban
@@ -195,11 +201,12 @@ public sealed class ChampionTrendQueryService(
     private async Task<IReadOnlyDictionary<string, long>> LoadLaneTotalsAsync(
         int queueId,
         IReadOnlyList<string>? bracketBands,
+        bool truemainsOnly,
         string position,
         IReadOnlyList<string> patches,
         CancellationToken ct)
     {
-        var totals = await ForTrend(queueId, bracketBands)
+        var totals = await ForTrend(queueId, bracketBands, truemainsOnly)
             .Where(stat => stat.Position == position && patches.Contains(stat.Patch))
             .GroupBy(stat => stat.Patch)
             .Select(group => new { Patch = group.Key, Games = group.Sum(stat => (long)stat.Games) })
@@ -209,18 +216,23 @@ public sealed class ChampionTrendQueryService(
     }
 
     /// <summary>
-    /// The light record rows every trend figure reads: the queue, mains only — the
-    /// population this read has always described (#1346 added the non-main rows;
-    /// every pre-existing read keeps its meaning) — and the rank filter. Null bands
+    /// The light record rows every trend figure reads: the queue, the population
+    /// (mains only by default, the meaning this read has always had; every tracked
+    /// player's rows under <c>truemainsOnly: false</c>, as the directory reads them,
+    /// #1346) and the rank filter. Null bands
     /// are every rank: the record stores per-tier rows only, so the unfiltered read
     /// is their sum. An empty set (a rejected filter) matches nothing rather than
     /// falling back to every rank.
     /// </summary>
-    private IQueryable<ChampionPatchStat> ForTrend(int queueId, IReadOnlyList<string>? bracketBands)
+    private IQueryable<ChampionPatchStat> ForTrend(int queueId, IReadOnlyList<string>? bracketBands, bool truemainsOnly)
     {
         var stats = db.ChampionPatchStats
             .AsNoTracking()
-            .Where(stat => stat.QueueId == queueId && stat.IsMain);
+            .Where(stat => stat.QueueId == queueId);
+        if (truemainsOnly)
+        {
+            stats = stats.Where(stat => stat.IsMain);
+        }
 
         return bracketBands is null
             ? stats
