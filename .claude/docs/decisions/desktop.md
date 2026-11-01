@@ -990,3 +990,11 @@ as that one), listed on each of their champion pages; the My kits page lists the
 no switch any more — every kit on the pick's lane is offered in champion select as rows of the build pane's list,
 beside the draft's build (still the default, answering the matchup) and the favourite truemains' builds; the kit
 picked there is the one the next item follows in game — #2205.
+
+**Game recording is frozen, and kept or dropped on a bar set in advance (2026-11-01, #2364).** The recorder — two native
+capture helpers, the clip editor, auto clips, the mark key, YouTube publishing — competes with Outplayed, Medal and
+DPM's recorder and uses none of TrueMain's data, while every OS or encoder change pulls the only developer into video
+plumbing. No new recording feature ships until the decision. The bar, fixed before reading the figure: **keep it if
+at least a quarter of the installs that play a game with the app open record at least one game over 30 days.** The
+production app (0.5.0) predates the `gameRecorded` / `clipSaved` / `clipPublished` counters — it only counts the
+recordings pages — so the figure is read 30 days after the next production desktop release, which carries them.

@@ -567,3 +567,14 @@ sample a (tier, role, minute) needs before the read's 50-sample floor is met, an
 participant's own tier (`league-v4/entries/by-puuid`, up to nine platform calls a game) beats the lobby rule, are
 to be measured on preprod rather than assumed; a production key (#1363) only raises the cap — #1912.
 
+**Every ingested match is kept, including those with no champion-cohort seat (2026-11-01, #2378).** Measured on a
+week of production ingestion, a bit over a fifth of the ranked matches fetched hold no `ChampionCohort` seat; most of
+those are a tracked main playing a champion they do not main, the rest remakes and tracked non-mains. Harvested
+accounts' histories carry most of them; ladder-sourced ones are mostly useful. They looked like budget spent on
+nothing, and are not: the champion profile fold and the matchup-scoped builds and composition recommender read the
+whole participant pool (with the timeline), main analysis needs every game for a player's play rate, harvest finds its
+candidates among their untracked seats, bans count every match, and a player's profile lists and details all of them.
+A newly validated account also has no `main_champion_stats` at its first ingestion, so its own main games read as
+seatless until main analysis runs and its slices are rebuilt. Skipping their timeline would degrade the match detail,
+the `?vs=` builds and the lobby profile for little budget; not fetching them would break play rates and harvest.
+Nothing changes — #2378.

@@ -165,3 +165,9 @@ payload — the profile itself stays client-only. `canonicalLowercase` stays on 
 slugs are lowercase already; the profile pages override it.
 
 **Source.** #2335, #2336.
+
+**The site stays English-only (2026-11-01, #2366).** All copy is hardcoded English while the pipeline ingests KR, EUW,
+NA and other platforms, and op.gg is localised. Search Console's country split over 90 days was read before deciding:
+the search traffic is still too small to show any non-English language with a share worth a localisation (the figures
+stay with the operator, as every Search Console figure does). Revisit when the weekly SEO review shows sustained search
+volume with one non-English language large enough to justify `@nuxtjs/i18n`, hreflang and a translated champion page.
