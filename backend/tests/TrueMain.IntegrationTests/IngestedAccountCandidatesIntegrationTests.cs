@@ -150,7 +150,8 @@ public sealed class IngestedAccountCandidatesIntegrationTests : IAsyncLifetime
         Microsoft.Extensions.Options.Options.Create(new MatchDataRetentionOptions { RetainedPatchCount = 2 }),
         Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
         Microsoft.Extensions.Options.Options.Create(new CandidatePruningOptions { Enabled = false }),
-        Microsoft.Extensions.Options.Options.Create(intake));
+        Microsoft.Extensions.Options.Options.Create(intake),
+        new TrueMain.TestKit.NoItemMetadataProvider());
 
     private static RiotAccount Account(string puuid, string platformId, DateTime now, DateTime? lastMatchIngestAtUtc)
         => new()
