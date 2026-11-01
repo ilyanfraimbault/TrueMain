@@ -208,6 +208,13 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             Puuid = $"{matchId}-{participantId}",
             Summoner1Id = 4,
             Summoner2Id = 14,
+            // A build is keyed on its first item and keystone, so a seat needs its page.
+            PrimaryStyleId = 8100,
+            SubStyleId = 8200,
+            RunePerkIds = [8112, 8139, 8126, 8106, 8226, 8234],
+            PerksOffense = 5008,
+            PerksFlex = 5008,
+            PerksDefense = 5001,
             BuildItemIds = buildItems ?? [],
             BuildItemMinutes = [.. (buildItems ?? []).Select((_, index) => 12 + index * 8)],
             BootsItemId = 3020,
