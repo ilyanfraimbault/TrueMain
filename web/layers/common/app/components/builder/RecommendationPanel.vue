@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { LOW_SAMPLE_GAMES } from '#common/utils/sample-floor'
 import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/types/composition'
 import { indexItemContext } from '#shared/utils/item-context'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
@@ -35,12 +36,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:gamesDrawerOpen': [boolean] }>()
 
-/**
- * Below this many sampled games the aggregation is thin enough that single
- * games swing every dimension — the panel stays visible but carries an
- * explicit warning instead of fabricated certainty.
- */
-const LOW_SAMPLE_FLOOR = 20
+// Below `LOW_SAMPLE_GAMES` the panel stays visible but carries an explicit
+// warning instead of fabricated certainty.
 
 /** Mean similarity under this reads as "barely draft-specific". */
 const LOW_SIMILARITY_FLOOR = 0.2
@@ -80,7 +77,7 @@ const headline = computed(() => {
 })
 
 const draftRequested = computed(() => confidence.value.maxPossibleScore > 0)
-const lowSample = computed(() => confidence.value.sampleSize < LOW_SAMPLE_FLOOR)
+const lowSample = computed(() => confidence.value.sampleSize < LOW_SAMPLE_GAMES)
 const lowSimilarity = computed(() =>
   draftRequested.value && confidence.value.meanSimilarity < LOW_SIMILARITY_FLOOR)
 

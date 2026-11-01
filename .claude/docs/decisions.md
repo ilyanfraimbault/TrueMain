@@ -101,6 +101,7 @@ Last verified against `develop` on 2026-09-02.
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
 - One player's matchups carry no games floor, and the player champion page has an explicit "All positions" slice (2026-10-20) — #2158
 - The champion page shows its matchups as a spread on the lane win rate at 15 min (centred on 50%), replacing the sidebar list — #2094
+- The spread's rate reads "Lane WR @15", never "WR"; on touch a first tap selects an icon and shows its rate under the strip (2026-11-01) — #2354
 - The player champion page shows the same spread on the player's own lanes (live from their 15-min snapshots, no lane floor), replacing its sidebar list — 2026-10-22
 - The spread follows the page's lane (no picker of its own), its tooltip says only `% WR`, and its wash is the match rows' red-to-blue — 2026-10-22
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
@@ -113,6 +114,7 @@ Last verified against `develop` on 2026-09-02.
 - Draft reads use the current patch with the previous one as a per-champion fallback, not every stored patch — #1906
 - The draft's enemy team is its own opposing-pair aggregate behind its own match flag, weight 0 until a back-test sets it — #1713, #1906
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
+- A matchup slice states its games above the build tabs; under 20 it warns and offers the standard build (2026-11-01) — #2355
 - The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent — #939
 - The recommendation shows no situational-items row — #921, #939
 - The matchup tool judges the lane over its own sampled games — this finishes #1111's merge

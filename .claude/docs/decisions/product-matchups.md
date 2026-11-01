@@ -140,6 +140,15 @@ is the same measure but not a lane; the accessible name keeps the opponent's nam
 rows' result colours (`result-tone.ts`: red on the losing left, blue on the winning right) rather than the
 rose-gold `data-*` axis — product call, 2026-10-22.
 
+**The spread says "Lane WR @15", and a touch reader can read it (2026-11-01).** Revises the "WR" half of the entry
+above: everywhere else on the site "WR" is the game win rate, and the SSR build summary ranks best and worst
+matchups by game win rate, so one page answered "what counters this champion" with two metrics under one label.
+The tooltip and the accessible name now read `Lane WR @15 43%`; the terse tooltip stays. Tooltips are hover-only,
+so on touch the first tap on an icon selects it (outlined) and one line under the strip reads its name, rate and
+an "Open matchup" link; a second tap follows the icon's link. The strip catches the tap in its capture phase,
+because the icon's link would otherwise navigate first. The optional hardest/easiest list was left out: the
+strip still carries no counts or extremes — #2354.
+
 **Lane win rate stores three counters and divides by the *decided* lanes, not by games played.**
 A gold *threshold* at 15 min (`LaneOutcomeAggregation:GoldLeadThreshold`, 300) is what defines a won lane, and
 a threshold necessarily creates a third outcome: lanes inside the band were neither won nor lost. Folding those
@@ -437,3 +446,12 @@ the stage was right that the portrait should be the control, but sixteen selects
 site and the app drew the same draft two different ways. The cards stay wordless (#1067, #1071); the roles strip
 moved into the duel, where the lane it names is the one being read. Before a role is picked, a card's click takes
 its lane as the role first — the one thing the board needs to know whose card is whose — #2241.
+
+**A matchup slice states its games where the build is read, and a thin one says so (2026-11-01).** Picking an
+opponent re-slices every build section with no pick-rate floor (2026-07-30: the honest answer to a thin slice is
+its game count), and the median champion-vs-opponent pair holds a handful of games on a patch — yet the count only
+rode a hover tooltip, and the API reports `minSampleMet: true` for every matchup slice. A line above the build tabs
+now carries the count ("Build against Zed · 64 games"); under 20 games, the draft panel's floor shared as
+`LOW_SAMPLE_GAMES`, it turns into a warning with a button back to the standard build. Widening a thin slice across
+the retained patches was the alternative and was left out: it would change what the slice means, and the standard
+build is one click away — #2355.
