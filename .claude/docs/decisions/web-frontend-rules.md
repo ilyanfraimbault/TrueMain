@@ -20,6 +20,11 @@ SSR emits `Name#TAG` and the client's first render computes the identical value 
 over once it lands. Anything pre-fetch that consults fetched data instead would reopen the mismatch.
 Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
 the route is a primary, indexable one — #862.
+**Revised by #2359 (2026-11-01) for the profile read only:** what broke was a fetch the server ran and the client
+did not see, not server rendering itself. The profile is public and keyed on the slug, so it now goes through
+`useAsyncData` (`useTruemainProfile`'s `ssr` option) and rides the payload: server and client start from the same
+data, and the banner, ranked card and mains are in the server HTML. Rank history, activity and matches keep the
+`onMounted` rule above.
 
 The rule covers anything else an immediate watcher can trigger, not just fetches. Its worked example was
 `useErrorToast`, which registered its watcher under `import.meta.client`: the `if (!value) return` guard made

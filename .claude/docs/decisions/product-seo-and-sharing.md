@@ -120,6 +120,16 @@ skeleton argument above does not apply to it. The sitemap lists those with at le
 (`GET /players`), with the day of their last upsert as `lastmod`; a person whose accounts are all untracked has
 a page of bare Riot IDs and is left out. Truemain profiles stay excluded, for the reason above.
 
+**The top truemain profiles are back in the sitemap, because their page is server-rendered (2026-11-01, #2359).**
+The skeleton argument above stopped holding once the profile read rode the SSR payload: the server HTML now
+carries the Riot ID, the rank, the truemained champion, the mains and a description naming the player, which is
+what "{champion} otp" / "one trick" queries look for — queries that went to onetricks.gg and dpm.lol. The family is
+the **head** of the global leaderboard only (500 profiles), not all of it: the tail of thinly sampled accounts is
+still the near-duplicate shape #1337 described, and the leaderboard keeps linking every profile for a crawler that
+descends. The champion page's top-truemains card was server-rendered alongside, reversing #1231 and #1570's
+`server: false`, for the same queries; it costs that page one leaderboard read per SSR. The effect is read in the
+weekly Search Console review.
+
 **One sitemap per page family, behind an index (2026-10-23, #1538).** `/sitemap_index.xml` lists
 `/__sitemap__/pages.xml`, `champions.xml` and `players.xml`; `/sitemap.xml` redirects to the index and
 `robots.txt` declares it. Search Console had held the single 7,000-URL sitemap as pending for weeks without

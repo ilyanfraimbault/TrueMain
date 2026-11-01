@@ -36,14 +36,12 @@ function submit() {
   submitted.value = draft.value.trim()
 }
 
-// `server: false`, like the Truemains card (#1231): the list only fills the
-// target picker, and fetching it during SSR sent one uncached leaderboard read to
-// the API on every render of every champion page (#1570). In the browser the
-// card and this picker share the key, so the page asks for it once.
+// The Truemains card's read, under its key and options: the card is server-rendered
+// since #2359, so this picker takes the rows from the same payload instead of
+// asking again (#1570 kept both client-only while the card was).
 const { rows: mainRows } = useTruemainsLeaderboard(1, {
   pageSize: TOP_MAINS,
   championId: () => props.championId,
-  server: false,
 })
 
 /**

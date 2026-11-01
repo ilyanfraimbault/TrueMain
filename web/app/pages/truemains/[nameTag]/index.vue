@@ -42,7 +42,7 @@ const {
   isInitialLoading: profileLoading,
   notFound: profileNotFound,
   ready: profileReady,
-} = useTruemainProfile(nameTag)
+} = useTruemainProfile(nameTag, { ssr: true })
 
 const {
   data: rankHistory,
@@ -61,10 +61,9 @@ const {
   ready: activityReady,
 } = useTruemainActivity(nameTag)
 
-// Human label for the breadcrumb / SEO title — `gameName#tagLine`. While the
-// (client-only) profile fetch is in flight it is derived from the route slug
-// alone, so the SSR `<title>` already reads `Name#TAG` and the client's first
-// render computes the same value (#948, the hydration trap of #862).
+// Human label for the breadcrumb / SEO title — `gameName#tagLine`. The profile
+// rides the SSR payload (#2359), so both renders read the fetched identity; the
+// route slug's label (#948) only stands in while a client navigation loads it.
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
   if (!identity) return truemainSlugLabel(nameTag.value)
@@ -87,12 +86,10 @@ useSeoMeta({
   },
 })
 
-// Dynamic share card (#926). The profile itself is fetched client-only by
-// design (`useTruemainFetch` — no SSR cross-pollination between viewers), so
-// the only thing available when this og:image URL is minted is the route slug.
-// The card resolves the profile itself through `/api/og/truemain/{nameTag}` at
-// render time; it is a public rendering of a public profile, so nothing
-// viewer-specific leaks into a shared image.
+// Dynamic share card (#926). The card resolves the profile itself through
+// `/api/og/truemain/{nameTag}` at render time, keyed on the route slug alone; it
+// is a public rendering of a public profile, so nothing viewer-specific leaks
+// into a shared image.
 defineOgImage('Truemain', { nameTag })
 
 // `playerLabel` is derived from the slug while the profile is in flight, so

@@ -91,9 +91,10 @@ export default defineNuxtConfig({
     // endpoint (server/routes/__sitemap__/urls.ts, which also says why truemain
     // profiles are *not* advertised, #1337), split by path.
     sitemaps: {
-      pages: { includeAppSources: true, exclude: ['/champions/*', '/players/*'] },
+      pages: { includeAppSources: true, exclude: ['/champions/*', '/players/*', '/truemains/*'] },
       champions: { sources: ['/__sitemap__/urls'], include: ['/champions/*'] },
       players: { sources: ['/__sitemap__/urls'], include: ['/players/*'] },
+      truemains: { sources: ['/__sitemap__/urls'], include: ['/truemains/*'] },
     },
   },
   // On-demand social-share artwork (#926). This was `enabled: false` from the
