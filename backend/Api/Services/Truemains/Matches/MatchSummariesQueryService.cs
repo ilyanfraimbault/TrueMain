@@ -1,5 +1,6 @@
 using Core.Lol.Map;
 using Data;
+using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
 using TrueMain.Services.Truemains.Identity;
@@ -100,14 +101,7 @@ public sealed class MatchSummariesQueryService(
 
         var liveTotal = await matchesQuery.CountAsync(ct);
 
-        // The games past match retention follow the live ones (#2358), older by construction:
-        // retention only truncates what left the window. Keyed on the account, the only key a
-        // truncated seat keeps.
-        var truncatedSeats = db.TruncatedMatchSeats
-            .AsNoTracking()
-            .Where(seat => seat.RiotAccountId == account.Id
-                && (championFilter == null || seat.ChampionId == championFilter)
-                && (normalizedPosition == null || seat.TeamPosition == normalizedPosition));
+        var truncatedSeats = TruncatedSeatsOf(account.Id, championFilter, normalizedPosition);
         var total = liveTotal + await truncatedSeats.CountAsync(ct);
         if (total == 0)
         {
@@ -173,17 +167,8 @@ public sealed class MatchSummariesQueryService(
 
         // The page's rest, past the live games. A page past the last one comes back empty with
         // the real total, so the frontend's pagination control still resolves to a valid range.
-        var remaining = clampedPageSize - pageKeys.Count;
-        if (remaining > 0)
-        {
-            var seats = await truncatedSeats
-                .OrderByDescending(seat => seat.GameStartTimeUtc)
-                .ThenByDescending(seat => seat.MatchId)
-                .Skip(Math.Max(0, skip - liveTotal))
-                .Take(remaining)
-                .ToListAsync(ct);
-            matches.AddRange(await TruncatedMatchSummaries.ReadAsync(db, seats, ct));
-        }
+        matches.AddRange(await ReadTruncatedPageAsync(
+            truncatedSeats, Math.Max(0, skip - liveTotal), clampedPageSize - pageKeys.Count, ct));
 
         return new MatchSummariesResponse
         {
@@ -192,5 +177,36 @@ public sealed class MatchSummariesQueryService(
             PageSize = clampedPageSize,
             Total = total,
         };
+    }
+
+    /// <summary>
+    /// A player's games past match retention (#2358), which follow the live ones: retention only
+    /// truncates what left the window. Keyed on the account, the only key a truncated seat keeps.
+    /// </summary>
+    private IQueryable<TruncatedMatchSeat> TruncatedSeatsOf(Guid accountId, int? championId, string? position)
+        => db.TruncatedMatchSeats
+            .AsNoTracking()
+            .Where(seat => seat.RiotAccountId == accountId
+                && (championId == null || seat.ChampionId == championId)
+                && (position == null || seat.TeamPosition == position));
+
+    private async Task<IReadOnlyList<MatchSummaryReadModel>> ReadTruncatedPageAsync(
+        IQueryable<TruncatedMatchSeat> seats,
+        int skip,
+        int take,
+        CancellationToken ct)
+    {
+        if (take <= 0)
+        {
+            return [];
+        }
+
+        var page = await seats
+            .OrderByDescending(seat => seat.GameStartTimeUtc)
+            .ThenByDescending(seat => seat.MatchId)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(ct);
+        return await TruncatedMatchSummaries.ReadAsync(db, page, ct);
     }
 }
