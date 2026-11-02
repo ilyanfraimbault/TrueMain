@@ -1,5 +1,6 @@
 using Core.Lol.Map;
 using Data;
+using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
 using TrueMain.Services.Truemains.Identity;
@@ -98,7 +99,10 @@ public sealed class MatchSummariesQueryService(
                 && (championFilter == null || p.ChampionId == championFilter)
                 && (normalizedPosition == null || p.TeamPosition == normalizedPosition)));
 
-        var total = await matchesQuery.CountAsync(ct);
+        var liveTotal = await matchesQuery.CountAsync(ct);
+
+        var truncatedSeats = TruncatedSeatsOf(account.Id, championFilter, normalizedPosition);
+        var total = liveTotal + await truncatedSeats.CountAsync(ct);
         if (total == 0)
         {
             // Same clamped page as the past-end-page branch below, so an empty
@@ -123,10 +127,11 @@ public sealed class MatchSummariesQueryService(
         // would save nothing but the top-N sort. The id tie-break makes the
         // ordering unique, so two matches sharing a start time can never repeat
         // or vanish between pages.
+        var skip = (clampedPage - 1) * clampedPageSize;
         var pageKeys = await matchesQuery
             .OrderByDescending(m => m.GameStartTimeUtc)
             .ThenByDescending(m => m.Id)
-            .Skip((clampedPage - 1) * clampedPageSize)
+            .Skip(skip)
             .Take(clampedPageSize)
             .Select(m => new
             {
@@ -137,20 +142,6 @@ public sealed class MatchSummariesQueryService(
                     .FirstOrDefault(),
             })
             .ToListAsync(ct);
-
-        if (pageKeys.Count == 0)
-        {
-            // Requested page is past the last one. Return an empty page with
-            // the real total so the frontend's pagination control still
-            // resolves to a valid range.
-            return new MatchSummariesResponse
-            {
-                Matches = Array.Empty<MatchSummaryReadModel>(),
-                Page = clampedPage,
-                PageSize = clampedPageSize,
-                Total = total,
-            };
-        }
 
         var keys = new List<MatchSummaryKey>(pageKeys.Count);
         foreach (var row in pageKeys)
@@ -174,6 +165,11 @@ public sealed class MatchSummariesQueryService(
             .Select(summary => summary!)
             .ToList();
 
+        // The page's rest, past the live games. A page past the last one comes back empty with
+        // the real total, so the frontend's pagination control still resolves to a valid range.
+        matches.AddRange(await ReadTruncatedPageAsync(
+            truncatedSeats, Math.Max(0, skip - liveTotal), clampedPageSize - pageKeys.Count, ct));
+
         return new MatchSummariesResponse
         {
             Matches = matches,
@@ -181,5 +177,36 @@ public sealed class MatchSummariesQueryService(
             PageSize = clampedPageSize,
             Total = total,
         };
+    }
+
+    /// <summary>
+    /// A player's games past match retention (#2358), which follow the live ones: retention only
+    /// truncates what left the window. Keyed on the account, the only key a truncated seat keeps.
+    /// </summary>
+    private IQueryable<TruncatedMatchSeat> TruncatedSeatsOf(Guid accountId, int? championId, string? position)
+        => db.TruncatedMatchSeats
+            .AsNoTracking()
+            .Where(seat => seat.RiotAccountId == accountId
+                && (championId == null || seat.ChampionId == championId)
+                && (position == null || seat.TeamPosition == position));
+
+    private async Task<IReadOnlyList<MatchSummaryReadModel>> ReadTruncatedPageAsync(
+        IQueryable<TruncatedMatchSeat> seats,
+        int skip,
+        int take,
+        CancellationToken ct)
+    {
+        if (take <= 0)
+        {
+            return [];
+        }
+
+        var page = await seats
+            .OrderByDescending(seat => seat.GameStartTimeUtc)
+            .ThenByDescending(seat => seat.MatchId)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(ct);
+        return await TruncatedMatchSummaries.ReadAsync(db, page, ct);
     }
 }

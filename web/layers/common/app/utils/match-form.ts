@@ -92,8 +92,11 @@ const average = (values: number[]) => values.reduce((sum, value) => sum + value,
  * `matches` is newest first, as every history is served.
  */
 export function formTiles(matches: MatchSummaryResponse[], benchmark: FormReference | null = null): FormTile[] {
-  if (!matches.length) return []
-  const oldestFirst = [...matches].reverse()
+  // A game past match retention kept no CS or kill participation (#2358): read as zeros,
+  // it would drag the tiles down.
+  const measured = matches.filter(match => !match.isTruncated)
+  if (!measured.length) return []
+  const oldestFirst = [...measured].reverse()
   return METRICS.map((metric) => {
     const median = benchmark?.medians[metric.key]
     const series = oldestFirst.map(metric.read)
