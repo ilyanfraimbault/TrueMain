@@ -1,3 +1,5 @@
+using Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
@@ -38,6 +40,7 @@ public interface ICompositionBuildQueryService
 /// <see cref="CompositionBuildAggregator"/>.
 /// </summary>
 public sealed class CompositionBuildQueryService(
+    TrueMainDbContext db,
     ParticipantBuildFactsLoader factsLoader,
     IOptions<CompositionSearchOptions> searchOptions)
     : ICompositionBuildQueryService
@@ -61,13 +64,14 @@ public sealed class CompositionBuildQueryService(
         // on insertion order, so the facts must follow the ranking, not whatever order
         // Postgres returns the rows in.
         var keys = new List<ParticipantKey>(matches.Count);
+        var truncatedKeys = new List<ParticipantKey>();
         var weightByKey = new Dictionary<ParticipantKey, double>(matches.Count);
         foreach (var match in matches)
         {
             var key = new ParticipantKey(match.MatchId, match.ParticipantId);
             if (!weightByKey.ContainsKey(key))
             {
-                keys.Add(key);
+                (match.IsTruncated ? truncatedKeys : keys).Add(key);
                 // Similarity, patch recency and pilot, multiplied (#1659) — the
                 // aggregator applies the win weight on top.
                 weightByKey[key] = CompositionVoteWeight.For(match, maxPossibleScore, options);
@@ -76,7 +80,37 @@ public sealed class CompositionBuildQueryService(
 
         var facts = await factsLoader.LoadAsync(
             keys, championId, position, key => weightByKey[key], ct);
+        facts.AddRange(await LoadTruncatedFactsAsync(truncatedKeys, championId, position, weightByKey, ct));
 
         return CompositionBuildAggregator.Aggregate(facts, options.WinWeight);
+    }
+
+    /// <summary>
+    /// The facts of the selected games past match retention (#2368), resolved at truncation and
+    /// kept in the selection's order, after the live ones.
+    /// </summary>
+    private async Task<IEnumerable<CompositionParticipantFacts>> LoadTruncatedFactsAsync(
+        List<ParticipantKey> keys,
+        int championId,
+        string position,
+        Dictionary<ParticipantKey, double> weightByKey,
+        CancellationToken ct)
+    {
+        if (keys.Count == 0)
+        {
+            return [];
+        }
+
+        var matchIds = keys.Select(key => key.MatchId).Distinct().ToList();
+        var seats = await db.TruncatedMatchSeats
+            .AsNoTracking()
+            .Where(seat => matchIds.Contains(seat.MatchId)
+                && seat.ChampionId == championId
+                && seat.TeamPosition == position)
+            .ToDictionaryAsync(seat => new ParticipantKey(seat.MatchId, seat.ParticipantId), ct);
+
+        return keys
+            .Where(seats.ContainsKey)
+            .Select(key => TruncatedSeatFacts.From(seats[key], weightByKey[key]));
     }
 }

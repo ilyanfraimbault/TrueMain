@@ -81,8 +81,14 @@ public sealed class CompositionMatchRef
 
     public required DateTime GameStartTimeUtc { get; init; }
 
-    /// <summary>Puuid of the player who piloted the champion in that game.</summary>
+    /// <summary>Puuid of the player who piloted the champion in that game; empty for a truncated seat, which keeps none.</summary>
     public required string Puuid { get; init; }
+
+    /// <summary>
+    /// True when the game only lives on as truncated seats past match retention (#2368): its
+    /// build facts are read from them, and it has no timeline and no row to list.
+    /// </summary>
+    public bool IsTruncated { get; init; }
 
     /// <summary>
     /// True when <see cref="Puuid"/> is an active main of the champion. Worth a vote
