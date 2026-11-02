@@ -75,20 +75,30 @@ async function playerUrls(): Promise<SitemapUrl[]> {
 export const SITEMAP_TRUEMAIN_PROFILES = 500
 const LEADERBOARD_PAGE_SIZE = 50
 
-// The leaderboard's own order (its global ranking), walked page by page at the
-// API's page-size cap (#1334 shipped because a larger size was silently refused).
+// The leaderboard's own order (its global ranking), walked at the API's page-size
+// cap (#1334 shipped because a larger size was silently refused), one page at a
+// time: a cold leaderboard page is a heavy read, and a sitemap is worth waiting for,
+// not worth ten of them at once against what visitors are asking for.
 // No `lastmod`: the leaderboard carries no per-profile change date, and an
 // invented one is worse than none.
 async function truemainUrls(): Promise<SitemapUrl[]> {
-  const pages = Math.ceil(SITEMAP_TRUEMAIN_PROFILES / LEADERBOARD_PAGE_SIZE)
-  const responses = await Promise.all(Array.from({ length: pages }, (_, index) =>
-    $fetch<LeaderboardResponse>('/api/truemains', {
-      query: { page: index + 1, pageSize: LEADERBOARD_PAGE_SIZE },
-    })))
-  return responses
-    .flatMap(response => response.rows)
+  const rows: LeaderboardResponse['rows'] = []
+  for (let page = 1; rows.length < SITEMAP_TRUEMAIN_PROFILES; page++) {
+    const response = await $fetch<LeaderboardResponse>('/api/truemains', {
+      query: { page, pageSize: LEADERBOARD_PAGE_SIZE },
+    })
+    rows.push(...response.rows)
+    if (response.rows.length < LEADERBOARD_PAGE_SIZE) break
+  }
+  // `_encoded`: the profile path is already percent-encoded (a Riot ID holds spaces
+  // and any script), and the sitemap module would encode its `%` again, advertising
+  // a URL that reaches no profile.
+  return rows
     .slice(0, SITEMAP_TRUEMAIN_PROFILES)
-    .map(row => ({ loc: truemainProfilePath(truemainNameTag(row.identity.gameName, row.identity.tagLine)) }))
+    .map(row => ({
+      loc: truemainProfilePath(truemainNameTag(row.identity.gameName, row.identity.tagLine)),
+      _encoded: true,
+    }))
 }
 
 // Cache the fan-out at the origin (not just via downstream CDNs): @nuxtjs/sitemap

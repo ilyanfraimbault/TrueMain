@@ -112,6 +112,35 @@ describe('sitemap urls', () => {
     expect(urls).toContain(`/truemains/Player%20${SITEMAP_TRUEMAIN_PROFILES}-EUW`)
   })
 
+  it('marks a profile path as already encoded, so the module does not encode it twice', async () => {
+    // A Riot ID holds spaces and any script: without the flag the sitemap
+    // advertised `/truemains/Player%25201-EUW`, a page with no profile on it.
+    handleFetch = api(DIRECTORY, leaderboard(1))
+    const urls = await loadSitemapUrls()
+
+    expect(urls).toContainEqual({ loc: '/truemains/Player%201-EUW', _encoded: true })
+  })
+
+  it('walks the leaderboard one page at a time, and stops at its last page', async () => {
+    const pages = leaderboard(120)
+    let inFlight = 0
+    let mostInFlight = 0
+    const base = api()
+    handleFetch = async (path, query) => {
+      if (path !== '/api/truemains') return base(path, query)
+      mostInFlight = Math.max(mostInFlight, ++inFlight)
+      await Promise.resolve()
+      inFlight--
+      return pages(query)
+    }
+
+    const urls = locs(await loadSitemapUrls())
+
+    expect(mostInFlight).toBe(1)
+    expect(requested.filter(path => path === '/api/truemains')).toHaveLength(3)
+    expect(urls.filter(loc => loc.startsWith('/truemains/'))).toHaveLength(120)
+  })
+
   it('keeps the other families when the leaderboard fails, and says so', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const base = api()
