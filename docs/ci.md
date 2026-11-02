@@ -569,6 +569,11 @@ on it. Both scripts are pinned by `*.test.sh` in the `deploy-scripts` job.
 The maintenance page is duplicated in the two edge files, because each deploy
 reads one file; the `compose-config` job fails when the two copies differ.
 
+The public site's `reverse_proxy web:3000` carries an active health check of
+`/api/readyz` (#2407): the edge has no route to the API, so it asks through web,
+and one request covers web, the API, PgBouncer and Postgres. `docs/prod.md`
+(*Maintenance page*) explains the thresholds.
+
 ### The edge reports its own failures
 
 A request the edge cannot hand to web or admin — a dial that times out, a
@@ -938,10 +943,8 @@ build costs runner minutes, not wall time, since it runs beside CI.
   under the repo (`sonar.scanner.scanAll`), which is how the TypeScript and Vue
   code is read without a second scanner. Generated code (EF migrations, the
   compiled model, `.nuxt`), tests, the dev API mock and `.claude/` are
-  excluded: the agent's skills and function-hook mods under `.claude/skills`
-  never ship, their tests run under `claude plugin test` (bun, outside CI), and
-  their `tsconfig.json` extends a file the Claude Code engine generates on load
-  — analysed, they read as uncovered new code and fail the gate (#2068).
+  excluded: the agent's skills under `.claude/skills` never ship, and analysed,
+  they read as uncovered new code and fail the gate (#2068).
 - `Download the lcov reports` downloads by pattern, and `download-artifact`
   puts a lone match straight into `path` instead of a directory named after
   it: a PR touching one frontend (the usual case since #2218) left its report
