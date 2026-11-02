@@ -114,8 +114,10 @@ export interface CompositionBuildGamesResponse {
   patch: string | null
   page: number
   pageSize: number
-  /** Selected games across all pages — the recommendation's sample. */
+  /** Selected games that can be listed, across all pages. */
   total: number
+  /** Selected games past match retention (#2368): they count in the recommendation but keep nothing to list. */
+  truncatedGames?: number
   /** Denominator of each game's `score`. */
   maxPossibleScore: number
   games: CompositionGame[]
