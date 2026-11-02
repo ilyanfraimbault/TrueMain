@@ -2692,11 +2692,6 @@ namespace Data.Migrations
                     b.Property<DateTime>("GameStartTimeUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("GameVersion")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
                     b.Property<int>("Kills")
                         .HasColumnType("integer");
 
@@ -2721,11 +2716,6 @@ namespace Data.Migrations
 
                     b.Property<int>("PrimaryStyleId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("Puuid")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
 
                     b.Property<int>("QueueId")
                         .HasColumnType("integer");
@@ -2762,9 +2752,6 @@ namespace Data.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
-
-                    b.Property<DateTime>("TruncatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("Win")
                         .HasColumnType("boolean");

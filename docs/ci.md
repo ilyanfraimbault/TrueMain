@@ -1107,6 +1107,9 @@ leaves a misleading version on the page (#1637).
   new variable and no host in the repo), `http://localhost:3000` in the two
   local stacks. Passed as `${PREPROD_SITE_URL:-}` on the admin rather than
   required: an empty value only hides the buttons.
+- Prod's ingestors set `MatchDataRetention__TruncatedRetainedPatchCount: "0"`:
+  match truncation (#2368) stays off there until its storage and its retention
+  time are measured on preprod and accepted. Preprod runs the default, 4.
 - Preprod's web service sets `NUXT_PUBLIC_POPULATION_TOGGLE: "true"` because its
   ingestor sets `MainAnalysis__AggregateNonMainPopulation`: the truemains toggle
   is shown only where the wider population is folded (#2352). Prod sets neither,

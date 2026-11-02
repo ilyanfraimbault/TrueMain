@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.TruncatedMatchSeat",
                 typeof(TruncatedMatchSeat),
                 baseEntityType,
-                propertyCount: 32,
+                propertyCount: 29,
                 unnamedIndexCount: 3,
                 keyCount: 1);
 
@@ -114,14 +114,6 @@ namespace Data.CompiledModels
                 sentinel: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
             gameStartTimeUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
-            var gameVersion = runtimeEntityType.AddProperty(
-                "GameVersion",
-                typeof(string),
-                propertyInfo: typeof(TruncatedMatchSeat).GetProperty("GameVersion", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(TruncatedMatchSeat).GetField("<GameVersion>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                maxLength: 32);
-            gameVersion.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-
             var kills = runtimeEntityType.AddProperty(
                 "Kills",
                 typeof(int),
@@ -177,14 +169,6 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(TruncatedMatchSeat).GetField("<PrimaryStyleId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: 0);
             primaryStyleId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-
-            var puuid = runtimeEntityType.AddProperty(
-                "Puuid",
-                typeof(string),
-                propertyInfo: typeof(TruncatedMatchSeat).GetProperty("Puuid", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(TruncatedMatchSeat).GetField("<Puuid>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                maxLength: 128);
-            puuid.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var queueId = runtimeEntityType.AddProperty(
                 "QueueId",
@@ -265,14 +249,6 @@ namespace Data.CompiledModels
                 fieldInfo: typeof(TruncatedMatchSeat).GetField("<TeamPosition>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 32);
             teamPosition.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-
-            var truncatedAtUtc = runtimeEntityType.AddProperty(
-                "TruncatedAtUtc",
-                typeof(DateTime),
-                propertyInfo: typeof(TruncatedMatchSeat).GetProperty("TruncatedAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(TruncatedMatchSeat).GetField("<TruncatedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                sentinel: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
-            truncatedAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var win = runtimeEntityType.AddProperty(
                 "Win",
