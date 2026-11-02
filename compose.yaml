@@ -195,7 +195,7 @@ services:
       - truemain_internal
 
   umami:
-    image: umamisoftware/umami:3.4.0
+    image: umamisoftware/umami:3.4.1
     container_name: truemain-umami
     restart: unless-stopped
     environment:
