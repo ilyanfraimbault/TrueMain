@@ -98,7 +98,17 @@ public sealed class MatchSummariesQueryService(
                 && (championFilter == null || p.ChampionId == championFilter)
                 && (normalizedPosition == null || p.TeamPosition == normalizedPosition)));
 
-        var total = await matchesQuery.CountAsync(ct);
+        var liveTotal = await matchesQuery.CountAsync(ct);
+
+        // The games past match retention follow the live ones (#2358), older by construction:
+        // retention only truncates what left the window. Keyed on the account, the only key a
+        // truncated seat keeps.
+        var truncatedSeats = db.TruncatedMatchSeats
+            .AsNoTracking()
+            .Where(seat => seat.RiotAccountId == account.Id
+                && (championFilter == null || seat.ChampionId == championFilter)
+                && (normalizedPosition == null || seat.TeamPosition == normalizedPosition));
+        var total = liveTotal + await truncatedSeats.CountAsync(ct);
         if (total == 0)
         {
             // Same clamped page as the past-end-page branch below, so an empty
@@ -123,10 +133,11 @@ public sealed class MatchSummariesQueryService(
         // would save nothing but the top-N sort. The id tie-break makes the
         // ordering unique, so two matches sharing a start time can never repeat
         // or vanish between pages.
+        var skip = (clampedPage - 1) * clampedPageSize;
         var pageKeys = await matchesQuery
             .OrderByDescending(m => m.GameStartTimeUtc)
             .ThenByDescending(m => m.Id)
-            .Skip((clampedPage - 1) * clampedPageSize)
+            .Skip(skip)
             .Take(clampedPageSize)
             .Select(m => new
             {
@@ -137,20 +148,6 @@ public sealed class MatchSummariesQueryService(
                     .FirstOrDefault(),
             })
             .ToListAsync(ct);
-
-        if (pageKeys.Count == 0)
-        {
-            // Requested page is past the last one. Return an empty page with
-            // the real total so the frontend's pagination control still
-            // resolves to a valid range.
-            return new MatchSummariesResponse
-            {
-                Matches = Array.Empty<MatchSummaryReadModel>(),
-                Page = clampedPage,
-                PageSize = clampedPageSize,
-                Total = total,
-            };
-        }
 
         var keys = new List<MatchSummaryKey>(pageKeys.Count);
         foreach (var row in pageKeys)
@@ -173,6 +170,20 @@ public sealed class MatchSummariesQueryService(
             .Where(summary => summary is not null)
             .Select(summary => summary!)
             .ToList();
+
+        // The page's rest, past the live games. A page past the last one comes back empty with
+        // the real total, so the frontend's pagination control still resolves to a valid range.
+        var remaining = clampedPageSize - pageKeys.Count;
+        if (remaining > 0)
+        {
+            var seats = await truncatedSeats
+                .OrderByDescending(seat => seat.GameStartTimeUtc)
+                .ThenByDescending(seat => seat.MatchId)
+                .Skip(Math.Max(0, skip - liveTotal))
+                .Take(remaining)
+                .ToListAsync(ct);
+            matches.AddRange(await TruncatedMatchSummaries.ReadAsync(db, seats, ct));
+        }
 
         return new MatchSummariesResponse
         {

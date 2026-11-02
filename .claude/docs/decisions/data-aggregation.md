@@ -473,3 +473,8 @@ production's disk headroom — the #680 failure mode. So the row dropped what no
 truncation date) and the second tier became a patch count. **Truncation is off in production**
 (`TruncatedRetainedPatchCount: 0`) until preprod has measured the slimmed row at a patch flip and the retention time it
 adds, since a flip deletes a whole patch in one run; turning it on is its own decision.
+**A profile's older games are a simplified row (2026-11-02).** The row shows what the seat kept: champion, lane, K/D/A,
+spells, runes, items, result and the teams (partial past the first tier). No LP or performance grade: the grade is computed
+from timeline snapshots retention deletes, and computing it at truncation would move API logic into the ingestor for a row
+far down a history. It has no detail to open, and it stays out of the form tiles, where a missing CS would read as zero —
+#2358.

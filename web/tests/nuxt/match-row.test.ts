@@ -109,6 +109,17 @@ describe('MatchRowTeams', () => {
 describe('MatchRow', () => {
   const props = { match: match('EUW1_1'), champions, items, summonerSpells, runeTree }
 
+  it('draws a game past match retention with nothing to open and no CS', async () => {
+    const wrapper = await mountInApp(MatchRow, {
+      ...props,
+      match: { ...match('EUW1_2'), isTruncated: true },
+      nameTag: 'Vexsmith-2104',
+    })
+
+    expect(wrapper.find('[aria-expanded]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('CS/m')
+  })
+
   it('is skipped off screen, keeping the last height it rendered', async () => {
     const wrapper = await mountInApp(MatchRow, props)
 

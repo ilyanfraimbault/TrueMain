@@ -18,6 +18,12 @@ public sealed record MatchSummaryReadModel
 
     public int GameDurationSeconds { get; init; }
 
+    /// <summary>
+    /// True for a game past match retention, read from its truncated seats (#2358): it has no
+    /// detail to open, and its CS, kill participation, LP and grade were not kept.
+    /// </summary>
+    public bool IsTruncated { get; init; }
+
     public MatchSummarySelfReadModel Self { get; init; } = new();
 
     /// <summary>
