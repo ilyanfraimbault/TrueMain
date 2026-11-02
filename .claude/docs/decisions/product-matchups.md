@@ -448,14 +448,16 @@ site and the app drew the same draft two different ways. The cards stay wordless
 moved into the duel, where the lane it names is the one being read. Before a role is picked, a card's click takes
 its lane as the role first — the one thing the board needs to know whose card is whose — #2241.
 
-**A matchup slice states its games where the build is read, and a thin one says so (2026-11-01).** Picking an
-opponent re-slices every build section with no pick-rate floor (2026-07-30: the honest answer to a thin slice is
-its game count), and the median champion-vs-opponent pair holds a handful of games on a patch — yet the count only
-rode a hover tooltip, and the API reports `minSampleMet: true` for every matchup slice. A line above the build tabs
-now carries the count ("Build against Zed · 64 games"); under 20 games, the draft panel's floor shared as
-`LOW_SAMPLE_GAMES`, it turns into a warning with a button back to the standard build. Widening a thin slice across
-the retained patches was the alternative and was left out: it would change what the slice means, and the standard
-build is one click away — #2355.
+**A matchup slice states its games where the build is read, and a thin one carries the warning dot (2026-11-02).**
+Picking an opponent re-slices every build section with no pick-rate floor (2026-07-30: the honest answer to a thin
+slice is its game count), and the median champion-vs-opponent pair holds a handful of games on a patch — yet the
+count only rode a hover tooltip, and the API reports `minSampleMet: true` for every matchup slice. A line above the
+build tabs now carries the count ("Build against Zed · 64 games"); under 20 games, the draft panel's floor shared as
+`LOW_SAMPLE_GAMES`, the `WarningDot` sits beside the opponent's name, its tooltip stating the fact ("Only 5 games
+against Zed"). The first version wrote the warning on the page with a button back to the standard build, which broke
+the qualifier rule (design-system, 2026-10-13); the operator removed both: a thin sample is never written out, and
+the filter bar already clears the opponent. Widening a thin slice across the retained patches was the alternative
+and was left out: it would change what the slice means — #2355.
 
 **The matchup tool answers first from the cached matchup slice, then refines (2026-11-01).** The composition build
 refolds `match_participants` live on every debounced draft edit, and a cold recommendation runs for tens of seconds
