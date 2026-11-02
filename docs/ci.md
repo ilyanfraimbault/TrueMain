@@ -1187,6 +1187,10 @@ one container could take the machine down with it.
   page stayed blank, and the operator does wait on that page. `cpu_shares` has
   no `deploy.resources` equivalent, which is why these are the flat Compose keys and not a
   `deploy:` block.
+- The two ingestors are the exception to "a ceiling only caps a runaway" (#2418): they run around
+  the clock and would fill whatever the host allows, and what the provider throttles on is sustained
+  load. Their low ceilings bound that load, which leaves the request path room for its bursts.
+  Preprod ingestion is slower on purpose.
 - `compose.prod.yaml` gets no caps: its host is not shared and sizing one machine's limits from
   another's symptoms would be guesswork.
 - Health probes ran every 10 s on eleven containers. The probe itself is cheap; the `runc exec`

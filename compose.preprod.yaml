@@ -236,7 +236,7 @@ services:
     pull_policy: always
     container_name: truemain-preprod-ingestor
     restart: unless-stopped
-    cpus: 0.75
+    cpus: 0.2
     cpu_shares: 512
     init: true
     stop_grace_period: 120s
@@ -266,7 +266,7 @@ services:
     pull_policy: always
     container_name: truemain-preprod-ingestor-aggregate
     restart: unless-stopped
-    cpus: 0.75
+    cpus: 0.15
     cpu_shares: 256
     init: true
     stop_grace_period: 120s
