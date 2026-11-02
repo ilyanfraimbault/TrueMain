@@ -76,7 +76,13 @@ configs:
       	import security_headers
       	import maintenance
       	header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://ddragon.leagueoflegends.com https://raw.communitydragon.org; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://analytics.truemain.lol; connect-src 'self' https://analytics.truemain.lol; worker-src 'self' blob:; frame-src 'self'"
-      	reverse_proxy web:3000
+      	reverse_proxy web:3000 {
+      		health_uri /api/readyz
+      		health_interval 2s
+      		health_timeout 3s
+      		health_fails 3
+      		health_passes 2
+      	}
       }
 
       www.truemain.lol {

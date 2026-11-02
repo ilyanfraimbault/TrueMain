@@ -325,11 +325,33 @@ the window where Caddy happened to be up, so the product owner chose to move the
 - *The edge redeploys only when it changes* — missing project, a container not running, or a compose file that
   differs from the repository's (`edge-drift.sh`) — because a redeploy recreates Caddy.
 - *`503` + `Retry-After`, `no-store`*: crawlers read a temporary outage, and no cache keeps the page afterwards.
-  An app-level `503` passes through; only a failure to reach the upstream is maintenance.
-- *No manual maintenance switch*: the page appears exactly when the upstream is unreachable. A toggle for planned
-  work with the apps still up was not asked for.
+  An app-level `503` passes through while the stack is healthy.
+- *No manual maintenance switch*: the page follows the state of the stack. A toggle for planned work with the apps
+  still up was not asked for.
 - *Not on `analytics`*: an HTML body in place of the Umami tracker helps nobody.
 
 Source: #2179; `docs/prod.md` (*Maintenance page*, *One-time cutover to the edge project*), `docs/ci.md` (*The edge
 is its own project*). Moves the edge configuration from `compose.prod.yaml` / `compose.preprod.yaml` (2026-10-05
-entry above, #1598; 2026-09-14 entry, #1558) to the edge files; the inline-config rule itself is unchanged.
+entry above, #1598; 2026-09-14 entry, #1558) to the edge files; the inline-config rule itself is unchanged. The
+trigger on the public site was widened on 2026-11-02 (entry below, #2407).
+
+## The public site shows the maintenance page whenever web, the API or the database is down (2026-11-02)
+
+**The edge's `reverse_proxy web:3000` probes `/api/readyz` through web, so the public site switches to the maintenance
+page as soon as any service it needs to serve a visitor is down, not only web.** With the 2026-10-20 trigger, web kept
+answering without a backend during part of every rollout, and a crash of the API or a database outage outside a
+rollout never showed the page at all. The product owner wants a database taken down for maintenance to show it too.
+
+- *The probe goes through web, not to the API*: `/api/readyz` covers web, the API, PgBouncer and Postgres in one
+  request, needs no new route, and leaves the API off the edge network.
+- *Three failures to switch, two passes to come back* (`health_interval 2s`, `health_timeout 3s`): a single failed
+  probe under load must not take the site offline. That costs about 6 s before the page appears when the probe gets an
+  error answer and about 9 s when it hangs, and a saturated API that fails every probe does show the page. A dial that
+  fails on a visitor's request still shows it at once.
+- *Mongo and the ingestors are not part of the probe*: Mongo only backs the logs and the admin's ops data, and an
+  ingestor being down does not stop the site from serving what is already computed. Showing the page for either would
+  take a working site offline.
+- *The admin keeps the 2026-10-20 trigger*: it stays reachable as long as its own container is, because the logs and
+  process views are what an operator reaches for during an incident.
+
+Source: #2407; `docs/prod.md` (*Maintenance page*), `docs/ci.md` (*The edge is its own project*).

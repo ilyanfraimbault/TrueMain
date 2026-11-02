@@ -190,16 +190,32 @@ stopped it too: the site answered nothing at all — not even an error — for t
 40 to 60 seconds between Caddy's recreation and its restart, then a bare `502`
 until web and admin listened again.
 
-With the edge in its own project, an app rollout leaves Caddy running. When it
-cannot reach web or admin (a dial error, a container being recreated, a name
-that does not resolve yet), the `(maintenance)` snippet catches the `502`/`503`/
-`504` and answers instead:
+With the edge in its own project, an app rollout leaves Caddy running, and the
+`(maintenance)` snippet answers in two situations:
+
+- **Caddy cannot reach web or admin** (a dial error, a container being recreated,
+  a name that does not resolve yet). This shows at once, on the request that
+  failed.
+- **On the public site, the stack behind web is down** (#2407). An active health
+  check of `reverse_proxy web:3000` asks `/api/readyz` through web every 2 s, which
+  covers web, the API, PgBouncer and Postgres in one request. Three failures in a
+  row mark web unavailable, and two passes bring it back. That takes about 6 s
+  when the probe gets an error answer and about 9 s when it hangs (`health_timeout
+  3s`), measured against the real Caddyfile with a stub upstream; the way back
+  takes 3 to 4 s. A single failed probe changes nothing.
+
+Mongo and the ingestors are not in the probe, because the site keeps serving
+visitors without them. The admin has no health check: it stays reachable as long
+as its own container is, because its logs and process views are what an operator
+reaches for during an incident. While the database or the API is down, each probe
+also adds to the API's and web's own error logs, every 2 s at most.
+
+In both situations the visitor gets:
 
 - **`503 Service Unavailable` with `Retry-After: 60` and `Cache-Control: no-store`**,
   so crawlers read a temporary outage rather than a broken page, and no cache keeps
-  the page once the site is back. A `503` the app itself returns (a champion route
-  that cannot render) passes through unchanged: only a failure to *reach* the
-  upstream is maintenance.
+  the page once the site is back. While the stack is healthy, a `503` the app
+  itself returns (a champion route that cannot render) passes through unchanged.
 - **An HTML page** for any path but `/api/*`: self-contained (inline CSS, the
   M-check mark as inline SVG, no font, nothing fetched from the stack that is down),
   and it polls its own URL every five seconds and reloads as soon as the answer is
