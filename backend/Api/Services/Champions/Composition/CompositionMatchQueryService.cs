@@ -153,6 +153,16 @@ public sealed class CompositionMatchQueryService(
             .ToHashSet(StringComparer.Ordinal);
 
         var maxScore = CompositionSimilarityScorer.MaxScore(criteria, weights);
+        var liveCandidates = rows.Select(r => (r.MatchId, r.ParticipantId)).Distinct().Count();
+
+        // Past the full-match window the pool goes on in the truncated seats (#2368), under the
+        // same cap, newest first: a match is live or truncated, never both. A player's own
+        // games stay live ones: a truncated seat keeps no puuid.
+        var truncated = criteria.Puuid is not null || liveCandidates >= options.CandidatePoolCap
+            ? []
+            : await LoadTruncatedAsync(
+                criteria, weights, matchupRequested, roleOpponentId, queueId, normalizedPatch, bands,
+                options.CandidatePoolCap - liveCandidates, ct);
 
         // The patch every vote is weighed against: the one asked for, or the newest the
         // pool actually holds. Read off the rows already in hand rather than resolved
@@ -161,7 +171,8 @@ public sealed class CompositionMatchQueryService(
         // change exists to remove. Only the *relative* weight matters: where a pool spans
         // two patches the newer one is correctly favoured, and where it sits entirely on
         // one, every vote scales alike and the aggregation is unchanged.
-        var currentPatch = normalizedPatch ?? NewestPatch(rows.Select(r => r.GameVersion));
+        var currentPatch = normalizedPatch
+            ?? NewestPatch(rows.Select(r => r.GameVersion).Concat(truncated.Select(seat => seat.Patch)));
 
         var scored = rows
             .GroupBy(r => (r.MatchId, r.ParticipantId))
@@ -193,6 +204,19 @@ public sealed class CompositionMatchQueryService(
         // similarity within each tier, recency breaking ties. The provenance drawer
         // (#940) pages this very order, so it stays deterministic whether or not the
         // selection is truncated below.
+        scored.AddRange(truncated.Select(seat => new CompositionMatchRef
+        {
+            MatchId = seat.MatchId,
+            ParticipantId = seat.ParticipantId,
+            Score = seat.Score,
+            Win = seat.Win,
+            GameStartTimeUtc = seat.GameStartTimeUtc,
+            Puuid = string.Empty,
+            IsTruemain = seat.IsTruemain,
+            IsCurrentPatch = currentPatch is not null && seat.Patch == currentPatch,
+            IsTruncated = true,
+        }));
+
         var ranked = scored
             .OrderByDescending(m => m.IsTruemain)
             .ThenByDescending(m => m.Score)
@@ -230,6 +254,82 @@ public sealed class CompositionMatchQueryService(
     /// parses. Compared as versions, never as strings — <c>16.9</c> sorts after
     /// <c>16.10</c> alphabetically, which would hand the older patch the heavier vote.
     /// </summary>
+    /// <summary>A truncated seat of the pool, scored against the draft from its match's other seats.</summary>
+    private sealed record TruncatedCandidate(
+        string MatchId,
+        int ParticipantId,
+        int Score,
+        bool Win,
+        DateTime GameStartTimeUtc,
+        string Patch,
+        bool IsTruemain);
+
+    /// <summary>
+    /// The newest truncated seats of the champion at the position, on the same filters as the
+    /// live pool, each scored like a live game. Past the first tier a match only keeps its
+    /// tracked seats, so its draft reads as partly unknown and scores accordingly.
+    /// </summary>
+    private async Task<List<TruncatedCandidate>> LoadTruncatedAsync(
+        CompositionSearchCriteria criteria,
+        CompositionScoreWeights weights,
+        bool matchupRequested,
+        int roleOpponentId,
+        int queueId,
+        string? patch,
+        IReadOnlyList<string>? bands,
+        int limit,
+        CancellationToken ct)
+    {
+        var candidates = matchupRequested
+            ? TruncatedMatchupQuery.Facing(db, criteria.ChampionId, roleOpponentId, criteria.Position, queueId, patch, bands)
+            : TruncatedMatchupQuery.Seats(db, criteria.ChampionId, criteria.Position, queueId, patch, bands);
+
+        var seats = await candidates
+            .OrderByDescending(seat => seat.GameStartTimeUtc)
+            .ThenBy(seat => seat.MatchId)
+            .Take(limit)
+            .Select(seat => new { seat.MatchId, seat.ParticipantId, seat.TeamId, seat.Win, seat.GameStartTimeUtc, seat.Patch, seat.RiotAccountId })
+            .ToListAsync(ct);
+        if (seats.Count == 0)
+        {
+            return [];
+        }
+
+        var matchIds = seats.Select(seat => seat.MatchId).Distinct().ToList();
+        var others = (await db.TruncatedMatchSeats
+                .AsNoTracking()
+                .Where(other => matchIds.Contains(other.MatchId))
+                .Select(other => new { other.MatchId, other.ParticipantId, other.TeamId, other.TeamPosition, other.ChampionId })
+                .ToListAsync(ct))
+            .ToLookup(other => other.MatchId, StringComparer.Ordinal);
+
+        var accountIds = seats.Where(seat => seat.RiotAccountId != null).Select(seat => seat.RiotAccountId!.Value).Distinct().ToList();
+        var mainAccounts = (await db.RiotAccounts
+                .AsNoTracking()
+                .Where(account => accountIds.Contains(account.Id))
+                .Join(
+                    db.MainChampionStats.AsNoTracking().Where(stat => stat.ChampionId == criteria.ChampionId && stat.IsMain && stat.IsActive),
+                    account => new { account.PlatformId, account.Puuid },
+                    stat => new { stat.PlatformId, stat.Puuid },
+                    (account, _) => account.Id)
+                .ToListAsync(ct))
+            .ToHashSet();
+
+        return [.. seats.Select(seat => new TruncatedCandidate(
+            seat.MatchId,
+            seat.ParticipantId,
+            CompositionSimilarityScorer.Score(
+                criteria,
+                weights,
+                [.. others[seat.MatchId]
+                    .Where(other => other.ParticipantId != seat.ParticipantId)
+                    .Select(other => new CompositionSlot(other.TeamId != seat.TeamId, other.TeamPosition, other.ChampionId))]),
+            seat.Win,
+            seat.GameStartTimeUtc,
+            seat.Patch,
+            seat.RiotAccountId is { } accountId && mainAccounts.Contains(accountId)))];
+    }
+
     private static string? NewestPatch(IEnumerable<string> gameVersions)
     {
         PatchVersion? newest = null;
