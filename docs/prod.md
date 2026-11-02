@@ -196,13 +196,22 @@ With the edge in its own project, an app rollout leaves Caddy running, and the
 - **Caddy cannot reach web or admin** (a dial error, a container being recreated,
   a name that does not resolve yet). This shows at once, on the request that
   failed.
-- **On the public site, the stack behind web is down** (#2407). An active health
-  check of `reverse_proxy web:3000` asks `/api/readyz` through web every 2 s, which
-  covers web, the API, PgBouncer and Postgres in one request. Three failures in a
-  row mark web unavailable, and two passes bring it back. That takes about 6 s
-  when the probe gets an error answer and about 9 s when it hangs (`health_timeout
-  3s`), measured against the real Caddyfile with a stub upstream; the way back
-  takes 3 to 4 s. A single failed probe changes nothing.
+- **On the public site, the stack behind web is down** (#2407, #2416). An active
+  health check of `reverse_proxy web:3000` asks `/api/readyz` every 2 s. Web's own
+  route (`web/server/api/readyz.get.ts`) asks the API's `/readyz` within 8 s, which
+  covers the API, PgBouncer and Postgres, and answers `503` from the third failed
+  check in a row. The first `503`, or a web that does not answer within
+  `health_timeout 10s`, marks web unavailable, and two passes bring it back. So the
+  page appears about 6 s after the API or the database starts refusing, about 12 s
+  after it starts hanging and 10 s after web itself does; the way back takes 3 to
+  4 s. After a web hang the page can come back once for a few seconds, while the
+  probes sent during the hang time out. Isolated failures change nothing, however
+  many.
+
+  The counting lives in web because Caddy cannot do it: `health_fails` adds failed
+  probes up over the life of the process and a pass does not reset it. Measured on
+  Caddy 2.11.7 with `health_fails 3` and one probe in ten failing, the third
+  isolated failure took the site offline for 4 s.
 
 Mongo and the ingestors are not in the probe, because the site keeps serving
 visitors without them. The admin has no health check: it stays reachable as long
