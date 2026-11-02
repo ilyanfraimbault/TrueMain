@@ -29,6 +29,12 @@ public sealed record CompositionBuildGamesResponse
     public required int Total { get; init; }
 
     /// <summary>
+    /// Selected games past match retention (#2368): they count in the recommendation but keep
+    /// nothing to list, so they are outside <see cref="Total"/> and the pages.
+    /// </summary>
+    public int TruncatedGames { get; init; }
+
+    /// <summary>
     /// Score a game reproducing every requested slot would reach; the
     /// denominator of each game's <see cref="CompositionGameReadModel.Score"/>.
     /// Zero when the draft carried no composition slot — every game then

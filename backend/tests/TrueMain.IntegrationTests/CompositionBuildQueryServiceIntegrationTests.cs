@@ -152,8 +152,72 @@ public sealed class CompositionBuildQueryServiceIntegrationTests : IAsyncLifetim
         result.GamesConsidered.Should().Be(0);
     }
 
+    [Fact]
+    public async Task AggregateAsync_FoldsTheTruncatedGamesOfTheSelection()
+    {
+        // #2368: a selected game past retention votes with the facts kept at truncation.
+        await using (var seed = _fixture.CreateDbContext())
+        {
+            seed.TruncatedMatchSeats.Add(Seat("TR_1", 1, 100, Champion, Position, buildItems: [3031, 3153]));
+            await seed.SaveChangesAsync();
+        }
+
+        var result = await CreateService().AggregateAsync(
+            Champion,
+            Position,
+            [new CompositionMatchRef
+            {
+                MatchId = "TR_1",
+                ParticipantId = 1,
+                Score = 10,
+                Win = true,
+                GameStartTimeUtc = DateTime.UtcNow.AddDays(-60),
+                Puuid = string.Empty,
+                IsTruemain = false,
+                IsCurrentPatch = true,
+                IsTruncated = true,
+            }],
+            maxPossibleScore: 10,
+            CancellationToken.None);
+
+        result.GamesConsidered.Should().Be(1);
+        result.Wins.Should().Be(1);
+        result.FirstItemId.Should().Be(3031);
+    }
+
+    private static TruncatedMatchSeat Seat(
+        string matchId, int participantId, int teamId, int championId, string position, bool win = true, int[]? buildItems = null)
+        => new()
+        {
+            MatchId = matchId,
+            ParticipantId = participantId,
+            PlatformId = "EUW1",
+            QueueId = 420,
+            Patch = "16.2",
+            GameStartTimeUtc = new DateTime(2026, 1, 20, 12, 0, 0, DateTimeKind.Utc),
+            GameDurationSeconds = 1800,
+            EloBracket = "MASTER",
+            TeamId = teamId,
+            Win = win,
+            ChampionId = championId,
+            TeamPosition = position,
+            Summoner1Id = 4,
+            Summoner2Id = 14,
+            PrimaryStyleId = 8100,
+            SubStyleId = 8200,
+            RunePerkIds = [8112, 8139, 8126, 8106, 8226, 8234],
+            PerksOffense = 5008,
+            PerksFlex = 5008,
+            PerksDefense = 5001,
+            BuildItemIds = buildItems ?? [],
+            BuildItemMinutes = [.. (buildItems ?? []).Select((_, index) => 12 + index * 8)],
+            BootsItemId = 3020,
+            SkillOrderKey = "Q-W-E",
+        };
+
     private CompositionBuildQueryService CreateService()
         => new(
+            _fixture.CreateDbContext(),
             new ParticipantBuildFactsLoader(
                 _fixture.CreateDbContext(),
                 new FakeItemMetadataProvider(),

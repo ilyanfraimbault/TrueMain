@@ -278,6 +278,88 @@ public sealed class CompositionMatchQueryServiceIntegrationTests : IAsyncLifetim
         result.Matches.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task FindTopMatchesAsync_ReadsTheTruncatedSeatsPastRetention_ScoredOnTheirMatch()
+    {
+        // #2368: games past match retention still count, scored on the seats they kept. The
+        // ally jungle pick is in TR_1 only; TR_2 has the matchup without it.
+        await using (var seed = _fixture.CreateDbContext())
+        {
+            seed.TruncatedMatchSeats.AddRange(
+                Seat("TR_1", 1, 100, Champion, Position),
+                Seat("TR_1", 2, 100, AllyJungle, "JUNGLE"),
+                Seat("TR_1", 6, 200, RoleOpponent, Position),
+                Seat("TR_2", 1, 100, Champion, Position),
+                Seat("TR_2", 6, 200, RoleOpponent, Position),
+                Seat("TR_3", 1, 100, Champion, Position),
+                Seat("TR_3", 6, 200, OtherOpponent, Position));
+            await seed.SaveChangesAsync();
+        }
+
+        await using var db = _fixture.CreateDbContext();
+        var result = await CreateService(db).FindTopMatchesAsync(
+            new CompositionSearchCriteria
+            {
+                ChampionId = Champion,
+                Position = Position,
+                Allies = new Dictionary<string, int> { ["JUNGLE"] = AllyJungle },
+                Enemies = new Dictionary<string, int> { [Position] = RoleOpponent },
+            },
+            CancellationToken.None);
+
+        result.MatchupFound.Should().BeTrue();
+        result.Matches.Select(match => match.MatchId).Should().Equal("TR_1", "TR_2");
+        result.Matches.Should().OnlyContain(match => match.IsTruncated);
+        result.Matches[0].Score.Should().BeGreaterThan(result.Matches[1].Score);
+    }
+
+    [Fact]
+    public async Task FindTopMatchesAsync_LeavesTruncatedSeatsOutOfAPlayersOwnGames()
+    {
+        await using (var seed = _fixture.CreateDbContext())
+        {
+            seed.TruncatedMatchSeats.Add(Seat("TR_1", 1, 100, Champion, Position));
+            await seed.SaveChangesAsync();
+        }
+
+        await using var db = _fixture.CreateDbContext();
+        var result = await CreateService(db).FindTopMatchesAsync(
+            new CompositionSearchCriteria { ChampionId = Champion, Position = Position, Puuid = "someone" },
+            CancellationToken.None);
+
+        result.Matches.Should().BeEmpty("a truncated seat keeps no puuid to match a player on");
+    }
+
+    private static TruncatedMatchSeat Seat(
+        string matchId, int participantId, int teamId, int championId, string position, bool win = true, int[]? buildItems = null)
+        => new()
+        {
+            MatchId = matchId,
+            ParticipantId = participantId,
+            PlatformId = "EUW1",
+            QueueId = 420,
+            Patch = "16.2",
+            GameStartTimeUtc = new DateTime(2026, 1, 20, 12, 0, 0, DateTimeKind.Utc),
+            GameDurationSeconds = 1800,
+            EloBracket = "MASTER",
+            TeamId = teamId,
+            Win = win,
+            ChampionId = championId,
+            TeamPosition = position,
+            Summoner1Id = 4,
+            Summoner2Id = 14,
+            PrimaryStyleId = 8100,
+            SubStyleId = 8200,
+            RunePerkIds = [8112, 8139, 8126, 8106, 8226, 8234],
+            PerksOffense = 5008,
+            PerksFlex = 5008,
+            PerksDefense = 5001,
+            BuildItemIds = buildItems ?? [],
+            BuildItemMinutes = [.. (buildItems ?? []).Select((_, index) => 12 + index * 8)],
+            BootsItemId = 3020,
+            SkillOrderKey = "Q-W-E",
+        };
+
     private static CompositionMatchQueryService CreateService(Data.TrueMainDbContext db, int topK = 100)
         => new(
             db,
