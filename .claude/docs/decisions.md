@@ -261,7 +261,7 @@ Last verified against `develop` on 2026-09-02.
 - A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
 - The pace benchmark is a per-minute CS / gold-earned histogram per (patch, tier, position), folded from the timeline in memory at ingestion, once per match, the lobby at its tracked account's tier — never a per-minute grid (2026-10-05) — #1912
 - The form benchmark (KDA, KP, CS/min, deaths, vision/min) is a whole-game histogram in its own table, folded in the pace benchmark's pass under its claim, so both describe the same games; no back-fill (2026-10-20) — #2076
-- One truncated-match table outlives retention: ten seats for ~4 patches (matchups, drafts), tracked seats to season end (profiles) (2026-11-01) — #2358, #2368
+- One truncated-match table outlives retention: ten seats for ~4 patches (matchups, drafts), tracked seats up to 8 (profiles); off in production until preprod has measured it (2026-11-02) — #2358, #2368
 
 ## Backend code conventions — [`decisions/backend-conventions.md`](decisions/backend-conventions.md)
 

@@ -6,7 +6,7 @@ namespace Data.Entities;
 /// draws — no timeline, no participant JSON. Written by match retention in the same
 /// transaction that deletes the match, and purged on its own two-tier window: every seat
 /// for <c>MatchDataRetention:TruncatedRetainedPatchCount</c> patches, then the tracked
-/// accounts' seats to the end of the season.
+/// accounts' seats up to <c>TruncatedTrackedRetainedPatchCount</c> patches.
 /// </summary>
 /// <remarks>
 /// The build facts are resolved at truncation with the primitives every live build read
@@ -26,9 +26,6 @@ public class TruncatedMatchSeat
     /// <summary>The match's <c>major.minor</c> patch.</summary>
     public string Patch { get; set; } = string.Empty;
 
-    /// <summary>The full game version, which item data is keyed by.</summary>
-    public string GameVersion { get; set; } = string.Empty;
-
     public DateTime GameStartTimeUtc { get; set; }
     public int GameDurationSeconds { get; set; }
 
@@ -42,8 +39,6 @@ public class TruncatedMatchSeat
 
     /// <summary>The account key: the tracked account when the seat was one, else null.</summary>
     public Guid? RiotAccountId { get; set; }
-
-    public string Puuid { get; set; } = string.Empty;
 
     public int Summoner1Id { get; set; }
     public int Summoner2Id { get; set; }
@@ -75,6 +70,4 @@ public class TruncatedMatchSeat
     public int Kills { get; set; }
     public int Deaths { get; set; }
     public int Assists { get; set; }
-
-    public DateTime TruncatedAtUtc { get; set; }
 }

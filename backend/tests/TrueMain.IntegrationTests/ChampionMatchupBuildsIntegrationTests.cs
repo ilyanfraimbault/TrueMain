@@ -197,7 +197,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             PlatformId = "EUW1",
             QueueId = 420,
             Patch = "16.2",
-            GameVersion = "16.2.1",
             GameStartTimeUtc = new DateTime(2026, 1, 20, 12, 0, 0, DateTimeKind.Utc),
             GameDurationSeconds = 1800,
             EloBracket = "MASTER",
@@ -205,7 +204,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             Win = win,
             ChampionId = championId,
             TeamPosition = position,
-            Puuid = $"{matchId}-{participantId}",
             Summoner1Id = 4,
             Summoner2Id = 14,
             // A build is keyed on its first item and keystone, so a seat needs its page.
@@ -219,7 +217,6 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             BuildItemMinutes = [.. (buildItems ?? []).Select((_, index) => 12 + index * 8)],
             BootsItemId = 3020,
             SkillOrderKey = "Q-W-E",
-            TruncatedAtUtc = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc),
         };
 
     private ChampionMatchupBuildsQueryService CreateService()

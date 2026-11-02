@@ -48,7 +48,10 @@ public sealed class MatchDataRetentionProcess(
 
         // What outlives the full-match window, truncated (#2368, #2358), on its own two tiers.
         var truncatedPurged = await TruncatedMatchRetention.PurgeAsync(
-            dbContextFactory, retentionOptions.Value.TruncatedRetainedPatchCount, ct);
+            dbContextFactory,
+            retentionOptions.Value.TruncatedRetainedPatchCount,
+            retentionOptions.Value.TruncatedTrackedRetainedPatchCount,
+            ct);
 
         // Drain every queue other than the tracked one. The site only serves ranked
         // solo/duo (all aggregates, the leaderboard and the champion pages are scoped
@@ -379,7 +382,7 @@ public sealed class MatchDataRetentionProcess(
             if (keepTruncated)
             {
                 truncatedSeats += await TruncatedMatchRetention.WriteAsync(
-                    db, batchIds, queueId, itemMetadata, timeProvider.GetUtcNow().UtcDateTime, ct);
+                    db, batchIds, queueId, itemMetadata, ct);
             }
             // MatchParticipant -> Match is Restrict, so participants must be deleted
             // before the match; the remaining child tables cascade on the match delete.
