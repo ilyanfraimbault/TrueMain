@@ -17,9 +17,11 @@ namespace Ingestor.Processes.Components.Retention;
 /// or already truncated — never lost between the two, and never truncated twice.
 /// </para>
 /// <para>
-/// <b>Two tiers.</b> Every seat of the newest <c>TruncatedRetainedPatchCount</c> patches stays,
-/// which is what widens matchup and draft samples; older than that, only tracked accounts'
-/// seats stay, until the season ends (a new major version), for their profiles.
+/// <b>Two tiers, both bounded.</b> Every seat of the newest <c>TruncatedRetainedPatchCount</c>
+/// patches stays, which is what widens matchup and draft samples; older than that, only tracked
+/// accounts' seats stay, up to <c>TruncatedTrackedRetainedPatchCount</c> patches, for their
+/// profiles. A patch count rather than a season: 16.x runs a whole year, about 24 patches,
+/// which measured close to the disk's headroom.
 /// </para>
 /// </remarks>
 public static class TruncatedMatchRetention
@@ -34,7 +36,6 @@ public static class TruncatedMatchRetention
         IReadOnlyCollection<string> matchIds,
         int queueId,
         Func<string, CancellationToken, Task<IReadOnlyDictionary<int, ItemMetadata>?>> itemMetadataFor,
-        DateTime nowUtc,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(db);
@@ -90,8 +91,7 @@ public static class TruncatedMatchRetention
                     match,
                     participant,
                     [.. perks[(participant.MatchId, participant.ParticipantId)]],
-                    metadataByVersion[match.GameVersion],
-                    nowUtc);
+                    metadataByVersion[match.GameVersion]);
             })
             .ToList();
 
@@ -128,12 +128,14 @@ public static class TruncatedMatchRetention
 
     /// <summary>
     /// Drops what the two tiers no longer keep: untracked seats outside the newest
-    /// <paramref name="retainedPatchCount"/> patches, and every seat of a past season. Nothing
-    /// when truncation is off. Returns the seats deleted.
+    /// <paramref name="retainedPatchCount"/> patches, and every seat outside the newest
+    /// <paramref name="trackedRetainedPatchCount"/>. Nothing when truncation is off. Returns the
+    /// seats deleted.
     /// </summary>
     public static async Task<int> PurgeAsync(
         IDbContextFactory<TrueMainDbContext> dbContextFactory,
         int retainedPatchCount,
+        int trackedRetainedPatchCount,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(dbContextFactory);
@@ -144,13 +146,13 @@ public static class TruncatedMatchRetention
 
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         var patches = await db.TruncatedMatchSeats.AsNoTracking().Select(seat => seat.Patch).Distinct().ToListAsync(ct);
-        var (outsideWindow, pastSeasons) = Tiers(patches, retainedPatchCount);
+        var (outsideWindow, expired) = Tiers(patches, retainedPatchCount, trackedRetainedPatchCount);
         var deleted = 0;
 
-        if (pastSeasons.Count > 0)
+        if (expired.Count > 0)
         {
             deleted += await db.TruncatedMatchSeats
-                .Where(seat => pastSeasons.Contains(seat.Patch))
+                .Where(seat => expired.Contains(seat.Patch))
                 .ExecuteDeleteAsync(ct);
         }
 
@@ -166,30 +168,30 @@ public static class TruncatedMatchRetention
 
     /// <summary>
     /// Splits the stored patches into those outside the full window (untracked seats go) and
-    /// those of a past season (every seat goes). Ordered on parsed versions — <c>16.9</c> sorts
-    /// above <c>16.19</c> as a string — and an unparseable patch is treated as the oldest.
+    /// those outside the tracked window (every seat goes). Ordered on parsed versions —
+    /// <c>16.9</c> sorts above <c>16.19</c> as a string — and an unparseable patch counts as
+    /// the oldest and is expired outright. A tracked window narrower than the full one is
+    /// read as the full one.
     /// </summary>
-    public static (List<string> OutsideWindow, List<string> PastSeasons) Tiers(
+    public static (List<string> OutsideWindow, List<string> Expired) Tiers(
         IReadOnlyCollection<string> patches,
-        int retainedPatchCount)
+        int retainedPatchCount,
+        int trackedRetainedPatchCount)
     {
         ArgumentNullException.ThrowIfNull(patches);
 
-        var ordered = patches
+        var parsed = patches
             .Select(raw => (Raw: raw, Version: PatchVersion.TryParse(raw, out var version) ? version : (PatchVersion?)null))
-            .OrderByDescending(entry => entry.Version.HasValue)
-            .ThenByDescending(entry => entry.Version)
             .ToList();
-        if (ordered.Count == 0 || ordered[0].Version is not { } newest)
-        {
-            return ([], []);
-        }
-
-        var outsideWindow = ordered.Skip(Math.Max(1, retainedPatchCount)).Select(entry => entry.Raw).ToList();
-        var pastSeasons = ordered
-            .Where(entry => entry.Version is not { } version || version.Major < newest.Major)
+        var ordered = parsed
+            .Where(entry => entry.Version.HasValue)
+            .OrderByDescending(entry => entry.Version)
             .Select(entry => entry.Raw)
             .ToList();
-        return (outsideWindow, pastSeasons);
+        var unparseable = parsed.Where(entry => !entry.Version.HasValue).Select(entry => entry.Raw).ToList();
+
+        var full = Math.Max(1, retainedPatchCount);
+        var tracked = Math.Max(full, trackedRetainedPatchCount);
+        return ([.. ordered.Skip(full)], [.. ordered.Skip(tracked), .. unparseable]);
     }
 }

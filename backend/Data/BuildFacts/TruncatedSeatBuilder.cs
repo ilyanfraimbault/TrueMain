@@ -26,13 +26,11 @@ public static class TruncatedSeatBuilder
     /// The item data of the match's patch, or null when it is unavailable — the item facts then
     /// stay empty rather than guessed, as the live reads leave them.
     /// </param>
-    /// <param name="nowUtc">When the seat is truncated.</param>
     public static TruncatedMatchSeat Build(
         Match match,
         MatchParticipant participant,
         IReadOnlyList<TruncatedPerkSelection> perks,
-        IReadOnlyDictionary<int, ItemMetadata>? itemMetadata,
-        DateTime nowUtc)
+        IReadOnlyDictionary<int, ItemMetadata>? itemMetadata)
     {
         ArgumentNullException.ThrowIfNull(match);
         ArgumentNullException.ThrowIfNull(participant);
@@ -48,7 +46,6 @@ public static class TruncatedSeatBuilder
             // The stored generated column, or the same major.minor read off the version when
             // the match was never round-tripped through the database.
             Patch = match.Patch ?? (PatchVersion.TryParse(match.GameVersion, out var version) ? version.ToMajorMinor() : string.Empty),
-            GameVersion = match.GameVersion,
             GameStartTimeUtc = match.GameStartTimeUtc,
             GameDurationSeconds = match.GameDurationSeconds,
             EloBracket = participant.EloBracket,
@@ -57,7 +54,6 @@ public static class TruncatedSeatBuilder
             ChampionId = participant.ChampionId,
             TeamPosition = participant.TeamPosition,
             RiotAccountId = participant.RiotAccountId,
-            Puuid = participant.Puuid,
             Summoner1Id = spells.Spell1Id,
             Summoner2Id = spells.Spell2Id,
             PrimaryStyleId = participant.PrimaryStyleId,
@@ -70,7 +66,6 @@ public static class TruncatedSeatBuilder
             Kills = participant.Kills,
             Deaths = participant.Deaths,
             Assists = participant.Assists,
-            TruncatedAtUtc = nowUtc,
         };
 
         if (itemMetadata is null)

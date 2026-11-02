@@ -16,7 +16,7 @@ public sealed class TruncatedMatchSeatTests
     [Fact]
     public void ASeatKeepsItsLineAndCanonicalSpells_AndNoItemFactsWithoutItemData()
     {
-        var seat = TruncatedSeatBuilder.Build(Match(), Participant(), [], itemMetadata: null, Now);
+        var seat = TruncatedSeatBuilder.Build(Match(), Participant(), [], itemMetadata: null);
 
         seat.MatchId.Should().Be("EUW1_1");
         seat.Patch.Should().Be("16.21");
@@ -25,7 +25,6 @@ public sealed class TruncatedMatchSeatTests
         seat.SkillOrderKey.Should().NotBeNull();
         seat.BuildItemIds.Should().BeEmpty("no item data: the item facts abstain rather than guess");
         seat.RunePerkIds.Should().BeEmpty();
-        seat.TruncatedAtUtc.Should().Be(Now);
     }
 
     [Fact]
@@ -58,22 +57,34 @@ public sealed class TruncatedMatchSeatTests
     }
 
     [Fact]
-    public void EverySeatStaysInTheWindow_ThenOnlyTrackedOnes_UntilTheSeasonEnds()
+    public void EverySeatStaysInTheWindow_ThenOnlyTrackedOnes_ThenNone()
     {
-        var (outsideWindow, pastSeasons) = TruncatedMatchRetention.Tiers(
-            ["16.9", "16.19", "16.20", "16.21", "16.18", "15.24", "junk"], retainedPatchCount: 4);
+        var (outsideWindow, expired) = TruncatedMatchRetention.Tiers(
+            ["16.9", "16.19", "16.20", "16.21", "16.18", "16.17", "15.24", "junk"],
+            retainedPatchCount: 4,
+            trackedRetainedPatchCount: 6);
 
-        outsideWindow.Should().BeEquivalentTo(["16.9", "15.24", "junk"], "16.9 sorts below 16.18 as a version");
-        pastSeasons.Should().BeEquivalentTo(["15.24", "junk"]);
+        outsideWindow.Should().Equal(["16.17", "16.9", "15.24"], "versions order them: 16.9 sorts below 16.17");
+        expired.Should().Equal("15.24", "junk");
+    }
+
+    [Fact]
+    public void ATrackedWindowNarrowerThanTheFullOneReadsAsTheFullOne()
+    {
+        var (outsideWindow, expired) = TruncatedMatchRetention.Tiers(
+            ["16.21", "16.20", "16.19"], retainedPatchCount: 2, trackedRetainedPatchCount: 1);
+
+        outsideWindow.Should().Equal("16.19");
+        expired.Should().Equal("16.19");
     }
 
     [Fact]
     public void NoStoredPatchMeansNothingToPurge()
     {
-        var (outsideWindow, pastSeasons) = TruncatedMatchRetention.Tiers([], retainedPatchCount: 4);
+        var (outsideWindow, expired) = TruncatedMatchRetention.Tiers([], retainedPatchCount: 4, trackedRetainedPatchCount: 8);
 
         outsideWindow.Should().BeEmpty();
-        pastSeasons.Should().BeEmpty();
+        expired.Should().BeEmpty();
     }
 
     private static Match Match() => new()
