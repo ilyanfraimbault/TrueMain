@@ -343,15 +343,20 @@ answering without a backend during part of every rollout, and a crash of the API
 rollout never showed the page at all. The product owner wants a database taken down for maintenance to show it too.
 
 - *The probe goes through web, not to the API*: `/api/readyz` covers web, the API, PgBouncer and Postgres in one
-  request, needs no new route, and leaves the API off the edge network.
-- *Three failures to switch, two passes to come back* (`health_interval 2s`, `health_timeout 3s`): a single failed
-  probe under load must not take the site offline. That costs about 6 s before the page appears when the probe gets an
-  error answer and about 9 s when it hangs, and a saturated API that fails every probe does show the page. A dial that
-  fails on a visitor's request still shows it at once.
+  request and leaves the API off the edge network.
+- *Three failures in a row to switch, counted by web; two passes to come back* (#2416): an isolated failed check under
+  load must not take the site offline. `health_fails 3` was first used for this and does not do it: Caddy adds failed
+  probes up over the life of the process and a pass does not reset the count (measured on 2.11.7, the third isolated
+  failure took the site offline for 4 s). So web's own `/api/readyz` counts failed checks of the API's `/readyz` in a
+  row and answers `503` from the third, a fresh process answers `503` until the API has answered once, and the edge
+  switches on the first `503` (`health_fails 1`). `health_timeout` went from 3 s to 10 s: on a host short of CPU, web's
+  static paths stalled for seconds with every service up, and a slow answer is not an outage. That costs about 6 s
+  before the page appears when the API refuses, 12 s when it hangs and 10 s when web hangs, and a saturated API that
+  fails every check does show the page. A dial that fails on a visitor's request still shows it at once.
 - *Mongo and the ingestors are not part of the probe*: Mongo only backs the logs and the admin's ops data, and an
   ingestor being down does not stop the site from serving what is already computed. Showing the page for either would
   take a working site offline.
 - *The admin keeps the 2026-10-20 trigger*: it stays reachable as long as its own container is, because the logs and
   process views are what an operator reaches for during an incident.
 
-Source: #2407; `docs/prod.md` (*Maintenance page*), `docs/ci.md` (*The edge is its own project*).
+Source: #2407, #2416; `docs/prod.md` (*Maintenance page*), `docs/ci.md` (*The edge is its own project*).

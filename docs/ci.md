@@ -570,9 +570,11 @@ The maintenance page is duplicated in the two edge files, because each deploy
 reads one file; the `compose-config` job fails when the two copies differ.
 
 The public site's `reverse_proxy web:3000` carries an active health check of
-`/api/readyz` (#2407): the edge has no route to the API, so it asks through web,
-and one request covers web, the API, PgBouncer and Postgres. `docs/prod.md`
-(*Maintenance page*) explains the thresholds.
+`/api/readyz` (#2407, #2416): the edge has no route to the API, so it asks web's
+own route, and one request covers web, the API, PgBouncer and Postgres.
+`health_fails 1` is deliberate: Caddy's count never resets while healthy, so web
+counts the failures in a row. `docs/prod.md` (*Maintenance page*) explains the
+thresholds.
 
 ### The edge reports its own failures
 
