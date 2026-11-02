@@ -5,42 +5,22 @@ import { LOW_SAMPLE_GAMES } from '#common/utils/sample-floor'
 // opponent re-slices every build section from the games against it, with no
 // pick-rate floor, and the median pair holds a handful of games on a patch: a core
 // build from four games must not read like the default build. Always the count;
-// under `LOW_SAMPLE_GAMES` a warning and the way back to the standard build.
+// under `LOW_SAMPLE_GAMES` the warning dot beside the opponent's name.
 const props = defineProps<{
   games: number
   opponentName: string
 }>()
 
-const emit = defineEmits<{ clear: [] }>()
-
-const thin = computed(() => props.games < LOW_SAMPLE_GAMES)
 const countedGames = computed(() => `${props.games} ${props.games === 1 ? 'game' : 'games'}`)
+const lowSampleMessage = computed(() =>
+  props.games < LOW_SAMPLE_GAMES ? `Only ${countedGames.value} against ${props.opponentName}` : null)
 </script>
 
 <template>
-  <div
-    class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm"
-    :class="thin ? 'text-warning' : 'text-muted'"
-  >
-    <UIcon
-      v-if="thin"
-      name="i-lucide-triangle-alert"
-      class="size-4 shrink-0"
-      aria-hidden="true"
-    />
-    <span v-if="thin">
-      Only {{ countedGames }} against {{ opponentName }} — too few to trust this build.
-    </span>
-    <span v-else>
-      Build against {{ opponentName }} · <span class="tabular-nums">{{ countedGames }}</span>
-    </span>
-    <UButton
-      v-if="thin"
-      label="See the standard build"
-      color="neutral"
-      variant="outline"
-      size="xs"
-      @click="emit('clear')"
-    />
+  <div class="flex flex-wrap items-center gap-x-1.5 text-sm text-muted">
+    <span>Build against {{ opponentName }}</span>
+    <WarningDot v-if="lowSampleMessage" :text="lowSampleMessage" />
+    <span v-else aria-hidden="true">·</span>
+    <span class="tabular-nums">{{ countedGames }}</span>
   </div>
 </template>

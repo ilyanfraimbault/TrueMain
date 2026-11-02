@@ -309,7 +309,6 @@ const snapshots = useChampionPanelSnapshots({
           :opponent-name="opponentName"
           :loading="championLoading"
           :snapshots="snapshots"
-          @clear-opponent="onOpponentChange(null)"
         />
 
         <ChampionSideRail
