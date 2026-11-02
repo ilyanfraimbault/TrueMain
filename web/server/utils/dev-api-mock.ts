@@ -2387,6 +2387,7 @@ async function mockCompositionBuildGames(id: number, body: unknown, query: Recor
     page,
     pageSize,
     total,
+    truncatedGames: 12,
     maxPossibleScore,
     games,
   }

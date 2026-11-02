@@ -11,15 +11,13 @@ namespace Data.Queries;
 public static class TruncatedMatchupQuery
 {
     /// <summary>
-    /// The seats of <paramref name="championId"/> at <paramref name="position"/> whose match
-    /// held <paramref name="opponentChampionId"/> at the same position on the other team, in
+    /// The seats of <paramref name="championId"/> at <paramref name="position"/>, in
     /// <paramref name="queueId"/>, on <paramref name="patch"/> when given and in the rank bands
     /// of <paramref name="bracketFilter"/> when given.
     /// </summary>
-    public static IQueryable<TruncatedMatchSeat> Facing(
+    public static IQueryable<TruncatedMatchSeat> Seats(
         TrueMainDbContext db,
         int championId,
-        int opponentChampionId,
         string position,
         int queueId,
         string? patch,
@@ -34,12 +32,25 @@ public static class TruncatedMatchupQuery
                 && seat.QueueId == queueId
                 && (patch == null || seat.Patch == patch));
 
-        if (bracketFilter is not null)
-        {
-            seats = seats.Where(seat => bracketFilter.Contains(seat.EloBracket));
-        }
+        return bracketFilter is null ? seats : seats.Where(seat => bracketFilter.Contains(seat.EloBracket));
+    }
 
-        return seats.Where(seat => db.TruncatedMatchSeats.Any(opponent =>
+    /// <summary>
+    /// The seats of <paramref name="championId"/> at <paramref name="position"/> whose match
+    /// held <paramref name="opponentChampionId"/> at the same position on the other team, in
+    /// <paramref name="queueId"/>, on <paramref name="patch"/> when given and in the rank bands
+    /// of <paramref name="bracketFilter"/> when given.
+    /// </summary>
+    public static IQueryable<TruncatedMatchSeat> Facing(
+        TrueMainDbContext db,
+        int championId,
+        int opponentChampionId,
+        string position,
+        int queueId,
+        string? patch,
+        IReadOnlyList<string>? bracketFilter)
+    {
+        return Seats(db, championId, position, queueId, patch, bracketFilter).Where(seat => db.TruncatedMatchSeats.Any(opponent =>
             opponent.MatchId == seat.MatchId
             && opponent.ChampionId == opponentChampionId
             && opponent.TeamPosition == position
