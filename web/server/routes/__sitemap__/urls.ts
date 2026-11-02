@@ -83,7 +83,8 @@ const LEADERBOARD_PAGE_SIZE = 50
 // invented one is worse than none.
 async function truemainUrls(): Promise<SitemapUrl[]> {
   const rows: LeaderboardResponse['rows'] = []
-  for (let page = 1; rows.length < SITEMAP_TRUEMAIN_PROFILES; page++) {
+  const lastPage = Math.ceil(SITEMAP_TRUEMAIN_PROFILES / LEADERBOARD_PAGE_SIZE)
+  for (let page = 1; page <= lastPage; page++) {
     const response = await $fetch<LeaderboardResponse>('/api/truemains', {
       query: { page, pageSize: LEADERBOARD_PAGE_SIZE },
     })
