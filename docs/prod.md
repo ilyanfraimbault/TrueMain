@@ -219,10 +219,12 @@ In both situations the visitor gets:
 - **An HTML page** for any path but `/api/*`: self-contained (inline CSS, the
   M-check mark as inline SVG, no font, nothing fetched from the stack that is down),
   and it polls its own URL every five seconds and reloads as soon as the answer is
-  not a `503`. It lives in `configs.maintenance_page`, mounted at
+  not a `503`. A tab already open never requests a document while it navigates, so
+  the site reloads the page when an API call gets the JSON body below (#2412). The
+  page lives in `configs.maintenance_page`, mounted at
   `/srv/maintenance/index.html`.
-- **A JSON body** (`{"error":"maintenance",...}`) for `/api/*`, which the desktop
-  app and the site's own fetches read.
+- **A JSON body** (`{"error":"maintenance",...}`) for `/api/*`. The site reloads on
+  it, and the desktop app treats it as any other failed call.
 
 It applies to `truemain.lol` and `admin.truemain.lol`, not to
 `analytics.truemain.lol`: the Umami tracker script is not a page, and an HTML
