@@ -478,3 +478,8 @@ the facts kept at truncation and scores on the seats it kept (past the first tie
 its draft reads as partly unknown). It has no timeline, so the lane read stays on the live games and prints its own
 denominator, and no row, so the games drawer lists the live ones and says how many older ones also count. A player's own
 games stay live ones: a truncated seat keeps no puuid.
+**A profile's older games are a simplified row (2026-11-02).** The row shows what the seat kept: champion, lane, K/D/A,
+spells, runes, items, result and the teams (partial past the first tier). No LP or performance grade: the grade is computed
+from timeline snapshots retention deletes, and computing it at truncation would move API logic into the ingestor for a row
+far down a history. It has no detail to open, and it stays out of the form tiles, where a missing CS would read as zero —
+#2358.
