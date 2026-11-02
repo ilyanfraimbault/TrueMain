@@ -570,9 +570,11 @@ The maintenance page is duplicated in the two edge files, because each deploy
 reads one file; the `compose-config` job fails when the two copies differ.
 
 The public site's `reverse_proxy web:3000` carries an active health check of
-`/api/readyz` (#2407): the edge has no route to the API, so it asks through web,
-and one request covers web, the API, PgBouncer and Postgres. `docs/prod.md`
-(*Maintenance page*) explains the thresholds.
+`/api/readyz` (#2407, #2416): the edge has no route to the API, so it asks web's
+own route, and one request covers web, the API, PgBouncer and Postgres.
+`health_fails 1` is deliberate: Caddy's count never resets while healthy, so web
+counts the failures in a row. `docs/prod.md` (*Maintenance page*) explains the
+thresholds.
 
 ### The edge reports its own failures
 
@@ -1185,6 +1187,10 @@ one container could take the machine down with it.
   page stayed blank, and the operator does wait on that page. `cpu_shares` has
   no `deploy.resources` equivalent, which is why these are the flat Compose keys and not a
   `deploy:` block.
+- The two ingestors are the exception to "a ceiling only caps a runaway" (#2418): they run around
+  the clock and would fill whatever the host allows, and what the provider throttles on is sustained
+  load. Their low ceilings bound that load, which leaves the request path room for its bursts.
+  Preprod ingestion is slower on purpose.
 - `compose.prod.yaml` gets no caps: its host is not shared and sizing one machine's limits from
   another's symptoms would be guesswork.
 - Health probes ran every 10 s on eleven containers. The probe itself is cheap; the `runc exec`

@@ -32,8 +32,6 @@ defineProps<{
   loading: boolean
   snapshots: ChampionPanelSnapshots
 }>()
-
-defineEmits<{ 'clear-opponent': [] }>()
 </script>
 
 <template>
@@ -42,7 +40,6 @@ defineEmits<{ 'clear-opponent': [] }>()
       v-if="opponentChampionId && opponentName && champion && !loading"
       :games="champion.totalGames"
       :opponent-name="opponentName"
-      @clear="$emit('clear-opponent')"
     />
     <ChampionBuildTabs
       v-if="champion && staticData && !loading"
