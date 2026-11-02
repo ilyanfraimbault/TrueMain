@@ -310,7 +310,7 @@ services:
       - truemain_internal
 
   umami:
-    image: umamisoftware/umami:3.4.0
+    image: umamisoftware/umami:3.4.1
     container_name: truemain-preprod-umami
     restart: unless-stopped
     cpus: 0.5
