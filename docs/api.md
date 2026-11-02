@@ -70,7 +70,7 @@ renvoient.
 | Méthode | Chemin            | Auth | Description |
 |---------|-------------------|------|-------------|
 | GET     | `/healthz`        | —    | Liveness. `200` si le process tourne (aucun check). |
-| GET     | `/readyz`         | —    | Readiness. Vérifie la connexion Postgres (tag `ready`). `200`/`503`. |
+| GET     | `/readyz`         | —    | Readiness. Vérifie la connexion Postgres (tag `ready`). `200`/`503`. Sondé toutes les 2 s par l'edge via web, qui affiche la page de maintenance sur échec (`docs/prod.md`). |
 | GET     | `/openapi/v1.json`| —    | Document OpenAPI (Development uniquement). |
 | GET     | `/scalar/v1`      | —    | UI de référence Scalar (Development uniquement). |
 

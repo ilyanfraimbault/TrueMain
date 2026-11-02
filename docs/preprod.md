@@ -170,8 +170,8 @@ Like prod's, the edge is its own Docker Manager project, `truemain-preprod-edge`
 deployed from `compose.preprod.edge.yaml` after the stack rolls, and joined to web
 and admin over the `truemain_preprod_edge` network that `compose.preprod.yaml`
 owns — so a deploy does not take the edge down, and it serves the same
-maintenance page while web and admin are recreated (`docs/prod.md`, *Maintenance
-page*, #2179). The Caddyfile and the page are inline in that file
+maintenance page under the same conditions (`docs/prod.md`, *Maintenance page*,
+#2179, #2407). The Caddyfile and the page are inline in that file
 (`configs.edge_caddyfile`, `configs.maintenance_page`), because the Docker
 Manager deploy ships the compose file and nothing else — the same reason
 `umami-proxy` is configured that way. The page must stay identical to prod's: the
