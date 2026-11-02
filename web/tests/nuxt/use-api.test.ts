@@ -99,6 +99,52 @@ describe('useApiFetch', () => {
   })
 })
 
+describe('useApiFetch during maintenance (#2412)', () => {
+  function edgeAnswer(statusCode: number, data: unknown) {
+    return Object.assign(httpError(statusCode, 'Service Unavailable'), { data })
+  }
+
+  const maintenance = { error: 'maintenance', message: 'TrueMain is being updated. Retry in a minute.' }
+
+  function apiFetch() {
+    const { component, result } = probe(() => useApiFetch())
+    return mountSuspended(component).then(() => result())
+  }
+
+  it('leaves a 503 the application answered to the caller', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
+    requestFetch.mockRejectedValue(edgeAnswer(503, { title: 'Service Unavailable', status: 503 }))
+
+    await expect((await apiFetch())('/truemains')).rejects.toMatchObject({ statusCode: 503 })
+
+    expect(reload).not.toHaveBeenCalled()
+    reload.mockRestore()
+  })
+
+  it('does not read that body on another status', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
+    requestFetch.mockRejectedValue(edgeAnswer(500, maintenance))
+
+    await expect((await apiFetch())('/truemains')).rejects.toMatchObject({ statusCode: 500 })
+
+    expect(reload).not.toHaveBeenCalled()
+    reload.mockRestore()
+  })
+
+  // Last of the three: the guard against a second reload lives for the whole page.
+  it('reloads the page once when the edge answers maintenance, whatever the number of calls', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
+    requestFetch.mockRejectedValue(edgeAnswer(503, maintenance))
+    const fetcher = await apiFetch()
+
+    const results = await Promise.allSettled([fetcher('/truemains'), fetcher('/champions/overview')])
+
+    expect(results.map(result => result.status)).toEqual(['rejected', 'rejected'])
+    expect(reload).toHaveBeenCalledTimes(1)
+    reload.mockRestore()
+  })
+})
+
 describe('useApi', () => {
   it('goes through the same fetcher, and the base cannot be overridden', async () => {
     requestFetch.mockResolvedValue({ totalGames: 1 })
