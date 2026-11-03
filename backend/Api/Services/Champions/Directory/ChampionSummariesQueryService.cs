@@ -82,6 +82,8 @@ public sealed class ChampionSummariesQueryService(
     // Every grouped pattern of a patch, against the single response a unit stands for.
     private const int TopBuildsEntrySize = 64;
 
+    private static readonly TimeSpan TopBuildsFailureBackoff = TimeSpan.FromMinutes(1);
+
     private readonly ChampionDirectoryPatchResolver patchResolver =
         new(db, options, championsOptions, cache, logger);
 
@@ -257,11 +259,14 @@ public sealed class ChampionSummariesQueryService(
         }
 
         var topBuildsSw = Stopwatch.StartNew();
+        // Backed off when it fails: every slice of the patch asks for this one read, and a
+        // warm pass would otherwise run the same long scan again for each of them.
         var topBuildsOfPatch = await cache.GetOrComputeAsync(
             $"champions:summaries:top-builds:{activePatch}",
             token => ChampionDirectoryTopBuilds.LoadAsync(db, (int)options.Value.QueueId, activePatch, logger, token),
             ct,
-            size: TopBuildsEntrySize);
+            TopBuildsEntrySize,
+            TopBuildsFailureBackoff);
         var topBuilds = topBuildsOfPatch.Resolve(bracketBands, truemainsOnly);
         topBuildsSw.Stop();
         logger.LogInformation(

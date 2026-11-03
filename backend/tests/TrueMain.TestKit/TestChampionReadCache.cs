@@ -48,7 +48,8 @@ public static class TestChampionReadCache
             string key,
             Func<CancellationToken, Task<T>> compute,
             CancellationToken ct,
-            int size = 1)
+            int size = 1,
+            TimeSpan? failureBackoff = null)
             => compute(ct);
     }
 }
