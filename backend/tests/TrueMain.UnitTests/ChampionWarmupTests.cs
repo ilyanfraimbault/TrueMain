@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Time.Testing;
+using TrueMain.Services;
 using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Warmup;
 
@@ -45,6 +46,30 @@ public sealed class ChampionWarmupTests
 
         (await subject.GetOrComputeAsync<string>(Key, _ => throw new InvalidOperationException("recomputed"), default))
             .Should().Be("new");
+    }
+
+    [Fact]
+    public async Task AReadWithABackoffIsNotRunAgainAfterAFailureWhateverTheVersion()
+    {
+        using var cache = SizedCache();
+        var version = NewVersion();
+        var subject = new ChampionReadCache(new FailingStamp(), cache, version);
+        var runs = 0;
+        Task<string> Failing(CancellationToken _)
+        {
+            runs++;
+            throw new InvalidOperationException("statement timeout");
+        }
+
+        version.Publish("v1");
+        var first = () => subject.GetOrComputeAsync(Key, Failing, default, failureBackoff: TimeSpan.FromMinutes(1));
+        await first.Should().ThrowAsync<InvalidOperationException>();
+
+        version.Publish("v2");
+        var second = () => subject.GetOrComputeAsync(Key, Failing, default, failureBackoff: TimeSpan.FromMinutes(1));
+        await second.Should().ThrowAsync<ReadBackoffException>();
+
+        runs.Should().Be(1);
     }
 
     [Fact]

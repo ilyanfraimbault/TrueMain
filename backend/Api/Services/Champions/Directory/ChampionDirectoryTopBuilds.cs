@@ -27,6 +27,8 @@ internal sealed class ChampionDirectoryTopBuilds
 {
     private const string Surface = ChampionSummariesQueryService.Surface;
 
+    private const int PatternReadTimeoutSeconds = 180;
+
     private readonly Row[] rows;
     private readonly List<LaneKey> lanes;
     private readonly List<string> bands;
@@ -95,16 +97,34 @@ internal sealed class ChampionDirectoryTopBuilds
     /// <summary>
     /// Streams the rows straight off the connection: a patch holds a million or more of them,
     /// and going through EF would buffer them all under the API's retrying strategy and then
-    /// materialise each one, strings included, for one array of a tenth of the size. A failure
-    /// fails this read like any other; the pass that asked for it retries on its next run.
+    /// materialise each one, strings included, for one array of a tenth of the size.
     /// </summary>
+    /// <remarks>
+    /// The one read allowed past the API's 60 s <c>statement_timeout</c>, in a transaction of
+    /// its own so it stays that way on a pooled connection. It runs once per patch and version,
+    /// and a smaller host takes close to a minute over it (#2425): chunking it per champion
+    /// makes every statement short, at the price of a random heap read per row where this one
+    /// scans the table.
+    /// </remarks>
     private static async Task<Builder> ReadPatternsAsync(
         TrueMainDbContext db, int queueId, string activePatch, CancellationToken ct)
     {
         await db.Database.OpenConnectionAsync(ct);
         try
         {
-            await using var command = db.Database.GetDbConnection().CreateCommand();
+            var connection = db.Database.GetDbConnection();
+            await using var transaction = await connection.BeginTransactionAsync(ct);
+
+            await using (var timeout = connection.CreateCommand())
+            {
+                timeout.Transaction = transaction;
+                timeout.CommandText = $"SET LOCAL statement_timeout = '{PatternReadTimeoutSeconds}s'";
+                await timeout.ExecuteNonQueryAsync(ct);
+            }
+
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandTimeout = PatternReadTimeoutSeconds + 5;
             command.CommandText = """
                 SELECT s."ChampionId", s."Position", s.elo_bracket, s."IsMain", p."BuildId", p."RunePageId",
                        SUM(p."Games")::int, SUM(p."Wins")::int
@@ -117,20 +137,23 @@ internal sealed class ChampionDirectoryTopBuilds
             command.Parameters.Add(new NpgsqlParameter("patch", activePatch));
 
             var builder = new Builder();
-            await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
-            while (await reader.ReadAsync(ct))
+            await using (var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct))
             {
-                builder.Add(
-                    reader.GetInt32(0),
-                    reader.GetString(1),
-                    reader.GetString(2),
-                    reader.GetBoolean(3),
-                    reader.GetGuid(4),
-                    reader.GetGuid(5),
-                    reader.GetInt32(6),
-                    reader.GetInt32(7));
+                while (await reader.ReadAsync(ct))
+                {
+                    builder.Add(
+                        reader.GetInt32(0),
+                        reader.GetString(1),
+                        reader.GetString(2),
+                        reader.GetBoolean(3),
+                        reader.GetGuid(4),
+                        reader.GetGuid(5),
+                        reader.GetInt32(6),
+                        reader.GetInt32(7));
+                }
             }
 
+            await transaction.CommitAsync(ct);
             return builder;
         }
         finally
