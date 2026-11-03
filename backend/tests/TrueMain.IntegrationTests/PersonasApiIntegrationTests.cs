@@ -9,9 +9,12 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
+using NSubstitute;
 using TrueMain.ReadModels.Ops;
 using TrueMain.ReadModels.Personas;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.Requests.Ops;
+using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Personas;
 
 namespace TrueMain.IntegrationTests;
@@ -277,6 +280,41 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         logs.Messages.Should().ContainSingle(message => message.Contains("skipped malformed link", StringComparison.Ordinal))
             .Which.Should().Be(
                 "Persona forged: skipped malformed link carrier-pigeonINFO forged https://example.comINFO forged.");
+    }
+
+    [Fact]
+    public async Task Upsert_ReportsASlugAConcurrentWriterClaimed_AndLeavesTheirPersonaInPlace()
+    {
+        // The seed intake runs between the upsert's reads and its save: the rival lands in that window.
+        var seeds = Substitute.For<ISeedRequestService>();
+        seeds.CreateAsync(Arg.Any<SeedRequestInput>(), Arg.Any<CancellationToken>()).Returns(async _ =>
+        {
+            await using var rival = _fixture.CreateDbContext();
+            rival.Personas.Add(new Persona { Slug = "contested", DisplayName = "Rival", Source = PersonaSource.Manual });
+            await rival.SaveChangesAsync();
+            return new SeedRequestCreateResult { Created = true };
+        });
+        var logger = new CapturingLogger<PersonaUpsertService>();
+        await using var db = _fixture.CreateDbContext();
+        var service = new PersonaUpsertService(
+            db, seeds, new PersonaConflictRecorder(db), Substitute.For<IPersonaAutoMergeService>(), logger);
+
+        var result = await service.UpsertAsync(
+            new PersonaUpsertEntry
+            {
+                Slug = "contested",
+                DisplayName = "Mine",
+                Source = "manual",
+                SeedMissing = true,
+                Accounts = [new PersonaAccountEntry { GameName = "Contested", TagLine = "EUW", PlatformId = "EUW1" }],
+            },
+            CancellationToken.None);
+
+        result.Error.Should().Be("conflicting concurrent write; retry.");
+        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Warning)
+            .Which.Message.Should().Be("Persona contested was not written: a concurrent write conflicted.");
+        await using var check = _fixture.CreateDbContext();
+        (await check.Personas.SingleAsync()).DisplayName.Should().Be("Rival");
     }
 
     [Fact]
