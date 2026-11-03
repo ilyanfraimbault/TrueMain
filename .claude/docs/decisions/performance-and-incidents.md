@@ -403,10 +403,13 @@ under one second, cold or hot, "on reste sur la page maintenance pendant le chau
   each champion's page as it opens (default rank, active patch, each of its lines); the leaderboard's counts and
   rankings. A rank or patch picked on a champion page afterwards reads on demand, and those reads do not touch the
   directory's cost. A leaderboard combining a filter with a non-default sort is still read on demand.
-- **The directory reads a patch once** (`ChampionDirectoryTopBuilds`). Each slice used to run the same scan with a
-  different filter and bring the same dimensions up with it. Games and wins add up across rank bands and populations,
-  so the rows are grouped by those too and a slice is a sum in memory. Filling every slice went from one scan per
-  slice to one per patch.
+- **The directory reads a patch once** (`ChampionDirectoryTopBuilds`, `ChampionDirectoryScopeGroups`). Each slice used to
+  run the same scans with a different filter and bring the same dimensions up with it. Games and wins add up across
+  rank bands and populations, so the rows are kept per band and population and a slice is a walk over them in memory.
+  Filling every slice went from a pair of scans per slice to one per patch. The patterns read runs under a
+  `statement_timeout` of its own, in a transaction: a smaller host takes close to a minute over it, and each slice of the
+  patch ran it again after a timeout. Per champion, every statement is short but each row costs a random heap read,
+  where the single read scans the table. A failed read is not retried for a minute (`failureBackoff`).
 - **The leaderboard's count and rankings moved onto the read cache.** The count was nearly all of what a page of the
   default board cost, recomputed every 30 s for a figure that only sizes the pager. The rankings were not cached at
   all any more: their entry cap dated from a much smaller population, so each page of a sorted board rescanned. Their
@@ -415,8 +418,8 @@ under one second, cold or hot, "on reste sur la page maintenance pendant le chau
   it replaces the version readers are on.
 
 **Web warms behind the same gate** (`server/plugins/warmup.ts`). Once the API is ready, each worker reads the static
-data and renders the main pages and every champion's for itself, since V8's optimised code and the Nitro cached
-functions are per process; one of them then fetches the catalogue's images onto the shared disk. `/api/readyz` answers
+data, renders the main pages a few times and reads what a champion page keeps in memory, for itself, since V8's
+optimised code and the Nitro cached functions are per process; one of them then fetches the catalogue's images onto the shared disk. `/api/readyz` answers
 `503` `warming` until they have all finished, or `warmupBudgetSeconds` has gone by. The workers report through files in
 a directory named after the primary's start time: Nitro's cluster preset owns the primary, which also loads the
 plugins and serves nothing, and a restarted container keeps its `/tmp`.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectIconUrls, imagePaths, isDurableImagePath, patchedStaticReads } from '~~/server/utils/warmup-catalog'
+import { championReads, collectIconUrls, imagePaths, isDurableImagePath, patchedStaticReads } from '~~/server/utils/warmup-catalog'
 
 describe('warm-up catalog', () => {
   it('asks for the patch-keyed reads in both forms the app sends', () => {
@@ -9,6 +9,14 @@ describe('warm-up catalog', () => {
       '/api/static/rune-tree?patch=16.21',
       '/api/static/summoner-spells?patch=16.21.1',
     ]))
+  })
+
+  it('asks for a champion the way its page does, on the rank the page opens on', () => {
+    expect(championReads('99', '16.21.1')).toEqual([
+      '/api/static/99',
+      '/api/static/99?patch=16.21',
+      '/api/champion-summary/99?eloBracket=MASTER_PLUS',
+    ])
   })
 
   it('finds an icon however deep the read nests it', () => {

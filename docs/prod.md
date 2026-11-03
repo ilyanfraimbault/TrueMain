@@ -212,7 +212,7 @@ With the edge in its own project, an app rollout leaves Caddy running, and the
   `ChampionWarmup:ReadyBudgetSeconds` has gone by (300 s), so a stuck warm-up cannot
   keep the site down. Web reads that body and does not report it as a failure.
 - **Web is warming its workers after a start** (#2425). Each one renders the main
-  pages and the champion pages for itself once the API is ready, and one fetches the
+  pages and reads each champion's data for itself once the API is ready, and one fetches the
   images the shared volume does not hold yet. `/api/readyz` answers `503` `warming`
   until they have all finished, or `warmupBudgetSeconds` has gone by (480 s, from the
   process's start). A later aggregation run moves nothing here: the API publishes
