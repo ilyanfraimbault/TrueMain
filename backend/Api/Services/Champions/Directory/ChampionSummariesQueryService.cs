@@ -82,6 +82,9 @@ public sealed class ChampionSummariesQueryService(
     // Every grouped pattern of a patch, against the single response a unit stands for.
     private const int TopBuildsEntrySize = 64;
 
+    // Every scope row of a patch, a fraction of its patterns.
+    private const int ScopeGroupsEntrySize = 16;
+
     private static readonly TimeSpan TopBuildsFailureBackoff = TimeSpan.FromMinutes(1);
 
     private readonly ChampionDirectoryPatchResolver patchResolver =
@@ -191,11 +194,9 @@ public sealed class ChampionSummariesQueryService(
         bool truemainsOnly,
         CancellationToken ct)
     {
-        // Aggregate per (champion, position) in SQL: a single GROUP BY with
-        // SUM(games)/SUM(wins), MAX(aggregated_at) and COUNT(DISTINCT
-        // riot_account_id) for the main population. Only the aggregated rows
-        // (one per champion/lane, a few hundred at most) cross the wire,
-        // instead of one row per (account, champion, lane) slice.
+        // One group per (champion, position): SUM(games)/SUM(wins), MAX(aggregated_at) and the
+        // distinct mains, folded in memory from the patch's scope rows (#2425), which every slice
+        // of the patch shares.
         //
         // No Position filter here (#972): the ranked directory still needs one
         // (a blank Position — the "no position" sentinel, since Position is
@@ -203,41 +204,13 @@ public sealed class ChampionSummariesQueryService(
         // analyzed" total needs to sum every group the patch actually has, so
         // that filter moves to memory below, after the total is taken.
         var groupsSw = Stopwatch.StartNew();
-        var groupsQuery = db.ChampionAggregateScopes
-            .AsNoTracking()
-            .Where(scope => scope.QueueId == (int)options.Value.QueueId)
-            .Where(scope => scope.GameVersion == activePatch);
-
-        // Cumulative elo filter: null is ALL (no clause, the full union incl.
-        // Unranked); a non-null set restricts to those bands — empty included,
-        // which correctly matches nothing rather than widening back to ALL for
-        // a rejected filter (see EloBracket.ResolveFilterOrEmpty).
-        if (bracketBands is not null)
-        {
-            groupsQuery = groupsQuery.Where(scope => bracketBands.Contains(scope.EloBracket));
-        }
-
-        // Truemains filter (#1346): mains of the champion only, or every tracked
-        // player who has games on it.
-        if (truemainsOnly)
-        {
-            groupsQuery = groupsQuery.Where(scope => scope.IsMain);
-        }
-
-        var allGroups = await groupsQuery
-            .GroupBy(scope => new { scope.ChampionId, scope.Position })
-            .Select(group => new ChampionSummaryGroup(
-                group.Key.ChampionId,
-                group.Key.Position,
-                group.Sum(scope => scope.Games),
-                group.Sum(scope => scope.Wins),
-                // Counts *mains* whatever the population filter is, so the field
-                // keeps meaning what its name says: under `truemainsOnly: false`
-                // an unqualified distinct count would be "tracked players", which
-                // is a different number wearing the truemain label.
-                group.Where(scope => scope.IsMain).Select(scope => scope.RiotAccountId).Distinct().Count(),
-                group.Max(scope => scope.AggregatedAtUtc)))
-            .ToListAsync(ct);
+        var scopeGroupsOfPatch = await cache.GetOrComputeAsync(
+            $"champions:summaries:scope-groups:{activePatch}",
+            token => ChampionDirectoryScopeGroups.LoadAsync(db, (int)options.Value.QueueId, activePatch, logger, token),
+            ct,
+            ScopeGroupsEntrySize,
+            TopBuildsFailureBackoff);
+        var allGroups = scopeGroupsOfPatch.Resolve(bracketBands, truemainsOnly);
         groupsSw.Stop();
         logger.LogInformation(
             "{Surface} sql=scope_groups groups={Groups} elapsed={ElapsedMs}ms",
@@ -354,12 +327,4 @@ public sealed class ChampionSummariesQueryService(
             Summaries = tiered,
         };
     }
-
-    private sealed record ChampionSummaryGroup(
-        int ChampionId,
-        string Position,
-        int Games,
-        int Wins,
-        int TrueMainCount,
-        DateTime LastUpdatedAtUtc);
 }

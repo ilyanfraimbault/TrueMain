@@ -31,22 +31,30 @@ internal sealed class ChampionDirectoryTopBuilds
 
     private const string PatternReadTimeoutStatement = "SET LOCAL statement_timeout = '180s'";
 
+    // Sorted by (lane, build, rune), so a slice sums each pair in one walk over the array.
     private readonly Row[] rows;
     private readonly List<LaneKey> lanes;
     private readonly List<string> bands;
-    private readonly IReadOnlyDictionary<Guid, BuildItems> builds;
-    private readonly IReadOnlyDictionary<Guid, RuneChoice> runes;
+    private readonly BuildItems?[] builds;
+    private readonly RuneChoice?[] runes;
 
     internal ChampionDirectoryTopBuilds(
-        Builder rows,
+        Builder source,
         IReadOnlyDictionary<Guid, BuildItems> builds,
         IReadOnlyDictionary<Guid, RuneChoice> runes)
     {
-        this.rows = [.. rows.Rows];
-        lanes = rows.Lanes;
-        bands = rows.Bands;
-        this.builds = builds;
-        this.runes = runes;
+        rows = [.. source.Rows];
+        var sortKeys = new long[rows.Length];
+        for (var i = 0; i < rows.Length; i++)
+        {
+            sortKeys[i] = ((long)rows[i].Lane << 44) | ((long)rows[i].Build << 22) | (uint)rows[i].Rune;
+        }
+
+        Array.Sort(sortKeys, rows);
+        lanes = source.Lanes;
+        bands = source.Bands;
+        this.builds = [.. source.BuildIds.Select(id => builds.TryGetValue(id, out var build) ? build : (BuildItems?)null)];
+        this.runes = [.. source.RuneIds.Select(id => runes.TryGetValue(id, out var rune) ? rune : (RuneChoice?)null)];
     }
 
     /// <summary>Reads every grouped pattern of <paramref name="activePatch"/> and the dimensions they name.</summary>
@@ -64,8 +72,8 @@ internal sealed class ChampionDirectoryTopBuilds
             "{Surface} sql=patterns_join_grouped patch={Patch} buckets={Buckets} elapsed={ElapsedMs}ms",
             Surface, activePatch, grouped.Rows.Count, groupedSw.ElapsedMilliseconds);
 
-        var buildIds = grouped.Rows.Select(row => row.BuildId).Distinct().ToList();
-        var runeIds = grouped.Rows.Select(row => row.RunePageId).Distinct().ToList();
+        var buildIds = grouped.BuildIds;
+        var runeIds = grouped.RuneIds;
 
         var dimBuildsSw = Stopwatch.StartNew();
         var builds = await db.ChampionDimBuilds.AsNoTracking()
@@ -187,108 +195,132 @@ internal sealed class ChampionDirectoryTopBuilds
             bandSelected[band] = bracketBands is null || bracketBands.Contains(bands[band], StringComparer.Ordinal);
         }
 
-        // The sum over the selected bands and population, per lane and (build, rune) pair.
-        var totals = new Dictionary<(int Lane, Guid BuildId, Guid RunePageId), (int Games, int Wins)>();
-        foreach (ref readonly var row in rows.AsSpan())
-        {
-            if (!bandSelected[row.Band] || (truemainsOnly && !row.IsMain))
-            {
-                continue;
-            }
-
-            var key = (row.Lane, row.BuildId, row.RunePageId);
-            var (games, wins) = totals.GetValueOrDefault(key);
-            totals[key] = (games + row.Games, wins + row.Wins);
-        }
-
         var result = new Dictionary<(int ChampionId, string Position), TopBuildReadModel>();
-
-        foreach (var laneGroup in totals.GroupBy(entry => entry.Key.Lane))
+        var laneRows = new List<SliceRow>();
+        var position = 0;
+        while (position < rows.Length)
         {
-            // Hydrate the bucket rows with their dim entries. Skip any row
-            // whose dim lookup is missing (transient state during ingest) or
-            // whose build / rune is malformed.
-            var enriched = laneGroup
-                .Select(entry => new
-                {
-                    entry.Value.Games,
-                    entry.Value.Wins,
-                    Build = builds.TryGetValue(entry.Key.BuildId, out var build) ? build : (BuildItems?)null,
-                    Rune = runes.TryGetValue(entry.Key.RunePageId, out var rune) ? rune : (RuneChoice?)null,
-                })
-                .Where(row => row.Build is not null && row.Rune is not null
-                    && row.Build.Value.BuildItem0 > 0 && row.Rune.Value.PrimaryKeystoneId > 0)
-                .ToList();
-
-            if (enriched.Count == 0)
+            var lane = rows[position].Lane;
+            laneRows.Clear();
+            while (position < rows.Length && rows[position].Lane == lane)
             {
-                continue;
+                position = SumPair(position, bandSelected, truemainsOnly, laneRows);
             }
 
-            // Same first-tie ordering as ChampionBuildsQueryService: games
-            // desc, firstItemId asc, keystoneId asc — so a champion's list
-            // row and its detail page land on the same dominant bucket.
-            var topBucket = enriched
-                .GroupBy(row => (row.Build!.Value.BuildItem0, row.Rune!.Value.PrimaryKeystoneId))
-                .Select(group => new
-                {
-                    FirstItem = group.Key.BuildItem0,
-                    Keystone = group.Key.PrimaryKeystoneId,
-                    Games = group.Sum(row => row.Games),
-                    Wins = group.Sum(row => row.Wins),
-                    Rows = group.ToList(),
-                })
-                .OrderByDescending(bucket => bucket.Games)
-                .ThenBy(bucket => bucket.FirstItem)
-                .ThenBy(bucket => bucket.Keystone)
-                .First();
-
-            // Consensus item path via the same tree-walk + threshold logic
-            // the detail page uses for its core build path.
-            var sequences = topBucket.Rows
-                .Select(row => new ChampionBuildPathAnalyzer.BuildSequence(
-                    row.Build!.Value.BuildItem1, row.Build.Value.BuildItem2, row.Build.Value.BuildItem3,
-                    row.Build.Value.BuildItem4, row.Build.Value.BuildItem5, row.Build.Value.BuildItem6,
-                    row.Games, row.Wins))
-                .ToList();
-            var tree = ChampionBuildPathAnalyzer.BuildItemTree(sequences, topBucket.Games);
-            var (itemPath, _, _) = ChampionBuildPathAnalyzer.WalkPath(
-                tree, topBucket.FirstItem, topBucket.Games, topBucket.Wins);
-
-            // Dominant secondary tree within the top bucket.
-            var secondaryStyleId = topBucket.Rows
-                .GroupBy(row => row.Rune!.Value.SecondaryStyleId)
-                .OrderByDescending(group => group.Sum(row => row.Games))
-                .ThenBy(group => group.Key)
-                .First().Key;
-
-            var lane = lanes[laneGroup.Key];
-            result[(lane.ChampionId, lane.Position)] = new TopBuildReadModel
+            if (laneRows.Count > 0)
             {
-                FirstItemId = topBucket.FirstItem,
-                PrimaryKeystoneId = topBucket.Keystone,
-                SecondaryStyleId = secondaryStyleId,
-                ItemPath = itemPath,
-            };
+                var laneKey = lanes[lane];
+                result[(laneKey.ChampionId, laneKey.Position)] = TopBuildOf(laneRows);
+            }
         }
 
         return result;
     }
 
     /// <summary>
-    /// The rows of a patch as they are read, with their lane and band interned: every row names
-    /// them, and they are few.
+    /// Sums the (lane, build, rune) run starting at <paramref name="start"/> under the filter and
+    /// answers where the next run starts. A pair the filter selects nothing of, or whose build or
+    /// rune is malformed or missing (transient state during ingest), adds no row.
+    /// </summary>
+    private int SumPair(int start, bool[] bandSelected, bool truemainsOnly, List<SliceRow> laneRows)
+    {
+        var (lane, build, rune) = (rows[start].Lane, rows[start].Build, rows[start].Rune);
+        var (games, wins, selected) = (0, 0, false);
+        var position = start;
+        for (; position < rows.Length; position++)
+        {
+            ref readonly var row = ref rows[position];
+            if (row.Lane != lane || row.Build != build || row.Rune != rune)
+            {
+                break;
+            }
+
+            if (bandSelected[row.Band] && (!truemainsOnly || row.IsMain))
+            {
+                games += row.Games;
+                wins += row.Wins;
+                selected = true;
+            }
+        }
+
+        if (selected
+            && builds[build] is { BuildItem0: > 0 } items
+            && runes[rune] is { PrimaryKeystoneId: > 0 } choice)
+        {
+            laneRows.Add(new SliceRow(items, choice, games, wins));
+        }
+
+        return position;
+    }
+
+    private static TopBuildReadModel TopBuildOf(List<SliceRow> laneRows)
+    {
+        // Same first-tie ordering as ChampionBuildsQueryService: games
+        // desc, firstItemId asc, keystoneId asc — so a champion's list
+        // row and its detail page land on the same dominant bucket.
+        var topBucket = laneRows
+            .GroupBy(row => (row.Build.BuildItem0, row.Rune.PrimaryKeystoneId))
+            .Select(group => new
+            {
+                FirstItem = group.Key.BuildItem0,
+                Keystone = group.Key.PrimaryKeystoneId,
+                Games = group.Sum(row => row.Games),
+                Wins = group.Sum(row => row.Wins),
+                Rows = group.ToList(),
+            })
+            .OrderByDescending(bucket => bucket.Games)
+            .ThenBy(bucket => bucket.FirstItem)
+            .ThenBy(bucket => bucket.Keystone)
+            .First();
+
+        // Consensus item path via the same tree-walk + threshold logic
+        // the detail page uses for its core build path.
+        var sequences = topBucket.Rows
+            .Select(row => new ChampionBuildPathAnalyzer.BuildSequence(
+                row.Build.BuildItem1, row.Build.BuildItem2, row.Build.BuildItem3,
+                row.Build.BuildItem4, row.Build.BuildItem5, row.Build.BuildItem6,
+                row.Games, row.Wins))
+            .ToList();
+        var tree = ChampionBuildPathAnalyzer.BuildItemTree(sequences, topBucket.Games);
+        var (itemPath, _, _) = ChampionBuildPathAnalyzer.WalkPath(
+            tree, topBucket.FirstItem, topBucket.Games, topBucket.Wins);
+
+        // Dominant secondary tree within the top bucket.
+        var secondaryStyleId = topBucket.Rows
+            .GroupBy(row => row.Rune.SecondaryStyleId)
+            .OrderByDescending(group => group.Sum(row => row.Games))
+            .ThenBy(group => group.Key)
+            .First().Key;
+
+        return new TopBuildReadModel
+        {
+            FirstItemId = topBucket.FirstItem,
+            PrimaryKeystoneId = topBucket.Keystone,
+            SecondaryStyleId = secondaryStyleId,
+            ItemPath = itemPath,
+        };
+    }
+
+    /// <summary>
+    /// The rows of a patch as they are read, with what they name interned: every row names a lane,
+    /// a band, a build and a rune page, and each of those comes up many times.
     /// </summary>
     internal sealed class Builder
     {
         private readonly Dictionary<LaneKey, int> laneIndex = [];
         private readonly Dictionary<string, int> bandIndex = new(StringComparer.Ordinal);
+        private readonly Dictionary<Guid, int> buildIndex = [];
+        private readonly Dictionary<Guid, int> runeIndex = [];
 
         internal List<Row> Rows { get; } = [];
 
         internal List<LaneKey> Lanes { get; } = [];
 
         internal List<string> Bands { get; } = [];
+
+        internal List<Guid> BuildIds { get; } = [];
+
+        internal List<Guid> RuneIds { get; } = [];
 
         /// <summary>Takes the games a (build, rune) pair has on a lane, in one rank band and population.</summary>
         public void Add(
@@ -300,23 +332,26 @@ internal sealed class ChampionDirectoryTopBuilds
             Guid runePageId,
             int games,
             int wins)
+            => Rows.Add(new Row(
+                Intern(laneIndex, Lanes, new LaneKey(championId, position)),
+                Intern(bandIndex, Bands, eloBracket),
+                isMain,
+                Intern(buildIndex, BuildIds, buildId),
+                Intern(runeIndex, RuneIds, runePageId),
+                games,
+                wins));
+
+        private static int Intern<TKey>(Dictionary<TKey, int> index, List<TKey> values, TKey key)
+            where TKey : notnull
         {
-            var lane = new LaneKey(championId, position);
-            if (!laneIndex.TryGetValue(lane, out var laneNumber))
+            if (!index.TryGetValue(key, out var number))
             {
-                laneNumber = Lanes.Count;
-                laneIndex[lane] = laneNumber;
-                Lanes.Add(lane);
+                number = values.Count;
+                index[key] = number;
+                values.Add(key);
             }
 
-            if (!bandIndex.TryGetValue(eloBracket, out var bandNumber))
-            {
-                bandNumber = Bands.Count;
-                bandIndex[eloBracket] = bandNumber;
-                Bands.Add(eloBracket);
-            }
-
-            Rows.Add(new Row(laneNumber, bandNumber, isMain, buildId, runePageId, games, wins));
+            return number;
         }
     }
 
@@ -327,5 +362,7 @@ internal sealed class ChampionDirectoryTopBuilds
 
     internal readonly record struct LaneKey(int ChampionId, string Position);
 
-    internal readonly record struct Row(int Lane, int Band, bool IsMain, Guid BuildId, Guid RunePageId, int Games, int Wins);
+    internal readonly record struct Row(int Lane, int Band, bool IsMain, int Build, int Rune, int Games, int Wins);
+
+    private readonly record struct SliceRow(BuildItems Build, RuneChoice Rune, int Games, int Wins);
 }
