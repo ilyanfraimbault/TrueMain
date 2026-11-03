@@ -207,6 +207,10 @@ With the edge in its own project, an app rollout leaves Caddy running, and the
   4 s. After a web hang the page can come back once for a few seconds, while the
   probes sent during the hang time out. Isolated failures change nothing, however
   many.
+- **The API is warming its cache after a start** (#2425). Its `/readyz` answers `503`
+  with the body `Degraded` until the first warm pass has published, or
+  `ChampionWarmup:ReadyBudgetSeconds` has gone by (300 s), so a stuck warm-up cannot
+  keep the site down. Web reads that body and does not report it as a failure.
 
   The counting lives in web because Caddy cannot do it: `health_fails` adds failed
   probes up over the life of the process and a pass does not reset it. Measured on

@@ -327,6 +327,7 @@ Last verified against `develop` on 2026-09-02.
 - Server-side timeouts: API `statement_timeout` 60 s and pooled `idle_in_transaction_session_timeout` 60 s through a dedicated PgBouncer database, migrations `lock_timeout` 5 s with retry (2026-10-06) — #1631
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
+- A warm pass fills the next version before anyone reads it, and the site stays on the maintenance page for the first one (2026-11-03) — #2425, #1945
 - A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15) — #1570
 - A Riot ID resolves through a functional index on the lowered name and tag (2026-09-15) — #1570
 - The public web server runs one Node worker per useful core (2026-09-15) — #1579

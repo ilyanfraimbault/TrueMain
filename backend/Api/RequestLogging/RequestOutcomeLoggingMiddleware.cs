@@ -29,6 +29,8 @@ public sealed class RequestOutcomeLoggingMiddleware(
     RequestDelegate next,
     ILogger<RequestOutcomeLoggingMiddleware> logger)
 {
+    private const string ReadinessPath = "/readyz";
+
     public async Task InvokeAsync(HttpContext context)
     {
         var startedAt = Stopwatch.GetTimestamp();
@@ -72,6 +74,13 @@ public sealed class RequestOutcomeLoggingMiddleware(
             ? StatusCodes.Status500InternalServerError
             : context.Response.StatusCode;
         if (statusCode < StatusCodes.Status500InternalServerError)
+        {
+            return;
+        }
+
+        // Web asks every couple of seconds and reports a failure itself, as the visitor sees
+        // it. A 503 here is also the normal answer while the first warm pass runs (#2425).
+        if (request.Path.Equals(ReadinessPath, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }

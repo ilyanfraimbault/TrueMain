@@ -7,6 +7,7 @@ using TrueMain.Services.Champions.Matchups;
 using TrueMain.Services.Champions.Progression;
 using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Synergies;
+using TrueMain.Services.Champions.Warmup;
 
 namespace TrueMain.TestKit;
 
@@ -22,7 +23,11 @@ public static class TestChampionReadCache
     /// the test controls staleness rather than the clock.
     /// </summary>
     public static IChampionReadCache Wrapping(IMemoryCache cache)
-        => new ChampionReadCache(new FixedStamp(), cache);
+        => new ChampionReadCache(new FixedStamp(), cache, NoWarmup());
+
+    /// <summary>The read version of an API with the warm-up off: it follows the stamp.</summary>
+    public static ChampionReadVersion NoWarmup()
+        => new(TimeProvider.System, Microsoft.Extensions.Options.Options.Create(new ChampionWarmupOptions()));
 
     /// <summary>
     /// Runs every read and caches nothing. For tests whose subject is what the service
