@@ -5,6 +5,22 @@
 // shows the app itself, whole: its dashboard, the screen it opens on. It says it
 // is a beta up front. It sits on the page itself, like the hero above it, rather
 // than in a card: the capture is the only raised surface.
+//
+// It is also the page's largest picture, what a visitor waits for: announced in the head so its
+// fetch starts with the HTML, and at the size its box needs on most screens (#2425).
+const DASHBOARD_SRCSET = '/desktop/dashboard-1180.webp 1180w, /desktop/dashboard.webp 2360w'
+const DASHBOARD_SIZES = '(min-width: 1152px) 640px, (min-width: 768px) 58vw, 100vw'
+
+useHead({
+  link: [{
+    rel: 'preload',
+    as: 'image',
+    href: '/desktop/dashboard-1180.webp',
+    imagesrcset: DASHBOARD_SRCSET,
+    imagesizes: DASHBOARD_SIZES,
+    fetchpriority: 'high',
+  }],
+})
 </script>
 
 <template>
@@ -57,10 +73,12 @@
         />
         <SkeletonPicture
           src="/desktop/dashboard.webp"
+          :srcset="DASHBOARD_SRCSET"
+          :sizes="DASHBOARD_SIZES"
           :width="1180"
           :height="760"
           alt="The TrueMain app's dashboard: rank, recent form, match history and champions."
-          loading="lazy"
+          priority
           class="rounded-xl shadow-[0_30px_80px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/15"
         />
       </div>

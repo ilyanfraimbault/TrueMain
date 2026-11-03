@@ -1,14 +1,15 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { claimImageWarmup, markImagesWarm, markWorkerWarm } from '~~/server/utils/warmup-state'
+import { claimSharedWarmup, markSharedWarm, markWorkerWarm } from '~~/server/utils/warmup-state'
 import { warmWorker } from '~~/server/utils/warmup-worker'
 
 vi.mock('~~/server/utils/warmup-state', () => ({
-  claimImageWarmup: vi.fn(),
-  markImagesWarm: vi.fn(),
+  claimSharedWarmup: vi.fn(),
+  markSharedWarm: vi.fn(),
   markWorkerWarm: vi.fn(),
 }))
 vi.mock('~~/server/utils/ipx-disk-store', () => ({ getIpxDiskCache: () => null }))
+vi.mock('~~/server/utils/html-cache', () => ({ getHtmlStore: () => ({ sweep: async () => 0 }) }))
 
 const DRAGON = 'https://ddragon.leagueoflegends.com/cdn/16.21.1/img'
 
@@ -22,7 +23,7 @@ const READS: Record<string, unknown> = {
 describe('warming a worker', () => {
   const raw = vi.fn()
   const asked: string[] = []
-  const localFetch = vi.fn(async (path: string) => {
+  const localFetch = vi.fn(async (path: string, _headers?: Record<string, string>) => {
     asked.push(path)
     return new Response(JSON.stringify(READS[path] ?? {}))
   })
@@ -32,11 +33,11 @@ describe('warming a worker', () => {
   beforeEach(() => {
     asked.length = 0
     vi.mocked(markWorkerWarm).mockClear()
-    vi.mocked(markImagesWarm).mockClear()
-    vi.mocked(claimImageWarmup).mockReset()
+    vi.mocked(markSharedWarm).mockClear()
+    vi.mocked(claimSharedWarmup).mockReset()
     raw.mockReset()
     raw.mockResolvedValue({ status: 200 })
-    vi.mocked(claimImageWarmup).mockReturnValue(true)
+    vi.mocked(claimSharedWarmup).mockReturnValue(true)
   })
 
   it('waits for the API before asking itself for anything', async () => {
@@ -80,16 +81,25 @@ describe('warming a worker', () => {
       `/_ipx/f_webp&s_64x64/${DRAGON}/champion/Ahri.png`,
       '/_ipx/w_1280&f_webp/https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Ahri_0.jpg',
     ]))
-    expect(markImagesWarm).toHaveBeenCalledOnce()
+    expect(markSharedWarm).toHaveBeenCalledOnce()
+  })
+
+  it('renders every champion page once when it wins the claim, each from its own address', async () => {
+    await warmWorker(localFetch, 'http://api:8080')
+
+    const lastRender = (path: string) => localFetch.mock.calls.findLast(call => call[0] === path)
+    expect(lastRender('/champions/ahri')?.[1]).toEqual({ 'x-forwarded-for': expect.stringMatching(/^203\.0\.113\./) })
+    expect(lastRender('/champions/lux')?.[1]).not.toEqual(lastRender('/champions/ahri')?.[1])
   })
 
   it('leaves the images to the worker that won the claim', async () => {
-    vi.mocked(claimImageWarmup).mockReturnValue(false)
+    vi.mocked(claimSharedWarmup).mockReturnValue(false)
 
     await warmWorker(localFetch, 'http://api:8080')
 
     expect(asked.filter(path => path.startsWith('/_ipx/'))).toEqual([])
-    expect(markImagesWarm).not.toHaveBeenCalled()
+    expect(localFetch.mock.calls.filter(call => call[1])).toEqual([])
+    expect(markSharedWarm).not.toHaveBeenCalled()
   })
 
   it('carries on past a failed request, leaving it to the visitor who asks', async () => {

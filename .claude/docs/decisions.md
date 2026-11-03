@@ -189,6 +189,7 @@ Last verified against `develop` on 2026-09-02.
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
 - `/_ipx` images are pre-warmed at boot and kept on a bounded disk that outlives a deploy, revising #997 at the product owner's request (2026-11-03) — #2425
 - The directory and the tier list render on the server, and the HTML no longer prefetches the whole site (2026-11-03) — #2425, #149
+- The pages everyone reads come from a cache the workers share, fresh for a minute and served stale for an hour while a background render replaces them (2026-11-03) — #2431
 - `web/` and `admin/` share their server code and Data Dragon helpers through `web/layers/nitro`, which the admin extends through a second Docker build context; the labelled twins and their planned drift check are gone (2026-10-19, revises 2026-08-26); the site and the desktop app share `web/layers/common` since #1732 — #1226, #947, #966, #1623, #1732, #1684, #1625
 - SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14) — #1557, #1546
 - A public section card is its title and its content — no explanatory subtitle, no method footnote; definitions go in a hover (2026-09-25) — #1699

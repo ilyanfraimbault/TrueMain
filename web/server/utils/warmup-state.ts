@@ -2,8 +2,8 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const ICONS_CLAIM = 'icons-claimed'
-const ICONS_DONE = 'icons-done'
+const SHARED_CLAIM = 'shared-claimed'
+const SHARED_DONE = 'shared-done'
 const WORKER_PREFIX = 'worker-'
 
 /**
@@ -39,10 +39,10 @@ export function markWorkerWarm(): void {
   writeFileSync(join(ensureDir(), `${WORKER_PREFIX}${process.pid}`), '')
 }
 
-/** True for the one worker that gets to warm the shared images. `mkdir` is the atomic part. */
-export function claimImageWarmup(): boolean {
+/** True for the one worker that gets to warm what they all share. `mkdir` is the atomic part. */
+export function claimSharedWarmup(): boolean {
   try {
-    mkdirSync(join(ensureDir(), ICONS_CLAIM))
+    mkdirSync(join(ensureDir(), SHARED_CLAIM))
     return true
   }
   catch {
@@ -50,15 +50,15 @@ export function claimImageWarmup(): boolean {
   }
 }
 
-export function markImagesWarm(): void {
-  writeFileSync(join(ensureDir(), ICONS_DONE), '')
+export function markSharedWarm(): void {
+  writeFileSync(join(ensureDir(), SHARED_DONE), '')
 }
 
-/** Whether every worker and the shared images are done, or the budget has run out. */
+/** Whether every worker and what they share are done, or the budget has run out. */
 export function isSiteWarm(workers: number, budgetSeconds: number): boolean {
   if (process.uptime() >= budgetSeconds) return true
   const names = readdirSync(ensureDir())
-  return names.includes(ICONS_DONE)
+  return names.includes(SHARED_DONE)
     && names.filter(name => name.startsWith(WORKER_PREFIX)).length >= workers
 }
 

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { claimImageWarmup, clusterWorkers, isSiteWarm, markImagesWarm, markWorkerWarm } from '~~/server/utils/warmup-state'
+import { claimSharedWarmup, clusterWorkers, isSiteWarm, markSharedWarm, markWorkerWarm } from '~~/server/utils/warmup-state'
 
 const FAR_BUDGET = Number.MAX_SAFE_INTEGER
 
@@ -20,19 +20,19 @@ describe('warm-up state', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it('is warm once every worker and the images are done', () => {
+  it('is warm once every worker and what they share are done', () => {
     expect(isSiteWarm(1, FAR_BUDGET)).toBe(false)
 
     markWorkerWarm()
     expect(isSiteWarm(1, FAR_BUDGET)).toBe(false)
 
-    markImagesWarm()
+    markSharedWarm()
     expect(isSiteWarm(1, FAR_BUDGET)).toBe(true)
   })
 
   it('waits for the workers it has not heard from', () => {
     markWorkerWarm()
-    markImagesWarm()
+    markSharedWarm()
 
     expect(isSiteWarm(3, FAR_BUDGET)).toBe(false)
   })
@@ -41,9 +41,9 @@ describe('warm-up state', () => {
     expect(isSiteWarm(3, 0)).toBe(true)
   })
 
-  it('lets one worker claim the images', () => {
-    expect(claimImageWarmup()).toBe(true)
-    expect(claimImageWarmup()).toBe(false)
+  it('lets one worker claim what they share', () => {
+    expect(claimSharedWarmup()).toBe(true)
+    expect(claimSharedWarmup()).toBe(false)
   })
 
   it('reads the worker count the way the cluster preset does', () => {

@@ -29,7 +29,7 @@ import { isDurableImagePath } from '../utils/warmup-catalog'
  * URL's bytes are immutable — a new patch means new URLs.
  *
  * Each worker's memory sits on a disk they share and that outlives a deploy
- * (`ipx-disk-cache.ts`, #2425), so a deploy no longer replays the catalogue upstream.
+ * (`ipx-disk-store.ts`, #2425), so a deploy no longer replays the catalogue upstream.
  */
 
 // `/_ipx/**` is a public, unauthenticated route: anyone can request any

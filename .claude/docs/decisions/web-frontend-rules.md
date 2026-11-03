@@ -639,7 +639,32 @@ the status as well.
 
 **`build:manifest` drops the prefetch links.** Nuxt lists every lazy chunk as `<link rel="prefetch">` in every page's
 HTML by default, so a visitor to `/about` downloaded the whole site, the charts' library included, which alone was
-about 40% of a page's JS. A visible `<NuxtLink>` still preloads where it leads. **Public assets are precompressed**
+about 40% of a page's JS. **A `<NuxtLink>` preloads when it is about to be used, not as soon as it is on screen**
+(`prefetchOn`, #2431): the navigation bar alone had every visitor download the other pages' chunks on landing, and a
+hover leads the click by enough to fetch them. **Public assets are precompressed**
 (`nitro.compressPublicAssets`, brotli and gzip at build time), and the edge's `encode` leaves them as they are.
 
 Source: #2425, #149, #818.
+
+## The pages everyone reads come from a cache the workers share (2026-11-03)
+
+**Decision:** `server/utils/html-cache.ts` answers `/`, `/champions`, the tier list, a champion's page and `/truemains`
+from a file per page, before anything renders them. Fresh for a minute; for an hour after that it is still served at
+once while a background render replaces it. The warm-up renders every champion page before the site opens — #2431.
+
+- **Why.** A render costs 100–450 ms of a worker's only thread, for HTML that is the same for every visitor, and a
+  render per visit is what limits how many visitors a worker can take.
+- **Why files.** The workers are separate processes and only a file reaches them all, so a page is rendered once for
+  the three of them. Not on a volume: a page names its build's script files, so it must not outlive its build.
+- **Not Nitro's `swr` route rule**, which the text pages use. Its store has no bound, so junk parameters would grow it
+  without limit, and it caches a page whose fetch failed under its 200.
+- **What keeps a visitor's or a moment's page from reaching the next visitor.** Nothing in these pages' server render
+  reads a cookie or a visitor's header. A render with a failed fetch is not stored (`html-cache-guard.server.ts`, the
+  rule of #1557). Neither is a page that set a cookie, nor one asked for on a host other than the site's, since a
+  page prints its own address. A query parameter these pages do not read renders without being stored.
+- **A render the process asks for itself goes past the cache, with the host and the protocol the edge would send.**
+  Without them it would print `http://localhost` in its share links.
+- **The warm-up's renders come from documentation addresses (RFC 5737), one per page**, so the API's per-client limit
+  has no reason to apply: rendering every champion is a few thousand reads in under a minute from one container.
+
+Source: #2431, #2425, #1557.
