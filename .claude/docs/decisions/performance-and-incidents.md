@@ -381,3 +381,40 @@ the deploy the chart counts fewer games until the backlog is through. The direct
 moved to #1945, conditional on a cold-p95 measurement after this ships.
 
 Source: #1368, #628, #1945.
+
+## A warm pass fills the next version before anyone reads it, and the site waits for the first one (2026-11-03)
+
+**Decision.** With `ChampionWarmup:Enabled`, the API replays the site's own requests over loopback at boot and
+after each aggregation run (`Services/Champions/Warmup`). A pass computes under a version of its own, and
+`ChampionReadVersion.Publish` moves every reader to it once it is complete. `/readyz` answers `503` `Degraded`
+until the first pass has published, or `ReadyBudgetSeconds` has gone by, which keeps the public site on the
+maintenance page. This revises the 2026-09-02 entry above on one point: a new stamp no longer retires what readers
+are on. Off by default, so a local API and the test hosts still follow the stamp — #2425, product owner: every page
+under one second, cold or hot, "on reste sur la page maintenance pendant le chauffage".
+
+- **Why a version flip and not a stale-while-revalidate entry.** Every champion read computes on the caller's
+  request-scoped `DbContext`, so a read that answers stale cannot refresh itself once its request ends. A refresh per
+  entry would need each of the 36 call sites to say how to recompute it from nothing. The pass needs none of that, and
+  a reader never sees two versions on one page.
+- **Why requests, not calls into the query services.** The URLs are the ones the site sends, so what is warmed is what
+  is read; a call that normalised one parameter differently would warm an entry nobody hits. They also warm what a
+  direct call would not: routing, serialisers, the first run of each query.
+- **What is warmed.** The directory and the tier list on every rank, population and patch that still has builds;
+  each champion's page as it opens (default rank, active patch, each of its lines); the leaderboard's counts and
+  rankings. A rank or patch picked on a champion page afterwards reads on demand, and those reads do not touch the
+  directory's cost. A leaderboard combining a filter with a non-default sort is still read on demand.
+- **The directory reads a patch once** (`ChampionDirectoryTopBuilds`). Each slice used to run the same scan with a
+  different filter and bring the same dimensions up with it. Games and wins add up across rank bands and populations,
+  so the rows are grouped by those too and a slice is a sum in memory. Filling every slice went from one scan per
+  slice to one per patch.
+- **The leaderboard's count and rankings moved onto the read cache.** The count was nearly all of what a page of the
+  default board cost, recomputed every 30 s for a figure that only sizes the pager. The rankings were not cached at
+  all any more: their entry cap dated from a much smaller population, so each page of a sorted board rescanned. Their
+  order now moves with the aggregation version; the figures on a row still come from the 30 s response.
+- **The cache's cap went from 1 024 to 32 768 entries**, because a pass alone fills several thousand, twice over while
+  it replaces the version readers are on.
+
+Rejected: a rollup table written by the aggregation lane (#1945). It would make the directory free at boot, but moves
+the tree-walk out of the API for a gain the warm-up already gets without a schema change.
+
+Source: #2425, #1945, #1368.

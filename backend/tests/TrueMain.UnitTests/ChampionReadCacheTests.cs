@@ -32,7 +32,7 @@ public sealed class ChampionReadCacheTests
     {
         using var cache = SizedCache();
         var reads = new CountingStamp(FirstCycle);
-        var subject = new ChampionReadCache(reads, cache);
+        var subject = new ChampionReadCache(reads, cache, TestChampionReadCache.NoWarmup());
         var computations = 0;
 
         var first = await subject.GetOrComputeAsync(Key, _ => Count(ref computations), default);
@@ -50,7 +50,7 @@ public sealed class ChampionReadCacheTests
         // call returns the same number — is what distinguishes a stored entry from one
         // MemoryCache dropped on the floor for having no Size.
         using var cache = SizedCache();
-        var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache);
+        var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache, TestChampionReadCache.NoWarmup());
         var computations = 0;
 
         await subject.GetOrComputeAsync(Key, _ => Count(ref computations), default);
@@ -67,7 +67,7 @@ public sealed class ChampionReadCacheTests
         // warmed. Re-deriving it on every visit is the one case where a cache that
         // checks for truthiness instead of presence quietly does nothing.
         using var cache = SizedCache();
-        var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache);
+        var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache, TestChampionReadCache.NoWarmup());
         var computations = 0;
 
         for (var i = 0; i < 3; i++)
@@ -95,7 +95,7 @@ public sealed class ChampionReadCacheTests
         // reads it keys.
         using var cache = SizedCache();
         var stamp = new CountingStamp(FirstCycle);
-        var subject = new ChampionReadCache(stamp, cache);
+        var subject = new ChampionReadCache(stamp, cache, TestChampionReadCache.NoWarmup());
         var computations = 0;
 
         for (var i = 0; i < 20; i++)
@@ -111,7 +111,7 @@ public sealed class ChampionReadCacheTests
     {
         using var cache = SizedCache();
         var stamp = new CountingStamp(FirstCycle);
-        var subject = new ChampionReadCache(stamp, cache);
+        var subject = new ChampionReadCache(stamp, cache, TestChampionReadCache.NoWarmup());
         var computations = 0;
 
         (await subject.GetOrComputeAsync(Key, _ => Count(ref computations), default)).Should().Be(1);
@@ -134,7 +134,7 @@ public sealed class ChampionReadCacheTests
     public async Task AnEmptyAggregateTableIsAVersionOfItsOwn()
     {
         using var cache = SizedCache();
-        var subject = new ChampionReadCache(new CountingStamp(null), cache);
+        var subject = new ChampionReadCache(new CountingStamp(null), cache, TestChampionReadCache.NoWarmup());
         var computations = 0;
 
         await subject.GetOrComputeAsync(Key, _ => Count(ref computations), default);
@@ -150,7 +150,7 @@ public sealed class ChampionReadCacheTests
     public async Task ConcurrentCallersThatMissShareASinglePass()
     {
         using var cache = SizedCache();
-        var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache);
+        var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache, TestChampionReadCache.NoWarmup());
 
         var started = 0;
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -179,7 +179,7 @@ public sealed class ChampionReadCacheTests
         // The pass runs on the owner's request-scoped DbContext, so it must outlive a
         // cancelled caller rather than die with it and take every joiner down.
         using var cache = SizedCache();
-        var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache);
+        var subject = new ChampionReadCache(new CountingStamp(FirstCycle), cache, TestChampionReadCache.NoWarmup());
 
         using var abandoned = new CancellationTokenSource();
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

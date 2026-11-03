@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Services.Champions.Warmup;
 
 namespace TrueMain.Services.Champions.Scopes;
 
@@ -82,8 +83,15 @@ public interface IChampionReadCache
 /// its own, which the token now covers like the others; item timings was dropped
 /// instead, having had no caller since #628.
 /// </para>
+/// <para>
+/// <b>With the warm-up on, a reader's version is the published one</b> (#2425), not the stamp:
+/// see <see cref="ChampionReadVersion"/>.
+/// </para>
 /// </remarks>
-public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCache cache) : IChampionReadCache
+public sealed class ChampionReadCache(
+    IChampionAggregationStamp stamp,
+    IMemoryCache cache,
+    ChampionReadVersion version) : IChampionReadCache
 {
     /// <summary>Cache key holding the current aggregation version token.</summary>
     internal const string VersionCacheKey = "champions:aggregation-version";
@@ -150,7 +158,7 @@ public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCa
                 // so cancelling here would only throw away work everyone is waiting
                 // for. The bound is the command timeout, as it is for every read here.
                 var value = await compute(CancellationToken.None);
-                return cache.Store(versionedKey, (object?)value, AbsoluteBackstop, size);
+                return cache.Store(versionedKey, (object?)value, version.EntryLifetime(AbsoluteBackstop), size);
             },
             ct,
             // These reads run on the caller's request-scoped DbContext, so the pass
@@ -174,6 +182,11 @@ public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCa
     /// </summary>
     private async Task<string> GetAggregationVersionAsync(CancellationToken ct)
     {
+        if (version.Current is { } pinned)
+        {
+            return pinned;
+        }
+
         if (cache.TryGetValue<string>(VersionCacheKey, out var cached) && cached is not null)
         {
             return cached;

@@ -13,6 +13,7 @@ using TrueMain.Options;
 using TrueMain.RateLimiting;
 using TrueMain.RequestLatency;
 using TrueMain.RequestLogging;
+using TrueMain.Services.Champions.Warmup;
 using TrueMain.Services.Benchmarks;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
@@ -63,9 +64,10 @@ builder.Services.AddOpenApi();
 // shapes (the /truemains leaderboard key includes region/champion/position/
 // page) can't grow it without limit. Entries are counted (Size = 1 each, set
 // at every call site) rather than weighed by bytes: the growth axis here is
-// key cardinality, not payload size, and 1024 distinct live entries sits far
-// above any legitimate working set within the 30s TTL.
-builder.Services.AddMemoryCache(options => options.SizeLimit = 1024);
+// key cardinality, not payload size. A warm pass alone fills several thousand
+// entries, twice over while it replaces the version readers are on (#2425), so
+// the bound has to sit well above that or the warm-up evicts what it warmed.
+builder.Services.AddMemoryCache(options => options.SizeLimit = 32768);
 
 var healthConnectionString = builder.Configuration.GetConnectionString("TrueMain");
 var healthChecks = builder.Services.AddHealthChecks();
@@ -282,6 +284,7 @@ builder.Services.AddTrueMainDesktopTelemetry();
 // query service that took a raw IMemoryCache instead would be caching without
 // coalescing, which is how a popular page's expiry became ten identical 14s scans.
 builder.Services.AddScoped<IChampionAggregationStamp, ChampionAggregationStamp>();
+builder.Services.AddChampionWarmup(builder.Configuration);
 builder.Services.AddScoped<IChampionReadCache, ChampionReadCache>();
 builder.Services.AddScoped<IChampionSummariesQueryService, ChampionSummariesQueryService>();
 builder.Services.AddScoped<IChampionTierListQueryService, ChampionTierListQueryService>();
@@ -463,6 +466,7 @@ app.UseCors(frontendCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseChampionWarmupRequests();
 app.UseRateLimiter();
 
 app.MapHealthChecks("/healthz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
@@ -471,7 +475,15 @@ app.MapHealthChecks("/healthz", new Microsoft.AspNetCore.Diagnostics.HealthCheck
 }).DisableRateLimiting();
 app.MapHealthChecks("/readyz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
-    Predicate = registration => registration.Tags.Contains("ready")
+    Predicate = registration => registration.Tags.Contains("ready"),
+    // Degraded is the warm-up still running, which is not ready either (see
+    // ChampionWarmupHealthCheck); web reads the body to tell it from a failure.
+    ResultStatusCodes =
+    {
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy] = StatusCodes.Status200OK,
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable,
+    },
 }).DisableRateLimiting();
 app.MapControllers();
 

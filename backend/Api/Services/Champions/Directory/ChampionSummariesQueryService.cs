@@ -45,6 +45,12 @@ public interface IChampionSummariesQueryService
     /// </para>
     /// </summary>
     Task<long> GetTotalGamesAsync(CancellationToken ct);
+
+    /// <summary>
+    /// The patches with builds to serve, newest first: what the champion cache warm-up
+    /// walks (#2425). Includes a patch too thin to be the active one.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetPatchesNewestFirstAsync(CancellationToken ct);
 }
 
 public sealed class ChampionSummariesQueryService(
@@ -72,6 +78,9 @@ public sealed class ChampionSummariesQueryService(
     // argument that the homepage rounds the figure to three significant digits anyway;
     // keyed by aggregation version it is simply exact until the number actually moves.
     private const string TotalGamesCacheKey = "champions:summaries:total-games";
+
+    // Every grouped pattern of a patch, against the single response a unit stands for.
+    private const int TopBuildsEntrySize = 64;
 
     private readonly ChampionDirectoryPatchResolver patchResolver =
         new(db, options, championsOptions, cache, logger);
@@ -145,6 +154,9 @@ public sealed class ChampionSummariesQueryService(
 
     public Task<long> GetTotalGamesAsync(CancellationToken ct)
         => cache.GetOrComputeAsync(TotalGamesCacheKey, ComputeTotalGamesAsync, ct);
+
+    public Task<IReadOnlyList<string>> GetPatchesNewestFirstAsync(CancellationToken ct)
+        => patchResolver.GetPatchesNewestFirstAsync(ct);
 
     private async Task<long> ComputeTotalGamesAsync(CancellationToken ct)
     {
@@ -245,8 +257,12 @@ public sealed class ChampionSummariesQueryService(
         }
 
         var topBuildsSw = Stopwatch.StartNew();
-        var topBuilds = await ChampionDirectoryTopBuilds.LoadAsync(
-            db, (int)options.Value.QueueId, activePatch, bracketBands, truemainsOnly, logger, ct);
+        var topBuildsOfPatch = await cache.GetOrComputeAsync(
+            $"champions:summaries:top-builds:{activePatch}",
+            token => ChampionDirectoryTopBuilds.LoadAsync(db, (int)options.Value.QueueId, activePatch, logger, token),
+            ct,
+            size: TopBuildsEntrySize);
+        var topBuilds = topBuildsOfPatch.Resolve(bracketBands, truemainsOnly);
         topBuildsSw.Stop();
         logger.LogInformation(
             "{Surface} load_top_builds buckets={Buckets} elapsed={ElapsedMs}ms",

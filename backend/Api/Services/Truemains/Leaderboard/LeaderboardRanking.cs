@@ -1,9 +1,9 @@
 using Core.Options;
 using Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.Services.Champions.Scopes;
 
 namespace TrueMain.Services.Truemains.Leaderboard;
 
@@ -21,15 +21,9 @@ internal sealed class LeaderboardRanking(
     TrueMainDbContext db,
     IDbContextFactory<TrueMainDbContext> dbFactory,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
-    IMemoryCache cache,
+    IChampionReadCache readCache,
     ILogger logger)
 {
-    // Static because the owning service is scoped: the whole point is to
-    // coalesce across concurrent *requests*, which each get their own instance.
-    private static readonly RequestCoalescer<Result> Coalescer = new();
-
-    private static readonly RequestCoalescer<List<LeaderboardStatLines.Line>> StatLinesCoalescer = new();
-
     // Safety valve on the dedication ranking: the score is a read-time
     // expression, so ordering by it means scoring every eligible account rather
     // than seeking an index. The cap bounds that scan if the tracked population
@@ -38,36 +32,34 @@ internal sealed class LeaderboardRanking(
     // MainDedication.FetchCandidatesAsync), i.e. the least committed players.
     private const int MaxDedicationCandidates = 50_000;
 
-    // A ranking entry is not one response — it holds the whole scored
-    // population, so charging it 1 unit would let it evict the rest of the cache
-    // for free. One unit is roughly a page response (~25 hydrated rows, tens of
-    // KB); a scored candidate is ~200 bytes across the id list, the dictionary
-    // and the read model, so ~125 candidates cost about what one response does.
-    // Round to 100 per unit to charge slightly over the odds rather than under.
-    private const int CandidatesPerCacheUnit = 100;
+    // A ranking is not one response: it holds the whole scored population, so
+    // charging it one unit would let it evict the rest of the cache for free. One
+    // unit is roughly a page response (tens of KB); a scored candidate is ~200 bytes
+    // and the population is in the hundred thousands. The charge is flat because the
+    // read cache takes it before the answer exists, and a filter's narrower board
+    // only overpays, which costs that board an earlier eviction.
+    private const int RankingCacheSize = 512;
 
-    // Cap one ranking at an eighth of the total budget. Beyond that the entry
-    // would distort eviction for every other surface sharing this cache, so the
-    // ranking simply is not cached and each page rescans — the same behaviour as
-    // before this cache existed. At the current ratio this covers populations up
-    // to ~12 800 accounts, comfortably above real scale; a board big enough to
-    // exceed it is already past the point where the score should be materialised
-    // rather than derived per request.
-    private const int MaxRankingCacheSize = 128;
-
-    // A stat line is a Guid, the score and six counters (~80 bytes with the
-    // record header), well under half a scored dedication candidate, so it is
-    // charged at 250 per unit. Under the same MaxRankingCacheSize cap that
-    // keeps populations up to ~32 000 accounts cached.
-    private const int StatLinesPerCacheUnit = 250;
+    // A stat line is a Guid, the score and six counters (~80 bytes with the record
+    // header), well under half a scored dedication candidate.
+    private const int StatLinesCacheSize = 256;
 
     /// <summary>
     /// Rank-sorted path: only the eligible count is needed up front, the page
     /// itself is an indexed OFFSET on <c>riot_accounts."Score"</c>.
     /// </summary>
+    /// <remarks>
+    /// The count is nearly all of what a page of this board costs (#2425): an EXISTS over
+    /// the whole eligible population, for a figure that only sizes the pager. It lives with
+    /// the rankings below, per filter shape and aggregation version, rather than with the
+    /// page's 30 s response.
+    /// </remarks>
     public async Task<Result> CountByRankAsync(LeaderboardFilter filter, CancellationToken ct)
     {
-        var total = await LeaderboardEligibility.CountAsync(db, filter, ct);
+        var total = await readCache.GetOrComputeAsync(
+            $"truemains:eligible-count:{filter.Key}",
+            token => LeaderboardEligibility.CountAsync(db, filter, token),
+            ct);
         return new Result(total, OrderedAccountIds: null, DedicationByAccount: null);
     }
 
@@ -81,32 +73,16 @@ internal sealed class LeaderboardRanking(
     /// normal way people use a leaderboard, and the per-page response cache
     /// alone would make every page change repeat the full scan and scoring pass.
     /// The read-time design is defensible because that cost is paid once per
-    /// sorted board, not once per page.
+    /// sorted board and aggregation version, not once per page. Everyone who misses
+    /// together shares one scoring pass (#870): this path replaced an indexed count
+    /// with a scored scan of up to MaxDedicationCandidates accounts.
     /// </remarks>
-    public async Task<Result> RankByDedicationAsync(
-        LeaderboardFilter filter,
-        TimeSpan cacheTtl,
-        CancellationToken ct)
-    {
-        var rankingCacheKey = BuildCacheKey(filter);
-        if (cache.TryGetValue<Result>(rankingCacheKey, out var cachedRanking) && cachedRanking is not null)
-        {
-            // Shared instance, read-only from here: the query service only
-            // slices OrderedAccountIds and looks up DedicationByAccount. Neither
-            // is ever mutated, so handing the same object to concurrent requests
-            // is safe — keep it that way if this grows.
-            return cachedRanking;
-        }
-
-        // Miss. Everyone who missed together shares one scoring pass instead of each
-        // running their own over the eligible population (#870) — the reason this path
-        // needs it more than the others is that the dedication sort replaced an indexed
-        // count with a scored scan of up to MaxDedicationCandidates accounts.
-        return await Coalescer.GetOrJoinAsync(
-            rankingCacheKey,
-            () => ComputeAndCacheAsync(rankingCacheKey, filter, cacheTtl),
-            ct);
-    }
+    public Task<Result> RankByDedicationAsync(LeaderboardFilter filter, CancellationToken ct)
+        => readCache.GetOrComputeAsync(
+            $"truemains:dedication-ranking:{filter.Key}",
+            token => ComputeDedicationRankingAsync(filter, token),
+            ct,
+            RankingCacheSize);
 
     /// <summary>
     /// Games / KDA / win-rate sorted path (#1737): read every eligible
@@ -124,17 +100,18 @@ internal sealed class LeaderboardRanking(
         LeaderboardFilter filter,
         LeaderboardSort sort,
         int queueId,
-        TimeSpan cacheTtl,
         CancellationToken ct)
     {
-        var cacheKey = $"truemains:stat-lines:{filter.Key}";
-        if (!cache.TryGetValue<List<LeaderboardStatLines.Line>>(cacheKey, out var lines) || lines is null)
-        {
-            lines = await StatLinesCoalescer.GetOrJoinAsync(
-                cacheKey,
-                () => FetchAndCacheStatLinesAsync(cacheKey, filter, queueId, cacheTtl),
-                ct);
-        }
+        // Shared, read-only from here: Order projects a new list and never mutates it.
+        var lines = await readCache.GetOrComputeAsync(
+            $"truemains:stat-lines:{filter.Key}",
+            async token =>
+            {
+                await using var ctx = await dbFactory.CreateDbContextAsync(token);
+                return await LeaderboardStatLines.FetchAsync(ctx, filter, queueId, token);
+            },
+            ct,
+            StatLinesCacheSize);
 
         return new Result(
             Total: lines.Count,
@@ -142,53 +119,8 @@ internal sealed class LeaderboardRanking(
             DedicationByAccount: null);
     }
 
-    private async Task<List<LeaderboardStatLines.Line>> FetchAndCacheStatLinesAsync(
-        string cacheKey,
-        LeaderboardFilter filter,
-        int queueId,
-        TimeSpan cacheTtl)
+    private async Task<Result> ComputeDedicationRankingAsync(LeaderboardFilter filter, CancellationToken ct)
     {
-        // Detached from any single caller's token: the pass is shared (see
-        // RequestCoalescer).
-        var ct = CancellationToken.None;
-
-        // Re-check under the coalescer, as the dedication path does.
-        if (cache.TryGetValue<List<LeaderboardStatLines.Line>>(cacheKey, out var justCached) && justCached is not null)
-        {
-            return justCached;
-        }
-
-        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
-        var lines = await LeaderboardStatLines.FetchAsync(ctx, filter, queueId, ct);
-
-        // Shared, read-only from here: Order projects a new list and never
-        // mutates the cached one.
-        var size = Math.Max(1, lines.Count / StatLinesPerCacheUnit);
-        if (size <= MaxRankingCacheSize)
-        {
-            cache.Set(cacheKey, lines, ApiCache.Entry(cacheTtl, size));
-        }
-
-        return lines;
-    }
-
-    private async Task<Result> ComputeAndCacheAsync(
-        string rankingCacheKey,
-        LeaderboardFilter filter,
-        TimeSpan cacheTtl)
-    {
-        // Detached from any single caller's token: the pass is shared, so one request
-        // walking away must not cancel it for the others (see RequestCoalescer). It is
-        // bounded by the candidate cap and its own TTL.
-        var ct = CancellationToken.None;
-
-        // Re-check under the coalescer: while this caller was queueing behind another
-        // pass for the same key, that pass may have finished and cached its result.
-        if (cache.TryGetValue<Result>(rankingCacheKey, out var justCached) && justCached is not null)
-        {
-            return justCached;
-        }
-
         // Own short-lived context: consistent with the other fetches, and this
         // one can be a long-running scan.
         await using var ctx = await dbFactory.CreateDbContextAsync(ct);
@@ -223,36 +155,20 @@ internal sealed class LeaderboardRanking(
             ? await LeaderboardEligibility.CountAsync(db, filter, ct)
             : candidates.Count;
 
-        var ranking = new Result(
-            Total: total,
-            OrderedAccountIds: candidates.Select(candidate => candidate.AccountId).ToList(),
-            DedicationByAccount: candidates.ToDictionary(
-                candidate => candidate.AccountId,
-                candidate => candidate.Dedication));
-
         // Caching the whole Result (not just the ids) is what keeps Truncated's
         // consequences correct across pages: Total already folds in the extra
         // CountAsync, and the migrate-to-a-materialised-column warning above sits
         // on this miss path, so it fires once per ranking rather than once per
         // page — and is never lost, since a cache hit means the same truncation
-        // verdict still applies.
-        var size = Math.Max(1, candidates.Count / CandidatesPerCacheUnit);
-        if (size <= MaxRankingCacheSize)
-        {
-            cache.Set(rankingCacheKey, ranking, ApiCache.Entry(cacheTtl, size));
-        }
-
-        return ranking;
+        // verdict still applies. Shared, read-only from here: the query service
+        // only slices OrderedAccountIds and looks up DedicationByAccount.
+        return new Result(
+            Total: total,
+            OrderedAccountIds: candidates.Select(candidate => candidate.AccountId).ToList(),
+            DedicationByAccount: candidates.ToDictionary(
+                candidate => candidate.AccountId,
+                candidate => candidate.Dedication));
     }
-
-    /// <summary>
-    /// Key for the dedication ranking. Deliberately carries no page, page size
-    /// or sort: the ranking is a property of the filter shape alone, so paging
-    /// through one sorted board reuses a single scan instead of rescoring the
-    /// whole population per page.
-    /// </summary>
-    private static string BuildCacheKey(LeaderboardFilter filter)
-        => $"truemains:dedication-ranking:{filter.Key}";
 
     /// <summary>
     /// What the ranking phase resolved before the page is hydrated.
