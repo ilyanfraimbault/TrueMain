@@ -26,7 +26,6 @@ public sealed class ChampionReadVersion(TimeProvider clock, IOptions<ChampionWar
     // for the one caller that needs it would change all of them.
     private static readonly AsyncLocal<string?> Warming = new();
 
-    private readonly DateTimeOffset _startedAt = clock.GetUtcNow();
     private volatile string? _published;
 
     /// <summary>
@@ -48,7 +47,7 @@ public sealed class ChampionReadVersion(TimeProvider clock, IOptions<ChampionWar
     public bool HasPublished => _published is not null;
 
     /// <summary>When this process started waiting for its first pass.</summary>
-    public DateTimeOffset StartedAt => _startedAt;
+    public DateTimeOffset StartedAt { get; } = clock.GetUtcNow();
 
     /// <summary>
     /// How long this request's answer may be cached: a pass's entries have to outlive the wait

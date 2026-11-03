@@ -12,6 +12,7 @@ using TrueMain.LogIngest;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
 using TrueMain.RequestLatency;
+using TrueMain.HealthChecks;
 using TrueMain.RequestLogging;
 using TrueMain.Services.Champions.Warmup;
 using TrueMain.Services.Benchmarks;
@@ -469,22 +470,7 @@ app.UseAuthorization();
 app.UseChampionWarmupRequests();
 app.UseRateLimiter();
 
-app.MapHealthChecks("/healthz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = _ => false
-}).DisableRateLimiting();
-app.MapHealthChecks("/readyz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = registration => registration.Tags.Contains("ready"),
-    // Degraded is the warm-up still running, which is not ready either (see
-    // ChampionWarmupHealthCheck); web reads the body to tell it from a failure.
-    ResultStatusCodes =
-    {
-        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy] = StatusCodes.Status200OK,
-        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
-        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable,
-    },
-}).DisableRateLimiting();
+app.MapHealthEndpoints();
 app.MapControllers();
 
 // Resolved before Run: a failed start disposes the provider, so resolving inside the
