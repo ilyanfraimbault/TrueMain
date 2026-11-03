@@ -14,9 +14,9 @@ namespace TrueMain.Services.Truemains.Leaderboard;
 internal static class LeaderboardStatLines
 {
     /// <summary>
-    /// One line per eligible account. The admission predicate must stay in
-    /// lock-step with <see cref="LeaderboardEligibility.CountAsync"/>: the line
-    /// count is the sorted board's total.
+    /// One line per account <paramref name="filter"/> admits. The caller passes the
+    /// widest filter and narrows it through <see cref="LeaderboardPopulation"/>, so the
+    /// expensive part is paid once however many filters are read.
     /// </summary>
     public static async Task<List<Line>> FetchAsync(
         TrueMainDbContext ctx,
