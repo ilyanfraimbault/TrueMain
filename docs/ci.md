@@ -516,6 +516,10 @@ by hand, and it drifts silently: prod's edge ran a hand-copied `Caddyfile`
 while two released edge changes (#1583, #1696) never reached it (#1598).
 Only named volumes hold state on the host.
 
+`truemain_web_images` (`truemain_preprod_web_images` on preprod) holds web's processed images, so a deploy does not fetch
+them again from the upstream CDNs (#2425). The web Dockerfile creates `/app/.ipx-cache` for the `node` user because a
+new named volume takes the ownership of the directory it mounts over. It is a cache: removing it costs one slower boot.
+
 Inline `content` is interpolated like the rest of the compose file, so a
 literal `$` in it is written `$$`.
 

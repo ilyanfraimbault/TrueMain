@@ -46,8 +46,7 @@ interface UseTruemainsLeaderboardOptions {
  * skeleton then becomes the server-rendered state, which the `hasEverLoaded`
  * latch below accounts for.
  *
- * Unlike pages/champions/index.vue (which deliberately stays `server: false`),
- * the leaderboard is a single keyed source with server-side pagination, so
+ * The leaderboard is a single keyed source with server-side pagination, so
  * there is no second async source whose resolve timing could diverge between
  * the server and the client and bake a different `v-if` branch into each.
  *

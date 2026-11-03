@@ -414,6 +414,13 @@ under one second, cold or hot, "on reste sur la page maintenance pendant le chau
 - **The cache's cap went from 1 024 to 32 768 entries**, because a pass alone fills several thousand, twice over while
   it replaces the version readers are on.
 
+**Web warms behind the same gate** (`server/plugins/warmup.ts`). Once the API is ready, each worker reads the static
+data and renders the main pages and every champion's for itself, since V8's optimised code and the Nitro cached
+functions are per process; one of them then fetches the catalogue's images onto the shared disk. `/api/readyz` answers
+`503` `warming` until they have all finished, or `warmupBudgetSeconds` has gone by. The workers report through files in
+a directory named after the primary's start time: Nitro's cluster preset owns the primary, which also loads the
+plugins and serves nothing, and a restarted container keeps its `/tmp`.
+
 Rejected: a rollup table written by the aggregation lane (#1945). It would make the directory free at boot, but moves
 the tree-walk out of the API for a gain the warm-up already gets without a schema change.
 

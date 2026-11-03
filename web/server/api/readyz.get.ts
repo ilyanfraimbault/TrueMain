@@ -8,7 +8,7 @@ const API_CHECK_TIMEOUT_MS = 8000
 const gate = createReadinessGate()
 
 export default defineEventHandler(async (event) => {
-  const { apiBaseUrl } = useRuntimeConfig(event)
+  const { apiBaseUrl, warmupEnabled, warmupBudgetSeconds } = useRuntimeConfig(event)
   const response = await $fetch.raw<string>(`${apiBaseUrl}/readyz`, {
     timeout: API_CHECK_TIMEOUT_MS,
     retry: false,
@@ -34,6 +34,11 @@ export default defineEventHandler(async (event) => {
   if (!gate.record(up)) {
     setResponseStatus(event, 503)
     return 'down'
+  }
+  // This answer speaks for every worker, and they warm one by one (`plugins/warmup.ts`).
+  if (warmupEnabled && !isSiteWarm(clusterWorkers(), warmupBudgetSeconds)) {
+    setResponseStatus(event, 503)
+    return 'warming'
   }
   return 'ok'
 })
