@@ -792,12 +792,57 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task List_CachesResponseForIdenticalRequestShape()
     {
-        // Proves the 30s response cache short-circuits the four SQL queries
-        // for the same (page, filters) shape. We can't easily wait the TTL
-        // out inside a test, so we use the inverse signal: mutate the DB
-        // *after* the first request and verify the second request still sees
-        // the snapshot from the first — which only happens if the second one
-        // came back from the cache without hitting the DB.
+        // Proves the 30s response cache short-circuits the SQL queries for the
+        // same (page, filters) shape. We can't easily wait the TTL out inside a
+        // test, so we use the inverse signal: mutate the DB *after* the first
+        // request and verify the second request still sees the snapshot from the
+        // first — which only happens if it came back from the cache.
+        var now = DateTime.UtcNow;
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var first = Account("first", "First", "EUW1");
+            var korean = Account("korean", "Korean", "KR");
+            db.RiotAccounts.AddRange(first, korean);
+            db.RankSnapshots.AddRange(Snapshot(first, "DIAMOND", "I", 80, now), Snapshot(korean, "DIAMOND", "II", 70, now));
+            db.MainChampionStats.AddRange(
+                MainStat("first", "EUW1", 157, "MIDDLE", isMain: true),
+                MainStat("korean", "KR", 86, "TOP", isMain: true));
+            await db.SaveChangesAsync();
+        }
+
+        await using var factory = CreateFactory();
+        using var client = CreateClient(factory);
+
+        // First request — populates the cache for this (platforms, …) shape.
+        var firstResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        firstResponse!.Total.Should().Be(2);
+
+        // Rename an account on the page. If the response wasn't cached, the next
+        // request would read the new name: a page's rows are read fresh otherwise.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            var first = await db.RiotAccounts.SingleAsync(account => account.Puuid == "first");
+            first.GameName = "Renamed";
+            await db.SaveChangesAsync();
+        }
+
+        // Identical request — must come back from cache, so still the old name.
+        var cachedResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        cachedResponse!.Rows.Select(row => row.Identity.GameName).Should().Contain(
+            "First", "the second request must hit the cache and ignore the rename");
+
+        // Different filter shape yields a different cache key: it answers for its
+        // own filter, and reads its rows fresh — proving the cache is keyed
+        // correctly (not just returning the first response for every request).
+        var europe = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe");
+        europe!.Total.Should().Be(1, "a different filter shape must miss the cache");
+        europe.Rows.Single().Identity.GameName.Should().Be("Renamed");
+    }
+
+    [Fact]
+    public async Task List_AnAccountJoinsTheBoardWithTheNextAggregationVersion()
+    {
         var now = DateTime.UtcNow;
 
         await using (var db = _fixture.CreateDbContext())
@@ -812,13 +857,8 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        // First request — populates the cache for this (platforms, …) shape.
-        var firstResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
-        firstResponse!.Total.Should().Be(1);
-        firstResponse.Rows.Single().Identity.GameName.Should().Be("First");
+        (await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe"))!.Total.Should().Be(1);
 
-        // Sneak a second account into the DB. If the leaderboard wasn't
-        // cached, the next request would see Total=2.
         await using (var db = _fixture.CreateDbContext())
         {
             var second = Account("second", "Second", "EUW1");
@@ -828,17 +868,8 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        // Identical request — must come back from cache, so still Total=1.
-        var cachedResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
-        cachedResponse!.Total.Should().Be(1, "the second request must hit the cache and ignore the freshly inserted account");
-        cachedResponse.Rows.Single().Identity.GameName.Should().Be("First");
-
-        // Different filter shape (?region=europe vs default) yields a
-        // different cache key. The request bypasses the cache, hits the DB,
-        // and now sees both accounts — proving the cache is keyed correctly
-        // (not just returning the first response for every request).
-        var freshResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe");
-        freshResponse!.Total.Should().Be(2, "a different filter shape must miss the cache");
+        // The population is read once per version, and another shape reads the same one.
+        (await client.GetFromJsonAsync<LeaderboardResponse>("/truemains"))!.Total.Should().Be(1);
     }
 
     private static RiotAccount Account(string puuid, string gameName, string platformId, string? tagLine = null)
