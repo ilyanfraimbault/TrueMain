@@ -30,11 +30,17 @@ public interface IChampionReadCache
     /// What the entry charges against the shared cache's <c>SizeLimit</c>. One unit —
     /// "roughly one response" — unless the value is something else entirely.
     /// </param>
+    /// <param name="failureBackoff">
+    /// When set, a failed read is not run again for this long, whatever the version: callers
+    /// get a <see cref="ReadBackoffException"/> at once (see <see cref="FailureBackoff"/>).
+    /// For a read too long to repeat, not for the ordinary ones.
+    /// </param>
     Task<T> GetOrComputeAsync<T>(
         string key,
         Func<CancellationToken, Task<T>> compute,
         CancellationToken ct,
-        int size = 1);
+        int size = 1,
+        TimeSpan? failureBackoff = null);
 }
 
 /// <summary>
@@ -125,7 +131,8 @@ public sealed class ChampionReadCache(
         string key,
         Func<CancellationToken, Task<T>> compute,
         CancellationToken ct,
-        int size = 1)
+        int size = 1,
+        TimeSpan? failureBackoff = null)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(compute);
@@ -157,7 +164,9 @@ public sealed class ChampionReadCache(
                 // owner is holding its request open for it (ownerAwaitsToCompletion),
                 // so cancelling here would only throw away work everyone is waiting
                 // for. The bound is the command timeout, as it is for every read here.
-                var value = await compute(CancellationToken.None);
+                var value = failureBackoff is { } backoff
+                    ? await FailureBackoff.RunAsync(cache, key, backoff, () => compute(CancellationToken.None))
+                    : await compute(CancellationToken.None);
                 return cache.Store(versionedKey, (object?)value, version.EntryLifetime(AbsoluteBackstop), size);
             },
             ct,
