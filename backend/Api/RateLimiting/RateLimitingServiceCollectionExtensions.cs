@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
+using TrueMain.Services.Champions.Warmup;
 
 namespace TrueMain.RateLimiting;
 
@@ -67,6 +68,13 @@ public static class RateLimitingServiceCollectionExtensions
             };
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
+                // The API warming its own cache (#2425): thousands of loopback requests, each
+                // carrying a key drawn for this process. Not a visitor to limit.
+                if (context.RequestServices.GetRequiredService<ChampionReadVersion>().IsWarming)
+                {
+                    return RateLimitPartition.GetNoLimiter("champion-warmup");
+                }
+
                 var limits = context.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
                 var trustedProxies = context.RequestServices.GetRequiredService<TrustedProxyNetworks>();
                 return RateLimitPartition.GetFixedWindowLimiter(

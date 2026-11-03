@@ -1,9 +1,18 @@
 import type { EventHandler, H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createReadinessGate } from '~~/server/utils/readiness-gate'
+import { createReadinessGate, isApiWarming } from '~~/server/utils/readiness-gate'
 
 // The edge's maintenance trigger (#2416): Caddy adds failed probes up over the life of
 // the process, so the route it probes must only answer 503 after failures in a row.
+describe('the API still warming', () => {
+  it('reads as warming only on its own answer', () => {
+    expect(isApiWarming(503, 'Degraded')).toBe(true)
+    expect(isApiWarming(503, 'Unhealthy')).toBe(false)
+    expect(isApiWarming(200, 'Healthy')).toBe(false)
+    expect(isApiWarming(null, undefined)).toBe(false)
+  })
+})
+
 describe('readiness gate', () => {
   it('counts as down until the first success', () => {
     const gate = createReadinessGate()
@@ -42,6 +51,7 @@ describe('readiness route', () => {
   vi.stubGlobal('$fetch', { raw })
   vi.stubGlobal('reportToOpsLogs', reportToOpsLogs)
   vi.stubGlobal('createReadinessGate', createReadinessGate)
+  vi.stubGlobal('isApiWarming', isApiWarming)
 
   async function freshRoute() {
     vi.resetModules()
@@ -87,6 +97,19 @@ describe('readiness route', () => {
       message: 'The API\'s readiness check failed (no answer)',
       statusCode: null,
     })
+  })
+
+  it('holds the site down while the API warms, without reporting a failure (#2425)', async () => {
+    const probe = await freshRoute()
+    raw.mockResolvedValueOnce({ status: 200 })
+    await probe()
+
+    raw.mockResolvedValue({ status: 503, _data: 'Degraded' })
+    await probe()
+    await probe()
+
+    expect(await probe()).toMatchObject({ status: 503, body: 'down' })
+    expect(reportToOpsLogs).not.toHaveBeenCalled()
   })
 
   it('answers 503 from a fresh start until the API has answered', async () => {

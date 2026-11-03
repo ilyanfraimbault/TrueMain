@@ -9,14 +9,16 @@ const gate = createReadinessGate()
 
 export default defineEventHandler(async (event) => {
   const { apiBaseUrl } = useRuntimeConfig(event)
-  const status = await $fetch.raw(`${apiBaseUrl}/readyz`, {
+  const response = await $fetch.raw<string>(`${apiBaseUrl}/readyz`, {
     timeout: API_CHECK_TIMEOUT_MS,
     retry: false,
     ignoreResponseError: true,
-  }).then(response => response.status, () => null)
+  }).catch(() => null)
+  const status = response?.status ?? null
 
   const up = status === 200
-  if (!up) {
+  // Not ready, not a failure (#2425): the site stays on the maintenance page, nothing to report.
+  if (!up && !isApiWarming(status, response?._data)) {
     reportToOpsLogs({
       level: 'Error',
       category: 'api-proxy',

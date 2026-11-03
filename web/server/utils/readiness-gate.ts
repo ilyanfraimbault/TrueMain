@@ -22,3 +22,11 @@ export function createReadinessGate(fails = READINESS_FAILS): ReadinessGate {
     },
   }
 }
+
+/**
+ * What the API answers while its first warm pass runs: a health check's `Degraded`, on a
+ * `503` (`ChampionWarmupHealthCheck`). A failure reads `Unhealthy`, or does not read at all.
+ */
+export function isApiWarming(status: number | null, body: unknown): boolean {
+  return status === 503 && body === 'Degraded'
+}
