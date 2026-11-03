@@ -77,11 +77,21 @@ describe('a render this process asks for itself', () => {
     vi.unstubAllEnvs()
   })
 
-  it('goes past the cache, for the site host', () => {
+  it('goes past the cache, as the edge would send it', () => {
     vi.stubEnv('NUXT_PUBLIC_SITE_URL', 'https://truemain.lol')
 
     expect(siteHost()).toBe('truemain.lol')
-    expect(renderRequestHeaders()).toEqual({ [HTML_RENDER_HEADER]: HTML_RENDER_KEY, host: 'truemain.lol' })
+    expect(renderRequestHeaders()).toEqual({
+      [HTML_RENDER_HEADER]: HTML_RENDER_KEY,
+      'host': 'truemain.lol',
+      'x-forwarded-proto': 'https',
+    })
+  })
+
+  it('takes the protocol from the site, for a host without TLS', () => {
+    vi.stubEnv('NUXT_PUBLIC_SITE_URL', 'http://203.0.113.7:3001')
+
+    expect(renderRequestHeaders()).toMatchObject({ 'host': '203.0.113.7:3001', 'x-forwarded-proto': 'http' })
   })
 
   it('carries no host when none is configured', () => {

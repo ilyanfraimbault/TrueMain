@@ -58,19 +58,26 @@ export interface HtmlHeader {
   headers: Record<string, string>
 }
 
-/**
- * The host this site answers on, when configured. A render this process asks for itself has no
- * visitor to take a host from, and a page prints its own address (the share links).
- */
-export function siteHost(): string | null {
+function siteUrl(): URL | null {
   const url = process.env.NUXT_PUBLIC_SITE_URL
-  return url ? new URL(url).host : null
+  return url ? new URL(url) : null
 }
 
-/** What a render this process asks for itself carries: past the cache, for the site's host. */
+/** The host this site answers on, when configured: the one a stored page may have been asked on. */
+export function siteHost(): string | null {
+  return siteUrl()?.host ?? null
+}
+
+/**
+ * What a render this process asks for itself carries: past the cache, and as the edge would have
+ * sent it. It has no visitor to take an address from, and a page prints its own (the share links).
+ */
 export function renderRequestHeaders(): Record<string, string> {
-  const host = siteHost()
-  return { [HTML_RENDER_HEADER]: HTML_RENDER_KEY, ...(host ? { host } : {}) }
+  const url = siteUrl()
+  return {
+    [HTML_RENDER_HEADER]: HTML_RENDER_KEY,
+    ...(url ? { 'host': url.host, 'x-forwarded-proto': url.protocol.replace(':', '') } : {}),
+  }
 }
 
 /**

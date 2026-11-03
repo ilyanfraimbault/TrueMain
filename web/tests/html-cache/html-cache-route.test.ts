@@ -84,7 +84,9 @@ describe('answering from the cache', () => {
     expect(await middleware({ method: 'GET', path: '/champions' })).toEqual(Buffer.from('<html>'))
 
     expect(localFetch).toHaveBeenCalledOnce()
-    expect(localFetch).toHaveBeenCalledWith('/champions', { headers: { [HTML_RENDER_HEADER]: HTML_RENDER_KEY, host: 'truemain.lol' } })
+    expect(localFetch).toHaveBeenCalledWith('/champions', {
+      headers: { [HTML_RENDER_HEADER]: HTML_RENDER_KEY, 'host': 'truemain.lol', 'x-forwarded-proto': 'https' },
+    })
     finishRender(new Response('rendered'))
   })
 

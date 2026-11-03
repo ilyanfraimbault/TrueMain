@@ -661,8 +661,8 @@ once while a background render replaces it. The warm-up renders every champion p
   reads a cookie or a visitor's header. A render with a failed fetch is not stored (`html-cache-guard.server.ts`, the
   rule of #1557). Neither is a page that set a cookie, nor one asked for on a host other than the site's, since a
   page prints its own address. A query parameter these pages do not read renders without being stored.
-- **A render the process asks for itself carries the site's host and goes past the cache.** Without the host it would
-  print `localhost` in its share links.
+- **A render the process asks for itself goes past the cache, with the host and the protocol the edge would send.**
+  Without them it would print `http://localhost` in its share links.
 - **The warm-up's renders come from documentation addresses (RFC 5737), one per page**, so the API's per-client limit
   has no reason to apply: rendering every champion is a few thousand reads in under a minute from one container.
 
