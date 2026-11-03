@@ -93,6 +93,21 @@ public sealed class LeaderboardPopulationTests
         tied.RankByDedication(Filter(), commitmentFloor: 0.2).Should().Equal(First, Second);
     }
 
+    [Fact]
+    public void ThePlayRateTieOnASignatureChampionGoesToTheOneWithMoreGames()
+    {
+        // Same play rate on both of First's mains: the one with more games carries the mastery
+        // that puts First above Second, whose only main has less of it.
+        var tied = new LeaderboardPopulation(
+        [
+            MainOf(First, "EUW1", Ahri, Middle, totalMatches: 40, playRate: 0.5, championMatches: 5),
+            MainOf(First, "EUW1", Lux, Middle, totalMatches: 40, playRate: 0.5, championMatches: 20, masteryPoints: 2_000_000),
+            MainOf(Second, "EUW1", Garen, Top, totalMatches: 40, playRate: 0.5, championMatches: 20, masteryPoints: 500_000),
+        ]);
+
+        tied.RankByDedication(Filter(), commitmentFloor: 0.2).Should().Equal(First, Second);
+    }
+
     private static LeaderboardFilter Filter(
         string[]? platforms = null,
         int? championId = null,
@@ -102,6 +117,14 @@ public sealed class LeaderboardPopulationTests
         => new(platforms ?? EveryPlatform, championId, position, minGames, otpOnly);
 
     private static Row MainOf(
-        Guid account, string platform, int champion, int positions, int totalMatches, double playRate, bool isOtp = false)
-        => new(account, platform, champion, totalMatches, isOtp, positions, playRate, ChampionMatches: 10, MasteryPoints: null, MasteryRank: null);
+        Guid account,
+        string platform,
+        int champion,
+        int positions,
+        int totalMatches,
+        double playRate,
+        bool isOtp = false,
+        int championMatches = 10,
+        long? masteryPoints = null)
+        => new(account, platform, champion, totalMatches, isOtp, positions, playRate, championMatches, masteryPoints, MasteryRank: null);
 }

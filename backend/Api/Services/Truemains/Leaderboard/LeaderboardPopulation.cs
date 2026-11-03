@@ -172,9 +172,9 @@ internal sealed class LeaderboardPopulation
                 continue;
             }
 
-            if (!found
-                || main.PlayRate > signature.PlayRate
-                || (main.PlayRate.Equals(signature.PlayRate) && main.ChampionMatches > signature.ChampionMatches))
+            // As `ORDER BY "PlayRate" DESC, "ChampionMatches" DESC`, whose tie is an exact one.
+            var byPlayRate = main.PlayRate.CompareTo(signature.PlayRate);
+            if (!found || byPlayRate > 0 || (byPlayRate == 0 && main.ChampionMatches > signature.ChampionMatches))
             {
                 signature = main;
                 found = true;
