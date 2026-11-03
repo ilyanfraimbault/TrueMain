@@ -19,11 +19,10 @@ const { filters } = useChampionFilters()
 
 const { currentPage, setPage } = useRoutePage()
 
-// Every fetch here is client-only (`server: false`) so SSR ships a
-// deterministic shell under the skeleton instead of racing the data into the
-// rendered HTML — without it, fast local API responses resolved before the SSR
-// render completed and the server baked a different branch than the client
-// hydrated, producing node mismatches (#149).
+// The directory and the names are rendered on the server (#2425), so the first HTML
+// holds the table rather than a skeleton. The rune and item icons stay client-only,
+// the item map being far too large to inline: their cells keep a placeholder until
+// those lookups land.
 //
 // The directory comes one page at a time (#1734): the API filters by lane and
 // champion, orders by the table's sort and pages, so the page never downloads
@@ -73,7 +72,7 @@ const {
   execute: fetchItems,
 } = useStaticItems(selectedPatch, { immediate: false, unresolvedKeySegment: 'pending' })
 watch(selectedPatch, (patch) => {
-  if (patch) void fetchItems()
+  if (patch && import.meta.client) void fetchItems()
 }, { immediate: true })
 
 // Rune tree pinned to the list's patch: IPX then hits CommunityDragon's
@@ -82,25 +81,17 @@ const {
   data: runeTree,
   error: runeTreeError,
   status: runeTreeStatus,
-} = useStaticRuneTree(selectedPatch)
+} = useStaticRuneTree(selectedPatch, { server: false })
 
 const error = computed(() => directoryError.value ?? staticError.value ?? itemsError.value ?? runeTreeError.value)
 
-// The skeleton covers the first load only — the first page of the directory
-// and the lookups its rows draw from (names, rune and item icons), so no row
-// ever flashes a fallback `Champion {id}` name or an empty icon. Later filter,
-// sort or page changes keep the rows on screen under the table's loading bar.
-// `idle` counts as loading (see isLoadingStatus): the client kicks the static
-// fetches off after mount.
-const lookupsLoading = computed(() =>
-  isLoadingStatus(staticStatus.value)
-  || isLoadingStatus(runeTreeStatus.value)
-  || isLoadingStatus(itemsStatus.value))
-const lookupsSettled = ref(false)
-watch(lookupsLoading, (loading) => {
-  if (!loading) lookupsSettled.value = true
-}, { immediate: true })
-const isColdLoading = computed(() => directory.isInitialLoading.value || !lookupsSettled.value)
+// The skeleton covers the first load only — the first page of the directory and the
+// names, so no row ever flashes a fallback `Champion {id}`. Later filter, sort or page
+// changes keep the rows on screen under the table's loading bar.
+const isColdLoading = computed(() => directory.isInitialLoading.value || isLoadingStatus(staticStatus.value))
+
+// `idle` counts as loading (see isLoadingStatus): the client kicks these off after mount.
+const lookupsLoading = computed(() => isLoadingStatus(runeTreeStatus.value) || isLoadingStatus(itemsStatus.value))
 
 const championsById = useChampionsById(staticList)
 
@@ -155,75 +146,57 @@ await directory.ready
       />
     </PageHeader>
 
-    <!-- Wrap the data-dependent body in `<ClientOnly>` so the four
-         fetches (all `server: false`) never participate in the SSR render —
-         otherwise the server and the client could render different trees and
-         produce the hydration node mismatches reported in #149. The fallback
-         is the same skeleton table the client shows while it loads. -->
-    <ClientOnly>
-      <FetchErrorAlert
-        v-if="error"
-        :error="error"
-        title="Failed to load the champion list"
+    <FetchErrorAlert
+      v-if="error"
+      :error="error"
+      title="Failed to load the champion list"
+    />
+
+    <template v-else>
+      <!-- A failed filter/sort/page click: the previous rows stay, marked stale (#1668). -->
+      <StaleContentNotice
+        :error="directoryStaleError"
+        subject="the previous results"
+        :on-retry="() => directory.refresh()"
       />
 
-      <template v-else>
-        <!-- A failed filter/sort/page click: the previous rows stay, marked stale (#1668). -->
-        <StaleContentNotice
-          :error="directoryStaleError"
-          subject="the previous results"
-          :on-retry="() => directory.refresh()"
+      <ChampionDirectoryTable
+        v-if="isColdLoading || rows.length > 0"
+        :rows="rows"
+        :offset="(rowsPage - 1) * PAGE_SIZE"
+        :order="order"
+        :loading="isColdLoading"
+        :lookups-loading="lookupsLoading"
+        :refreshing="directory.isLoading.value"
+        :skeleton-rows="PAGE_SIZE"
+        :destination="rowDestination"
+        :rune-tree="runeTree"
+        :items-map="itemsMap"
+        @update:order="setOrder"
+      />
+
+      <p v-else class="text-sm text-muted">
+        No champions match these filters.
+      </p>
+
+      <!-- Only when there is more than one page, and only once the data is in. -->
+      <div
+        v-if="!isColdLoading && total > PAGE_SIZE"
+        class="flex justify-center pt-2"
+      >
+        <UPagination
+          :page="currentPage"
+          :total="total"
+          :items-per-page="PAGE_SIZE"
+          :sibling-count="1"
+          color="neutral"
+          variant="ghost"
+          active-color="primary"
+          active-variant="soft"
+          @update:page="setPage"
         />
+      </div>
+    </template>
 
-        <ChampionDirectoryTable
-          v-if="isColdLoading || rows.length > 0"
-          :rows="rows"
-          :offset="(rowsPage - 1) * PAGE_SIZE"
-          :order="order"
-          :loading="isColdLoading"
-          :refreshing="directory.isLoading.value"
-          :skeleton-rows="PAGE_SIZE"
-          :destination="rowDestination"
-          :rune-tree="runeTree"
-          :items-map="itemsMap"
-          @update:order="setOrder"
-        />
-
-        <p v-else class="text-sm text-muted">
-          No champions match these filters.
-        </p>
-
-        <!-- Only when there is more than one page, and only once the data is in. -->
-        <div
-          v-if="!isColdLoading && total > PAGE_SIZE"
-          class="flex justify-center pt-2"
-        >
-          <UPagination
-            :page="currentPage"
-            :total="total"
-            :items-per-page="PAGE_SIZE"
-            :sibling-count="1"
-            color="neutral"
-            variant="ghost"
-            active-color="primary"
-            active-variant="soft"
-            @update:page="setPage"
-          />
-        </div>
-      </template>
-
-      <template #fallback>
-        <ChampionDirectoryTable
-          :rows="[]"
-          :offset="0"
-          :order="order"
-          loading
-          :skeleton-rows="PAGE_SIZE"
-          :destination="rowDestination"
-          :rune-tree="null"
-          :items-map="null"
-        />
-      </template>
-    </ClientOnly>
   </div>
 </template>

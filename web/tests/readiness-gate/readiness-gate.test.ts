@@ -46,12 +46,16 @@ describe('readiness gate', () => {
 describe('readiness route', () => {
   const raw = vi.fn()
   const reportToOpsLogs = vi.fn()
+  const isSiteWarm = vi.fn()
+  const runtimeConfig = { apiBaseUrl: 'http://api:8080', warmupEnabled: false, warmupBudgetSeconds: 480 }
 
-  vi.stubGlobal('useRuntimeConfig', () => ({ apiBaseUrl: 'http://api:8080' }))
+  vi.stubGlobal('useRuntimeConfig', () => runtimeConfig)
   vi.stubGlobal('$fetch', { raw })
   vi.stubGlobal('reportToOpsLogs', reportToOpsLogs)
   vi.stubGlobal('createReadinessGate', createReadinessGate)
   vi.stubGlobal('isApiWarming', isApiWarming)
+  vi.stubGlobal('isSiteWarm', isSiteWarm)
+  vi.stubGlobal('clusterWorkers', () => 3)
 
   async function freshRoute() {
     vi.resetModules()
@@ -66,6 +70,8 @@ describe('readiness route', () => {
   beforeEach(() => {
     raw.mockReset()
     reportToOpsLogs.mockReset()
+    isSiteWarm.mockReset()
+    runtimeConfig.warmupEnabled = false
   })
 
   it('asks the API\'s readiness, bounded, and is never cached', async () => {
@@ -109,6 +115,20 @@ describe('readiness route', () => {
     await probe()
 
     expect(await probe()).toMatchObject({ status: 503, body: 'down' })
+    expect(reportToOpsLogs).not.toHaveBeenCalled()
+  })
+
+  it('holds the site down until every worker is warm, when the warm-up is on (#2425)', async () => {
+    runtimeConfig.warmupEnabled = true
+    raw.mockResolvedValue({ status: 200 })
+    const probe = await freshRoute()
+
+    isSiteWarm.mockReturnValue(false)
+    expect(await probe()).toMatchObject({ status: 503, body: 'warming' })
+    expect(isSiteWarm).toHaveBeenCalledWith(3, 480)
+
+    isSiteWarm.mockReturnValue(true)
+    expect(await probe()).toMatchObject({ status: 200, body: 'ok' })
     expect(reportToOpsLogs).not.toHaveBeenCalled()
   })
 

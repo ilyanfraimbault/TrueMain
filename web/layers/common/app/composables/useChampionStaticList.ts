@@ -10,6 +10,9 @@ import type { ChampionStaticListItem } from '#shared/types/static-data'
  * boot, so `getCachedData` lets consumers reuse the payload instead of
  * refetching (notably the header search, which mounts on every page).
  *
+ * On the server too (#2425): the directory and the tier list print names and portraits
+ * in their first HTML, and the list is a few KB once compressed.
+ *
  * No `default` on purpose: matches the other `champion-static-list` callsites,
  * so `data` is `ChampionStaticListItem[] | null` — guard with `?? []`.
  */
@@ -23,6 +26,6 @@ export function useChampionStaticList() {
       markStaticFetched('champion-static-list', nuxtApp)
       return data
     },
-    { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
+    { getCachedData: key => getStaticCachedData(key, nuxtApp) },
   )
 }
