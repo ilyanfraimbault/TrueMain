@@ -95,6 +95,8 @@ export interface PatchCoverageResponse {
    */
   unknownReason: string | null
   patches: PatchCoverageRow[]
+  /** How participant figures are obtained: derived from the match count, not counted (#2302). */
+  participantsNote: string | null
   sourceNote: string
   evaluatedAtUtc: string
 }

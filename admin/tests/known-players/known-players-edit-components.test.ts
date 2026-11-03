@@ -9,6 +9,7 @@ import KnownPlayersEditor from '~~/app/components/known-players/KnownPlayersEdit
 import KnownPlayersLinksPanel from '~~/app/components/known-players/KnownPlayersLinksPanel.vue'
 import KnownPlayersList from '~~/app/components/known-players/KnownPlayersList.vue'
 import KnownPlayersRemoval from '~~/app/components/known-players/KnownPlayersRemoval.vue'
+import { useQueryValue } from '~~/app/composables/useQueryValue'
 import { detail, row } from './known-players-edit-fixtures'
 
 // Nuxt UI is auto-imported in the app; here stand-ins render the props a test reads.
@@ -373,6 +374,7 @@ describe('KnownPlayersDirectory', () => {
     vi.stubGlobal('useRoute', () => ({ get query() { return query.value } }))
     vi.stubGlobal('useRouter', () => ({ replace }))
     vi.stubGlobal('refDebounced', (source: unknown) => source)
+    vi.stubGlobal('useQueryValue', useQueryValue)
     vi.stubGlobal('ALL', 'all')
     api.getPersona.mockResolvedValue(detail())
 
@@ -402,5 +404,10 @@ describe('KnownPlayersDirectory', () => {
     await flushPromises()
     expect(toast.success).toHaveBeenCalledWith('caps-new added', expect.stringContaining('Account added'))
     expect(wrapper.findComponent(KnownPlayersEditor).props('personaId')).toBe('p9')
+
+    // A ⌘K jump to another player while the tab is open only moves the query (#2290).
+    query.value = { player: 'p7' }
+    await flushPromises()
+    expect(wrapper.findComponent(KnownPlayersEditor).props('personaId')).toBe('p7')
   })
 })

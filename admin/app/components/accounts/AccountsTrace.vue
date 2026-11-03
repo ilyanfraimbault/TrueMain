@@ -88,23 +88,23 @@ function submit() {
 // means re-running the current search (a no-op until one has been submitted).
 defineExpose({ refresh: submit, pending })
 
-onMounted(() => {
-  const riotId = typeof route.query.riotId === 'string' ? route.query.riotId : ''
-  const region = typeof route.query.region === 'string' ? route.query.region : ''
-  if (!riotId) {
+// A deep link — or a ⌘K jump while the tab is already open (#2290) — runs the
+// trace for the Riot ID it carries. The trace's own `submit` mirrors the same
+// value into the URL, which this skips rather than loading it twice.
+useQueryValue('riotId', (riotId) => {
+  if (riotId === riotIdInput.value.trim() && (pending.value || result.value)) {
     return
   }
   riotIdInput.value = riotId
-  if (region) {
-    regionInput.value = region
-  }
+  const region = queryString(route.query.region)
+  regionInput.value = region ?? ALL
   // A deep link carrying a malformed Riot ID gets the same treatment as a typed
   // one: the hint below the box explains it, instead of a 400 alert.
   if (!searchable.value) {
     return
   }
-  load(riotId, region || undefined)
-})
+  load(riotId, region ?? undefined)
+}, { immediate: true })
 </script>
 
 <template>

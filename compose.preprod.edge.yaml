@@ -73,7 +73,13 @@ configs:
       	encode zstd gzip
       	import security_headers
       	import maintenance
-      	reverse_proxy web:3000
+      	reverse_proxy web:3000 {
+      		health_uri /api/readyz
+      		health_interval 2s
+      		health_timeout 10s
+      		health_fails 1
+      		health_passes 2
+      	}
       }
 
       :3002 {

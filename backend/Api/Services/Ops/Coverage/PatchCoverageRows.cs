@@ -14,11 +14,24 @@ namespace TrueMain.Services.Ops.Coverage;
 internal static class PatchCoverageRows
 {
     public const string SourceNote =
-        "Ingestion is grouped over `matches` (and its join to `match_participants`) for the covered patches; "
-        + "coverage groups `champion_aggregate_scopes` on the same (champion, lane) grain, queue filter and games "
-        + "floor the champion directory reads with; each fold is one grouped rollup of its own table. None of those "
-        + "tables is indexed on its patch column, so this is a set of grouped scans — affordable behind an explicit "
-        + "navigation, which is why it is its own page rather than a card on the overview.";
+        "Ingestion is grouped over `matches` on its stored patch column for the covered patches — "
+        + "`match_participants` is not read; coverage groups `champion_aggregate_scopes` on the same "
+        + "(champion, lane) grain, queue filter and games floor the champion directory reads with; each fold is one "
+        + "grouped rollup of its own table. None of the fold tables is indexed on its patch column, so this is a set "
+        + "of grouped scans — affordable behind an explicit navigation, which is why it is its own page rather than "
+        + "a card on the overview, and served from a cache a few minutes old at most.";
+
+    /// <summary>
+    /// How the participant figures are obtained (#2302): derived, not counted. Counting them
+    /// meant grouping the participant table — the largest in the store — per (patch, day),
+    /// which ran into the statement timeout on every call.
+    /// </summary>
+    public static string ParticipantsNote(int expectedParticipants)
+        => expectedParticipants > 0
+            ? string.Create(
+                CultureInfo.InvariantCulture,
+                $"Participants are derived, not counted: {expectedParticipants} per match, the full roster of this queue, times the match count. A stored match missing part of its roster is the wrongParticipantCount data-quality check's to name.")
+            : "Participants are not derived for this queue: it has no known roster size, so every participant figure reads 0.";
 
     public static PatchCoverageRowReadModel BuildPatchRow(
         string patch,

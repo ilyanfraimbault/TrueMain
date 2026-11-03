@@ -8,6 +8,10 @@ const route = useRoute()
 
 const nameTag = computed(() => parseRouteParam(route.params.nameTag))
 
+// A 404 for an unknown account, and the stored Riot ID's spelling as the
+// canonical (#2335, #2336).
+const indexingReady = useTruemainPageIndexing(nameTag, truemainProfilePath)
+
 const MATCHES_PAGE_SIZE = 20
 
 // URL state for the matches feed — page, position and champion filters are
@@ -38,7 +42,7 @@ const {
   isInitialLoading: profileLoading,
   notFound: profileNotFound,
   ready: profileReady,
-} = useTruemainProfile(nameTag)
+} = useTruemainProfile(nameTag, { ssr: true })
 
 const {
   data: rankHistory,
@@ -57,10 +61,9 @@ const {
   ready: activityReady,
 } = useTruemainActivity(nameTag)
 
-// Human label for the breadcrumb / SEO title — `gameName#tagLine`. While the
-// (client-only) profile fetch is in flight it is derived from the route slug
-// alone, so the SSR `<title>` already reads `Name#TAG` and the client's first
-// render computes the same value (#948, the hydration trap of #862).
+// Human label for the breadcrumb / SEO title — `gameName#tagLine`. The profile
+// rides the SSR payload (#2359), so both renders read the fetched identity; the
+// route slug's label (#948) only stands in while a client navigation loads it.
 const playerLabel = computed(() => {
   const identity = profile.value?.identity
   if (!identity) return truemainSlugLabel(nameTag.value)
@@ -83,12 +86,10 @@ useSeoMeta({
   },
 })
 
-// Dynamic share card (#926). The profile itself is fetched client-only by
-// design (`useTruemainFetch` — no SSR cross-pollination between viewers), so
-// the only thing available when this og:image URL is minted is the route slug.
-// The card resolves the profile itself through `/api/og/truemain/{nameTag}` at
-// render time; it is a public rendering of a public profile, so nothing
-// viewer-specific leaks into a shared image.
+// Dynamic share card (#926). The card resolves the profile itself through
+// `/api/og/truemain/{nameTag}` at render time, keyed on the route slug alone; it
+// is a public rendering of a public profile, so nothing viewer-specific leaks
+// into a shared image.
 defineOgImage('Truemain', { nameTag })
 
 // `playerLabel` is derived from the slug while the profile is in flight, so
@@ -136,7 +137,7 @@ const hasActiveFilters = computed(() => Boolean(filterPosition.value || filterCh
 // A client-side navigation keeps the outgoing page under the loading bar until
 // the API has answered, so this page opens on its data (#1689). Resolves at
 // once on a server render and a hydration, which keep their skeletons.
-await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady])
+await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady, indexingReady])
 </script>
 
 <template>

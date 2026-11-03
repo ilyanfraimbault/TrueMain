@@ -41,8 +41,14 @@ public interface INextItemQueryService
 /// through the fold's own <see cref="BuiltAxisEvaluator"/> and item catalogue. The fold measured
 /// them at the instant the branch opened — the parent's completion — and the panel is asked
 /// again on every purchase of anyone, so the live reading starts at that instant and then
-/// follows the enemies as they build: what the player sees is the mains' choice against the
+/// following the enemies as they build: what the player sees is the mains' choice against the
 /// board in front of them, not against the board of a minute ago.
+/// </para>
+/// <para>
+/// <b>An off-advice item covers its need</b> (#2371). A completed legendary the mains would
+/// not have taken where the game took it still answers whatever situational need it meets, so
+/// no candidate answering that need is suggested again (<see cref="NextItemNeedCoverage"/>) —
+/// unless that would leave the branch with nothing to suggest.
 /// </para>
 /// </remarks>
 public sealed class NextItemQueryService(
@@ -105,9 +111,11 @@ public sealed class NextItemQueryService(
         }
 
         var owned = criteria.Items.Where(item => item > 0).ToHashSet();
+        var needs = await ItemNeedsAsync(patch, ct);
+        var covered = new Coverage(NextItemNeedCoverage.Covered(model.OffAdviceItems(criteria.Items), needs), needs);
         var paths = await routes.GetAsync(championId, position, patch, ct);
-        var build = WithRoutes(BuildSlot(model, criteria.Items, owned, situation), paths);
-        var boots = owned.Any(model.IsBoots) ? null : WithRoutes(Slot(model.Branch(ItemContextSlot.Boots, 0), owned, situation, onTree: true), paths);
+        var build = WithRoutes(BuildSlot(model, criteria.Items, owned, situation, covered), paths);
+        var boots = owned.Any(model.IsBoots) ? null : WithRoutes(Slot(model.Branch(ItemContextSlot.Boots, 0), owned, situation, onTree: true, covered), paths);
 
         return new ChampionNextItemResponse
         {
@@ -163,6 +171,30 @@ public sealed class NextItemQueryService(
         return BuiltAxisEvaluator.Evaluate(new BuiltContext(team, opponent), catalog, BuiltThresholds);
     }
 
+    /// <summary>
+    /// The situational needs of the patch's completed legendaries (#2371). An item data outage
+    /// costs the coverage, never the panel: every need then reads as uncovered.
+    /// </summary>
+    private async Task<ItemNeedCatalog> ItemNeedsAsync(string patch, CancellationToken ct)
+    {
+        try
+        {
+            return await cache.GetOrComputeAsync(
+                $"champions:next-item:item-needs:{patch}",
+                async token => ItemNeeds.Catalog(await itemMetadata.GetItemsAsync(patch, token)),
+                ct,
+                size: 2);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Item data unavailable for patch {Patch}; serving the next item without need coverage.", patch);
+            return ItemNeedCatalog.Empty;
+        }
+    }
+
+    /// <summary>The needs already covered, with the catalogue that reads a candidate's.</summary>
+    private sealed record Coverage(ItemNeed Covered, ItemNeedCatalog Needs);
+
     /// <summary>Each candidate with its build path (#2183), so the app needs no second call.</summary>
     private static NextItemSlotReadModel? WithRoutes(NextItemSlotReadModel? slot, ItemRouteBook paths)
         => slot is null
@@ -184,13 +216,14 @@ public sealed class NextItemQueryService(
         NextItemModel model,
         IReadOnlyList<int> items,
         IReadOnlySet<int> owned,
-        IReadOnlyDictionary<ItemContextAxis, ItemContextBucket> situation)
+        IReadOnlyDictionary<ItemContextAxis, ItemContextBucket> situation,
+        Coverage coverage)
     {
         var (path, onTree) = model.ResolveBuildPath(items);
 
         for (var i = path.Count - 1; i >= 0; i--)
         {
-            var slot = Slot(model.Branch(ItemContextSlot.Build, path[i]), owned, situation, onTree && i == path.Count - 1);
+            var slot = Slot(model.Branch(ItemContextSlot.Build, path[i]), owned, situation, onTree && i == path.Count - 1, coverage);
             if (slot is not null)
             {
                 return slot;
@@ -204,14 +237,23 @@ public sealed class NextItemQueryService(
         NextItemBranch? branch,
         IReadOnlySet<int> owned,
         IReadOnlyDictionary<ItemContextAxis, ItemContextBucket> situation,
-        bool onTree)
+        bool onTree,
+        Coverage coverage)
     {
         if (branch is null)
         {
             return null;
         }
 
-        var scores = NextItemScorer.Score(branch, situation, owned);
+        // A covered need drops its candidates, but never empties a branch on its own: a branch
+        // made only of covered needs still answers, rather than sending the game back a step.
+        var excluded = NextItemNeedCoverage.Excluded(branch, owned, coverage.Covered, coverage.Needs);
+        var scores = NextItemScorer.Score(branch, situation, excluded);
+        if (scores.Count == 0 && excluded.Count > owned.Count)
+        {
+            scores = NextItemScorer.Score(branch, situation, owned);
+        }
+
         if (scores.Count == 0)
         {
             return null;

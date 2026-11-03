@@ -2,8 +2,10 @@
 // The four ways to settle a conflict (#2253), merge offered in both directions. An
 // action that takes the account from someone or retires a page asks twice: the first
 // click arms it, the second sends it. Emits the request body; the container posts it.
+// Each button prints its key (#2293); the queue's shortcuts call `choose` and `confirm`.
 import type { PersonaConflict, PersonaConflictResolveBody } from '~~/shared/types/ops'
 import { computed, ref } from 'vue'
+import { actionKbd } from '~~/shared/utils/conflict-shortcuts'
 import { conflictActions } from '~~/shared/utils/persona-conflicts'
 
 const props = defineProps<{
@@ -30,6 +32,15 @@ function choose(key: string) {
   armed.value = null
   emit('resolve', action.body)
 }
+
+/** Sends the armed action — Enter on the keyboard. */
+function confirm() {
+  if (armed.value) {
+    choose(armed.value)
+  }
+}
+
+defineExpose({ choose, confirm, armed })
 </script>
 
 <template>
@@ -45,7 +56,12 @@ function choose(key: string) {
         :label="armed === action.key ? `Confirm: ${action.label}` : action.label"
         class="shrink-0"
         @click="choose(action.key)"
-      />
+      >
+        <template v-if="actionKbd(action.key)" #trailing>
+          <UKbd :value="actionKbd(action.key)!" size="sm" />
+          <UKbd v-if="armed === action.key" value="enter" size="sm" />
+        </template>
+      </UButton>
       <p class="text-xs text-muted pt-1.5">
         {{ action.description }}
       </p>

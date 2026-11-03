@@ -61,7 +61,13 @@ const selectedShards = computed(() => [
        column (secondary tree + shards) is the taller of the two, and the
        primary tree used to pack its rows at the top and leave the difference as
        dead space under the last row. Stretched and spread, both columns start
-       and end on the same line. -->
+       and end on the same line.
+
+       `gap-3` on the right column: `justify-between` only spreads the slack,
+       and when the secondary tree and the shards together are exactly as tall
+       as the primary tree there is none — the last secondary row then sat
+       flush on the first shard row and their selection rings touched. The gap
+       is the floor between the two groups. -->
   <div class="flex flex-wrap items-stretch gap-x-6 gap-y-4 p-0.5">
     <!-- Primary tree (left) -->
     <section
@@ -106,7 +112,7 @@ const selectedShards = computed(() => [
     </section>
 
     <!-- Right column: secondary on top + shards on bottom -->
-    <div class="flex flex-col justify-between">
+    <div class="flex flex-col justify-between gap-3">
       <!-- Secondary tree (3 rows of 3, no keystone) -->
       <section
         v-if="secondary"

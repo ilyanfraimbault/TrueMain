@@ -100,8 +100,8 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, ILogger logger
 
     /// <summary>
     /// The folds read from their own table. Each is one grouped rollup keyed on the
-    /// already-normalised <c>Patch</c> column; the FILTER variants split a second fold out
-    /// of the same scan rather than paying for another one.
+    /// already-normalised <c>Patch</c> column; the lane-outcome variant reads the matchup
+    /// table through a row filter rather than a table of its own.
     /// </summary>
     private static readonly DerivedFold[] DerivedFolds =
     [
@@ -111,15 +111,7 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, ILogger logger
                 "Matchups — champion_matchup_stats",
                 "Champion vs lane opponent win rates. Additive, so a thin patch fills in as matches fold.",
                 ingestion => ingestion?.PendingMatchupLead),
-            """
-            SELECT
-                "Patch" AS "Patch",
-                count(*) AS "Rows",
-                count(DISTINCT "ChampionId") AS "Champions",
-                max("AggregatedAtUtc") AS "LastAggregatedAtUtc"
-            FROM champion_matchup_stats
-            GROUP BY "Patch"
-            """),
+            PerChampionRollup("champion_matchup_stats", rowFilter: null)),
         new(
             new FoldSpec(
                 "laneOutcomes",
@@ -128,15 +120,7 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, ILogger logger
                     + "above (#1445) — hence the same pending column. It still lags them, because a lane is only "
                     + "judged when both participants have a timeline snapshot.",
                 ingestion => ingestion?.PendingMatchupLead),
-            """
-            SELECT
-                "Patch" AS "Patch",
-                count(*) FILTER (WHERE "LaneGames" > 0) AS "Rows",
-                count(DISTINCT "ChampionId") FILTER (WHERE "LaneGames" > 0) AS "Champions",
-                max("AggregatedAtUtc") FILTER (WHERE "LaneGames" > 0) AS "LastAggregatedAtUtc"
-            FROM champion_matchup_stats
-            GROUP BY "Patch"
-            """),
+            PerChampionRollup("champion_matchup_stats", rowFilter: "\"LaneGames\" > 0")),
         new(
             new FoldSpec(
                 "bans",
@@ -144,15 +128,7 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, ILogger logger
                 "Ban counts per patch and elo band (#920). One-shot: raw match payloads are not kept, so the matches "
                     + "that predate the fold were flagged as already folded and can never contribute.",
                 ingestion => ingestion?.PendingBans),
-            """
-            SELECT
-                "Patch" AS "Patch",
-                count(*) AS "Rows",
-                count(DISTINCT "ChampionId") AS "Champions",
-                max("AggregatedAtUtc") AS "LastAggregatedAtUtc"
-            FROM champion_ban_stats
-            GROUP BY "Patch"
-            """),
+            PerChampionRollup("champion_ban_stats", rowFilter: null)),
         new(
             new FoldSpec(
                 "synergies",
@@ -160,16 +136,42 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, ILogger logger
                 "Per-pairing win rates. Read behind the highest floor on the site (ChampionsList:MinSynergyGames), so "
                     + "it clears later than the directory does.",
                 ingestion => ingestion?.PendingSynergy),
-            """
-            SELECT
-                "Patch" AS "Patch",
-                count(*) AS "Rows",
-                count(DISTINCT "ChampionId") AS "Champions",
-                max("AggregatedAtUtc") AS "LastAggregatedAtUtc"
-            FROM champion_synergy_stats
-            GROUP BY "Patch"
-            """)
+            PerChampionRollup("champion_synergy_stats", rowFilter: null))
     ];
+
+    /// <summary>
+    /// Rows, champions and newest fold time per patch of one fold table, counting only the
+    /// rows <paramref name="rowFilter"/> admits (every row when null).
+    /// </summary>
+    /// <remarks>
+    /// Grouped per (patch, champion) first and rolled up per patch second (#2302): the
+    /// one-level form's <c>count(DISTINCT "ChampionId")</c> sorts the whole table, which is
+    /// where most of each fold's time went; the two-level form hashes it and returns the
+    /// same figures. A patch whose rows the filter all rejects still yields a row, with zero
+    /// rows and champions — the "fold predates this patch" signal the caller reads. Both
+    /// arguments are compile-time constants from <see cref="DerivedFolds"/>, never input.
+    /// </remarks>
+    private static string PerChampionRollup(string table, string? rowFilter)
+    {
+        var filter = rowFilter is null ? string.Empty : $" FILTER (WHERE {rowFilter})";
+        return $"""
+            SELECT
+                per_champion."Patch" AS "Patch",
+                sum(per_champion."Rows")::bigint AS "Rows",
+                count(*) FILTER (WHERE per_champion."Rows" > 0) AS "Champions",
+                max(per_champion."LastAggregatedAtUtc") AS "LastAggregatedAtUtc"
+            FROM (
+                SELECT
+                    "Patch",
+                    "ChampionId",
+                    count(*){filter} AS "Rows",
+                    max("AggregatedAtUtc"){filter} AS "LastAggregatedAtUtc"
+                FROM {table}
+                GROUP BY "Patch", "ChampionId"
+            ) per_champion
+            GROUP BY per_champion."Patch"
+            """;
+    }
 
     /// <summary>A fold measured by its own grouped rollup, as opposed to one riding a scan already paid for.</summary>
     private sealed record DerivedFold(FoldSpec Spec, string Sql);

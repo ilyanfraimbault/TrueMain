@@ -23,6 +23,8 @@ export interface PersonaConflictPersona {
   slug: string
   displayName: string
   source: string
+  /** The older of the two is the one a bulk merge keeps (#2295). */
+  createdAtUtc: string
   accountCount: number
   linkCount: number
 }
@@ -122,4 +124,46 @@ export interface PersonaConflictResolved {
   mergedSlug: string | null
   /** Other open conflicts the action settled too. */
   alsoResolved: number
+}
+
+// Bulk resolution of the most certain conflicts (#2295):
+// `GET /ops/personas/conflicts/bulk-resolve/preview` and `POST /ops/personas/conflicts/bulk-resolve`.
+
+/** One conflict a bulk merge would settle, and the known player it keeps (the older). */
+export interface PersonaConflictBulkCandidate {
+  conflict: PersonaConflict
+  keep: 'claimant' | 'owner'
+  keptSlug: string
+  /** The slug that redirects to `keptSlug` once merged. */
+  mergedSlug: string
+}
+
+export interface PersonaConflictBulkPreview {
+  minScore: number
+  /** At most this many per bulk action. */
+  limit: number
+  /** Every open conflict qualifying at `minScore`; `conflicts` holds the first `limit`. */
+  eligible: number
+  conflicts: PersonaConflictBulkCandidate[]
+}
+
+export interface PersonaConflictBulkResolveBody {
+  /** The ids previewed, never a query evaluated at click time. */
+  ids: string[]
+  minScore: number
+}
+
+export type PersonaConflictBulkSkipReason = 'notFound' | 'notOpen' | 'differingChannel' | 'belowFloor' | 'changed'
+
+export interface PersonaConflictBulkOutcome {
+  id: string
+  status: 'resolved' | 'skipped'
+  reason: PersonaConflictBulkSkipReason | null
+  resolution: PersonaConflictResolved | null
+}
+
+export interface PersonaConflictBulkResolved {
+  resolved: number
+  skipped: number
+  outcomes: PersonaConflictBulkOutcome[]
 }

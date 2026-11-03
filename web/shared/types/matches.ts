@@ -8,6 +8,8 @@ export interface MatchSummaryResponse {
   gameMode: string
   gameStartTimeUtc: string
   gameDurationSeconds: number
+  /** A game past match retention (#2358): no detail to open; its CS, kill participation, LP and grade were not kept. */
+  isTruncated?: boolean
   self: MatchSummarySelf
   participants: MatchSummaryParticipant[]
 }

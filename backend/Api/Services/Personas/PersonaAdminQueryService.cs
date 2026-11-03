@@ -20,7 +20,7 @@ public enum PersonaListView
     /// <summary>Every live persona: neither removed nor merged into another.</summary>
     All,
 
-    /// <summary>Live personas in at least one open conflict.</summary>
+    /// <summary>Live personas in at least one open conflict, over an account or a channel (#2286).</summary>
     Conflicts,
 
     /// <summary>Live personas with an account no tracked account answers to yet.</summary>
@@ -37,7 +37,8 @@ public enum PersonaListView
 public sealed record PersonaListFilter(PersonaListView View, PersonaSource? Source, string? Search);
 
 /// <summary>Read side of the admin's known-players list and edit panel (#2019).</summary>
-public sealed class PersonaAdminQueryService(TrueMainDbContext db) : IPersonaAdminQueryService
+public sealed class PersonaAdminQueryService(TrueMainDbContext db, PersonaChannelConflictFinder channelFinder)
+    : IPersonaAdminQueryService
 {
     public const int DefaultPageSize = 25;
     private const int MaxPageSize = 100;
@@ -48,7 +49,8 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db) : IPersonaAdm
         var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, 1, MaxPageSize);
 
-        var query = Filter(filter);
+        var channelConflicts = await channelFinder.FindAsync(ct);
+        var query = Filter(filter, channelConflicts);
         var total = await query.LongCountAsync(ct);
         var conflicts = db.PersonaAccountConflicts.AsNoTracking().Where(c => c.Status == PersonaConflictStatus.Open);
         var rows = await query
@@ -75,7 +77,9 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db) : IPersonaAdm
 
         return new PersonasPageReadModel
         {
-            Personas = rows,
+            Personas = rows
+                .Select(r => r with { OpenConflicts = r.OpenConflicts + channelConflicts.Count(c => c.Involves(r.Id)) })
+                .ToList(),
             Total = total,
             Page = effectivePage,
             PageSize = effectivePageSize,
@@ -208,15 +212,17 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db) : IPersonaAdm
             })
             .ToListAsync(ct);
 
-    private IQueryable<Persona> Filter(PersonaListFilter filter)
+    private IQueryable<Persona> Filter(PersonaListFilter filter, IReadOnlyList<PersonaChannelConflict> channelConflicts)
     {
         var query = db.Personas.AsNoTracking();
+        var inChannelConflict = channelConflicts.SelectMany(c => new[] { c.Older.Id, c.Newer.Id }).Distinct().ToList();
         var openConflicts = db.PersonaAccountConflicts.AsNoTracking().Where(c => c.Status == PersonaConflictStatus.Open);
         query = filter.View switch
         {
             PersonaListView.Removed => query.Where(p => p.RemovedAtUtc != null),
             PersonaListView.Conflicts => Live(query).Where(p =>
-                openConflicts.Any(c => c.ClaimantPersonaId == p.Id || c.OwnerPersonaId == p.Id)),
+                openConflicts.Any(c => c.ClaimantPersonaId == p.Id || c.OwnerPersonaId == p.Id)
+                || inChannelConflict.Contains(p.Id)),
             PersonaListView.Unresolved => Live(query).Where(p => p.Accounts.Any(a => a.RiotAccountId == null)),
             _ => Live(query),
         };

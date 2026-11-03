@@ -5,6 +5,7 @@ using AwesomeAssertions;
 using Data.Entities;
 using Data.Ops.Mongo;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
@@ -62,8 +63,9 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
         var root = document.RootElement;
 
         root.EnumerateObject().Select(p => p.Name)
-            .Should().BeEquivalentTo(["candidates", "total", "page", "pageSize"]);
+            .Should().BeEquivalentTo(["candidates", "total", "totalCapped", "page", "pageSize"]);
         root.GetProperty("total").GetInt64().Should().Be(3);
+        root.GetProperty("totalCapped").GetBoolean().Should().BeFalse();
         root.GetProperty("page").GetInt32().Should().Be(1);
 
         var rows = root.GetProperty("candidates");
@@ -92,6 +94,61 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
         var orphan = rows.EnumerateArray().First(r => r.GetProperty("id").GetGuid() == OrphanCandidateId);
         orphan.GetProperty("gameName").ValueKind.Should().Be(JsonValueKind.Null);
         orphan.GetProperty("tagLine").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task GetCandidates_PagesInScoreOrder_JoiningTheRiotIdOfThePageRows()
+    {
+        await SeedAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateAuthedClient(factory);
+
+        // The page is cut from main_candidates before the account join (#2304):
+        // page 2 of 1 is still the second-best score, with its own Riot ID.
+        var second = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?page=2&pageSize=1");
+
+        second!.Total.Should().Be(3);
+        var row = second.Candidates.Should().ContainSingle().Subject;
+        row.Id.Should().Be(NewKrCandidateId);
+        row.GameName.Should().Be("Faker");
+        row.TagLine.Should().Be("KR1");
+
+        var last = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?page=3&pageSize=1");
+        last!.Candidates.Should().ContainSingle().Which.Id.Should().Be(OrphanCandidateId);
+    }
+
+    [Fact]
+    public async Task GetCandidates_CapsTheTotalOfAWideFilter_AndKeepsANarrowOneExact()
+    {
+        await SeedAsync();
+        await using (var db = _fixture.CreateDbContext())
+        {
+            // One past the cap, all Scored, below the seeded rows' scores.
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO main_candidates
+                    ("Id", "PlatformId", "Puuid", "ChampionId", "ChampionRankInMasteryTop",
+                     "ChampionPoints", "LastPlayTimeUtc", "Score", "Status")
+                SELECT gen_random_uuid(), 'NA1', 'bulk-' || n, 1, 1, 1000, now(), 0.5, 1
+                FROM generate_series(1, 10001) AS n;
+                """);
+        }
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateAuthedClient(factory);
+
+        var wide = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates");
+        wide!.Total.Should().Be(10_000);
+        wide.TotalCapped.Should().BeTrue();
+        wide.Candidates[0].Id.Should().Be(ValidatedCandidateId);
+
+        var scored = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?status=scored");
+        scored!.TotalCapped.Should().BeTrue();
+
+        var narrow = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?region=euw1");
+        narrow!.Total.Should().Be(2);
+        narrow.TotalCapped.Should().BeFalse();
     }
 
     [Fact]
@@ -388,6 +445,8 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
         public List<CandidateRowContract> Candidates { get; init; } = [];
 
         public long Total { get; init; }
+
+        public bool TotalCapped { get; init; }
 
         public int Page { get; init; }
 

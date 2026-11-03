@@ -37,6 +37,9 @@ const growthRows = computed(() =>
 // The per-engine split is stated in the forecast card rather than drawn as two
 // stacked series: the operator's question here is "is the volume filling up",
 // and that is one line.
+// Deploy markers (#2297) on both series: a retention or storage change ships with a release.
+const growthMarkers = useDeployMarkers(() => dailyPoints.value.map(point => point.dateUtc))
+const rowsPerDayMarkers = useDeployMarkers(() => dailyPoints.value.slice(1).map(point => point.dateUtc))
 const growthCategories = { databaseBytes: { name: 'Disk size (Postgres + Mongo)', color: CHART_PRIMARY } }
 const growthValueFormatter = (tick: number | Date) => humanizeBytes(Number(tick), 1)
 const growthLabelFormatter = computed(() =>
@@ -86,6 +89,7 @@ const rowsPerDayLabelFormatter = computed(() =>
       :x-num-ticks="Math.min(growthRows.length, 8)"
       :x-formatter="growthLabelFormatter"
       :y-formatter="growthValueFormatter"
+      :markers="growthMarkers"
     />
   </UCard>
 
@@ -116,6 +120,7 @@ const rowsPerDayLabelFormatter = computed(() =>
       :x-formatter="rowsPerDayLabelFormatter"
       :y-formatter="rowsPerDayValueFormatter"
       :tooltip-title-formatter="labelTooltipTitle"
+      :markers="rowsPerDayMarkers"
       v-bind="timeBarProps()"
     />
   </UCard>

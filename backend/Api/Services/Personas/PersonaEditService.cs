@@ -1,5 +1,6 @@
 using Data;
 using Data.Entities;
+using Data.Logging.Mongo;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Requests.Ops;
@@ -92,7 +93,7 @@ public sealed class PersonaEditService(
         // The operator's name from now on: the sources no longer overwrite it.
         var id = await db.Personas.AsNoTracking().Where(p => p.Slug == slug).Select(p => p.Id).FirstAsync(ct);
         await db.Personas.Where(p => p.Id == id).ExecuteUpdateAsync(set => set.SetProperty(p => p.DisplayNameLocked, true), ct);
-        await audit.RecordAsync("create_persona", id, slug, new() { ["accounts"] = result.Accounts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) }, ct);
+        await audit.RecordAsync(AuditActions.CreatePersona, id, slug, new() { ["accounts"] = result.Accounts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) }, ct);
         return Ok(id, slug, result.Accounts);
     }
 
@@ -115,7 +116,7 @@ public sealed class PersonaEditService(
         persona.DisplayNameLocked = true;
         persona.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
-        await audit.RecordAsync("rename_persona", id, persona.Slug, new() { ["from"] = previous, ["to"] = name }, ct);
+        await audit.RecordAsync(AuditActions.RenamePersona, id, persona.Slug, new() { ["from"] = previous, ["to"] = name }, ct);
         return Ok(id, persona.Slug);
     }
 
@@ -143,7 +144,7 @@ public sealed class PersonaEditService(
         persona.Links.Add(new PersonaLink { Kind = link.Kind, Url = link.Url, Source = PersonaSource.Manual });
         persona.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
-        await audit.RecordAsync("add_persona_link", id, persona.Slug, new() { ["url"] = link.Url }, ct);
+        await audit.RecordAsync(AuditActions.AddPersonaLink, id, persona.Slug, new() { ["url"] = link.Url }, ct);
         return Ok(id, persona.Slug);
     }
 
@@ -170,7 +171,7 @@ public sealed class PersonaEditService(
 
         persona!.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
-        await audit.RecordAsync("remove_persona_link", id, persona.Slug, new() { ["url"] = link.Url }, ct);
+        await audit.RecordAsync(AuditActions.RemovePersonaLink, id, persona.Slug, new() { ["url"] = link.Url }, ct);
         return Ok(id, persona.Slug);
     }
 
@@ -216,7 +217,7 @@ public sealed class PersonaEditService(
 
         var account = result.Accounts.Single();
         await audit.RecordAsync(
-            "add_persona_account",
+            AuditActions.AddPersonaAccount,
             id,
             persona.Slug,
             new()
@@ -272,7 +273,7 @@ public sealed class PersonaEditService(
         persona!.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
         await audit.RecordAsync(
-            "unlink_persona_account",
+            AuditActions.UnlinkPersonaAccount,
             id,
             persona.Slug,
             new() { ["riotId"] = $"{row.GameName}#{row.TagLine}", ["platform"] = row.PlatformId },

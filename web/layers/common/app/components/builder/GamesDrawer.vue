@@ -131,6 +131,13 @@ const iconPatch = computed(() => ddragonVersions.value?.[0] ?? data.value?.patch
           title="Failed to load the games"
         />
 
+        <p
+          v-if="data?.truncatedGames"
+          class="text-xs text-muted"
+        >
+          {{ data.truncatedGames }} older {{ data.truncatedGames === 1 ? 'game also counts' : 'games also count' }} in this build. Their details are no longer kept.
+        </p>
+
         <!-- Skeletons on *every* fetch, not just the first: a page change goes
              to the server (each page hydrates its own match rows), and holding
              the previous page on screen meanwhile made clicking "2" look like

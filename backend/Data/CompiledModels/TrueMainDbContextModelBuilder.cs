@@ -12,7 +12,7 @@ namespace Data.CompiledModels
     public partial class TrueMainDbContextModel
     {
         private TrueMainDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("74470629-b307-49ed-a250-7c73dea59fe3"), entityTypeCount: 48)
+            : base(skipDetectChanges: false, modelId: new Guid("ccf2b2ea-7cc2-4264-aa85-e5d033fc3f68"), entityTypeCount: 49)
         {
         }
 
@@ -66,6 +66,7 @@ namespace Data.CompiledModels
             var personaLinkExclusion = PersonaLinkExclusionEntityType.Create(this);
             var rankSnapshot = RankSnapshotEntityType.Create(this);
             var riotAccount = RiotAccountEntityType.Create(this);
+            var truncatedMatchSeat = TruncatedMatchSeatEntityType.Create(this);
 
             ChampionAggregatePatternEntityType.CreateForeignKey1(championAggregatePattern, championDimBuild);
             ChampionAggregatePatternEntityType.CreateForeignKey2(championAggregatePattern, championDimRunePage);
@@ -143,9 +144,10 @@ namespace Data.CompiledModels
             PersonaLinkExclusionEntityType.CreateAnnotations(personaLinkExclusion);
             RankSnapshotEntityType.CreateAnnotations(rankSnapshot);
             RiotAccountEntityType.CreateAnnotations(riotAccount);
+            TruncatedMatchSeatEntityType.CreateAnnotations(truncatedMatchSeat);
 
             AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-            AddAnnotation("ProductVersion", "10.0.13");
+            AddAnnotation("ProductVersion", "10.0.14");
             AddAnnotation("Relational:MaxIdentifierLength", 63);
         }
     }

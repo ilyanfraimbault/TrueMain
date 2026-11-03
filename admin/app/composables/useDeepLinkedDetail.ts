@@ -74,12 +74,20 @@ export function useDeepLinkedDetail<T>(options: DeepLinkedDetailOptions<T>) {
   })
 
   // Deep-link: open the slide-over on initial load when the query key is present.
-  onMounted(() => {
-    const fromQuery = route.query[options.queryKey]
-    const id = Array.isArray(fromQuery) ? fromQuery[0] : fromQuery
+  // `openDetail` reports its own failures in `detailError`, so awaiting it is enough.
+  onMounted(async () => {
+    const id = queryString(route.query[options.queryKey])
     if (id) {
       options.onDeepLink?.(id)
-      openDetail(id)
+      await openDetail(id)
+    }
+  })
+  // …and when it changes on a page already open — a ⌘K jump (#2290). `openDetail`
+  // mirrors its own id into the URL, which lands here as the id already shown.
+  useQueryValue(options.queryKey, async (id) => {
+    if (id !== detailId.value || !detailOpen.value) {
+      options.onDeepLink?.(id)
+      await openDetail(id)
     }
   })
 

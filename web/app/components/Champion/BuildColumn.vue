@@ -26,6 +26,8 @@ defineProps<{
   patch: string | null
   eloBracket: string
   opponentChampionId: number | null
+  /** The opponent's display name, for the matchup slice's sample line (#2355). */
+  opponentName?: string | null
   /** A filter change in flight: the tabs show their cold-load skeleton. */
   loading: boolean
   snapshots: ChampionPanelSnapshots
@@ -34,6 +36,11 @@ defineProps<{
 
 <template>
   <div class="min-w-0 space-y-6">
+    <ChampionMatchupSliceNote
+      v-if="opponentChampionId && opponentName && champion && !loading"
+      :games="champion.totalGames"
+      :opponent-name="opponentName"
+    />
     <ChampionBuildTabs
       v-if="champion && staticData && !loading"
       :builds="champion.builds"

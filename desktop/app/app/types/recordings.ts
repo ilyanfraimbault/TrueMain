@@ -33,7 +33,7 @@ export interface RecordingSettings {
  * monster the player's side stole, an ace the player was in, first blood the
  * player drew, a teamfight they took part in, a multi-kill then an objective.
  */
-export type AutoClipKind = 'multiKill' | 'steal' | 'ace' | 'firstBlood' | 'teamfight' | 'combo'
+export type AutoClipKind = 'multiKill' | 'steal' | 'ace' | 'firstBlood' | 'teamfight' | 'combo' | 'flashKill'
 
 export interface RecordingSettingsView {
   settings: RecordingSettings

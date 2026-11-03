@@ -62,6 +62,14 @@ describe('formTiles', () => {
     expect(formTiles([])).toEqual([])
   })
 
+  it('leaves out the games past match retention, which kept no CS or kill participation', () => {
+    const kept = match(1, { kills: 10, deaths: 0, assists: 2, cs: 300, killParticipation: 0.6 })
+    const truncated = { ...match(2, { kills: 1, deaths: 9, assists: 0, cs: 0, killParticipation: 0 }), isTruncated: true }
+
+    expect(formTiles([kept, truncated])).toEqual(formTiles([kept]))
+    expect(formTiles([truncated])).toEqual([])
+  })
+
   it('reads each tile as the average over the games, its series oldest first', () => {
     const tiles = formTiles([
       match(1, { kills: 10, deaths: 0, assists: 2, cs: 300, killParticipation: 0.6 }),

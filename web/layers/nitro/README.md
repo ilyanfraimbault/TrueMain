@@ -2,7 +2,7 @@
 
 A Nuxt layer holding the Nitro code the site (`web/`) and the admin portal (`admin/`) used to keep as two
 labelled copies (#1226, #1625): the containment guard and abandonment watch of their backend proxies, the ops-log
-forwarder and its plugin, the Data Dragon patch resolution and the champion list endpoint. The site picks it up on
+forwarder and its plugin, the Data Dragon patch resolution, the champion list and the champion slug endpoints. The site picks it up on
 its own (Nuxt registers `web/layers/*`); the admin lists it in `extends`. The desktop app does not extend it — it
 has no Nitro server at runtime — and the admin does not extend `web/layers/common`, the pages the site and the app
 share.
@@ -15,6 +15,7 @@ share.
 | `server/utils/ingest-forwarder.ts` | the log-forwarding plugin, and the admin's edge error relay (#1580) |
 | `server/utils/ddragon-patch.ts` | every `/api/static/*` endpoint of both apps |
 | `server/api/static/champions.get.ts` | the champion list, both apps |
+| `server/api/static/champion-slugs.get.ts` | the champion URL slugs: the site's links, router and sitemap, the admin's "Open on the site" links (#2291) |
 
 ## Imports
 
@@ -33,7 +34,7 @@ app's typecheck.
 | --- | --- | --- |
 | `logForwardingTarget()` | `server/utils/log-forwarding-target.ts` — process `Web`, `apiBaseUrl` | `server/utils/log-forwarding-target.ts` — process `Admin`, `opsApiBaseUrl` |
 
-The champion list is open on the site. The admin puts every `/api/static/*` route behind the operator session in
+The champion list and slugs are open on the site. The admin puts every `/api/static/*` route behind the operator session in
 `server/middleware/static-session.ts`, the same prefix its client reads a 401 from (`app/utils/session-expiry.ts`).
 
 ## Building the admin

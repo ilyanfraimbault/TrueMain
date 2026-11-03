@@ -31,7 +31,10 @@ export default defineEventHandler(async (event) => {
   // Reject paths that could escape the configured backend. `isUnsafeProxyPath`
   // (web/layers/nitro/server/utils/proxy-path.ts) spells out what "escape" covers and why the raw
   // path alone is not enough to judge it.
-  const path = event.path.replace(/^\/api\/ops/, '')
+  // From the URL as the browser sent it: h3 decodes `event.path`, which turns the
+  // `%23` of an encoded `Name#TAG` into a `#` the forwarded request then drops as a
+  // fragment, so Trace asked the API about `Name` alone (#2290).
+  const path = (event.node?.req?.originalUrl ?? event.path).replace(/^\/api\/ops/, '')
   if (isUnsafeProxyPath(path)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid request path' })
   }

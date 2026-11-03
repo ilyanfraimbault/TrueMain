@@ -22,7 +22,7 @@ const global = {
   },
 }
 
-const ALL: AutoClipKind[] = ['multiKill', 'steal', 'ace', 'firstBlood', 'teamfight', 'combo']
+const ALL: AutoClipKind[] = ['multiKill', 'steal', 'ace', 'firstBlood', 'teamfight', 'combo', 'flashKill']
 
 beforeEach(() => vi.stubGlobal('computed', computed))
 afterEach(() => vi.unstubAllGlobals())
@@ -47,7 +47,7 @@ describe('RecordingsAutoClips', () => {
     expect(wrapper.emitted('change')).toEqual([[['multiKill', 'steal', 'combo']], [['combo']]])
   })
 
-  it('turns every play off, and back on all at once', async () => {
+  it('turns every play off, and back on with the defaults', async () => {
     const wrapper = mount(RecordingsAutoClips, { global, props: { kinds: ALL } })
     await wrapper.find('.switch').trigger('click')
     expect(wrapper.emitted('change')).toEqual([[[]]])
@@ -55,14 +55,15 @@ describe('RecordingsAutoClips', () => {
     await wrapper.setProps({ kinds: [] })
     expect(wrapper.findAll('.kind')).toHaveLength(0)
     await wrapper.find('.switch').trigger('click')
-    expect(wrapper.emitted('change')![1]![0]).toEqual(expect.arrayContaining(ALL))
+    expect(wrapper.emitted('change')![1]![0]).toEqual(['multiKill', 'flashKill'])
   })
 })
 
 describe('auto clips', () => {
   it('keeps the shell\'s order whatever the order of the clicks', () => {
     expect(toggleAutoClip(['combo'], 'multiKill', true)).toEqual(['multiKill', 'combo'])
-    expect(toggleAutoClip(ALL, 'ace', false)).toEqual(['multiKill', 'steal', 'firstBlood', 'teamfight', 'combo'])
+    expect(toggleAutoClip(ALL, 'ace', false)).toEqual(['multiKill', 'steal', 'firstBlood', 'teamfight', 'combo', 'flashKill'])
+    expect(toggleAutoClip(['multiKill'], 'flashKill', true)).toEqual(['multiKill', 'flashKill'])
     expect(toggleAutoClip([], 'ace', false)).toEqual([])
   })
 

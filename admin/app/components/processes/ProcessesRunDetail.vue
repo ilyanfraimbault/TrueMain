@@ -59,9 +59,15 @@ const summaryHasContent = computed(() => hasSummary(shownSummary.value))
               <span v-if="run.status === 'Running'" class="text-dimmed">
                 In progress…
               </span>
-              <template v-else>
+              <span v-else class="inline-flex flex-wrap items-center gap-2">
                 {{ formatElapsed(run.durationMs) }}
-              </template>
+                <ProcessesBaselineBadge
+                  v-if="run.baseline"
+                  :metric="run.baseline.duration"
+                  :sample-count="run.baseline.sampleCount"
+                  kind="duration"
+                />
+              </span>
             </dd>
           </div>
           <div>
@@ -120,6 +126,7 @@ const summaryHasContent = computed(() => hasSummary(shownSummary.value))
           <ProcessSummaryView
             v-if="summaryHasContent"
             :value="shownSummary"
+            :baseline="run.baseline"
           />
           <p v-else class="text-sm text-dimmed">
             No summary recorded for this run.

@@ -53,6 +53,10 @@ internal static class FailureBackoff
         }
     }
 
+    /// <summary>Whether a failure under <paramref name="key"/> is still inside its backoff window.</summary>
+    public static bool IsOpen(IMemoryCache cache, string key)
+        => cache.TryGetValue($"{key}:failed", out RecordedFailure? recorded) && recorded is not null;
+
     /// <summary>The failure that opened a window, and when the window closes.</summary>
     private sealed record RecordedFailure(Exception Failure, DateTimeOffset RetryAtUtc);
 }

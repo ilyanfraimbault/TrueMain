@@ -31,6 +31,25 @@ export function normalizeApiError(error: unknown): unknown {
   })
 }
 
+let reloadingForMaintenance = false
+
+/**
+ * Takes a tab that is already open to the maintenance page (#2412). The page is a
+ * document the edge serves, so a client-side navigation never asks for it: all it sees
+ * is the edge's JSON `503` on `/api/*` (`compose.*.edge.yaml`), which would otherwise
+ * read as one failed panel on a site that looks alive. A reload lands on the page, and
+ * the page reloads itself once the site is back.
+ *
+ * The body is what tells it from a `503` the application answered, which stays an
+ * ordinary error. Once is enough: several calls usually fail together.
+ */
+function reloadOnEdgeMaintenance(error: unknown): void {
+  if (!import.meta.client || reloadingForMaintenance || fetchErrorStatus(error) !== 503) return
+  if ((error as { data?: { error?: unknown } }).data?.error !== 'maintenance') return
+  reloadingForMaintenance = true
+  location.reload()
+}
+
 /**
  * The fetcher for a hand-written `useAsyncData` handler that calls the backend.
  * Call it in setup, not inside the handler: it resolves `useRequestFetch()`, which
@@ -51,6 +70,7 @@ export function useApiFetch(): ApiFetch {
       return await requestFetch<T>(path, { ...options, baseURL: API_BASE_URL })
     }
     catch (error: unknown) {
+      reloadOnEdgeMaintenance(error)
       throw normalizeApiError(error)
     }
   }

@@ -56,7 +56,7 @@ public static class EffectiveConfigurationBuilder
         {
             ProcessName = catalog.ProcessName,
             Environment = environmentName,
-            Version = ReadInformationalVersion(),
+            Version = AppVersion.Resolve(configuration),
             CapturedAtUtc = capturedAtUtc,
             Sections = sections
         };
@@ -229,24 +229,5 @@ public static class EffectiveConfigurationBuilder
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// The entry assembly's informational version, trimmed of the source-revision suffix the SDK
-    /// appends. Null when the assembly carries none, which is the case for a plain local build.
-    /// </summary>
-    private static string? ReadInformationalVersion()
-    {
-        var informational = Assembly.GetEntryAssembly()
-            ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion;
-
-        if (string.IsNullOrWhiteSpace(informational))
-        {
-            return null;
-        }
-
-        var plus = informational.IndexOf('+', StringComparison.Ordinal);
-        return plus < 0 ? informational : informational[..plus];
     }
 }

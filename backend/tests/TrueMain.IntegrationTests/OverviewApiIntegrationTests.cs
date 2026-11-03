@@ -52,18 +52,24 @@ public sealed class OverviewApiIntegrationTests : IAsyncLifetime
                 "distinctChampionsWithGames",
                 "distinctChampionsWithMains",
                 "matchesLast7Days",
-                "matchesLast30Days"
+                "matchesLast30Days",
+                "estimatesUnknownReason",
+                "computedAtUtc"
             ]);
 
         var payload = await response.Content.ReadFromJsonAsync<OverviewTestContract>();
         payload.Should().NotBeNull();
         payload!.TrackedAccounts.Should().Be(2);
-        payload.TotalMatches.Should().Be(3);
-        payload.TotalParticipants.Should().Be(3);
+        // Planner estimates (#2301): the statistics of a freshly seeded table trail its rows,
+        // so only their presence is pinned here — the figure itself is the catalog's.
+        payload.TotalMatches.Should().NotBeNull();
+        payload.TotalParticipants.Should().NotBeNull();
+        payload.EstimatesUnknownReason.Should().BeNull();
         payload.TotalMains.Should().Be(2);
         payload.TotalOtps.Should().Be(1);
-        // Two distinct champions across the three participants (22, 22, 64).
-        payload.DistinctChampionsWithGames.Should().Be(2);
+        // Read from champion_game_counts (#2301), never from match_participants: three
+        // champions have a slice there (one of them twice), the zero-game slice does not count.
+        payload.DistinctChampionsWithGames.Should().Be(3);
         // Only IsMain rows count, on champions 22 and 64.
         payload.DistinctChampionsWithMains.Should().Be(2);
 
@@ -73,9 +79,12 @@ public sealed class OverviewApiIntegrationTests : IAsyncLifetime
         payload.CandidatesByStatus["New"].Should().Be(2);
         payload.CandidatesByStatus["Validated"].Should().Be(1);
 
-        // Two of the three matches start inside the last 7 days; all three inside 30.
-        payload.MatchesLast7Days.Should().Be(2);
-        payload.MatchesLast30Days.Should().Be(3);
+        // Planner estimates of the windows, never above the table's own estimate.
+        payload.MatchesLast7Days.Should().NotBeNull();
+        payload.MatchesLast30Days.Should().NotBeNull();
+        payload.MatchesLast7Days.Should().BeLessThanOrEqualTo(payload.TotalMatches!.Value);
+        payload.MatchesLast30Days.Should().BeLessThanOrEqualTo(payload.TotalMatches!.Value);
+        payload.ComputedAtUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
     }
 
     [Fact]
@@ -119,8 +128,27 @@ public sealed class OverviewApiIntegrationTests : IAsyncLifetime
             BuildParticipant("OVW_2", "overview-puuid-2", 22, Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002")),
             BuildParticipant("OVW_3", "overview-puuid-1", 64, Guid.Parse("aaaaaaaa-0000-0000-0000-000000000003")));
 
+        db.ChampionGameCounts.AddRange(
+            BuildGameCount("EUW1", "MIDDLE", 22, 10),
+            BuildGameCount("KR", "MIDDLE", 22, 4),
+            BuildGameCount("EUW1", "TOP", 64, 3),
+            BuildGameCount("EUW1", "JUNGLE", 11, 1),
+            BuildGameCount("KR", "UTILITY", 99, 0));
+
         await db.SaveChangesAsync();
     }
+
+    private static ChampionGameCount BuildGameCount(string platformId, string position, int championId, long games)
+        => new()
+        {
+            PlatformId = platformId,
+            Patch = "16.4",
+            QueueId = 420,
+            TeamPosition = position,
+            ChampionId = championId,
+            Games = games,
+            RefreshedAtUtc = DateTime.UtcNow
+        };
 
     private static RiotAccount BuildAccount(string puuid, string gameName, string platformId)
         => new()
@@ -186,9 +214,9 @@ public sealed class OverviewApiIntegrationTests : IAsyncLifetime
     {
         public int TrackedAccounts { get; init; }
 
-        public long TotalMatches { get; init; }
+        public long? TotalMatches { get; init; }
 
-        public long TotalParticipants { get; init; }
+        public long? TotalParticipants { get; init; }
 
         public IReadOnlyDictionary<string, int> CandidatesByStatus { get; init; } = new Dictionary<string, int>();
 
@@ -200,8 +228,12 @@ public sealed class OverviewApiIntegrationTests : IAsyncLifetime
 
         public int DistinctChampionsWithMains { get; init; }
 
-        public long MatchesLast7Days { get; init; }
+        public long? MatchesLast7Days { get; init; }
 
-        public long MatchesLast30Days { get; init; }
+        public long? MatchesLast30Days { get; init; }
+
+        public string? EstimatesUnknownReason { get; init; }
+
+        public DateTime ComputedAtUtc { get; init; }
     }
 }

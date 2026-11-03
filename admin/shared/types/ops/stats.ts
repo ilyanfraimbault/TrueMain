@@ -9,18 +9,26 @@ export interface CandidatesByStatus {
   Validated: number
 }
 
-/** `GET /api/ops/stats/overview`. */
+/**
+ * `GET /api/ops/stats/overview`, served from a 2-minute server cache.
+ *
+ * The match-side figures (`totalMatches`, `totalParticipants`, `matchesLast7Days`,
+ * `matchesLast30Days`) are planner estimates (#2301), printed with `≈`, and null with
+ * `estimatesUnknownReason` when they could not be read. Every other figure is exact.
+ */
 export interface OverviewStats {
   trackedAccounts: number
-  totalMatches: number
-  totalParticipants: number
+  totalMatches: number | null
+  totalParticipants: number | null
   candidatesByStatus: CandidatesByStatus
   totalMains: number
   totalOtps: number
   distinctChampionsWithGames: number
   distinctChampionsWithMains: number
-  matchesLast7Days: number
-  matchesLast30Days: number
+  matchesLast7Days: number | null
+  matchesLast30Days: number | null
+  estimatesUnknownReason: string | null
+  computedAtUtc: string
 }
 
 /**

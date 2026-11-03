@@ -5,6 +5,7 @@
 // deep-linked fetch (`?candidate=`).
 import type { CandidateDetail, MainCandidateStatus } from '~~/shared/types/ops'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
+import { truemainPath } from '~~/shared/utils/site-link'
 
 const props = defineProps<{
   detail: CandidateDetail | null
@@ -94,6 +95,7 @@ const pipelineStages = computed(() =>
             :label="detail.status"
             class="ml-auto shrink-0"
           />
+          <SiteLink :path="truemainPath(detail.gameName, detail.tagLine)" label="Open the profile on the site" />
         </div>
 
         <!-- Pipeline stage stepper -->

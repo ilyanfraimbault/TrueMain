@@ -68,12 +68,21 @@ public sealed partial class MongoLogContext
         // actually re-applies instead of conflicting and being silently swallowed.
         await MongoIndexes.ReconcileTtlAsync(Logs, doc => doc.TimestampUtc, Options.LogsRetention, ct);
 
-        // audit_events: a descending timestamp index backs the newest-first audit read.
-        await AuditEvents.Indexes.CreateOneAsync(
-            new CreateIndexModel<AuditEventDocument>(
-                Builders<AuditEventDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
-                new CreateIndexOptions { Name = "ix_timestamp_desc" }),
-            cancellationToken: ct);
+        // audit_events: a descending timestamp index backs the newest-first audit read, and
+        // (targetType, targetId, timestamp) one entity's history, the known-player panel's (#2288).
+        await AuditEvents.Indexes.CreateManyAsync(
+            [
+                new CreateIndexModel<AuditEventDocument>(
+                    Builders<AuditEventDocument>.IndexKeys.Descending(doc => doc.TimestampUtc),
+                    new CreateIndexOptions { Name = "ix_timestamp_desc" }),
+                new CreateIndexModel<AuditEventDocument>(
+                    Builders<AuditEventDocument>.IndexKeys
+                        .Ascending(doc => doc.TargetType)
+                        .Ascending(doc => doc.TargetId)
+                        .Descending(doc => doc.TimestampUtc),
+                    new CreateIndexOptions { Name = "ix_target_timestamp" }),
+            ],
+            ct);
 
         // Routed through the same reconciler as every other collection even though
         // AuditRetention defaults to zero: at zero this is a no-op that only ever drops

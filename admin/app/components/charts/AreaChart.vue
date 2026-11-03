@@ -29,7 +29,9 @@ import { CurveType } from 'vue-chrts'
 // neither auto-imported utils nor auto-registered components.
 import { CHART_AXIS_TEXT_COLOR, CHART_GUIDE_COLOR, CHART_PRIMARY, defaultSeriesColor } from '~/utils/chart-palette'
 import { escapeTickFormatter } from '~/utils/chart-text'
+import type { ChartMarker } from '~/utils/deploy-markers'
 import ChartTooltip from './ChartTooltip.vue'
+import DeployMarkers from './DeployMarkers.vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -48,6 +50,8 @@ interface Props {
   yFormatter?: (value: number | Date) => string
   /** Builds the tooltip title from the hovered row; see `ChartTooltip`. */
   tooltipTitleFormatter?: (row: any) => string | number
+  /** Deploy markers (#2297), by row index; see `DeployMarkers`. */
+  markers?: readonly ChartMarker[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -182,5 +186,6 @@ const crosshairConfig = computed(() => ({
         <USkeleton class="absolute inset-0 size-full" />
       </template>
     </ClientOnly>
+    <DeployMarkers v-if="!loading && !isEmpty && markers?.length" :markers="markers" />
   </div>
 </template>

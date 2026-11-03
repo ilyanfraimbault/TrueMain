@@ -459,3 +459,27 @@ the floor meanwhile. Same read rules as the pace benchmark: newest three patches
 `Core/Lol/Benchmarks/FormHistogram.cs` (0.1 KDA, 1 % KP, 0.1 CS/min, one death, 0.05 vision/min, clamped to a ceiling)
 — #2076.
 
+**One truncated-match table outlives match retention, on two bounded tiers (2026-11-02, #2358, #2368).** Both issues
+keep part of a match past the full-match window; they share one table rather than two. When retention deletes a
+match, its ten seats are written as truncated rows: the patch, rank band and game start, and per seat the champion,
+position, summoner spells, rune page, starter, completed items in order with their minute, boots, skill order, account
+key and K/D/A. All ten seats stay about four patches, which widens matchup and draft samples; after that only tracked
+accounts' seats stay, up to eight patches, so a profile lists games older than match retention. No timelines, no
+participant JSON (#680 still applies).
+**A first version was written against an estimate that was wrong by a factor of four.** Summing a few column sizes gave
+about 120 bytes a seat, and a season-long second tier looked cheap; the first preprod run measured over 500 bytes a seat
+with its overhead and indexes, and the 16.x "season" runs a whole year, about 24 patches, which projected close to
+production's disk headroom — the #680 failure mode. So the row dropped what no read uses (`Puuid`, `GameVersion`, the
+truncation date) and the second tier became a patch count. **Truncation is off in production**
+(`TruncatedRetainedPatchCount: 0`) until preprod has measured the slimmed row at a patch flip and the retention time it
+adds, since a flip deletes a whole patch in one run; turning it on is its own decision.
+**The matchup tool reads them for its build, not its lane or its list (2026-11-02).** A selected truncated game votes with
+the facts kept at truncation and scores on the seats it kept (past the first tier a match only keeps its tracked seats, so
+its draft reads as partly unknown). It has no timeline, so the lane read stays on the live games and prints its own
+denominator, and no row, so the games drawer lists the live ones and says how many older ones also count. A player's own
+games stay live ones: a truncated seat keeps no puuid.
+**A profile's older games are a simplified row (2026-11-02).** The row shows what the seat kept: champion, lane, K/D/A,
+spells, runes, items, result and the teams (partial past the first tier). No LP or performance grade: the grade is computed
+from timeline snapshots retention deletes, and computing it at truncation would move API logic into the ingestor for a row
+far down a history. It has no detail to open, and it stays out of the form tiles, where a missing CS would read as zero —
+#2358.

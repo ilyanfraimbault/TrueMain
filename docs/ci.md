@@ -257,7 +257,10 @@ already-present `:latest`.
 footer states which build serves the page (`preprod · 1.20.0-rc.4`, `1.19.0`
 in prod). It is a deploy-time value, not a build arg: the image stays
 promotable as-is and a version that changes every merge never invalidates a
-layer. A manual redeploy without it simply hides the label.
+layer. A manual redeploy without it simply hides the label. The same value
+reaches the Api and every ingestor container as `AppVersion`, which they record
+in the `process_boots` collection at boot — the admin charts' deploy markers
+(#2297); a boot without it is recorded but never counted as a deploy.
 
 Prod builds and checks out the release tag rather than the triggering ref: a
 release can be published from a tag that is no longer the tip of any branch.
@@ -565,6 +568,13 @@ on it. Both scripts are pinned by `*.test.sh` in the `deploy-scripts` job.
 
 The maintenance page is duplicated in the two edge files, because each deploy
 reads one file; the `compose-config` job fails when the two copies differ.
+
+The public site's `reverse_proxy web:3000` carries an active health check of
+`/api/readyz` (#2407, #2416): the edge has no route to the API, so it asks web's
+own route, and one request covers web, the API, PgBouncer and Postgres.
+`health_fails 1` is deliberate: Caddy's count never resets while healthy, so web
+counts the failures in a row. `docs/prod.md` (*Maintenance page*) explains the
+thresholds.
 
 ### The edge reports its own failures
 
@@ -935,10 +945,8 @@ build costs runner minutes, not wall time, since it runs beside CI.
   under the repo (`sonar.scanner.scanAll`), which is how the TypeScript and Vue
   code is read without a second scanner. Generated code (EF migrations, the
   compiled model, `.nuxt`), tests, the dev API mock and `.claude/` are
-  excluded: the agent's skills and function-hook mods under `.claude/skills`
-  never ship, their tests run under `claude plugin test` (bun, outside CI), and
-  their `tsconfig.json` extends a file the Claude Code engine generates on load
-  — analysed, they read as uncovered new code and fail the gate (#2068).
+  excluded: the agent's skills under `.claude/skills` never ship, and analysed,
+  they read as uncovered new code and fail the gate (#2068).
 - `Download the lcov reports` downloads by pattern, and `download-artifact`
   puts a lone match straight into `path` instead of a directory named after
   it: a PR touching one frontend (the usual case since #2218) left its report
@@ -1098,6 +1106,19 @@ leaves a misleading version on the page (#1637).
   in `docs/prod.md`, #1598; preprod's plain-HTTP edge in `docs/preprod.md`,
   #1558). The preprod stack requires `PREPROD_SITE_URL` and
   `PREPROD_ADMIN_URL`, which is why the compose-config job sets both.
+- The admin gets the public site's origin as `NUXT_PUBLIC_SITE_URL` for its
+  "Open on the site" buttons (#2291): `https://truemain.lol` on prod, the
+  stack's own `PREPROD_SITE_URL` on preprod (the web service's origin, so no
+  new variable and no host in the repo), `http://localhost:3000` in the two
+  local stacks. Passed as `${PREPROD_SITE_URL:-}` on the admin rather than
+  required: an empty value only hides the buttons.
+- Prod's ingestors set `MatchDataRetention__TruncatedRetainedPatchCount: "0"`:
+  match truncation (#2368) stays off there until its storage and its retention
+  time are measured on preprod and accepted. Preprod runs the default, 4.
+- Preprod's web service sets `NUXT_PUBLIC_POPULATION_TOGGLE: "true"` because its
+  ingestor sets `MainAnalysis__AggregateNonMainPopulation`: the truemains toggle
+  is shown only where the wider population is folded (#2352). Prod sets neither,
+  so the toggle stays hidden there; turning one on means turning on the other.
 - Both deployed stacks publish the API's port on the loopback interface only
   (`127.0.0.1:8080:8080` on prod, `127.0.0.1:8081:8080` on preprod). Nothing
   external needs it: web and admin reach the API over the internal network as
@@ -1122,6 +1143,12 @@ leaves a misleading version on the page (#1637).
   of `Abandoned`, which means the host died instead of stopping — and the claims
   the dead incarnation held are released at the next boot rather than a full
   `MatchIngestion:ClaimLeaseMinutes` later.
+- `ALERTING_DISCORD_WEBHOOK_URL` turns the Api's pipeline-health alerts on (#2292):
+  the Discord webhook they are posted to, passed as `Alerting__DiscordWebhookUrl` and
+  defaulting to empty, which leaves alerting off. It is a credential, so it lives in
+  the stack `.env` only. The compose files also set `Alerting__AdminBaseUrl` (the
+  `/health` link) and `Alerting__EnvironmentLabel` (the title prefix that tells the
+  two stacks apart in one channel).
 - `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
   projects against (#925). Unset means no forecast at all, which the admin
   panel says explicitly instead of fitting a line to a guessed capacity.
@@ -1160,6 +1187,10 @@ one container could take the machine down with it.
   page stayed blank, and the operator does wait on that page. `cpu_shares` has
   no `deploy.resources` equivalent, which is why these are the flat Compose keys and not a
   `deploy:` block.
+- The two ingestors are the exception to "a ceiling only caps a runaway" (#2418): they run around
+  the clock and would fill whatever the host allows, and what the provider throttles on is sustained
+  load. Their low ceilings bound that load, which leaves the request path room for its bursts.
+  Preprod ingestion is slower on purpose.
 - `compose.prod.yaml` gets no caps: its host is not shared and sizing one machine's limits from
   another's symptoms would be guesswork.
 - Health probes ran every 10 s on eleven containers. The probe itself is cheap; the `runc exec`

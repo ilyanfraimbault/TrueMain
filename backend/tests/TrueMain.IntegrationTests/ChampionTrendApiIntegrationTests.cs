@@ -185,7 +185,31 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
         warnings[0].Should().Contain("champions-trend").And.Contain("malformed game_version");
     }
 
-    private async Task SeedTrendAggregatesAsync(bool includeCorruptPatchRow = false)
+    [Fact]
+    public async Task GetChampionTrendAsync_ReadsThePopulationTheRequestNames()
+    {
+        await SeedTrendAggregatesAsync(includeNonMainRows: true);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var mains = await client.GetFromJsonAsync<ChampionTrendReadModel>($"/champions/{ChampionId}/trend?position=middle");
+        var everyone = await client.GetFromJsonAsync<ChampionTrendReadModel>(
+            $"/champions/{ChampionId}/trend?position=middle&truemainsOnly=false");
+
+        // Mains only by default: the non-main games never reach the series (#2353).
+        mains!.Points.Single(point => point.Patch == "16.5").Games.Should().Be(60);
+        var latest = everyone!.Points.Single(point => point.Patch == "16.5");
+        latest.Games.Should().Be(60 + 40, "every tracked player's rows count under truemainsOnly=false");
+        latest.WinRate.Should().BeApproximately((36 + 30) / 100.0, 1e-12);
+        // The lane total widens with the population: Zed's 40 main games plus both of Yone's.
+        latest.PickRate.Should().BeApproximately(100 / 140.0, 1e-12);
+    }
+
+    private async Task SeedTrendAggregatesAsync(bool includeCorruptPatchRow = false, bool includeNonMainRows = false)
     {
         var now = DateTime.UtcNow;
         var accountId = Guid.Parse("44444444-4444-4444-4444-444444444444");
@@ -252,7 +276,38 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
                 games: games, wins: games / 2, aggregatedAtUtc: now);
         }
 
+        // Games by a tracked player who is not a main of the champion (#1346): another
+        // account, as the scope's unique key does not carry the population, and the same
+        // seeder, which shares the dimension rows between both populations.
+        if (includeNonMainRows)
+        {
+            var nonMainAccountId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+            db.RiotAccounts.Add(new RiotAccount
+            {
+                Id = nonMainAccountId,
+                PlatformId = "KR",
+                Puuid = "trend-puuid-2",
+                GameName = "trend-two",
+                SummonerId = "trend-two-summoner",
+                ProfileIconId = 1,
+                SummonerLevel = 100,
+                LastProfileSyncAtUtc = now,
+                CreatedAtUtc = now.AddDays(-10),
+                UpdatedAtUtc = now.AddDays(-1),
+            });
+            await db.SaveChangesAsync();
+
+            seeder.WithPopulation(isMain: false).AddPatternWithRune(
+                nonMainAccountId, ChampionId, "16.5", "KR", 420, "MIDDLE",
+                summoner1Id: 4, summoner2Id: 12, skillOrderKey: "Q-W-E",
+                buildItems: [3153, 3006, 3031], bootsItemId: 3006,
+                primaryStyleId: 8000, primaryKeystoneId: 8008, secondaryStyleId: 8400,
+                games: 40, wins: 30, aggregatedAtUtc: now);
+            seeder.WithPopulation(isMain: true);
+        }
+
         await seeder.SaveAsync(db);
+
         await LightRecordSeed.BackfillFromScopesAsync(_fixture);
     }
 

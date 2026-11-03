@@ -58,6 +58,13 @@ public sealed record PatchCoverageReadModel
     /// <summary>Covered patches, newest first.</summary>
     public IReadOnlyList<PatchCoverageRowReadModel> Patches { get; init; } = [];
 
+    /// <summary>
+    /// How the participant figures are obtained — derived from the match count, not counted
+    /// (#2302) — stated beside them so a derived number never reads as a measured one. Null
+    /// when no patch was measured.
+    /// </summary>
+    public string? ParticipantsNote { get; init; }
+
     /// <summary>Which tables were read and what that costs, on the panel rather than in a comment.</summary>
     public string SourceNote { get; init; } = string.Empty;
 
@@ -96,7 +103,10 @@ public sealed record PatchCoverageRowReadModel
     /// <summary>Matches ingested on this patch, on the scoped queue.</summary>
     public long Matches { get; init; }
 
-    /// <summary>Participant rows behind those matches. Retention prunes these while the aggregates survive (#466).</summary>
+    /// <summary>
+    /// Participants in those matches: the match count times the queue's roster size, derived
+    /// rather than counted (#2302) — see <see cref="PatchCoverageReadModel.ParticipantsNote"/>.
+    /// </summary>
     public long Participants { get; init; }
 
     /// <summary>Earliest game start on the patch, or null when no match survives retention.</summary>

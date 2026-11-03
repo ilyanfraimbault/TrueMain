@@ -102,8 +102,9 @@ watch(buildSetKey, () => {
        bare `p-0` loses to the theme's `sm:p-6` in tw-merge — list background
        and rounding stripped, full-width from the horizontal orientation) with
        a divider separating it from the panel content, which carries the
-       card's own padding via the `content` slot. The active pill is a dark
-       overlay instead of the theme's white `bg-inverted`. -->
+       card's own padding via the `content` slot. The active pill is a flat
+       raised neutral surface instead of the theme's white `bg-inverted` — a
+       dark overlay disappeared into the glass card. -->
   <UCard
     v-if="items.length"
     :ui="{ body: 'p-0 sm:p-0' }"
@@ -118,7 +119,7 @@ watch(buildSetKey, () => {
       :unmount-on-hide="false"
       :ui="{
         list: 'rounded-none border-b border-default bg-transparent p-1.5',
-        indicator: 'rounded-lg bg-black/30 shadow-none inset-y-1.5',
+        indicator: 'rounded-lg bg-accented shadow-none inset-y-1.5',
         trigger: 'flex-1 gap-1.5 py-2.5 data-[state=active]:text-highlighted',
         content: 'p-3 sm:p-4',
       }"

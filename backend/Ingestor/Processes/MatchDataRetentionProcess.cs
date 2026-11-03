@@ -1,5 +1,6 @@
 using Core.Options;
 using Data;
+using Data.BuildFacts;
 using Data.Entities;
 using Data.Repositories;
 using Ingestor.Options;
@@ -19,7 +20,8 @@ public sealed class MatchDataRetentionProcess(
     IOptions<MatchDataRetentionOptions> retentionOptions,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     IOptions<CandidatePruningOptions> candidatePruningOptions,
-    IOptions<IntakeOptions> intakeOptions) : IIngestorProcess
+    IOptions<IntakeOptions> intakeOptions,
+    IItemMetadataProvider itemMetadataProvider) : IIngestorProcess
 {
     public string Name => "MatchDataRetention";
 
@@ -42,7 +44,14 @@ public sealed class MatchDataRetentionProcess(
         // platform, delete older ones. Skipped when nothing is out of window.
         var patchDeletion = retentionPlan.DeletableMatchIds.Count == 0
             ? DeletionResult.Empty
-            : await DeleteExpiredMatchDataAsync(retentionPlan.DeletableMatchIds, ct);
+            : await DeleteExpiredMatchDataAsync(retentionPlan.DeletableMatchIds, retentionPlan.QueueId, ct);
+
+        // What outlives the full-match window, truncated (#2368, #2358), on its own two tiers.
+        var truncatedPurged = await TruncatedMatchRetention.PurgeAsync(
+            dbContextFactory,
+            retentionOptions.Value.TruncatedRetainedPatchCount,
+            retentionOptions.Value.TruncatedTrackedRetainedPatchCount,
+            ct);
 
         // Drain every queue other than the tracked one. The site only serves ranked
         // solo/duo (all aggregates, the leaderboard and the champion pages are scoped
@@ -53,14 +62,17 @@ public sealed class MatchDataRetentionProcess(
         var deletedMatches = patchDeletion.DeletedMatches + nonRankedDeletion.DeletedMatches;
         var deletedParticipants = patchDeletion.DeletedParticipants + nonRankedDeletion.DeletedParticipants;
 
-        if (deletedMatches > 0 || deletedParticipants > 0)
+        if (deletedMatches > 0 || deletedParticipants > 0 || truncatedPurged > 0)
         {
             logger.LogInformation(
                 "Match data retention removed {DeletedMatches} matches and {DeletedParticipants} participants "
-                + "({NonRankedMatches} non-ranked) while keeping patches {RetainedPatches}.",
+                + "({NonRankedMatches} non-ranked), kept {TruncatedSeats} truncated seats and purged {TruncatedPurged} "
+                + "while keeping patches {RetainedPatches}.",
                 deletedMatches,
                 deletedParticipants,
                 nonRankedDeletion.DeletedMatches,
+                patchDeletion.TruncatedSeats,
+                truncatedPurged,
                 string.Join(
                     ", ",
                     retentionPlan.RetainedPatchesByPlatform
@@ -349,11 +361,15 @@ public sealed class MatchDataRetentionProcess(
     // interrupted purge resume next run.
     private async Task<DeletionResult> DeleteExpiredMatchDataAsync(
         IReadOnlyCollection<string> deletableMatchIds,
+        int queueId,
         CancellationToken ct)
     {
         var batchSize = Math.Max(1, retentionOptions.Value.ExpiredPatchDeleteBatchSize);
+        var keepTruncated = retentionOptions.Value.TruncatedRetainedPatchCount > 0;
         var deletedMatches = 0;
         var deletedParticipants = 0;
+        var truncatedSeats = 0;
+        var itemMetadata = TruncatedMatchRetention.ItemMetadataReader(itemMetadataProvider, logger);
 
         foreach (var batchIds in deletableMatchIds.Chunk(batchSize))
         {
@@ -361,6 +377,13 @@ public sealed class MatchDataRetentionProcess(
 
             await using var db = await dbContextFactory.CreateDbContextAsync(ct);
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // Truncated first, in the same transaction (#2368): a match is whole or kept
+            // truncated, never lost in between.
+            if (keepTruncated)
+            {
+                truncatedSeats += await TruncatedMatchRetention.WriteAsync(
+                    db, batchIds, queueId, itemMetadata, ct);
+            }
             // MatchParticipant -> Match is Restrict, so participants must be deleted
             // before the match; the remaining child tables cascade on the match delete.
             deletedParticipants += await db.MatchParticipants
@@ -372,7 +395,7 @@ public sealed class MatchDataRetentionProcess(
             await transaction.CommitAsync(ct);
         }
 
-        return new DeletionResult(deletedMatches, deletedParticipants);
+        return new DeletionResult(deletedMatches, deletedParticipants, truncatedSeats);
     }
 
     private async Task<DeletionResult> DeleteNonRankedMatchDataAsync(int queueId, CancellationToken ct)
@@ -456,7 +479,7 @@ public sealed class MatchDataRetentionProcess(
         public static SnapshotPruneResult Empty { get; } = new(0, 0);
     }
 
-    private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants)
+    private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants, int TruncatedSeats = 0)
     {
         public static DeletionResult Empty { get; } = new(0, 0);
     }

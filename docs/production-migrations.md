@@ -254,6 +254,7 @@ The indexes built this way:
 | Index | Columns and filter | Since |
 |---|---|---|
 | `IX_match_participants_team_position_pending` | `("MatchId", "TeamId") WHERE "TeamPosition" = ''` | #2095 |
+| `IX_match_participants_elo_bracket_pending` | `("Id") WHERE "RiotAccountId" IS NOT NULL AND elo_bracket = ''` | #2303 |
 
 ## CI wiring
 

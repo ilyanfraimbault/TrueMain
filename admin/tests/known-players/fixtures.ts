@@ -18,8 +18,8 @@ export function conflict(over: Partial<PersonaConflict> = {}): PersonaConflict {
       currentGameName: 'twtv Peng04',
       currentTagLine: 'NMIXX',
     },
-    claimant: { id: 'p2', slug: 'peng-dpm', displayName: 'Peng (dpm)', source: 'Dpm', accountCount: 4, linkCount: 1 },
-    owner: { id: 'p1', slug: 'peng', displayName: 'Peng', source: 'Leaguepedia', accountCount: 1, linkCount: 3 },
+    claimant: { id: 'p2', slug: 'peng-dpm', displayName: 'Peng (dpm)', source: 'Dpm', createdAtUtc: '2026-10-19T04:00:00Z', accountCount: 4, linkCount: 1 },
+    owner: { id: 'p1', slug: 'peng', displayName: 'Peng', source: 'Leaguepedia', createdAtUtc: '2026-10-14T00:00:00Z', accountCount: 1, linkCount: 3 },
     evidence: { score: 0, sharedSocial: [], sharedReferences: 0, differingSocial: [] },
     ...over,
   }

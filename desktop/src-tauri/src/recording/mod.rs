@@ -29,7 +29,7 @@ use std::sync::{Arc, Mutex};
 
 use capture_helper::media::{self, AccessRequest};
 use capture_helper::HelperCapture;
-use game_recording::{ClipStore, MarkLength, RecordingSettings, Session, Store};
+use game_recording::{AutoClipKind, ClipStore, MarkLength, RecordingSettings, Session, Store};
 use lcu::GameflowPhase;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -164,6 +164,35 @@ impl Recorder {
             .expect("session slot poisoned")
             .is_some();
         recording.then(|| self.settings().mark_key).flatten()
+    }
+
+    /// Whether the key watch reads the Flash key: while a game records and the
+    /// Flash plays are among the automatic clips chosen (#2382).
+    pub fn reads_flash(&self) -> bool {
+        let recording = self
+            .session
+            .lock()
+            .expect("session slot poisoned")
+            .is_some();
+        recording
+            && self
+                .settings()
+                .auto_clips
+                .contains(&AutoClipKind::FlashKill)
+    }
+
+    /// The player pressed their Flash key: note this second of the game being
+    /// recorded, for the Flash plays cut once it is finalised.
+    pub fn flash(&self) {
+        let Some(session) = self.session.lock().expect("session slot poisoned").clone() else {
+            return;
+        };
+        let noted = session.lock().expect("session poisoned").flash();
+        match noted {
+            Ok(Some(video_ms)) => tracing::info!(video_ms, "flash noted"),
+            Ok(None) => {}
+            Err(error) => tracing::warn!(%error, "the flash could not be written"),
+        }
     }
 
     /// The player pressed the mark key: mark this second of the game being

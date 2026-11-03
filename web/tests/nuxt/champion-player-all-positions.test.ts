@@ -63,7 +63,7 @@ async function mountMatchups(position: PositionFilter) {
   }))
   await vi.waitFor(async () => {
     await flushPromises()
-    expect(wrapper.find('[aria-label*="% WR"]').exists() || wrapper.text().includes('Not enough games')).toBe(true)
+    expect(wrapper.find('[aria-label*="Lane WR"]').exists() || wrapper.text().includes('Not enough games')).toBe(true)
   })
   return wrapper
 }
@@ -79,10 +79,10 @@ describe('player champion page — all positions', () => {
     const wrapper = await mountMatchups(ALL_POSITIONS)
 
     expect(positions).toContain('ALL')
-    const labels = wrapper.findAll('[aria-label*="% WR"]').map(mark => mark.attributes('aria-label'))
-    expect(labels).toContain('Fiora: 67% WR (3 games)')
+    const labels = wrapper.findAll('[aria-label*="Lane WR"]').map(mark => mark.attributes('aria-label'))
+    expect(labels).toContain('Fiora: Lane WR 67% (at 15 minutes) (3 games)')
     // A one-lane opponent is placed: the player slice has no lane floor.
-    expect(labels).toContain('Pantheon: 100% WR (1 game)')
+    expect(labels).toContain('Pantheon: Lane WR 100% (at 15 minutes) (1 game)')
     expect(wrapper.findAll('a[href^="/matchup"]')).toHaveLength(0)
   })
 

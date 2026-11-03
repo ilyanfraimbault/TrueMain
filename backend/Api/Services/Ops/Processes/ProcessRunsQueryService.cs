@@ -16,7 +16,8 @@ public interface IProcessRunsQueryService
         CancellationToken ct);
 }
 
-public sealed class ProcessRunsQueryService(IProcessRunStore store) : IProcessRunsQueryService
+public sealed class ProcessRunsQueryService(IProcessRunStore store, IProcessRunBaselineService baselines)
+    : IProcessRunsQueryService
 {
     private const int DefaultPageSize = 100;
     private const int MinPageSize = 1;
@@ -66,9 +67,7 @@ public sealed class ProcessRunsQueryService(IProcessRunStore store) : IProcessRu
         // rather than perpetually Running.
         var now = DateTime.UtcNow;
 
-        var runs = pageResult.Runs
-            .Select(run => ToReadModel(run, now))
-            .ToList();
+        var runs = await baselines.AttachAsync(pageResult.Runs, now, ct);
 
         var rollupRows = await store.GetRollupsAsync(normalizedProcessName, windowStart, ct);
 

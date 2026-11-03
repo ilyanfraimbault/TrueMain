@@ -23,7 +23,19 @@ use crate::marks::MarkLength;
 
 /// The settings file's format version, written into it so a later format can
 /// migrate rather than guess.
-pub const SETTINGS_VERSION: u32 = 1;
+/// 2: Flash plays and the shorter default list of automatic clips (#2382).
+pub const SETTINGS_VERSION: u32 = 2;
+
+/// Every kind before version 2 — the default then, which a file saved since
+/// carries without the player having chosen it.
+const VERSION_1_AUTO_CLIPS: [AutoClipKind; 6] = [
+    AutoClipKind::MultiKill,
+    AutoClipKind::Steal,
+    AutoClipKind::Ace,
+    AutoClipKind::FirstBlood,
+    AutoClipKind::Teamfight,
+    AutoClipKind::Combo,
+];
 
 /// The queues the client marks as ranked: Solo/Duo and Flex.
 const RANKED_QUEUES: [i64; 2] = [420, 440];
@@ -245,7 +257,7 @@ impl Default for RecordingSettings {
             folder: None,
             mark_key: Some(DEFAULT_MARK_KEY),
             mark_length: MarkLength::default(),
-            auto_clips: AutoClipKind::ALL.to_vec(),
+            auto_clips: AutoClipKind::DEFAULT.to_vec(),
         }
     }
 }
@@ -298,7 +310,16 @@ impl RecordingSettings {
             },
             mark_length: parse(fields.get("markLength")).unwrap_or(defaults.mark_length),
             auto_clips: match fields.get("autoClips") {
-                Some(Value::Array(kinds)) => auto_clip_kinds(kinds),
+                Some(Value::Array(kinds)) => {
+                    let kinds = auto_clip_kinds(kinds);
+                    let version = parse::<u32>(fields.get("version")).unwrap_or(1);
+                    // Version 1's default, never chosen: the new default.
+                    if version < 2 && kinds == VERSION_1_AUTO_CLIPS {
+                        defaults.auto_clips
+                    } else {
+                        kinds
+                    }
+                }
                 _ => defaults.auto_clips,
             },
         }
@@ -406,7 +427,7 @@ mod tests {
         settings.save(&path).unwrap();
 
         let body = fs::read_to_string(&path).unwrap();
-        assert!(body.contains("\"version\": 1"), "{body}");
+        assert!(body.contains("\"version\": 2"), "{body}");
         assert!(body.contains("\"frameRate\": 60"), "{body}");
         assert!(body.contains("\"resolution\": \"1440p\""), "{body}");
         assert!(body.contains("\"markLength\": 60"), "{body}");
@@ -491,10 +512,23 @@ mod tests {
     }
 
     #[test]
-    fn every_play_is_clipped_by_default_and_each_can_be_turned_off() {
+    fn multi_kills_and_flash_plays_are_clipped_by_default_and_each_kind_can_be_chosen() {
         assert_eq!(
             RecordingSettings::from_json("{}").auto_clips,
-            AutoClipKind::ALL.to_vec()
+            vec![AutoClipKind::MultiKill, AutoClipKind::FlashKill]
+        );
+        // Version 1 saved its default, every kind then: it was never chosen.
+        let version_1 = r#"{ "version": 1, "autoClips": ["multiKill", "steal", "ace", "firstBlood", "teamfight", "combo"] }"#;
+        assert_eq!(
+            RecordingSettings::from_json(version_1).auto_clips,
+            AutoClipKind::DEFAULT.to_vec()
+        );
+        // Chosen since, or a narrower choice then, it stands.
+        let chosen = r#"{ "version": 2, "autoClips": ["multiKill", "steal", "ace", "firstBlood", "teamfight", "combo"] }"#;
+        assert_eq!(RecordingSettings::from_json(chosen).auto_clips.len(), 6);
+        assert_eq!(
+            RecordingSettings::from_json(r#"{ "version": 1, "autoClips": ["ace"] }"#).auto_clips,
+            vec![AutoClipKind::Ace]
         );
         assert!(RecordingSettings::from_json(r#"{ "autoClips": [] }"#)
             .auto_clips
@@ -509,7 +543,7 @@ mod tests {
         );
         assert_eq!(
             RecordingSettings::from_json(r#"{ "autoClips": "all" }"#).auto_clips,
-            AutoClipKind::ALL.to_vec()
+            AutoClipKind::DEFAULT.to_vec()
         );
     }
 

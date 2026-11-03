@@ -55,7 +55,7 @@ const hasActiveFilters = computed(
   () => issue.value !== ALL || queue.value !== ALL || ageWindow.value !== ALL,
 )
 
-const { data, pending, error, refresh } = useIncompleteMatches(overviewFilters)
+const { data, pending, refreshing, error, refresh } = useIncompleteMatches(overviewFilters)
 
 const groups = computed(() => data.value?.groups ?? [])
 const total = computed(() => data.value?.total ?? 0)
@@ -148,7 +148,7 @@ const detailTitle = computed(() => detail.value?.matchId ?? detailId.value ?? 'M
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending || detectorsPending"
+            :loading="refreshing || detectorsPending"
             aria-label="Refresh"
             @click="refreshAll()"
           />

@@ -51,7 +51,7 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
             .Should().BeEquivalentTo(
             [
                 "id", "processName", "startedAtUtc", "finishedAtUtc",
-                "durationMs", "status", "error", "host", "jobMode", "lastHeartbeatAtUtc", "summary"
+                "durationMs", "status", "error", "host", "jobMode", "lastHeartbeatAtUtc", "summary", "baseline"
             ]);
 
         var firstRollup = document.RootElement.GetProperty("rollup")[0];

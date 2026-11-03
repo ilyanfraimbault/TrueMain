@@ -16,18 +16,105 @@ namespace TrueMain.Services.Ops.Coverage;
 /// </summary>
 internal sealed class PatchCoverageMeasurements(TrueMainDbContext db)
 {
+    /// <summary>
+    /// Every distinct <c>GameVersion</c> on the aggregate side for <paramref name="queueId"/>.
+    /// </summary>
+    /// <remarks>
+    /// A loose index scan (#2302), not a <c>SELECT DISTINCT</c>: the distinct values are a
+    /// few dozen and the table holds hundreds of thousands of rows or more, so the plain form
+    /// read the whole table to return them. The recursion walks the reader-path index
+    /// (<c>ChampionId, GameVersion, …</c>) one <c>(champion, version)</c> pair per probe — a
+    /// few thousand index seeks — and the queue is checked per pair afterwards, on the same
+    /// index's prefix.
+    /// </remarks>
+    public async Task<List<string>> LoadScopeVersionsAsync(int queueId, CancellationToken ct)
+    {
+        FormattableString sql = $"""
+            WITH RECURSIVE pairs AS (
+                (SELECT s."ChampionId", s."GameVersion"
+                 FROM champion_aggregate_scopes s
+                 ORDER BY s."ChampionId", s."GameVersion"
+                 LIMIT 1)
+                UNION ALL
+                SELECT next."ChampionId", next."GameVersion"
+                FROM pairs
+                CROSS JOIN LATERAL (
+                    SELECT s."ChampionId", s."GameVersion"
+                    FROM champion_aggregate_scopes s
+                    WHERE (s."ChampionId", s."GameVersion") > (pairs."ChampionId", pairs."GameVersion")
+                    ORDER BY s."ChampionId", s."GameVersion"
+                    LIMIT 1) next
+            )
+            SELECT DISTINCT pairs."GameVersion" AS "Value"
+            FROM pairs
+            WHERE EXISTS (
+                SELECT 1
+                FROM champion_aggregate_scopes s
+                WHERE s."ChampionId" = pairs."ChampionId"
+                  AND s."GameVersion" = pairs."GameVersion"
+                  AND s."QueueId" = {queueId})
+            """;
+
+        return await db.Database.SqlQuery<string>(sql).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Every distinct patch on the match side for <paramref name="queueId"/>, read from the
+    /// database-normalised <c>matches."Patch"</c> column (#1368) — <c>null</c> there is
+    /// exactly "does not parse as a patch".
+    /// </summary>
+    /// <remarks>
+    /// A loose index scan over <c>(QueueId, Patch, PlatformId)</c>: one seek per distinct
+    /// patch instead of a full read of <c>matches</c> for a dozen values (#2302).
+    /// </remarks>
+    public async Task<List<string>> LoadMatchPatchesAsync(int queueId, CancellationToken ct)
+    {
+        FormattableString sql = $"""
+            WITH RECURSIVE patches AS (
+                (SELECT m."Patch"
+                 FROM matches m
+                 WHERE m."QueueId" = {queueId} AND m."Patch" IS NOT NULL
+                 ORDER BY m."Patch"
+                 LIMIT 1)
+                UNION ALL
+                SELECT (SELECT m."Patch"
+                        FROM matches m
+                        WHERE m."QueueId" = {queueId} AND m."Patch" > patches."Patch"
+                        ORDER BY m."Patch"
+                        LIMIT 1)
+                FROM patches
+                WHERE patches."Patch" IS NOT NULL
+            )
+            SELECT patches."Patch" AS "Value"
+            FROM patches
+            WHERE patches."Patch" IS NOT NULL
+            """;
+
+        return await db.Database.SqlQuery<string>(sql).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Matches per (patch, game day) on the covered patches, with the per-fold backlog.
+    /// </summary>
+    /// <param name="queueId">The ranked queue every count is scoped to.</param>
+    /// <param name="patches">The covered patches, normalised.</param>
+    /// <param name="expectedParticipants">
+    /// Participant rows a complete match on the queue carries (its data-quality profile).
+    /// Participants are derived as this times the match count, never counted — see
+    /// <see cref="PatchCoverageRows.ParticipantsNote"/>.
+    /// </param>
+    /// <param name="ct">The request's token.</param>
     public async Task<IReadOnlyDictionary<string, PatchIngestion>> LoadIngestionAsync(
         int queueId,
         string[] patches,
+        int expectedParticipants,
         CancellationToken ct)
     {
-        // Normalising in SQL rather than reading every row: split_part matches
-        // PatchVersion.Normalize for anything with two or more segments, and the
-        // `= ANY(patches)` filter only ever admits values that already parsed, so a
-        // degenerate GameVersion is excluded from both sides consistently.
+        // Keyed on the stored, database-normalised Patch column — the one the public
+        // champion reads filter on (#1368) — rather than re-deriving it from GameVersion.
         FormattableString dailySql = $"""
             SELECT
-                split_part(m."GameVersion", '.', 1) || '.' || split_part(m."GameVersion", '.', 2) AS "Patch",
+                m."Patch" AS "Patch",
                 to_char((m."GameStartTimeUtc" AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS "Date",
                 count(*) AS "Matches",
                 min(m."GameStartTimeUtc") AS "FirstGameStartUtc",
@@ -38,29 +125,18 @@ internal sealed class PatchCoverageMeasurements(TrueMainDbContext db)
                 count(*) FILTER (WHERE NOT m."BansAggregated") AS "PendingBans"
             FROM matches m
             WHERE m."QueueId" = {queueId}
-              AND split_part(m."GameVersion", '.', 1) || '.' || split_part(m."GameVersion", '.', 2) = ANY({patches})
+              AND m."Patch" = ANY({patches})
             GROUP BY 1, 2
             """;
 
         var daily = await db.Database.SqlQuery<PatchDaySqlRow>(dailySql).ToListAsync(ct);
 
-        // Participants ride a second statement rather than a join in the one above: a
-        // join multiplies the match rows ten-fold, and `count(DISTINCT m."Id")` over that
-        // product costs far more than scanning `matches` twice.
-        FormattableString participantsSql = $"""
-            SELECT
-                split_part(m."GameVersion", '.', 1) || '.' || split_part(m."GameVersion", '.', 2) AS "Patch",
-                to_char((m."GameStartTimeUtc" AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS "Date",
-                count(*) AS "Participants"
-            FROM matches m
-            JOIN match_participants p ON p."MatchId" = m."Id"
-            WHERE m."QueueId" = {queueId}
-              AND split_part(m."GameVersion", '.', 1) || '.' || split_part(m."GameVersion", '.', 2) = ANY({patches})
-            GROUP BY 1, 2
-            """;
-
-        var participants = (await db.Database.SqlQuery<PatchDayParticipantsSqlRow>(participantsSql).ToListAsync(ct))
-            .ToDictionary(row => (row.Patch, row.Date), row => row.Participants);
+        // No join to match_participants (#2302): it is by far the largest table in the
+        // store, and grouping its rows per (patch, day) ran into the statement timeout on
+        // every call. Ingestion writes a match together with its whole roster, and a stored
+        // match that does not carry it is the wrongParticipantCount data-quality check's to
+        // name — this page reports volume, not integrity.
+        var perMatch = (long)Math.Max(0, expectedParticipants);
 
         return daily
             .GroupBy(row => row.Patch, StringComparer.Ordinal)
@@ -68,7 +144,7 @@ internal sealed class PatchCoverageMeasurements(TrueMainDbContext db)
                 group => group.Key,
                 group => new PatchIngestion(
                     group.Sum(row => row.Matches),
-                    group.Sum(row => participants.GetValueOrDefault((row.Patch, row.Date))),
+                    group.Sum(row => row.Matches) * perMatch,
                     group.Min(row => row.FirstGameStartUtc),
                     group.Max(row => row.LastGameStartUtc),
                     group.Sum(row => row.PendingTimeline),
@@ -81,7 +157,7 @@ internal sealed class PatchCoverageMeasurements(TrueMainDbContext db)
                         {
                             Date = row.Date,
                             Matches = row.Matches,
-                            Participants = participants.GetValueOrDefault((row.Patch, row.Date))
+                            Participants = row.Matches * perMatch
                         })]),
                 StringComparer.Ordinal);
     }
@@ -184,8 +260,6 @@ internal sealed class PatchCoverageMeasurements(TrueMainDbContext db)
         long PendingSynergy,
         long PendingMatchupLead,
         long PendingBans);
-
-    private sealed record PatchDayParticipantsSqlRow(string Patch, string Date, long Participants);
 }
 
 internal sealed record PatchIngestion(

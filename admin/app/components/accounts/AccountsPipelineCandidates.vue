@@ -6,7 +6,7 @@
 // hub's navbar button.
 import type { TableColumn } from '@nuxt/ui'
 import type { CandidateRow, MainCandidateStatus } from '~~/shared/types/ops'
-import { formatDateTime, formatNumber } from '~~/shared/utils/format'
+import { formatCappedCount, formatDateTime } from '~~/shared/utils/format'
 
 defineEmits<{
   select: [id: string]
@@ -62,6 +62,10 @@ const {
 
 const candidateRows = computed<CandidateRow[]>(() => candidateData.value?.candidates ?? [])
 const candidateTotal = computed(() => candidateData.value?.total ?? 0)
+// A wide filter's total is counted up to a cap (#2304): the badge and the page
+// count then read as lower bounds, and the pager stops at the capped page.
+const candidateTotalCapped = computed(() => candidateData.value?.totalCapped ?? false)
+const candidatePageCount = computed(() => Math.max(1, Math.ceil(candidateTotal.value / candidatePageSize)))
 
 const candidateColumns: TableColumn<CandidateRow>[] = [
   { accessorKey: 'championId', header: 'Champion' },
@@ -89,7 +93,7 @@ defineExpose({ refresh: refreshCandidates, pending: candidatePending })
             v-if="!candidatePending"
             color="neutral"
             variant="subtle"
-            :label="`${formatNumber(candidateTotal)} total`"
+            :label="`${formatCappedCount(candidateTotal, candidateTotalCapped)} total`"
           />
         </div>
 
@@ -211,7 +215,7 @@ defineExpose({ refresh: refreshCandidates, pending: candidatePending })
     >
       <p class="text-xs text-muted tabular-nums">
         Page {{ candidatePage.toLocaleString('en-US') }} of
-        {{ Math.max(1, Math.ceil(candidateTotal / candidatePageSize)).toLocaleString('en-US') }}
+        {{ formatCappedCount(candidatePageCount, candidateTotalCapped) }}
       </p>
       <UPagination
         v-model:page="candidatePage"

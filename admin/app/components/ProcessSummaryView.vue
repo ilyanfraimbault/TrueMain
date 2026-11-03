@@ -16,14 +16,19 @@
 //
 // The value-classification helpers live in `shared/utils/process-summary` so
 // they can be unit-tested without mounting the component.
+import type { ProcessRunBaseline } from '~~/shared/types/ops'
 import { computed } from 'vue'
+import ProcessesBaselineBadge from '~~/app/components/processes/ProcessesBaselineBadge.vue'
 import { formatScalar, humanizeKey, isPlainObject, isScalar } from '~~/shared/utils/process-summary'
 
 // `depth` is internal recursion bookkeeping (callers pass only `value`). Past
 // MAX_DEPTH we stop recursing and fall back to a raw JSON block, so a
-// pathologically deep payload can't blow the render stack.
-const props = withDefaults(defineProps<{ value: unknown, depth?: number }>(), {
+// pathologically deep payload can't blow the render stack. `baseline` (#2298) is
+// read at the root only: its counters are the summary's top-level numbers, so it is
+// never handed down to a nested level.
+const props = withDefaults(defineProps<{ value: unknown, depth?: number, baseline?: ProcessRunBaseline | null }>(), {
   depth: 0,
+  baseline: null,
 })
 const MAX_DEPTH = 8
 
@@ -144,7 +149,13 @@ const rawJson = computed(() => {
         <dt class="text-muted">
           {{ entry.label }}
         </dt>
-        <dd class="text-highlighted text-right tabular-nums break-all">
+        <dd class="flex items-center justify-end gap-2 text-highlighted text-right tabular-nums break-all">
+          <ProcessesBaselineBadge
+            v-if="baseline"
+            :metric="baseline.counters[entry.key]"
+            :sample-count="baseline.sampleCount"
+            kind="count"
+          />
           {{ formatScalar(entry.value) }}
         </dd>
       </template>

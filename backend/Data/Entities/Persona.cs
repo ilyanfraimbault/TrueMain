@@ -20,6 +20,13 @@ public class Persona
     public required string DisplayName { get; set; }
 
     /// <summary>
+    /// <see cref="DisplayName"/> reduced to what makes two personas homonyms (#2271): lowercased,
+    /// spaces, dots, dashes and underscores dropped. Computed by Postgres, never written (#2294):
+    /// stored and indexed so the homonym groups count from an index instead of a regex per row.
+    /// </summary>
+    public string NameKey { get; private set; } = string.Empty;
+
+    /// <summary>
     /// True once an operator set <see cref="DisplayName"/> (#2019): created the persona from the admin,
     /// or renamed it. The intake then keeps the operator's name instead of the one each source sends.
     /// </summary>

@@ -32,8 +32,15 @@ public sealed class PersonaMerger(TrueMainDbContext db)
         await db.PersonaAccounts.Where(a => a.PersonaId == mergedId)
             .ExecuteUpdateAsync(set => set.SetProperty(a => a.PersonaId, keptId), ct);
 
-        var keptUrls = await db.PersonaLinks.Where(l => l.PersonaId == keptId).Select(l => l.Url.ToLower()).ToListAsync(ct);
-        await db.PersonaLinks.Where(l => l.PersonaId == mergedId && keptUrls.Contains(l.Url.ToLower())).ExecuteDeleteAsync(ct);
+        // One channel spelled two ways by two sources (a scheme, a case, an escape) is one link (#2286).
+        var keptChannels = (await db.PersonaLinks.Where(l => l.PersonaId == keptId).Select(l => l.Url).ToListAsync(ct))
+            .Select(PersonaConflictConfidence.ChannelKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var duplicates = (await db.PersonaLinks.Where(l => l.PersonaId == mergedId).Select(l => new { l.Id, l.Url }).ToListAsync(ct))
+            .Where(l => keptChannels.Contains(PersonaConflictConfidence.ChannelKey(l.Url)))
+            .Select(l => l.Id)
+            .ToList();
+        await db.PersonaLinks.Where(l => duplicates.Contains(l.Id)).ExecuteDeleteAsync(ct);
         await db.PersonaLinks.Where(l => l.PersonaId == mergedId)
             .ExecuteUpdateAsync(set => set.SetProperty(l => l.PersonaId, keptId), ct);
 

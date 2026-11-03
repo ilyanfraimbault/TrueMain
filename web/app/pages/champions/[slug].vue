@@ -2,6 +2,7 @@
 import type { FavoriteChampionInput } from '#common/utils/favorites'
 import { POSITION_BY_VALUE, isChampionPosition } from '#common/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
+import { championDisplayName } from '#shared/utils/champion-name'
 
 // Layout plus wiring: the fetching and derivation live in composables
 // (`useChampionBuildSummary`, `useChampionPageSeo`, `useChampionSliceControls`,
@@ -77,15 +78,12 @@ const {
 const latestVersion = computed(() => versions.value?.[0] ?? null)
 
 // Winrate/pickrate trend across the last five patches (#89, #112). Follows the
-// resolved lane but is deliberately cross-patch: only the position is sent,
-// never the pinned patch. Gated on the champion fetch so it fires once with the
-// resolved lane instead of twice (null lane first, then the real one).
+// resolved lane, the rank filter and the population (#2353) but is deliberately
+// cross-patch: the pinned patch is never sent. Gated on the champion fetch so it
+// fires once with the resolved lane instead of twice (null lane first, then the
+// real one). The fetch itself sits below the slice controls it reads.
 const trendReady = computed(() => champion.value !== null)
 const trendPosition = computed(() => champion.value?.position || filters.value.position || null)
-// `pending` rather than `status`: while the gate is shut the composable
-// resolves an empty series to `success`, so `status` alone would flash the
-// chart's no-data state for the whole champion fetch.
-const { data: championTrend, pending: trendPending } = useChampionTrend(championId, trendPosition, trendReady)
 
 // SSR-safe champion name for `<head>` — see useChampionSeoName for why this
 // page can't use `displayName` there, and why the fetch is awaited on the
@@ -131,6 +129,21 @@ const {
   setFilter,
   staticList,
   selectedPosition,
+})
+
+// `pending` rather than `status`: while the gate is shut the composable
+// resolves an empty series to `success`, so `status` alone would flash the
+// chart's no-data state for the whole champion fetch.
+const { data: championTrend, pending: trendPending } = useChampionTrend(championId, trendPosition, trendReady, {
+  eloBracket: eloBracketParam,
+  truemainsOnly: () => filters.value.truemainsOnly,
+})
+
+// The matchup filter's opponent, named for the build column's sample line (#2355).
+const opponentName = computed(() => {
+  const id = filters.value.opponentChampionId
+  if (!id) return null
+  return championDisplayName(id, staticList.value?.find(entry => entry.championId === id) ?? null)
 })
 
 // Win rate by game duration (issue #537). Follows the resolved lane like the
@@ -252,6 +265,7 @@ const snapshots = useChampionPanelSnapshots({
         :truemains-only="filters.truemainsOnly"
         :tier="tier"
         :trend="championTrend?.points ?? null"
+        trend-follows-slice
         :trend-loading="trendPending"
         :loading="!champion"
       >
@@ -292,6 +306,7 @@ const snapshots = useChampionPanelSnapshots({
           :patch="selectedPatch || null"
           :elo-bracket="eloBracketParam"
           :opponent-champion-id="filters.opponentChampionId ?? null"
+          :opponent-name="opponentName"
           :loading="championLoading"
           :snapshots="snapshots"
         />

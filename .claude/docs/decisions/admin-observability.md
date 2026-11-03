@@ -484,3 +484,122 @@ once every 30 s for the live chain. The header makes the page an index read and 
   more than two days, one `$group` over the runs is merged into the headers (`keepExisting`). The margin keeps
   the leftover runs of a pass whose header the shared 180-day TTL reaped a moment earlier from re-triggering the
   scan. #2124
+
+## The Aggregation panel prints estimates and index probes, never a pass over a fold table (2026-10-26)
+
+**Decision:** `GET /ops/stats/aggregations` reads every Postgres figure from the catalog or an index: table rows are
+the planner's estimate (`n_live_tup`, `reltuples` as fallback, shown `≈`), distinct champions an index skip scan
+on `ChampionId` (mains: the active-main partial index), and the two backlogs counts over partial indexes holding
+only the pending rows (`IX_matches_synergy_pending`, and `IX_match_participants_elo_bracket_pending`, added for it).
+Distinct patches and the per-family newest-row timestamp were **dropped**, and the payload is cached two minutes. #2303
+
+- **Why.** The page took over a minute cold: exact `count(*)`, `DISTINCT` and `max()` over every fold table,
+  sequentially, and the elo backlog walked the whole tracked-participant index to count a few thousand rows.
+  None of those figures needs exactness to be acted on.
+- **Why drop rather than estimate patches and freshness.** No fold table is indexed on its patch or timestamp
+  column, so either figure is a full scan or a guess. `/patch-coverage` already measures every fold per patch, and
+  the producing process's last success says when the family last wrote — the "Last aggregation" tile reads that
+  now. Same rule as #1442: a figure that is not acted on is not paid for.
+
+## Ops request latency is measured by the Api, per route template, into per-minute histograms (2026-10-26)
+
+**Decision:** the Api times every request that routes to an `/ops/*` endpoint and folds it into
+`request_latency_rollups` — one document per minute, route template and method, carrying count, sum, max,
+timeouts, 5xx and a fixed histogram of duration buckets. `GET /ops/request-latency?window=24h|7d` reads p50/p95
+off the summed histogram; the admin shows it as the *Performance* tab of `/processes` — #2307, epic #2300.
+
+- **Why.** Nothing said which admin reads were slow: #2300's list came from timing every endpoint by hand, and
+  slow paths regressed silently (#2132 fixed pipeline-health, the Overview kept the same pattern).
+- **A fixed histogram, not stored samples or exact percentiles.** Percentiles do not add across minutes; bucket
+  counts do. The bounds (10 ms to 30 s, dense around 1 s and 5 s) are part of the stored format — changing them
+  is a new collection. The estimate interpolates inside a bucket and never exceeds the measured max.
+- **Route templates, not paths**, like the frontends' error forwarding (#1556): `/ops/accounts/{puuid}` is one
+  row, and no account id is stored.
+- **Server-side only.** The figure starts when the request reaches the Api; the admin proxy's hop and the
+  browser are not in it. A client that gave up, a cancellation, a 408/504 count as timeouts; other 5xx as server
+  errors — never both.
+- **Buffered, bounded, dropped rather than retried.** The middleware updates an in-memory fold under a lock no
+  I/O holds; a background flusher writes it every 30 s and on shutdown. Past 2,000 pending keys a new key is
+  dropped, and a failed write is dropped too; both are counted and shown on the tab (measured but not persisted
+  since the Api started), so a gap never reads as a quiet route.
+- **Retention 30 days**, a TTL on `bucketStartUtc` like the Riot and meter rollups
+  (`MongoLogging:RequestLatencyRetention`).
+- **Slow = p95 over 1 s**, the epic's target; the tab sorts by p95 and badges those routes.
+
+## The cockpit payloads are kept warm, only while someone reads them (2026-10-26)
+
+**Decision:** pipeline health, the data-quality detectors, the Overview counters, the aggregation stats and the patch
+coverage are recomputed in the background by one hosted service (`CockpitCacheRefresher`) shortly before their cache
+goes stale (75 % of the TTL), and a value older than its TTL is **served stale, with its own computed-at time**, while
+the refresher catches up. Only a payload with no value at all makes the operator's click wait. The detector suite,
+which used to run on every call, is cached one minute. #2305
+
+- **Why.** The first click after a cache expiry paid the whole cold path — tens of seconds for the cockpit and the
+  detectors on a busy host — although none of these figures moves faster than the pipeline cadences behind them.
+  Serving the last value is honest because every payload states when it was computed and the admin prints it.
+- **Only while read.** A payload is refreshed only if it was read in the last 15 minutes and never before its first
+  read, so an admin nobody has open costs Postgres nothing; the last value is kept 24 h for the next visit.
+- **One at a time.** The refresher runs at most one computation per 5-second tick, most overdue first, through the
+  same single-flight key as the request path — refreshes never pile onto Postgres together, and a refresh never
+  duplicates a cold request's pass.
+- **A failure keeps the last good value.** A failed refresh leaves the cached value and its computed-at time in
+  place and opens the payload's failure backoff (#2132), which the refresher also waits out.
+- **Not pre-warmed at startup.** A deploy's first click on each page still pays the cold path once: warming
+  everything on every API start would spend the scans whether anyone looks or not.
+
+## The audit trail's wording is one backend catalog, and a History is the events that target the entity (2026-10-26)
+
+**Decision:** every action name an `IAuditLog` writer records is a constant of `Data/Logging/Mongo/AuditCatalog.cs`
+(`AuditActions`, with `AuditActors` and `AuditTargets`), and the same table holds the plain words the admin shows.
+`GET /ops/audit-events` words each row (`label`) and carries the catalogs on every page, like `/ops/logs` carries
+its event types; an action with no words is shown by its name. A known player's **History** is the events whose
+target is that player (`targetType=Persona&targetId=<id>`, served by `ix_target_timestamp`), nothing inferred from
+metadata. #2288
+
+- **Why one catalog in Data.** The Api and the Ingestor both write the trail; words kept in the admin would drift
+  from the names the writers emit, silently, while a constant without words fails `AuditCatalogTests`.
+- **Why target-only History.** A conflict resolution targets the conflict and a merge the kept player; the
+  players they touch appear only as slugs in metadata. Matching metadata text would mix in a homonym's events, so
+  the History shows exactly what targeted the player and the Audit page's search covers the rest.
+
+
+## A process run is compared with the median of its last 20 successes, flagged at twice or half (2026-10-26)
+
+**Decision:** every successful run on `/processes` (runs table, run slide-over, iteration summary) carries a
+`baseline` computed by the Api in the process-runs reads: the median duration and the median of each top-level
+numeric summary counter over the last 20 successful runs of the same process **and** job mode. A metric is flagged
+at ≥ +100 % or ≤ −50 % of its median; nothing is compared under 5 runs (or under 5 runs that recorded a counter).
+The thresholds live in one place, `ProcessRunBaselinePolicy` in the Api, and the admin only reads `flagged` — #2298.
+
+- **Why the median, not the mean.** One pathological run must not move the reference it is judged against.
+- **Why successes only, and per mode.** A failed or skipped run stops short by definition, and a `Full` pass does
+  not do the work of one lane; mixing them would flag every normal run.
+- **Why the current baseline for every row, not the history before each run.** One bounded index walk per
+  (process, mode) on the page (`ix_process_finished`, limit 20), cached 60 s, instead of a lookup per row.
+- **Why top-level counters only.** Nested breakdowns (per platform, per step) are not comparable field by field.
+
+## The pipeline-health verdict is announced on Discord, on transitions only, from the cockpit's own payload (2026-10-26)
+
+**Decision:** a hosted service in the Api (`PipelineHealthAlerter`) evaluates the `/health` payload every 5 minutes
+and posts to a **Discord webhook** (`Alerting:DiscordWebhookUrl`, `ALERTING_DISCORD_WEBHOOK_URL` in the stack env)
+when something changes: a cockpit signal opening an incident (red for 2 evaluations in a row), a process reaching 3
+consecutive failed runs, and either one recovering. One message per evaluation, naming the signals that changed and
+linking to `/health` (`Alerting:AdminBaseUrl`). No webhook → the service is off, and both `/health` and the
+configuration page say so. Each alert is recorded in Mongo (`health_alerts`, 90-day TTL) and the last ones are listed
+on `/health`; the incident state is one versioned document (`health_alert_state`). #2292
+
+- **Why Discord.** It reaches the operator's phone with no mail server, no push provider and no account to run;
+  e-mail and push were the alternatives considered.
+- **Why the cockpit payload, read without counting as a visit.** The alerter must never judge differently from the
+  page it links to, so it reads the same warm payload (#2305) — but through `WarmPayload.GetUnreadAsync`: a read
+  through the normal path would keep the background refresher recomputing it every few seconds all day, while this
+  costs one evaluation per 5 minutes at most, none while an open cockpit keeps it fresh.
+- **Why transitions, a 2-evaluation debounce and a 1-hour cooldown per signal.** A held red is one incident, not a
+  message every 5 minutes; one bad sample (a cold read timing out, a deploy) is not an incident; a flapping signal
+  costs one message per cooldown, and is announced then if it is still failing. `unknown` neither opens nor closes.
+- **Why the state lives in Mongo and the first evaluation after boot only observes.** A deploy must neither
+  re-announce an open incident nor forget it, and a freshly started host's first reads are its least trustworthy.
+  The state is saved before the message is sent, conditioned on its version, so two Api containers evaluating at
+  once during a rolling deploy cannot both announce one transition; a refused delivery is recorded and retried.
+- **The webhook URL is a credential.** It is never committed, never logged (its HTTP client has no request loggers),
+  and the configuration page shows `Enabled` in its place; `webhook` joined the secret-name fragments.

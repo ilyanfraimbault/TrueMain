@@ -23,8 +23,10 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
 {
     private const int Champion = 266;
     private const string Position = "TOP";
-    private const string Patch = "16.4";
-    private const string OlderPatch = "16.3";
+    // A pair whose string order disagrees with the version order ("16.9" > "16.10"
+    // lexically), so the default-patch test catches a string sort (#2348).
+    private const string Patch = "16.10";
+    private const string OlderPatch = "16.9";
     private const int Visage = 3065;
     private const int Kindlegem = 3067;
     private const int Cowl = 3211;

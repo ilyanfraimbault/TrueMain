@@ -1,3 +1,4 @@
+using Core.Lol.Patches;
 using Data;
 using Data.Entities;
 using Data.ItemContext;
@@ -97,15 +98,14 @@ public sealed class ChampionItemContextQueryService(
             .AsNoTracking()
             .Where(verdict => verdict.ChampionId == championId && verdict.Position == position);
 
-        // Resolving the patch costs one cheap index-only lookup on the grain index, and it
-        // is what lets the page ask before its own patch filter has settled. Ordering on
-        // the stored string is safe here and nowhere else: the column holds canonical
-        // major.minor values written by the fold, never raw game versions.
-        var servedPatch = normalizedPatch
-            ?? await scoped
-                .Select(verdict => verdict.Patch)
-                .OrderByDescending(value => value)
-                .FirstOrDefaultAsync(ct);
+        // Resolving the patch is what lets the page ask before its own patch filter has
+        // settled, and what the desktop item-set import relies on (it sends none). The
+        // newest is picked as a version, never as the stored string: "16.9" sorts above
+        // "16.21" lexically, which served months-old verdicts (#2348).
+        var servedPatch = normalizedPatch ?? NewestPatch(await scoped
+            .Select(verdict => verdict.Patch)
+            .Distinct()
+            .ToListAsync(ct));
 
         if (string.IsNullOrEmpty(servedPatch))
         {
@@ -131,6 +131,14 @@ public sealed class ChampionItemContextQueryService(
             Items = [.. verdicts.Select(ToReadModel)],
         };
     }
+
+    private static string? NewestPatch(IEnumerable<string> patches)
+        => patches
+            .Select(raw => PatchVersion.TryParse(raw, out var version) ? (Raw: raw, Version: version) : default)
+            .Where(entry => entry.Raw is not null)
+            .OrderByDescending(entry => entry.Version)
+            .Select(entry => entry.Raw)
+            .FirstOrDefault();
 
     private static ChampionItemContextItemReadModel ToReadModel(ChampionItemContextVerdict verdict)
         => new()

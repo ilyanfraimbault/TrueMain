@@ -6,7 +6,9 @@ import type { BulletLegendItemInterface } from 'vue-chrts/types'
 // mounted directly by the unit tests, which run outside Nuxt and resolve
 // neither auto-imported utils nor auto-registered components.
 import { escapeTickFormatter } from '~/utils/chart-text'
+import type { ChartMarker } from '~/utils/deploy-markers'
 import ChartTooltip from './ChartTooltip.vue'
+import DeployMarkers from './DeployMarkers.vue'
 
 // Thin wrapper over <NcBarChart> that repairs two tooltip defects in vue-chrts.
 // Both were verified against 2.1.4 in a browser and both are still present in
@@ -73,6 +75,8 @@ const props = defineProps<{
    * errors, one per call site.
    */
   tooltipTitleFormatter?: (row: any) => string | number
+  /** Deploy markers (#2297), by row index, on a vertical time chart; see `DeployMarkers`. */
+  markers?: readonly ChartMarker[]
 }>()
 
 // See (2) above. The capture phase is required, not a preference: the upstream
@@ -198,6 +202,7 @@ const safeYFormatter = computed(() => escapeTickFormatter(props.yFormatter))
 <template>
   <div
     ref="chartRoot"
+    class="relative"
     @mousemove.capture="replayMouseMove"
     @mouseleave="cancelReplay"
   >
@@ -223,5 +228,6 @@ const safeYFormatter = computed(() => escapeTickFormatter(props.yFormatter))
         />
       </template>
     </NcBarChart>
+    <DeployMarkers v-if="markers?.length && data.length" :markers="markers" />
   </div>
 </template>
