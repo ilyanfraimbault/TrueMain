@@ -225,8 +225,8 @@ export default defineNuxtConfig({
     // weight. The list is replaced with the committed files instead.
     // No `<link rel="prefetch">` for every lazy chunk in every page's HTML (#2425): Nuxt lists
     // them all by default, so a visitor to `/about` downloaded the whole site, the charts'
-    // library included, ahead of what the page needed. A visible `<NuxtLink>` still preloads
-    // where it leads, which is the part of this that pays for itself.
+    // library included, ahead of what the page needed. A `<NuxtLink>` about to be used still
+    // preloads where it leads, which is the part of this that pays for itself.
     'build:manifest'(manifest) {
       for (const chunk of Object.values(manifest)) {
         chunk.prefetch = false
@@ -246,6 +246,13 @@ export default defineNuxtConfig({
     // Measured: one fewer request on a first visit to those pages, client
     // navigation unchanged. It is Nuxt 5's default.
     payloadExtraction: 'client',
+    // A link preloads where it leads when it is about to be used, not as soon as it is on screen:
+    // the navigation bar alone had every visitor download the other pages' chunks on landing (#2425).
+    defaults: {
+      nuxtLink: {
+        prefetchOn: { visibility: false, interaction: true },
+      },
+    },
   },
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
@@ -325,6 +332,9 @@ export default defineNuxtConfig({
     // Where the processed images outlive a deploy, from NUXT_IPX_CACHE_DIR. Empty keeps
     // them in memory only (`server/utils/ipx-disk-store.ts`).
     ipxCacheDir: '',
+    // Serve the pages everyone reads from a cache the workers share, from NUXT_HTML_CACHE_ENABLED
+    // (`server/utils/html-cache.ts`).
+    htmlCacheEnabled: false,
     public: {
       // Which deployed environment this container is (`preprod` / `production`),
       // and the build running in it — the preprod pipeline stamps a prerelease
