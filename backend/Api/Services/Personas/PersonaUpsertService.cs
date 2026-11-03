@@ -5,6 +5,7 @@ using Data.Configurations;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Ops;
+using TrueMain.RequestLogging;
 using TrueMain.Requests.Ops;
 using TrueMain.Services.Ops.Accounts;
 
@@ -168,13 +169,13 @@ public sealed partial class PersonaUpsertService(
             // claimed the same slug, Riot ID or account. Drop this persona's pending changes so
             // the rest of the batch writes cleanly; the caller's next run retries it.
             db.ChangeTracker.Clear();
-            logger.LogWarning(ex, "Persona {Slug} was not written: a concurrent write conflicted.", slug);
+            logger.LogWarning(ex, "Persona {Slug} was not written: a concurrent write conflicted.", LogValue.SingleLine(slug));
             return new PersonaUpsertResult { Slug = slug, Error = "conflicting concurrent write; retry." };
         }
 
         logger.LogInformation(
             "Persona {Slug} {Outcome} from {Source}: {Accounts} accounts, {Linked} linked, {Conflicts} in conflict.",
-            slug,
+            LogValue.SingleLine(slug),
             created ? "created" : mergedInto is null ? "updated" : $"folded into {mergedInto}",
             source,
             results.Count,
@@ -227,7 +228,11 @@ public sealed partial class PersonaUpsertService(
                 || !Enum.IsDefined(kind)
                 || NormaliseUrl(link.Url) is not { } url)
             {
-                logger.LogWarning("Persona {Slug}: skipped malformed link {Kind} {Url}.", persona.Slug, link.Kind, link.Url);
+                logger.LogWarning(
+                    "Persona {Slug}: skipped malformed link {Kind} {Url}.",
+                    LogValue.SingleLine(persona.Slug),
+                    LogValue.SingleLine(link.Kind),
+                    LogValue.SingleLine(link.Url));
                 continue;
             }
 

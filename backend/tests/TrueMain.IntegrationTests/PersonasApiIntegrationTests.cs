@@ -4,12 +4,18 @@ using AwesomeAssertions;
 using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Ops.Mongo;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
+using NSubstitute;
 using TrueMain.ReadModels.Ops;
 using TrueMain.ReadModels.Personas;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.Requests.Ops;
+using TrueMain.Services.Ops.Accounts;
+using TrueMain.Services.Personas;
 
 namespace TrueMain.IntegrationTests;
 
@@ -247,6 +253,71 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Batch_KeepsASkippedLinkOnOneLogLine()
+    {
+        using var logs = new CapturingLoggerProvider(typeof(PersonaUpsertService).FullName!);
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo, logs);
+        using var client = CreateClient(factory, authed: true);
+
+        var response = await client.PostAsJsonAsync("/ops/personas/batch", new
+        {
+            personas = new[]
+            {
+                new
+                {
+                    slug = "forged",
+                    displayName = "Forged",
+                    source = "manual",
+                    links = new[]
+                    {
+                        new { kind = "carrier-pigeon\nINFO forged", url = "https://example.com\r\nINFO forged" },
+                    },
+                },
+            },
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        logs.Messages.Should().ContainSingle(message => message.Contains("skipped malformed link", StringComparison.Ordinal))
+            .Which.Should().Be(
+                "Persona forged: skipped malformed link carrier-pigeonINFO forged https://example.comINFO forged.");
+    }
+
+    [Fact]
+    public async Task Upsert_ReportsASlugAConcurrentWriterClaimed_AndLeavesTheirPersonaInPlace()
+    {
+        // The seed intake runs between the upsert's reads and its save: the rival lands in that window.
+        var seeds = Substitute.For<ISeedRequestService>();
+        seeds.CreateAsync(Arg.Any<SeedRequestInput>(), Arg.Any<CancellationToken>()).Returns(async _ =>
+        {
+            await using var rival = _fixture.CreateDbContext();
+            rival.Personas.Add(new Persona { Slug = "contested", DisplayName = "Rival", Source = PersonaSource.Manual });
+            await rival.SaveChangesAsync();
+            return new SeedRequestCreateResult { Created = true };
+        });
+        var logger = new CapturingLogger<PersonaUpsertService>();
+        await using var db = _fixture.CreateDbContext();
+        var service = new PersonaUpsertService(
+            db, seeds, new PersonaConflictRecorder(db), Substitute.For<IPersonaAutoMergeService>(), logger);
+
+        var result = await service.UpsertAsync(
+            new PersonaUpsertEntry
+            {
+                Slug = "contested",
+                DisplayName = "Mine",
+                Source = "manual",
+                SeedMissing = true,
+                Accounts = [new PersonaAccountEntry { GameName = "Contested", TagLine = "EUW", PlatformId = "EUW1" }],
+            },
+            CancellationToken.None);
+
+        result.Error.Should().Be("conflicting concurrent write; retry.");
+        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Warning)
+            .Which.Message.Should().Be("Persona contested was not written: a concurrent write conflicted.");
+        await using var check = _fixture.CreateDbContext();
+        (await check.Personas.SingleAsync()).DisplayName.Should().Be("Rival");
+    }
+
+    [Fact]
     public async Task LeaderboardRowAndProfile_CarryThePersonaOfALinkedAccount()
     {
         await using (var db = _fixture.CreateDbContext())
@@ -419,7 +490,10 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         return client;
     }
 
-    private sealed class ApiWebApplicationFactory(PostgresFixture fixture, MongoFixture mongo)
+    private sealed class ApiWebApplicationFactory(
+        PostgresFixture fixture,
+        MongoFixture mongo,
+        ILoggerProvider? logProvider = null)
         : TrueMainWebApplicationFactory<Program>(
             fixture,
             [
@@ -428,5 +502,15 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
                 new KeyValuePair<string, string?>("MongoLogging:MinimumLevel", "None"),
                 new KeyValuePair<string, string?>("MainAnalysis:QueueId", "420"),
                 new KeyValuePair<string, string?>("TruemainsLeaderboard:MinRankedGames", "0"),
-            ]);
+            ])
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            if (logProvider is not null)
+            {
+                builder.ConfigureLogging(logging => logging.AddProvider(logProvider));
+            }
+        }
+    }
 }
