@@ -223,6 +223,16 @@ export default defineNuxtConfig({
     // network dependency #1106 removes — and fall back to its bundled Inter
     // 400/700 when that fails, setting every `fontWeight: 600` in the wrong
     // weight. The list is replaced with the committed files instead.
+    // No `<link rel="prefetch">` for every lazy chunk in every page's HTML (#2425): Nuxt lists
+    // them all by default, so a visitor to `/about` downloaded the whole site, the charts'
+    // library included, ahead of what the page needed. A visible `<NuxtLink>` still preloads
+    // where it leads, which is the part of this that pays for itself.
+    'build:manifest'(manifest) {
+      for (const chunk of Object.values(manifest)) {
+        chunk.prefetch = false
+        chunk.dynamicImports = []
+      }
+    },
     'nitro:config'(config) {
       config.handlers = config.handlers?.filter(handler => handler?.route !== '/_scripts/p/**')
       config.virtual = { ...config.virtual, '#og-image/fonts': `export default ${JSON.stringify(OG_IMAGE_FONTS)}` }
@@ -266,6 +276,9 @@ export default defineNuxtConfig({
   nitro: {
     // One worker per useful core behind the same port (#1579); see docs/ci.md.
     preset: 'node-cluster',
+    // Compressed once, at the highest level, at build time rather than per request at the
+    // edge's default: a page's JS is what its visitor waits longest for (#2425).
+    compressPublicAssets: { brotli: true, gzip: true },
     externals: {
       traceInclude: [fileURLToPath(import.meta.resolve('harfbuzzjs/hb.wasm'))],
     },
@@ -304,6 +317,14 @@ export default defineNuxtConfig({
     // `stable` serves only a release promoted by hand, `beta` (preprod) the newest
     // build too. See server/utils/desktop-release.ts.
     desktopChannel: 'stable',
+    // Warm this worker before the edge opens the site (#2425), from NUXT_WARMUP_ENABLED.
+    // Past the budget the site opens anyway. It has to leave the API's own budget
+    // (`ChampionWarmup:ReadyBudgetSeconds`) room, since web waits for the API first.
+    warmupEnabled: false,
+    warmupBudgetSeconds: 480,
+    // Where the processed images outlive a deploy, from NUXT_IPX_CACHE_DIR. Empty keeps
+    // them in memory only (`server/utils/ipx-disk-store.ts`).
+    ipxCacheDir: '',
     public: {
       // Which deployed environment this container is (`preprod` / `production`),
       // and the build running in it — the preprod pipeline stamps a prerelease
