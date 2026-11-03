@@ -60,8 +60,8 @@ public interface ITruemainsLeaderboardQueryService
 
 /// <summary>
 /// Orchestrates one leaderboard request: response cache and coalescing, the
-/// ranking phase (<see cref="LeaderboardRanking"/>, over the eligibility SQL in
-/// <see cref="LeaderboardEligibility"/>), then the concurrent hydration of the
+/// ranking phase (<see cref="LeaderboardRanking"/>, over
+/// <see cref="LeaderboardPopulation"/>), then the concurrent hydration of the
 /// page slice (<see cref="LeaderboardPageHydration"/> and the shared
 /// per-row reads) and the per-phase timing log.
 /// </summary>
@@ -98,7 +98,7 @@ public sealed class TruemainsLeaderboardQueryService(
     // consistent with the player's top-champions cell on the same row.
     internal const int RankedQueueId = (int)LolQueueId.RankedSoloDuo;
 
-    private readonly LeaderboardRanking ranking = new(db, dbFactory, mainAnalysisOptions, readCache, logger);
+    private readonly LeaderboardRanking ranking = new(db, dbFactory, mainAnalysisOptions, readCache);
 
     public async Task<LeaderboardResponse> GetAsync(
         int page,
@@ -187,7 +187,7 @@ public sealed class TruemainsLeaderboardQueryService(
         {
             LeaderboardSort.Dedication => ranking.RankByDedicationAsync(filter, ct),
             _ when LeaderboardStatLines.Serves(sort) => ranking.RankByStatAsync(filter, sort, RankedQueueId, ct),
-            _ => ranking.CountByRankAsync(filter, ct),
+            _ => ranking.RankByScoreAsync(filter, offset, ct),
         });
 
         var total = rankingResult.Total;
@@ -272,15 +272,11 @@ public sealed class TruemainsLeaderboardQueryService(
         var positionsTask = TimedAsync(() => WithContextAsync(
             ctx => MainPositions.FetchAsync(ctx, platforms, puuids, ct), ct));
 
-        // The dedication-sorted path already scored every candidate to rank
-        // them, so the page's scores are in hand — only the rank-sorted path
-        // pays a query, and only for the page's ~25 accounts.
-        var dedicationTask = TimedAsync(() => rankingResult.DedicationByAccount is { } scored
-            ? Task.FromResult(scored)
-            : WithContextAsync(
-                ctx => MainDedication.FetchAsync(
-                    ctx, accountIds, championFilter, DateTime.UtcNow, mainAnalysisOptions.Value.PlayRateFloor, ct),
-                ct));
+        // Whatever the sort: a query for the page's ~25 accounts, the same read the profile makes.
+        var dedicationTask = TimedAsync(() => WithContextAsync(
+            ctx => MainDedication.FetchAsync(
+                ctx, accountIds, championFilter, DateTime.UtcNow, mainAnalysisOptions.Value.PlayRateFloor, ct),
+            ct));
 
         // Chain the build fetch off the top-3 result: it resolves the page's
         // (account, champion) pairs from the selected champions, and still runs
