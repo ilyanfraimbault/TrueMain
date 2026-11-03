@@ -27,7 +27,9 @@ internal sealed class ChampionDirectoryTopBuilds
 {
     private const string Surface = ChampionSummariesQueryService.Surface;
 
-    private const int PatternReadTimeoutSeconds = 180;
+    private const int PatternReadCommandTimeoutSeconds = 185;
+
+    private const string PatternReadTimeoutStatement = "SET LOCAL statement_timeout = '180s'";
 
     private readonly Row[] rows;
     private readonly List<LaneKey> lanes;
@@ -118,13 +120,13 @@ internal sealed class ChampionDirectoryTopBuilds
             await using (var timeout = connection.CreateCommand())
             {
                 timeout.Transaction = transaction;
-                timeout.CommandText = $"SET LOCAL statement_timeout = '{PatternReadTimeoutSeconds}s'";
+                timeout.CommandText = PatternReadTimeoutStatement;
                 await timeout.ExecuteNonQueryAsync(ct);
             }
 
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
-            command.CommandTimeout = PatternReadTimeoutSeconds + 5;
+            command.CommandTimeout = PatternReadCommandTimeoutSeconds;
             command.CommandText = """
                 SELECT s."ChampionId", s."Position", s.elo_bracket, s."IsMain", p."BuildId", p."RunePageId",
                        SUM(p."Games")::int, SUM(p."Wins")::int
