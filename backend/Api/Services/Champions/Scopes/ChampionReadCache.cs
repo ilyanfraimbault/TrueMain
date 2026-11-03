@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Services.Champions.Warmup;
 
 namespace TrueMain.Services.Champions.Scopes;
 
@@ -29,11 +30,17 @@ public interface IChampionReadCache
     /// What the entry charges against the shared cache's <c>SizeLimit</c>. One unit —
     /// "roughly one response" — unless the value is something else entirely.
     /// </param>
+    /// <param name="failureBackoff">
+    /// When set, a failed read is not run again for this long, whatever the version: callers
+    /// get a <see cref="ReadBackoffException"/> at once (see <see cref="FailureBackoff"/>).
+    /// For a read too long to repeat, not for the ordinary ones.
+    /// </param>
     Task<T> GetOrComputeAsync<T>(
         string key,
         Func<CancellationToken, Task<T>> compute,
         CancellationToken ct,
-        int size = 1);
+        int size = 1,
+        TimeSpan? failureBackoff = null);
 }
 
 /// <summary>
@@ -82,8 +89,15 @@ public interface IChampionReadCache
 /// its own, which the token now covers like the others; item timings was dropped
 /// instead, having had no caller since #628.
 /// </para>
+/// <para>
+/// <b>With the warm-up on, a reader's version is the published one</b> (#2425), not the stamp:
+/// see <see cref="ChampionReadVersion"/>.
+/// </para>
 /// </remarks>
-public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCache cache) : IChampionReadCache
+public sealed class ChampionReadCache(
+    IChampionAggregationStamp stamp,
+    IMemoryCache cache,
+    ChampionReadVersion version) : IChampionReadCache
 {
     /// <summary>Cache key holding the current aggregation version token.</summary>
     internal const string VersionCacheKey = "champions:aggregation-version";
@@ -117,7 +131,8 @@ public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCa
         string key,
         Func<CancellationToken, Task<T>> compute,
         CancellationToken ct,
-        int size = 1)
+        int size = 1,
+        TimeSpan? failureBackoff = null)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(compute);
@@ -149,8 +164,10 @@ public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCa
                 // owner is holding its request open for it (ownerAwaitsToCompletion),
                 // so cancelling here would only throw away work everyone is waiting
                 // for. The bound is the command timeout, as it is for every read here.
-                var value = await compute(CancellationToken.None);
-                return cache.Store(versionedKey, (object?)value, AbsoluteBackstop, size);
+                var value = failureBackoff is { } backoff
+                    ? await FailureBackoff.RunAsync(cache, key, backoff, () => compute(CancellationToken.None))
+                    : await compute(CancellationToken.None);
+                return cache.Store(versionedKey, (object?)value, version.EntryLifetime(AbsoluteBackstop), size);
             },
             ct,
             // These reads run on the caller's request-scoped DbContext, so the pass
@@ -174,6 +191,11 @@ public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCa
     /// </summary>
     private async Task<string> GetAggregationVersionAsync(CancellationToken ct)
     {
+        if (version.Current is { } pinned)
+        {
+            return pinned;
+        }
+
         if (cache.TryGetValue<string>(VersionCacheKey, out var cached) && cached is not null)
         {
             return cached;

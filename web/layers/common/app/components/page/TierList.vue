@@ -18,9 +18,8 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
 })
 
 // Tier list is computed server-side, so the fetch keys on patch + position +
-// elo bracket and the backend does the per-role tiering. Client-only
-// (`server: false`) to keep the SSR shell deterministic, mirroring the
-// /champions directory page.
+// elo bracket and the backend does the per-role tiering. Rendered on the server
+// (#2425), like the /champions directory: the first HTML holds the tiers.
 const apiFetch = useApiFetch()
 const tierListFetch = useAsyncData<ChampionTierListResponse>(
   () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}`
@@ -42,7 +41,6 @@ const tierListFetch = useAsyncData<ChampionTierListResponse>(
       () => filters.value.eloBracket,
       () => filters.value.truemainsOnly,
     ],
-    server: false,
     default: () => ({ patchVersion: '', position: null, tiers: [] }),
   },
 )
@@ -129,67 +127,61 @@ await tierListFetch
       />
     </PageHeader>
 
-    <ClientOnly>
-      <FetchErrorAlert
-        v-if="error"
-        :error="error"
-        title="Failed to load the tier list"
+    <FetchErrorAlert
+      v-if="error"
+      :error="error"
+      title="Failed to load the tier list"
+    />
+
+    <TierlistSkeleton v-else-if="isPending" />
+
+    <template v-else>
+      <StaleContentNotice
+        :error="tierListStaleError"
+        subject="the previous tiers"
+        :on-retry="() => refreshTierList()"
       />
 
-      <TierlistSkeleton v-else-if="isPending" />
-
-      <template v-else>
-        <StaleContentNotice
-          :error="tierListStaleError"
-          subject="the previous tiers"
-          :on-retry="() => refreshTierList()"
-        />
-
-        <div class="space-y-3">
-          <SectionCard
-            v-for="group in tierGroups"
-            :key="group.tier"
-          >
-            <template #title>
-              <div class="flex items-center gap-2">
-                <TierBadge :tier="group.tier" />
-                <span class="text-xs text-muted">{{ group.entries.length }} champions</span>
-              </div>
-            </template>
-
-            <!-- `gap-3` rather than the portrait's own spacing: the lane badge
-                 overhangs the bottom-right corner, so neighbouring chips need
-                 room for it not to collide with the next portrait. -->
-            <ul class="flex flex-wrap gap-3">
-              <li
-                v-for="entry in group.entries"
-                :key="`${entry.championId}-${entry.position}`"
-              >
-                <ChampionTierChip
-                  :to="championDestination(entry)"
-                  :name="entry.name"
-                  :icon-url="entry.iconUrl"
-                  :position="entry.position"
-                  :win-rate="entry.winRate"
-                  :pick-rate="entry.pickRate"
-                  :ban-rate="entry.banRate"
-                />
-              </li>
-            </ul>
-          </SectionCard>
-        </div>
-
-        <p
-          v-if="!hasRows"
-          class="text-sm text-muted"
+      <div class="space-y-3">
+        <SectionCard
+          v-for="group in tierGroups"
+          :key="group.tier"
         >
-          No champions match these filters.
-        </p>
-      </template>
+          <template #title>
+            <div class="flex items-center gap-2">
+              <TierBadge :tier="group.tier" />
+              <span class="text-xs text-muted">{{ group.entries.length }} champions</span>
+            </div>
+          </template>
 
-      <template #fallback>
-        <TierlistSkeleton />
-      </template>
-    </ClientOnly>
+          <!-- `gap-3` rather than the portrait's own spacing: the lane badge
+               overhangs the bottom-right corner, so neighbouring chips need
+               room for it not to collide with the next portrait. -->
+          <ul class="flex flex-wrap gap-3">
+            <li
+              v-for="entry in group.entries"
+              :key="`${entry.championId}-${entry.position}`"
+            >
+              <ChampionTierChip
+                :to="championDestination(entry)"
+                :name="entry.name"
+                :icon-url="entry.iconUrl"
+                :position="entry.position"
+                :win-rate="entry.winRate"
+                :pick-rate="entry.pickRate"
+                :ban-rate="entry.banRate"
+              />
+            </li>
+          </ul>
+        </SectionCard>
+      </div>
+
+      <p
+        v-if="!hasRows"
+        class="text-sm text-muted"
+      >
+        No champions match these filters.
+      </p>
+    </template>
   </div>
 </template>
