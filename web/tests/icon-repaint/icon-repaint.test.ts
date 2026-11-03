@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { isIconRepaint, markIconPainted, resetPaintedIcons } from '#common/utils/icon-repaint'
+import { isIconRepaint, markIconPainted, resetPaintedIcons, warmIconPicture } from '#common/utils/icon-repaint'
 
 const SRC = '/_ipx/f_webp&s_64x64/item/3078.png'
 
@@ -28,5 +28,16 @@ describe('isIconRepaint', () => {
 
     expect(isIconRepaint(true, null)).toBe(false)
     expect(isIconRepaint(true, '')).toBe(false)
+  })
+})
+
+describe('warmIconPicture', () => {
+  it('has nothing to warm for an icon without a picture', () => {
+    const incomplete = { complete: false, naturalWidth: 0, currentSrc: '' } as HTMLImageElement
+    const broken = { complete: true, naturalWidth: 0, currentSrc: SRC } as HTMLImageElement
+
+    expect(warmIconPicture(null)).toBeNull()
+    expect(warmIconPicture(incomplete)).toBeNull()
+    expect(warmIconPicture(broken)).toBeNull()
   })
 })
