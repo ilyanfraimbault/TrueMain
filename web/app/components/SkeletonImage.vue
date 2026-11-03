@@ -199,7 +199,7 @@ onMounted(() => {
         :width="FETCH_SIZE"
         :height="FETCH_SIZE"
         :loading="loading"
-        class="size-full"
+        class="size-full text-transparent"
         :class="[loaded && !failed ? 'opacity-100' : 'opacity-0', instant ? '' : 'transition-opacity duration-150']"
         @load="onLoad"
         @error="failed = true"
