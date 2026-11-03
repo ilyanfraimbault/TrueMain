@@ -21,6 +21,8 @@ ENV NITRO_PORT=3000
 
 COPY --from=build /app/.output ./.output
 
+RUN install -d -o node -g node /app/.ipx-cache
+
 USER node
 
 EXPOSE 3000

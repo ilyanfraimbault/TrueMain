@@ -53,7 +53,6 @@ export function useChampionDirectory(options: UseChampionDirectoryOptions) {
     () => `champion-directory-${Object.entries(query.value).map(([key, value]) => `${key}=${value}`).join('&')}`,
     (_nuxtApp, { signal }) => apiFetch<ChampionDirectoryResponse>('/champions/directory', { query: query.value, signal }),
     {
-      server: false,
       watch: [query],
       default: (): ChampionDirectoryResponse => ({
         rows: [],
@@ -84,12 +83,14 @@ export function useChampionDirectory(options: UseChampionDirectoryOptions) {
 
   // One-way latch, as in `useTruemainsLeaderboard`: the skeleton covers the
   // first load only; a later refetch keeps the rows on screen and shows the
-  // table's loading bar instead. Client-only, so nothing settles on the server.
-  const hasEverLoaded = ref(status.value === 'success' || status.value === 'error')
+  // table's loading bar instead. Read from the status as well, because no watcher
+  // runs during SSR, and the page renders there once the first load has settled.
+  const hasEverLoaded = ref(false)
   watch(status, (value) => {
     if (value === 'success' || value === 'error') hasEverLoaded.value = true
   })
-  const isInitialLoading = computed(() => !hasEverLoaded.value)
+  const isInitialLoading = computed(() =>
+    !hasEverLoaded.value && status.value !== 'success' && status.value !== 'error')
 
   return {
     rows,
