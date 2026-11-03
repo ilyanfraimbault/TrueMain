@@ -20,9 +20,11 @@ import type { TooltipProps } from '@nuxt/ui'
  * Arming does re-create the icon, though: Vue cannot move the slot from the bare
  * span to the trigger, so the icon's `<img>` is replaced under the pointer. The
  * `ICON_REMOUNT_KEY` it provides lets `SkeletonImage` draw the new one at once
- * rather than load it again, which blinked the icon out and back (utils/icon-repaint.ts).
+ * rather than load it again, which blinked the icon out and back. Arming waits for
+ * the picture to be warm first, or the new `<img>` has none for its first frames
+ * (utils/icon-repaint.ts).
  */
-import { ICON_REMOUNT_KEY } from '#common/utils/icon-repaint'
+import { ICON_REMOUNT_KEY, warmIconPicture } from '#common/utils/icon-repaint'
 
 defineOptions({ inheritAttrs: false })
 
@@ -44,7 +46,15 @@ withDefaults(defineProps<{
 const armed = ref(false)
 provide(ICON_REMOUNT_KEY, readonly(armed))
 
-function arm() {
+// Held for the life of the tooltip: the browser only keeps the picture in memory
+// while something uses it, and the re-created icon must find it there.
+let warmPicture: HTMLImageElement | null = null
+
+async function arm(event: MouseEvent) {
+  if (warmPicture) return
+  warmPicture = warmIconPicture((event.currentTarget as Element).querySelector('img'))
+  // A picture that fails to decode only costs the warm start, never the tooltip.
+  if (warmPicture) await warmPicture.decode().catch(() => {})
   armed.value = true
 }
 </script>
