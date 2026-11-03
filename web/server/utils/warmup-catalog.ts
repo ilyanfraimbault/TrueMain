@@ -1,5 +1,6 @@
 import { IPX_ROUTE_BASE } from '~~/shared/utils/ipx'
 import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
+import { DEFAULT_ELO_BRACKET } from '~~/layers/common/app/utils/elo-brackets'
 
 /**
  * What a web worker asks itself for before the site opens (#2425): the URLs a visitor's first
@@ -11,6 +12,22 @@ export const WARM_PAGES = ['/', '/champions', '/champions/tierlist', '/truemains
 
 /** Renders of each page before the first one a visitor sees: V8 only optimises what has run. */
 export const WARM_RENDERS = 3
+
+/** The champion pages rendered, for the same reason: the template is the same for all of them. */
+export const WARM_RENDERED_CHAMPIONS = 5
+
+/**
+ * What a champion page reads on the server that this worker keeps in memory: its name and its
+ * build in words. Asked for directly, every champion costs a fraction of a render.
+ */
+export function championReads(championId: string, version: string): string[] {
+  const patch = version.split('.').slice(0, 2).join('.')
+  return [
+    `/api/static/${championId}`,
+    `/api/static/${championId}?patch=${patch}`,
+    `/api/champion-summary/${championId}?eloBracket=${DEFAULT_ELO_BRACKET}`,
+  ]
+}
 
 /** The patch-less static reads, which give the patch the others are keyed on. */
 export const WARM_STATIC_READS = ['/api/static/versions', '/api/static/champions', '/api/static/champion-slugs', '/api/static/rune-tree']

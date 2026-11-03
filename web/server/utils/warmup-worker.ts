@@ -1,5 +1,14 @@
 import { getIpxDiskCache } from './ipx-disk-store'
-import { collectIconUrls, imagePaths, patchedStaticReads, WARM_PAGES, WARM_RENDERS, WARM_STATIC_READS } from './warmup-catalog'
+import {
+  championReads,
+  collectIconUrls,
+  imagePaths,
+  patchedStaticReads,
+  WARM_PAGES,
+  WARM_RENDERED_CHAMPIONS,
+  WARM_RENDERS,
+  WARM_STATIC_READS,
+} from './warmup-catalog'
 import { claimImageWarmup, markImagesWarm, markWorkerWarm } from './warmup-state'
 
 const API_POLL_MS = 2000
@@ -30,15 +39,17 @@ export async function warmWorker(
   const patched = version ? patchedStaticReads(version) : []
   await settleAll(patched.map(path => () => read(path)), 1)
 
-  const slugs = Object.values(reads.get('/api/static/champion-slugs') ?? {}) as string[]
-  const championPages = slugs.map(slug => `/champions/${slug}`)
-
-  // A renders' worth of each page, then the rest once: what is left is a champion's own data.
-  const renders = [...WARM_PAGES, ...championPages.slice(0, 5)]
+  const slugs = (reads.get('/api/static/champion-slugs') ?? {}) as Record<string, string>
+  const renders = [
+    ...WARM_PAGES,
+    ...Object.values(slugs).slice(0, WARM_RENDERED_CHAMPIONS).map(slug => `/champions/${slug}`),
+  ]
   for (let round = 0; round < WARM_RENDERS; round++) {
     await settleAll(renders.map(path => () => localFetch(path).then(response => response.text())), 1)
   }
-  await settleAll(championPages.map(path => () => localFetch(path).then(response => response.text())), 1)
+
+  const championPaths = version ? Object.keys(slugs).flatMap(id => championReads(id, version)) : []
+  await settleAll(championPaths.map(path => () => localFetch(path).then(response => response.text())), 1)
 
   markWorkerWarm()
 

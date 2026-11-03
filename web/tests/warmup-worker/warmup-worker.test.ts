@@ -48,7 +48,7 @@ describe('warming a worker', () => {
     expect(raw).toHaveBeenCalledWith('http://api:8080/readyz', expect.anything())
   })
 
-  it('reads the static data, then renders the pages and every champion', async () => {
+  it('reads the static data, renders the pages, and reads what every champion keeps in memory', async () => {
     await warmWorker(localFetch, 'http://api:8080')
 
     expect(asked).toEqual(expect.arrayContaining([
@@ -58,7 +58,9 @@ describe('warming a worker', () => {
       '/champions',
       '/champions/tierlist',
       '/champions/ahri',
-      '/champions/lux',
+      '/api/static/99',
+      '/api/static/99?patch=16.21',
+      '/api/champion-summary/103?eloBracket=MASTER_PLUS',
     ]))
     expect(asked.indexOf('/api/static/versions')).toBeLessThan(asked.indexOf('/api/static/items?patch=16.21'))
     expect(markWorkerWarm).toHaveBeenCalledOnce()
@@ -99,7 +101,7 @@ describe('warming a worker', () => {
     await warmWorker(flaky, 'http://api:8080')
 
     expect(markWorkerWarm).toHaveBeenCalledOnce()
-    expect(asked).toContain('/champions/lux')
+    expect(asked).toContain('/api/static/99')
   })
 
   it('still warms what it can when the versions cannot be read', async () => {
