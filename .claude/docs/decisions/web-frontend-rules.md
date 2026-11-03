@@ -106,8 +106,9 @@ runtime — #1590.
   on the element it keeps for good, and it opens on `pointermove`, so the resting pointer opens it on its next
   move and nothing is opened by hand. Arming does re-create the icon once (Vue cannot move the slot under the
   trigger), so a re-created icon whose picture was already painted comes back drawn — loaded, no fade,
-  `decoding="sync"` — instead of loading again, which blinked it out and back on the first hover
-  (`utils/icon-repaint.ts`).
+  `decoding="sync"` — instead of loading again, which blinked it out and back on the first hover. Arming waits
+  for the picture to be decoded in memory first: painted is not available, and an opaque `<img>` with no picture
+  yet paints its alt text (`utils/icon-repaint.ts`).
 
 - **Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25, #1698).**
   `GameTooltip/LazyTooltip.vue` defaults `content` to `{ side: 'top' }` for every item, rune and spell card.

@@ -76,7 +76,7 @@ onMounted(() => markIconPainted(props.src))
         :alt="alt"
         :title="title"
         :loading="loading"
-        class="relative size-full"
+        class="relative size-full text-transparent"
         :class="!transparent && 'img-skeleton'"
         @error="failed = true"
       >
