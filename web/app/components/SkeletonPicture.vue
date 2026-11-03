@@ -21,6 +21,11 @@ const props = defineProps<{
   width: number
   height: number
   loading?: 'lazy' | 'eager'
+  /** Sizes of the same picture for the browser to pick from, when `src` is only the largest. */
+  srcset?: string
+  sizes?: string
+  /** The page's main picture: fetched ahead of the rest. */
+  priority?: boolean
 }>()
 
 const loaded = ref(false)
@@ -49,10 +54,13 @@ onMounted(() => {
     <img
       ref="imgEl"
       :src="src"
+      :srcset="srcset"
+      :sizes="sizes"
       :alt="alt"
       :width="width"
       :height="height"
       :loading="loading"
+      :fetchpriority="priority ? 'high' : undefined"
       class="block h-auto w-full"
       :class="[loaded && !failed ? 'opacity-100' : 'opacity-0', instant ? '' : 'transition-opacity duration-300']"
       @load="loaded = true"

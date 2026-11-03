@@ -4,22 +4,27 @@ import { mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createIpxDiskCache } from '~~/server/utils/ipx-disk-cache'
+import { createDiskCache } from '~~/server/utils/disk-cache'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-describe('ipx disk cache', () => {
+interface Header {
+  contentType?: string
+  etag?: string
+}
+
+describe('disk cache', () => {
   let dir: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'ipx-disk-cache-'))
+    dir = await mkdtemp(join(tmpdir(), 'disk-cache-'))
   })
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  const subject = (overrides = {}) => createIpxDiskCache({ dir, maxBytes: 1024, maxAgeMs: DAY_MS, ...overrides })
+  const subject = (overrides = {}) => createDiskCache<Header>({ dir, maxBytes: 1024, maxAgeMs: DAY_MS, ...overrides })
 
   it('gives back the bytes and headers it was given', async () => {
     const cache = subject()
@@ -49,7 +54,7 @@ describe('ipx disk cache', () => {
   it('swallows a directory it cannot write to: an image must not fail over its cache', async () => {
     const blocked = join(dir, 'file')
     await writeFile(blocked, '')
-    const cache = createIpxDiskCache({ dir: join(blocked, 'nested'), maxBytes: 1024, maxAgeMs: DAY_MS })
+    const cache = createDiskCache<Header>({ dir: join(blocked, 'nested'), maxBytes: 1024, maxAgeMs: DAY_MS })
 
     await expect(cache.set('/_ipx/a', { body: Buffer.from('x') })).resolves.toBeUndefined()
     expect(await cache.get('/_ipx/a')).toBeNull()
@@ -85,7 +90,7 @@ describe('ipx disk cache', () => {
   })
 
   it('sweeps nothing when the directory does not exist yet', async () => {
-    const cache = createIpxDiskCache({ dir: join(dir, 'missing'), maxBytes: 1, maxAgeMs: 1 })
+    const cache = createDiskCache<Header>({ dir: join(dir, 'missing'), maxBytes: 1, maxAgeMs: 1 })
 
     expect(await cache.sweep()).toBe(0)
   })
