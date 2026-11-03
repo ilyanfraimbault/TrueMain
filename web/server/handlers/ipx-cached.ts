@@ -3,7 +3,9 @@ import { Buffer } from 'node:buffer'
 import { createIPX, createIPXFetchHandler, ipxFSStorage, ipxHttpStorage } from 'ipx'
 import { IPX_CACHE_SECONDS, ipxRequestPath } from '~~/shared/utils/ipx'
 import { createBoundedByteCache } from '../utils/bounded-byte-cache'
+import { getIpxDiskCache } from '../utils/ipx-disk-store'
 import { createPatchRetention, isOutsideRetention } from '../utils/ipx-patch-retention'
+import { isDurableImagePath } from '../utils/warmup-catalog'
 
 /**
  * Drop-in replacement for the `/_ipx/**` handler @nuxt/image ships, adding the
@@ -25,6 +27,9 @@ import { createPatchRetention, isOutsideRetention } from '../utils/ipx-patch-ret
  * Cached entries never need invalidating: every source URL is pinned to a
  * patch (see `communityDragonPrefix` and the DDragon URL builders), so a given
  * URL's bytes are immutable — a new patch means new URLs.
+ *
+ * Each worker's memory sits on a disk they share and that outlives a deploy
+ * (`ipx-disk-cache.ts`, #2425), so a deploy no longer replays the catalogue upstream.
  */
 
 // `/_ipx/**` is a public, unauthenticated route: anyone can request any
@@ -138,6 +143,19 @@ export default defineEventHandler(async (event) => {
     return cached.body
   }
 
+  const disk = isDurableImagePath(key) ? getIpxDiskCache() : null
+  const stored = await disk?.get(key)
+  if (stored) {
+    const entry = { ...stored, byteLength: stored.body.byteLength }
+    cache.set(key, entry)
+    restoreHeaders(event, entry)
+    if (entry.etag && getRequestHeader(event, 'if-none-match') === entry.etag) {
+      setResponseStatus(event, 304)
+      return null
+    }
+    return entry.body
+  }
+
   const body = await ipxHandler(event)
 
   // Only 200s with a real image body are worth keeping; IPX answers errors
@@ -155,13 +173,15 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    cache.set(key, {
+    const entry = {
       body,
       byteLength: body.byteLength,
       contentType: getResponseHeader(event, 'content-type') as string | undefined,
       etag: getResponseHeader(event, 'etag') as string | undefined,
       lastModified: getResponseHeader(event, 'last-modified') as string | undefined,
-    })
+    }
+    cache.set(key, entry)
+    await disk?.set(key, entry)
   }
   else if (getResponseStatus(event) >= 400) {
     // The route rule stamps `immutable` on everything under /_ipx, which would

@@ -155,6 +155,8 @@ services:
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
       RateLimit__WindowSeconds: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
       RateLimit__QueueLimit: "${RATE_LIMIT_QUEUE:-10}"
+      ChampionWarmup__Enabled: "true"
+      ChampionWarmup__Concurrency: "2"
       Cors__Origins__0: "${PREPROD_SITE_URL:?set PREPROD_SITE_URL before deploying}"
       Cors__Origins__1: "${PREPROD_ADMIN_URL:?set PREPROD_ADMIN_URL before deploying}"
       MongoLogging__CrashFilePath: /home/app/crashes
@@ -184,6 +186,8 @@ services:
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
+      NUXT_WARMUP_ENABLED: "true"
+      NUXT_IPX_CACHE_DIR: /app/.ipx-cache
       NITRO_CLUSTER_WORKERS: "1"
       NUXT_API_BASE_URL: http://api:8080
       NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
@@ -194,6 +198,8 @@ services:
       NUXT_PUBLIC_SITE_URL: "${PREPROD_SITE_URL:?set PREPROD_SITE_URL before deploying}"
       NUXT_PUBLIC_UMAMI_HOST: ${UMAMI_PUBLIC_URL:-}
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+    volumes:
+      - truemain_preprod_web_images:/app/.ipx-cache
     depends_on:
       api:
         condition: service_healthy
@@ -436,6 +442,7 @@ configs:
       done
 
 volumes:
+  truemain_preprod_web_images:
   truemain_preprod_db_data:
     name: truemain_preprod_db_data
   truemain_preprod_mongo_data:

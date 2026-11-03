@@ -34,6 +34,8 @@ const props = defineProps<{
   loading: boolean
   /** A refetch is in flight — the bar under the header. */
   refreshing?: boolean
+  /** The rune and item icons are still on their way: their cells hold a placeholder. */
+  lookupsLoading?: boolean
   skeletonRows: number
   destination: (row: DirectoryRow) => RouteLocationRaw
   runeTree: RuneTreeResponse | null | undefined
@@ -148,7 +150,7 @@ const buildPathOf = (row: DirectoryRow) => (row.topBuild?.itemPath ?? []).slice(
     </template>
 
     <template #runes-cell="{ row }">
-      <USkeleton v-if="loading" class="mx-auto size-7 rounded-full" />
+      <USkeleton v-if="loading || (lookupsLoading && !runeTree)" class="mx-auto size-7 rounded-full" />
       <div v-else-if="row.original.topBuild && perk(row.original.topBuild.primaryKeystoneId)" class="relative mx-auto size-7">
         <GameTooltipPerkIcon :perk="perk(row.original.topBuild.primaryKeystoneId)" :width="28" :height="28" class="size-7 rounded-full" />
         <GameTooltipPerkStyleIcon
@@ -163,7 +165,7 @@ const buildPathOf = (row: DirectoryRow) => (row.topBuild?.itemPath ?? []).slice(
     </template>
 
     <template #build-cell="{ row }">
-      <div v-if="loading" class="flex items-center gap-1.5">
+      <div v-if="loading || (lookupsLoading && !itemsMap)" class="flex items-center gap-1.5">
         <USkeleton v-for="slot in 5" :key="slot" class="size-6 rounded" />
       </div>
       <div v-else-if="buildPathOf(row.original).length" class="flex items-center gap-0.5">

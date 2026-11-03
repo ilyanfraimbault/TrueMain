@@ -148,6 +148,11 @@ persistent/disk cache and a boot-time pre-warm were both **rejected**: they buy 
 same disk-exhaustion class that already crash-looped this box (#680). Pre-warming was rejected additionally
 because it fires ~500 requests at Riot and the volunteer-run CommunityDragon mirror on **every** boot, and this
 stack has had restart loops. What is left is payload size and queue depth — #997.
+↳ **Revised by #2425 (2026-11-03), at the product owner's request: both now exist.** The split above still holds
+for a warm proxy; what it left out is the first visitor after a deploy, who waited on every worker's upstream
+fetches. The two objections are answered rather than dropped: the disk cache (`server/utils/ipx-disk-cache.ts`)
+is bounded by bytes and age and only keeps the shapes the site asks for (`isDurableImagePath`), and the pre-warm reads
+that disk first, on a volume that outlives the container, so a boot or a restart loop fetches next to nothing upstream.
 
 **`SkeletonImage` serves WebP; `RankIcon` deliberately does not.** At the canonical 64×64 fetch size the live
 assets go champion 10194 B → 1100 B, perk 8933 B → 3396 B, item 6096 B → 2130 B with no visible difference —
@@ -619,3 +624,21 @@ their position) and, in the app, clips.
   champions, never clips.
 - **One star**: `FavoriteStar.vue` draws every star (filled when on), so the players, champions and clips on the
   page read the same.
+
+## The directory and the tier list render on the server, and the HTML no longer prefetches the whole site (2026-11-03)
+
+**The first HTML of `/champions` and `/champions/tierlist` holds the rows** (#2425): `useChampionDirectory`, the tier
+list's fetch and `useChampionStaticList` now run during SSR, and neither page wraps its body in `<ClientOnly>`. They were
+client-only since #149, whose mismatch came from a client-only fetch racing the render: awaited on the server and
+hydrated from the payload, both sides render the same branch. The API answers these from the warmed cache, so SSR
+costs them nothing. The rune and item icons stay client-only, the item map being far too large to inline
+(`useStaticItems`), and their cells hold a placeholder until those lookups land. A first-load latch that reads a
+watcher never settles during SSR, where no watcher runs, and bakes the skeleton into the HTML: `isInitialLoading` reads
+the status as well.
+
+**`build:manifest` drops the prefetch links.** Nuxt lists every lazy chunk as `<link rel="prefetch">` in every page's
+HTML by default, so a visitor to `/about` downloaded the whole site, the charts' library included, which alone was
+about 40% of a page's JS. A visible `<NuxtLink>` still preloads where it leads. **Public assets are precompressed**
+(`nitro.compressPublicAssets`, brotli and gzip at build time), and the edge's `encode` leaves them as they are.
+
+Source: #2425, #149, #818.

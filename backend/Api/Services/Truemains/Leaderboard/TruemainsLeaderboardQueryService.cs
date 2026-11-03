@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
 using TrueMain.RequestLogging;
+using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains.Identity;
 
@@ -70,6 +71,7 @@ public sealed class TruemainsLeaderboardQueryService(
     IOptions<TruemainsLeaderboardOptions> options,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     IMemoryCache cache,
+    IChampionReadCache readCache,
     ILogger<TruemainsLeaderboardQueryService> logger) : ITruemainsLeaderboardQueryService
 {
     internal const string Surface = "truemain-leaderboard";
@@ -96,7 +98,7 @@ public sealed class TruemainsLeaderboardQueryService(
     // consistent with the player's top-champions cell on the same row.
     internal const int RankedQueueId = (int)LolQueueId.RankedSoloDuo;
 
-    private readonly LeaderboardRanking ranking = new(db, dbFactory, mainAnalysisOptions, cache, logger);
+    private readonly LeaderboardRanking ranking = new(db, dbFactory, mainAnalysisOptions, readCache, logger);
 
     public async Task<LeaderboardResponse> GetAsync(
         int page,
@@ -183,8 +185,8 @@ public sealed class TruemainsLeaderboardQueryService(
         // riot_accounts."Score".
         var (rankingResult, countMs) = await TimedAsync(() => sort switch
         {
-            LeaderboardSort.Dedication => ranking.RankByDedicationAsync(filter, ResponseCacheTtl, ct),
-            _ when LeaderboardStatLines.Serves(sort) => ranking.RankByStatAsync(filter, sort, RankedQueueId, ResponseCacheTtl, ct),
+            LeaderboardSort.Dedication => ranking.RankByDedicationAsync(filter, ct),
+            _ when LeaderboardStatLines.Serves(sort) => ranking.RankByStatAsync(filter, sort, RankedQueueId, ct),
             _ => ranking.CountByRankAsync(filter, ct),
         });
 
