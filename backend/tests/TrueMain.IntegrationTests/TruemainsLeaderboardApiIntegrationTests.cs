@@ -4,6 +4,7 @@ using Core.Lol.Ranking;
 using Data.Entities;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using TrueMain.ReadModels.Truemains;
 
 namespace TrueMain.IntegrationTests;
