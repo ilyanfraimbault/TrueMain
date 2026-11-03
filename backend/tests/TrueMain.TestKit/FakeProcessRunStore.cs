@@ -120,6 +120,17 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         CancellationToken ct)
         => Task.FromResult<IReadOnlyList<ProcessRunDocument>>([]);
 
+    public Task<IReadOnlyList<ProcessRunBaselineSample>> GetRecentSuccessesAsync(
+        string processName, string? jobMode, int limit, CancellationToken ct)
+        => Task.FromResult<IReadOnlyList<ProcessRunBaselineSample>>(Runs
+            .Where(run => run.ProcessName == processName
+                          && run.JobMode == jobMode
+                          && run.Status == ProcessRunStatus.Success)
+            .OrderByDescending(run => run.FinishedAtUtc)
+            .Take(limit)
+            .Select(run => new ProcessRunBaselineSample(run.DurationMs, run.SummaryJson))
+            .ToList());
+
     public Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct)
         => Task.FromResult((long)Runs.Count(run =>
             run.ProcessName == processName

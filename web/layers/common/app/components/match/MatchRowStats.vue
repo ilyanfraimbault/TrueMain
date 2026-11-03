@@ -9,6 +9,8 @@ import { formatSigned } from '#shared/utils/deltas'
 const props = defineProps<{
   self: MatchSummarySelf
   durationSeconds: number
+  /** A game past match retention kept no CS (#2358), and a fabricated 0.0 is worse than a gap. */
+  truncated?: boolean
 }>()
 
 const lp = computed(() => props.self.lpDelta ?? null)
@@ -21,6 +23,6 @@ const csPerMin = computed(() => (props.self.cs / Math.max(props.durationSeconds 
       {{ formatSigned(lp) }} LP
     </p>
     <p v-else class="text-xs text-muted">{{ formatDuration(durationSeconds) }}</p>
-    <p class="text-[11px] text-dimmed">{{ csPerMin }} CS/m</p>
+    <p v-if="!truncated" class="text-[11px] text-dimmed">{{ csPerMin }} CS/m</p>
   </div>
 </template>

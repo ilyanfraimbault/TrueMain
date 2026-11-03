@@ -4,7 +4,6 @@ using Data.BuildFacts;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Data.Statics;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using TrueMain.Authentication;
@@ -12,6 +11,7 @@ using TrueMain.Http;
 using TrueMain.LogIngest;
 using TrueMain.Options;
 using TrueMain.RateLimiting;
+using TrueMain.RequestLatency;
 using TrueMain.RequestLogging;
 using TrueMain.Services.Benchmarks;
 using TrueMain.Services.Champions.Builds;
@@ -35,6 +35,7 @@ using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
 using TrueMain.Services.Ops.Diagnostics;
 using TrueMain.Services.Ops.Health;
+using TrueMain.Services.Ops.Navigation;
 using TrueMain.Services.Ops.Processes;
 using TrueMain.Services.Ops.Stats;
 using TrueMain.Services.Personas;
@@ -350,32 +351,28 @@ builder.Services.AddScoped<IChampionScalingQueryService, ChampionScalingQuerySer
 builder.Services.AddScoped<IChampionTrendQueryService, ChampionTrendQueryService>();
 builder.Services.AddScoped<IChampionMainsComparisonQueryService, ChampionMainsComparisonQueryService>();
 builder.Services.AddTrueMainTruemains();
-// The cockpit is re-asked every 30 s by every open admin tab (#1411): callers get the cached,
-// single-flighted payload, and only the decorator reaches the evaluation itself (#1427).
-builder.Services.AddScoped<PipelineHealthQueryService>();
-builder.Services.AddScoped<IPipelineHealthQueryService>(services => new CachedPipelineHealthQueryService(
-    services.GetRequiredService<PipelineHealthQueryService>(),
-    services.GetRequiredService<IMemoryCache>()));
-builder.Services.AddScoped<IRegionBalanceQueryService, RegionBalanceQueryService>();
-builder.Services.AddScoped<IOverviewQueryService, OverviewQueryService>();
+builder.Services.AddTrueMainOpsHealth();
+builder.Services.AddTrueMainOpsNavigation();
 builder.Services.AddTrueMainOpsStats();
+builder.Services.AddTrueMainRequestLatency();
 builder.Services.AddTrueMainPersonas();
 builder.Services.AddScoped<ITableStatsQueryService, TableStatsQueryService>();
 builder.Services.AddScoped<IDbStorageHistoryQueryService, DbStorageHistoryQueryService>();
+builder.Services.AddScoped<IProcessRunBaselineService, ProcessRunBaselineService>();
 builder.Services.AddScoped<IProcessRunsQueryService, ProcessRunsQueryService>();
 builder.Services.AddScoped<IProcessIterationsQueryService, ProcessIterationsQueryService>();
+builder.Services.AddTrueMainDeployments();
 builder.Services.AddScoped<IExternalProcessRunService, ExternalProcessRunService>();
 builder.Services.AddScoped<ILogsQueryService, LogsQueryService>();
+builder.Services.AddScoped<IAuditEventsQueryService, AuditEventsQueryService>();
 builder.Services.AddScoped<ICrashesQueryService, CrashesQueryService>();
-builder.Services.AddScoped<IIncompleteMatchesQueryService, IncompleteMatchesQueryService>();
-builder.Services.AddScoped<IMatchDataQualityDetailQueryService, MatchDataQualityDetailQueryService>();
-builder.Services.AddScoped<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService>();
+builder.Services.AddTrueMainDataQuality();
 builder.Services.AddScoped<IEffectiveConfigurationQueryService, EffectiveConfigurationQueryService>();
 builder.Services.AddScoped<ISeedRequestService, SeedRequestService>();
 builder.Services.AddScoped<ISeedRequestQueryService, SeedRequestQueryService>();
 builder.Services.AddScoped<IAccountExplorerQueryService, AccountExplorerQueryService>();
 builder.Services.AddScoped<IAccountFreshnessQueryService, AccountFreshnessQueryService>();
-builder.Services.AddScoped<IPatchCoverageQueryService, PatchCoverageQueryService>();
+builder.Services.AddTrueMainPatchCoverage();
 builder.Services.AddScoped<ICandidateQueryService, CandidateQueryService>();
 builder.Services.AddScoped<ICandidateFunnelQueryService, CandidateFunnelQueryService>();
 builder.Services.AddScoped<ICandidateStockQueryService, CandidateStockQueryService>();
@@ -422,8 +419,9 @@ if (app.Environment.IsDevelopment()
 }
 
 // Outermost request middleware, ahead of the exception handler: logs 5xx answers
-// and client aborts with their path and traceId (#1555).
+// and client aborts with their path and traceId (#1555); then the ops-route timer (#2307).
 app.UseRequestOutcomeLogging();
+app.UseOpsRequestLatency();
 
 // Development gets the rich debug page (source snippets, full stack trace);
 // everywhere else keeps the RFC 7807 ProblemDetails handler so clients always

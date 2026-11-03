@@ -99,10 +99,10 @@ public sealed class OpsStatsController(
 
     /// <summary>
     /// Aggregation pipelines snapshot for the admin Aggregation panel: per family
-    /// (builds patterns, matchups, synergies, mains) the exact
-    /// row counts of its tables, champion/patch coverage, data freshness and the
-    /// latest recorded run, plus the ingestion backlogs that should read zero when
-    /// aggregations are caught up.
+    /// (builds patterns, matchups, synergies, mains) the planner's row estimates
+    /// of its tables, its champion coverage and the latest recorded run, plus the
+    /// ingestion backlogs that should read zero when aggregations are caught up.
+    /// Served from a two-minute cache (#2303).
     /// </summary>
     [HttpGet("stats/aggregations")]
     [ProducesResponseType(typeof(AggregationsReadModel), StatusCodes.Status200OK)]

@@ -125,6 +125,9 @@ export default defineNuxtConfig({
       // iframe. Both empty (dev default) → the page shows a setup notice.
       umamiUrl: process.env.NUXT_PUBLIC_UMAMI_URL ?? '',
       umamiShareUrl: process.env.NUXT_PUBLIC_UMAMI_SHARE_URL ?? '',
+      // Origin of the public site this admin's data feeds (#2291), for the "Open
+      // on the site" buttons (`SiteLink.vue`). Empty (dev default) hides them.
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL ?? '',
     },
   },
 })

@@ -21,6 +21,8 @@ const timeSeriesData = computed(() =>
     retries: bucket.retries,
   })),
 )
+// Deploy markers (#2297): a pacing change usually starts with a release.
+const timeSeriesMarkers = useDeployMarkers(() => props.timeSeries.map(bucket => bucket.bucketUtc))
 const timeSeriesCategories = {
   calls: { name: 'Calls', color: CHART_SERIES[0] },
   retries: { name: 'Retries (429)', color: CHART_SERIES[1] },
@@ -77,6 +79,7 @@ function formatCallBucketLabel(iso: string): string {
       :x-formatter="timeSeriesXFormatter"
       :y-formatter="formatCount"
       :tooltip-title-formatter="labelTooltipTitle"
+      :markers="timeSeriesMarkers"
       v-bind="multiTimeBarProps()"
     />
   </UCard>

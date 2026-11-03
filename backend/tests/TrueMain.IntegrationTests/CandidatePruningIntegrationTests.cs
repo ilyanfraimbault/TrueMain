@@ -128,7 +128,8 @@ public sealed class CandidatePruningIntegrationTests : IAsyncLifetime
             Enabled = enabled,
             PruneAfterDays = pruneAfterDays
         }),
-        Microsoft.Extensions.Options.Options.Create(intake ?? new IntakeOptions()));
+        Microsoft.Extensions.Options.Options.Create(intake ?? new IntakeOptions()),
+        new TrueMain.TestKit.NoItemMetadataProvider());
 
     private static MainCandidate Candidate(
         string puuid,

@@ -190,23 +190,50 @@ stopped it too: the site answered nothing at all — not even an error — for t
 40 to 60 seconds between Caddy's recreation and its restart, then a bare `502`
 until web and admin listened again.
 
-With the edge in its own project, an app rollout leaves Caddy running. When it
-cannot reach web or admin (a dial error, a container being recreated, a name
-that does not resolve yet), the `(maintenance)` snippet catches the `502`/`503`/
-`504` and answers instead:
+With the edge in its own project, an app rollout leaves Caddy running, and the
+`(maintenance)` snippet answers in two situations:
+
+- **Caddy cannot reach web or admin** (a dial error, a container being recreated,
+  a name that does not resolve yet). This shows at once, on the request that
+  failed.
+- **On the public site, the stack behind web is down** (#2407, #2416). An active
+  health check of `reverse_proxy web:3000` asks `/api/readyz` every 2 s. Web's own
+  route (`web/server/api/readyz.get.ts`) asks the API's `/readyz` within 8 s, which
+  covers the API, PgBouncer and Postgres, and answers `503` from the third failed
+  check in a row. The first `503`, or a web that does not answer within
+  `health_timeout 10s`, marks web unavailable, and two passes bring it back. So the
+  page appears about 6 s after the API or the database starts refusing, about 12 s
+  after it starts hanging and 10 s after web itself does; the way back takes 3 to
+  4 s. After a web hang the page can come back once for a few seconds, while the
+  probes sent during the hang time out. Isolated failures change nothing, however
+  many.
+
+  The counting lives in web because Caddy cannot do it: `health_fails` adds failed
+  probes up over the life of the process and a pass does not reset it. Measured on
+  Caddy 2.11.7 with `health_fails 3` and one probe in ten failing, the third
+  isolated failure took the site offline for 4 s.
+
+Mongo and the ingestors are not in the probe, because the site keeps serving
+visitors without them. The admin has no health check: it stays reachable as long
+as its own container is, because its logs and process views are what an operator
+reaches for during an incident. While the database or the API is down, each probe
+also adds to the API's and web's own error logs, every 2 s at most.
+
+In both situations the visitor gets:
 
 - **`503 Service Unavailable` with `Retry-After: 60` and `Cache-Control: no-store`**,
   so crawlers read a temporary outage rather than a broken page, and no cache keeps
-  the page once the site is back. A `503` the app itself returns (a champion route
-  that cannot render) passes through unchanged: only a failure to *reach* the
-  upstream is maintenance.
+  the page once the site is back. While the stack is healthy, a `503` the app
+  itself returns (a champion route that cannot render) passes through unchanged.
 - **An HTML page** for any path but `/api/*`: self-contained (inline CSS, the
   M-check mark as inline SVG, no font, nothing fetched from the stack that is down),
   and it polls its own URL every five seconds and reloads as soon as the answer is
-  not a `503`. It lives in `configs.maintenance_page`, mounted at
+  not a `503`. A tab already open never requests a document while it navigates, so
+  the site reloads the page when an API call gets the JSON body below (#2412). The
+  page lives in `configs.maintenance_page`, mounted at
   `/srv/maintenance/index.html`.
-- **A JSON body** (`{"error":"maintenance",...}`) for `/api/*`, which the desktop
-  app and the site's own fetches read.
+- **A JSON body** (`{"error":"maintenance",...}`) for `/api/*`. The site reloads on
+  it, and the desktop app treats it as any other failed call.
 
 It applies to `truemain.lol` and `admin.truemain.lol`, not to
 `analytics.truemain.lol`: the Umami tracker script is not a page, and an HTML
@@ -383,3 +410,8 @@ because their unit is easy to misread:
 `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
 projects against (#925); unset means no forecast, which the panel says rather
 than fitting a line to a guessed capacity.
+
+`ALERTING_DISCORD_WEBHOOK_URL` turns the pipeline-health alerts on (#2292): the
+Discord webhook the Api posts to when the `/health` verdict turns red or recovers.
+Unset means no alerts, which `/health` and the configuration page both say. It is a
+credential — keep it in the stack `.env`, never in a commit.

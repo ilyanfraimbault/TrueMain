@@ -6,11 +6,12 @@ import { damageNote } from '~/utils/draft-damage'
 /**
  * "Your pick" or "Your ban": what the draft endpoints ranked for our lane,
  * best first, as a podium of posters, each with the reason that carries it
- * (#1906). A click on one opens its build against this draft. The app never
- * picks or bans on its own: each card carries a separate "Hover" (or, on our
- * ban, "Ban") control the player clicks (#1909), and the search reaches every
- * other champion the same way — the lock itself is the strip's button, away
- * from the cards.
+ * (#1906). The app never picks or bans on its own (#1909): during our pick a
+ * click on a card hovers that champion in the client, like a click in the
+ * client would (#2381), and its corner opens the build against this draft;
+ * out of turn the click opens the build. A ban, which cannot be undone, keeps a
+ * "Ban" control under each card. The search reaches every other champion the
+ * same way — the lock itself is the strip's button, away from the cards.
  *
  * Picks: "My pool" ranks the player's own champions (their most-mastered on
  * the lane); off, every champion played on the lane. Bans: the threats to the
@@ -36,6 +37,7 @@ const emit = defineEmits<{ preview: [championId: number] }>()
 
 const { nameOf, champions } = useChampionStatics()
 const { writable } = useChampSelectActions()
+const { hovers, status, click } = useDraftCardClick(() => props.mode, championId => emit('preview', championId))
 const { entryOf, status: tierListStatus } = useTierList()
 const { profileOf } = useDamageProfiles()
 const { games } = usePlayerRecord()
@@ -156,17 +158,32 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
           :height="heightOf(index)"
           :note="notes.get(item.championId) ?? null"
           :comfort="comforts.get(item.championId) ?? null"
+          :status="status(item.championId)"
         >
-          <!-- The card's click previews the build; the write is the control over its corner, a separate target. -->
+          <!-- During our pick the card's click hovers the champion; otherwise it previews the build. -->
           <button
             type="button"
             class="absolute inset-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            :aria-label="`Build for ${nameOf(item.championId)}`"
+            :aria-label="hovers(item.championId) ? `Hover ${nameOf(item.championId)}` : `Build for ${nameOf(item.championId)}`"
             @focus="hovered = item.championId"
-            @click="emit('preview', item.championId)"
+            @click="click(item.championId)"
           />
-          <template #action>
-            <DraftChampionAction :champion-id="item.championId" />
+          <template v-if="hovers(item.championId)" #corner>
+            <UTooltip text="See the build" :content="{ side: 'top' }">
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="soft"
+                icon="i-lucide-book-open"
+                class="bg-ink-950/70 backdrop-blur-sm"
+                :aria-label="`Build for ${nameOf(item.championId)}`"
+                @click.stop="emit('preview', item.championId)"
+              />
+            </UTooltip>
+          </template>
+          <!-- A ban cannot be undone: it keeps a control of its own, under the card. -->
+          <template v-if="mode === 'ban'" #action>
+            <DraftChampionAction :champion-id="item.championId" block />
           </template>
         </DraftSuggestionCard>
       </div>
@@ -174,11 +191,23 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
       <div v-if="others.length" class="flex h-full shrink-0 flex-col justify-end gap-1.5">
         <span class="stat-label px-1">Not ranked for this draft</span>
         <div class="grid grid-flow-col grid-rows-3 gap-1.5">
-          <div v-for="champion in others" :key="champion.id" class="flex w-44 items-center gap-2 rounded-lg bg-elevated p-1.5 ring-1 ring-default">
+          <component
+            :is="mode === 'pick' ? 'button' : 'div'"
+            v-for="champion in others"
+            :key="champion.id"
+            :type="mode === 'pick' ? 'button' : undefined"
+            class="flex w-44 items-center gap-2 rounded-lg bg-elevated p-1.5 text-left ring-1 ring-default"
+            :class="mode === 'pick' && 'outline-none transition-colors hover:bg-accented focus-visible:ring-2 focus-visible:ring-primary'"
+            :aria-label="mode === 'pick' ? (hovers(champion.id) ? `Hover ${champion.name}` : `Build for ${champion.name}`) : undefined"
+            @click="mode === 'pick' && click(champion.id)"
+          >
             <ChampionPortrait :champion-id="champion.id" size="sm" class="size-8! rounded-md!" />
             <span class="min-w-0 flex-1 truncate text-xs font-semibold text-highlighted">{{ champion.name }}</span>
-            <DraftChampionAction :champion-id="champion.id" />
-          </div>
+            <span v-if="status(champion.id)" class="shrink-0 text-[10px]" :class="status(champion.id)!.tone === 'muted' ? 'text-dimmed' : 'text-primary'">
+              {{ status(champion.id)!.text }}
+            </span>
+            <DraftChampionAction v-if="mode === 'ban'" :champion-id="champion.id" />
+          </component>
         </div>
       </div>
     </div>

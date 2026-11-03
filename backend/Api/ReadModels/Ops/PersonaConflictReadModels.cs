@@ -104,6 +104,9 @@ public sealed record PersonaConflictPersonaReadModel
 
     public string Source { get; init; } = string.Empty;
 
+    /// <summary>When the persona was created: the older one is the one a bulk merge keeps (#2295).</summary>
+    public DateTime CreatedAtUtc { get; init; }
+
     public int AccountCount { get; init; }
 
     public int LinkCount { get; init; }
@@ -181,4 +184,39 @@ public sealed record PersonaConflictResolvedResponse
 
     /// <summary>Other open conflicts the action settled too (a merge settles every conflict between the two).</summary>
     public int AlsoResolved { get; init; }
+}
+
+/// <summary>
+/// A page of channel conflicts (#2286): live known players listing the same social channel, the
+/// most channels in common first. Derived from the links, so there is no history: settled ones leave.
+/// </summary>
+public sealed record PersonaChannelConflictsReadModel
+{
+    public IReadOnlyList<PersonaChannelConflictReadModel> Conflicts { get; init; } = [];
+
+    /// <summary>Conflicts matching the search, before paging.</summary>
+    public long Total { get; init; }
+
+    public int Page { get; init; }
+
+    public int PageSize { get; init; }
+}
+
+/// <summary>Two known players listing the same social channel(s), both in full.</summary>
+public sealed record PersonaChannelConflictReadModel
+{
+    /// <summary>The one created first: the one a merge keeps by default.</summary>
+    public PersonaOpsReadModel Older { get; init; } = new();
+
+    public PersonaOpsReadModel Newer { get; init; } = new();
+
+    /// <summary>The channels both list. Kinds are lowercase, as on the public page.</summary>
+    public IReadOnlyList<PersonaSharedChannelReadModel> SharedChannels { get; init; } = [];
+}
+
+public sealed record PersonaSharedChannelReadModel
+{
+    public string Kind { get; init; } = string.Empty;
+
+    public string Url { get; init; } = string.Empty;
 }

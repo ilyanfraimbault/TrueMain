@@ -10,6 +10,19 @@ public class MatchDataRetentionOptions
     public int RetainedPatchCount { get; set; } = 2;
 
     /// <summary>
+    /// Patches whose deleted matches keep every seat truncated in <c>truncated_match_seats</c>
+    /// (#2368): what widens matchup and draft samples past the full-match window. 0 keeps
+    /// nothing: retention then deletes matches whole, as it did before.
+    /// </summary>
+    public int TruncatedRetainedPatchCount { get; set; } = 4;
+
+    /// <summary>
+    /// Patches whose tracked accounts' truncated seats stay for their profiles (#2358), counted
+    /// from the newest and never narrower than <see cref="TruncatedRetainedPatchCount"/>.
+    /// </summary>
+    public int TruncatedTrackedRetainedPatchCount { get; set; } = 8;
+
+    /// <summary>
     /// Number of non-ranked matches deleted per transaction when draining queues
     /// other than the tracked one (<see cref="Core.Options.MainAnalysisOptions.QueueId"/>).
     /// Kept small so the cascading delete of timeline snapshots / kill positions

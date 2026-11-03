@@ -45,8 +45,13 @@ export interface CandidateRow {
 /** `GET /api/ops/candidates` — server-paginated candidate rows, most-relevant first. */
 export interface CandidatesResponse {
   candidates: CandidateRow[]
-  /** Total rows matching the filters (across all pages). */
+  /**
+   * Rows matching the filters (across all pages), counted up to a cap (#2304):
+   * when `totalCapped`, this is the cap and more rows match.
+   */
   total: number
+  /** True when `total` is a lower bound (`10,000+`), not the exact count. */
+  totalCapped: boolean
   page: number
   pageSize: number
 }

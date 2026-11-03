@@ -7,12 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  *
  * #1334: the leaderboard walk asked for a page size the API rejects, so the
  * rendered sitemap silently carried no player profile at all while still
- * validating. #1337 then settled the question that bug had hidden: profiles do
- * not belong in the sitemap, because `/truemains/{nameTag}` fetches client-only
- * (#862) and its server-rendered document is a skeleton — the same generic
- * description on 5,000 pages. The family is gone, and the test below is what
- * stops it drifting back in: a future "the sitemap should list players" change
- * has to come through this file, and through the decision recorded next to it.
+ * validating. #1337 then dropped profiles altogether, their server-rendered
+ * document being a skeleton; #2359 server-renders the profile and brings back the
+ * leaderboard's head only — the tests below pin both the head and its cap.
  *
  * The route is a Nitro handler written against auto-imported globals. Seeding
  * `$fetch` and `defineCachedFunction` before the module is evaluated stands in
@@ -21,14 +18,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * event handler and its response headers.
  */
 
-let handleFetch: (path: string) => Promise<unknown>
+let handleFetch: (path: string, query?: Record<string, number>) => Promise<unknown>
 let loadSitemapUrls: () => Promise<SitemapUrl[]>
 const requested: string[] = []
 
 Object.assign(globalThis, {
-  $fetch: (path: string) => {
+  $fetch: (path: string, options?: { query?: Record<string, number> }) => {
     requested.push(path)
-    return handleFetch(path)
+    return handleFetch(path, options?.query)
   },
   defineCachedFunction: (fn: () => Promise<SitemapUrl[]>) => {
     loadSitemapUrls = fn
@@ -36,7 +33,7 @@ Object.assign(globalThis, {
   },
 })
 
-await import('~~/server/routes/__sitemap__/urls')
+const { SITEMAP_TRUEMAIN_PROFILES } = await import('~~/server/routes/__sitemap__/urls')
 
 const SLUGS = { 1: 'annie', 103: 'ahri', 11: 'masteryi' }
 
@@ -47,10 +44,27 @@ const DIRECTORY = [
   { championId: 103, lastUpdatedAtUtc: '2026-08-25T04:00:00Z' },
 ]
 
-/** Routes the two upstreams `championUrls` fans out to. */
-function api(directory: unknown = DIRECTORY) {
-  return (path: string) =>
-    path === '/api/champions' ? Promise.resolve(directory) : Promise.resolve(SLUGS)
+/** A leaderboard of `size` players, served 50 to a page. */
+function leaderboard(size: number) {
+  return (query?: Record<string, number>) => {
+    const page = query?.page ?? 1
+    const pageSize = query?.pageSize ?? 50
+    const start = (page - 1) * pageSize
+    const rows = Array.from({ length: Math.max(0, Math.min(pageSize, size - start)) }, (_, index) => ({
+      identity: { gameName: `Player ${start + index + 1}`, tagLine: 'EUW' },
+    }))
+    return Promise.resolve({ rows, page, pageSize, total: size })
+  }
+}
+
+/** Routes the upstreams the sitemap fans out to. */
+function api(directory: unknown = DIRECTORY, players = leaderboard(0)) {
+  return (path: string, query?: Record<string, number>) => {
+    if (path === '/api/champions') return Promise.resolve(directory)
+    if (path === '/api/truemains') return players(query)
+    if (path === '/api/players') return Promise.resolve({ players: [] })
+    return Promise.resolve(SLUGS)
+  }
 }
 
 function locs(urls: SitemapUrl[]) {
@@ -77,15 +91,67 @@ describe('sitemap urls', () => {
     expect(urls.some(loc => /\/champions\/\d+$/.test(loc))).toBe(false)
   })
 
-  it('never advertises a player profile', async () => {
+  it('advertises the leaderboard\'s head, in its order and slug', async () => {
+    handleFetch = api(DIRECTORY, leaderboard(3))
     const urls = locs(await loadSitemapUrls())
 
-    // The guard for #1337: profile pages render client-only, so their SSR
-    // document is an empty skeleton — 5,000 near-duplicates is not something to
-    // hand a crawler. `/truemains` itself is a real static page and is picked up
-    // by route discovery, not from here.
+    expect(urls.filter(loc => loc.startsWith('/truemains/'))).toEqual([
+      '/truemains/Player%201-EUW',
+      '/truemains/Player%202-EUW',
+      '/truemains/Player%203-EUW',
+    ])
+  })
+
+  it('stops at the cap, never the whole leaderboard', async () => {
+    // #2359 brings profiles back for their server-rendered content; the tail of
+    // thinly sampled accounts is still what #1337 kept out.
+    handleFetch = api(DIRECTORY, leaderboard(5000))
+    const urls = locs(await loadSitemapUrls())
+
+    expect(urls.filter(loc => loc.startsWith('/truemains/'))).toHaveLength(SITEMAP_TRUEMAIN_PROFILES)
+    expect(urls).toContain(`/truemains/Player%20${SITEMAP_TRUEMAIN_PROFILES}-EUW`)
+  })
+
+  it('marks a profile path as already encoded, so the module does not encode it twice', async () => {
+    // A Riot ID holds spaces and any script: without the flag the sitemap
+    // advertised `/truemains/Player%25201-EUW`, a page with no profile on it.
+    handleFetch = api(DIRECTORY, leaderboard(1))
+    const urls = await loadSitemapUrls()
+
+    expect(urls).toContainEqual({ loc: '/truemains/Player%201-EUW', _encoded: true })
+  })
+
+  it('walks the leaderboard one page at a time, and stops at its last page', async () => {
+    const pages = leaderboard(120)
+    let inFlight = 0
+    let mostInFlight = 0
+    const base = api()
+    handleFetch = async (path, query) => {
+      if (path !== '/api/truemains') return base(path, query)
+      mostInFlight = Math.max(mostInFlight, ++inFlight)
+      await Promise.resolve()
+      inFlight--
+      return pages(query)
+    }
+
+    const urls = locs(await loadSitemapUrls())
+
+    expect(mostInFlight).toBe(1)
+    expect(requested.filter(path => path === '/api/truemains')).toHaveLength(3)
+    expect(urls.filter(loc => loc.startsWith('/truemains/'))).toHaveLength(120)
+  })
+
+  it('keeps the other families when the leaderboard fails, and says so', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const base = api()
+    handleFetch = (path, query) => path === '/api/truemains' ? Promise.reject(new Error('502')) : base(path, query)
+
+    const urls = locs(await loadSitemapUrls())
+
+    expect(urls).toContain('/champions/annie')
     expect(urls.some(loc => loc.startsWith('/truemains/'))).toBe(false)
-    expect(requested).not.toContain('/api/truemains')
+    expect(warn).toHaveBeenCalledWith('[sitemap] leaderboard source failed; truemain profiles left out')
+    warn.mockRestore()
   })
 
   it('decorates a champion with the most recent lastmod across its lanes', async () => {
@@ -108,8 +174,9 @@ describe('sitemap urls', () => {
   it('keeps every URL when the directory is down, losing only the dates', async () => {
     // The slug map decides *which* URLs exist; the directory only decorates
     // them, so its outage must not cost a single page.
-    handleFetch = path =>
-      path === '/api/champions' ? Promise.reject(new Error('503')) : Promise.resolve(SLUGS)
+    const base = api()
+    handleFetch = (path, query) =>
+      path === '/api/champions' ? Promise.reject(new Error('503')) : base(path, query)
 
     const urls = await loadSitemapUrls()
 

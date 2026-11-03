@@ -4,11 +4,19 @@ import { indexItemContext } from '#shared/utils/item-context'
 import { isLoadingStatus } from '#common/utils/async-data'
 
 /**
- * Baseline build fallback of the composition builder: when the requested
- * matchup has never been recorded, this renders the same top build the
- * champion page shows (its default tab), fetched from the regular champion
- * endpoint. A 404 means we hold no aggregate at all for the champion — the
- * empty state says so instead of looking like a failure.
+ * A build read from the regular champion endpoint, in the matchup page's two
+ * waiting-or-missing states:
+ *
+ * - the **standard build**, when the requested matchup has never been recorded:
+ *   the same top build the champion page shows (its default tab). A 404 means we
+ *   hold no aggregate at all for the champion — the empty state says so instead
+ *   of looking like a failure.
+ * - the **first answer** (#2361), with `opponentChampionId` and `refining`: the
+ *   champion page's `?vs=` matchup slice, which sits behind the champion read
+ *   cache, shown while the composition build refines it with the draft — a cold
+ *   recommendation runs for tens of seconds, and champion select does not wait
+ *   that long. Its own 404 (a pair never played) keeps the skeleton: the
+ *   recommendation will say so.
  */
 const props = defineProps<{
   championId: number
@@ -20,16 +28,23 @@ const props = defineProps<{
    * never as prose, so the caveat never pushes the build down the page.
    */
   notice?: string | null
+  /** The matchup slice instead of the standard build (#2361). */
+  opponentChampionId?: number | null
+  opponentName?: string | null
+  /** The composition build is still refining this answer with the draft. */
+  refining?: boolean
 }>()
 
 const apiFetch = useApiFetch()
 
 const { data: champion, status, error } = useLazyAsyncData<ChampionResponse | null>(
-  () => `builder-fallback-${props.championId}-${props.position}`,
+  () => `builder-fallback-${props.championId}-${props.position}-${props.opponentChampionId ?? ''}`,
   async (_nuxtApp, { signal }) => {
     try {
       return await apiFetch<ChampionResponse>(`/champions/${props.championId}`, {
-        query: { position: props.position },
+        query: props.opponentChampionId
+          ? { position: props.position, opponentChampionId: props.opponentChampionId }
+          : { position: props.position },
         signal,
       })
     }
@@ -42,11 +57,24 @@ const { data: champion, status, error } = useLazyAsyncData<ChampionResponse | nu
       throw err
     }
   },
-  { watch: [() => props.championId, () => props.position] },
+  { watch: [() => props.championId, () => props.position, () => props.opponentChampionId] },
 )
 
-const cardTitle = computed(() =>
-  props.championName ? `${props.championName}'s standard build` : 'Standard build')
+const isMatchupSlice = computed(() => !!props.opponentChampionId)
+
+const cardTitle = computed(() => {
+  if (isMatchupSlice.value) {
+    return props.championName && props.opponentName
+      ? `${props.championName} vs ${props.opponentName}`
+      : 'Matchup build'
+  }
+  return props.championName ? `${props.championName}'s standard build` : 'Standard build'
+})
+
+const sliceGames = computed(() => {
+  const games = champion.value?.totalGames ?? 0
+  return `${games} ${games === 1 ? 'game' : 'games'}`
+})
 
 const build = computed(() => champion.value?.builds[0] ?? null)
 
@@ -83,9 +111,22 @@ const itemContextIndex = computed(() => indexItemContext(itemContext.value?.item
         <!-- Dot only, message in the tooltip — the same qualifier pattern the
              recommendation card uses for a thin sample. -->
         <WarningDot v-if="notice" :text="notice" />
+        <span
+          v-if="isMatchupSlice && build"
+          class="text-xs tabular-nums text-muted"
+        >{{ sliceGames }}</span>
+        <UBadge
+          v-if="refining"
+          color="neutral"
+          variant="soft"
+          size="sm"
+          icon="i-lucide-loader-circle"
+          :ui="{ leadingIcon: 'animate-spin' }"
+          label="Refining with the draft"
+        />
       </div>
     </template>
-    <ChampionBuildCoreSkeleton v-if="status === 'pending'" />
+    <ChampionBuildCoreSkeleton v-if="status === 'pending' || (refining && !build)" />
     <FetchErrorAlert
       v-else-if="error"
       :error="error"

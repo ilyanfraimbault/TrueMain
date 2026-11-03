@@ -2,14 +2,22 @@ namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
 /// A page of main-candidate rows for the admin Candidates panel. Rows are
-/// newest/most-relevant first. <see cref="Total"/> is the count of all rows
-/// matching the active filters (before paging) so the panel can render a pager.
+/// newest/most-relevant first. <see cref="Total"/> is the count of the rows
+/// matching the active filters (before paging) so the panel can render a pager,
+/// counted up to a cap (#2304): past it, <see cref="Total"/> is the cap and
+/// <see cref="TotalCapped"/> is true.
 /// </summary>
 public sealed record CandidatesReadModel
 {
     public IReadOnlyList<CandidateRowReadModel> Candidates { get; init; } = [];
 
     public long Total { get; init; }
+
+    /// <summary>
+    /// True when more rows match than the count reads: <see cref="Total"/> is then
+    /// a lower bound ("10,000+"), not the exact figure.
+    /// </summary>
+    public bool TotalCapped { get; init; }
 
     public int Page { get; init; }
 

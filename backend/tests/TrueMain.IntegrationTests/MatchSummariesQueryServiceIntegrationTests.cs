@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Data.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
@@ -84,6 +85,63 @@ public sealed class MatchSummariesQueryServiceIntegrationTests : IAsyncLifetime
             ["MATCH_C", "MATCH_B", "MATCH_A"],
             "a start-time tie is broken by match id, so offset pages never repeat or skip a match (#1635)");
     }
+
+    [Fact]
+    public async Task GetAsync_ListsTheGamesPastRetentionAfterTheLiveOnes_AcrossPages()
+    {
+        // #2358: two live games, then two kept as truncated seats. Another player's seat in the
+        // same match, and a filter on another champion, stay out.
+        await SeedAccountAsync();
+        await SeedMatchAsync("LIVE_NEW", new DateTime(2026, 10, 20, 12, 0, 0, DateTimeKind.Utc));
+        await SeedMatchAsync("LIVE_OLD", new DateTime(2026, 10, 19, 12, 0, 0, DateTimeKind.Utc));
+        await using (var seed = _fixture.CreateDbContext())
+        {
+            var accountId = await seed.RiotAccounts.Where(a => a.Puuid == "puuid-match-summaries-paging").Select(a => a.Id).SingleAsync();
+            seed.TruncatedMatchSeats.AddRange(
+                TruncatedSeat("OLD_1", 1, accountId, 157, new DateTime(2026, 9, 2, 12, 0, 0, DateTimeKind.Utc)),
+                TruncatedSeat("OLD_1", 6, null, 238, new DateTime(2026, 9, 2, 12, 0, 0, DateTimeKind.Utc)),
+                TruncatedSeat("OLD_2", 1, accountId, 103, new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc)));
+            await seed.SaveChangesAsync();
+        }
+
+        var seen = new List<(string MatchId, bool IsTruncated)>();
+        int? total = null;
+        for (var page = 1; page <= 2; page++)
+        {
+            await using var db = _fixture.CreateDbContext();
+            var response = await CreateService(db).GetAsync(
+                NameTag, page, pageSize: 3, position: null, championId: null, CancellationToken.None);
+            total = response!.Total;
+            seen.AddRange(response.Matches.Select(m => (m.MatchId, m.IsTruncated)));
+        }
+
+        total.Should().Be(4);
+        seen.Should().Equal(("LIVE_NEW", false), ("LIVE_OLD", false), ("OLD_1", true), ("OLD_2", true));
+
+        await using var filterDb = _fixture.CreateDbContext();
+        var filtered = await CreateService(filterDb).GetAsync(
+            NameTag, 1, pageSize: 20, position: null, championId: 103, CancellationToken.None);
+        filtered!.Matches.Select(m => m.MatchId).Should().Equal("OLD_2");
+    }
+
+    private static TruncatedMatchSeat TruncatedSeat(string matchId, int participantId, Guid? accountId, int championId, DateTime startedAt)
+        => new()
+        {
+            MatchId = matchId,
+            ParticipantId = participantId,
+            PlatformId = "KR",
+            QueueId = 420,
+            Patch = "16.18",
+            GameStartTimeUtc = startedAt,
+            GameDurationSeconds = 1800,
+            EloBracket = "MASTER",
+            TeamId = participantId <= 5 ? 100 : 200,
+            Win = true,
+            ChampionId = championId,
+            TeamPosition = "MIDDLE",
+            RiotAccountId = accountId,
+            SkillOrderKey = "Q-W-E",
+        };
 
     private static MatchSummariesQueryService CreateService(Data.TrueMainDbContext db)
         => new(

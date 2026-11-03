@@ -43,6 +43,27 @@ export interface ProcessRun {
    */
   jobMode: string | null
   summary: Record<string, unknown> | unknown[] | null
+  /**
+   * This run against the median of the recent successful runs of the same process and
+   * mode (#2298); null for a run that did not succeed or whose history is too short.
+   * Optional because only the two process-run reads carry it.
+   */
+  baseline?: ProcessRunBaseline | null
+}
+
+/** One metric of a run against its recent median — `flagged` is the backend's threshold verdict. */
+export interface ProcessRunMetricBaseline {
+  median: number
+  /** Relative gap, `1.8` = 180 % above the median; null when the median is 0 and the value is not. */
+  deviation: number | null
+  flagged: boolean
+}
+
+/** `ProcessRun.baseline`: duration and the summary's top-level numeric counters, keyed verbatim. */
+export interface ProcessRunBaseline {
+  sampleCount: number
+  duration: ProcessRunMetricBaseline | null
+  counters: Record<string, ProcessRunMetricBaseline>
 }
 
 /** One rollup row of `GET /api/ops/process-runs` → `rollup`. */

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  formatCappedCount,
   formatClock,
   formatDateTime,
   formatElapsed,
@@ -245,5 +246,19 @@ describe('formatClock', () => {
   it('renders an em dash for a missing or invalid value', () => {
     expect(formatClock(null)).toBe('—')
     expect(formatClock('not a date')).toBe('—')
+  })
+})
+
+describe('formatCappedCount', () => {
+  it('marks a capped total as a lower bound', () => {
+    expect(formatCappedCount(10_000, true)).toBe('10,000+')
+  })
+
+  it('renders an exact total as is', () => {
+    expect(formatCappedCount(1_234, false)).toBe('1,234')
+  })
+
+  it('keeps the dash of an absent count, capped or not', () => {
+    expect(formatCappedCount(null, true)).toBe('—')
   })
 })

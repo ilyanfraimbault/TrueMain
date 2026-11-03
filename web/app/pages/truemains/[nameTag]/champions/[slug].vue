@@ -67,6 +67,13 @@ const playerLabel = computed(() => {
 const playerName = computed(() => profile.value?.identity?.gameName ?? parseTruemainNameTag(nameTag.value)?.gameName ?? nameTag.value)
 const profilePath = computed(() => truemainProfilePath(nameTag.value))
 
+// A 404 for an unknown account, and the stored Riot ID's spelling as the
+// canonical — the route's slug is already canonical, its guard ran (#2335, #2336).
+const indexingReady = useTruemainPageIndexing(
+  nameTag,
+  tag => `${truemainProfilePath(tag)}/champions/${parseRouteParam(route.params.slug)}`,
+)
+
 // Shared static-data plumbing (see useChampionDetailStatics). This page
 // prefers the URL filter over the API-returned patch in `selectedPatch` —
 // the historical behaviour of the player-scoped page, deliberately not
@@ -157,7 +164,7 @@ const { activeFilterLabels, pickerPatch, clearFilters } = usePlayerChampionEmpty
 
 // A client-side navigation keeps the outgoing page under the loading bar until
 // the API has answered, so this page opens on its data (#1689).
-await Promise.all([championReady, profileReady, rankHistoryReady])
+await Promise.all([championReady, profileReady, rankHistoryReady, indexingReady])
 </script>
 
 <template>

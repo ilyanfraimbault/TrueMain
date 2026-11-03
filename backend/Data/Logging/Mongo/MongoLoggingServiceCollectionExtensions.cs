@@ -47,9 +47,10 @@ public static class MongoLoggingServiceCollectionExtensions
         services.TryAddSingleton<MongoLogChannel>();
 
         // The lossless audit writer (synchronous insert, never the channel). The
-        // read query for /ops/logs. Both reuse the singleton MongoLogContext.
+        // read queries for /ops/logs and /ops/audit-events. All reuse the singleton MongoLogContext.
         services.TryAddSingleton<IAuditLog, MongoAuditLog>();
         services.TryAddSingleton<IMongoLogQuery, MongoLogQuery>();
+        services.TryAddSingleton<IAuditEventQuery, MongoAuditEventQuery>();
 
         // Records reported by other processes (the frontends, through the API's
         // POST /internal/logs, #1556), written to the same channel as this host's own.
@@ -93,6 +94,14 @@ public static class MongoLoggingServiceCollectionExtensions
         // writes, the Api reads for the admin Riot API tab. Direct-call like the snapshots.
         services.TryAddSingleton<IMeterRollupStore, MeterRollupStore>();
 
+        // Per-minute latency rollups of the Api's ops routes (#2307): the Api's flusher writes,
+        // its ops query reads. Direct-call like the meter rollups.
+        services.TryAddSingleton<IRequestLatencyStore, RequestLatencyStore>();
+
+        // The Api's pipeline-health alerter (#2292): its state document and the alerts it
+        // sent, read back by the admin /health page.
+        services.TryAddSingleton<IHealthAlertStore, HealthAlertStore>();
+
         // Admin-portal data moved off Postgres: recorded process runs (written by
         // the Ingestor's ProcessRunRecorder, read by the admin process panels) and
         // the seed-request queue (written by the API, claimed by ManualSeedProcess).
@@ -106,6 +115,10 @@ public static class MongoLoggingServiceCollectionExtensions
         // publisher, read by the Api for the admin configuration page. Registered in both hosts
         // like the stores above — the Api never writes, the Ingestor never reads.
         services.TryAddSingleton<IEffectiveConfigurationStore, EffectiveConfigurationStore>();
+
+        // Process boots (#2297): appended by each host's ProcessBootRecorder, read by the Api
+        // for the deploy markers.
+        services.TryAddSingleton<IProcessBootStore, ProcessBootStore>();
 
         // The desktop app's usage and the site's installer downloads (#1805): written by the
         // Api from the app's batches and the site's download route, read by the admin page.

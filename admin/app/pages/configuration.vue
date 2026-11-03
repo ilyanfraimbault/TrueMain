@@ -15,7 +15,7 @@ import type {
 } from '~~/shared/types/ops'
 import { formatDateTime, formatTimeAgo } from '~~/shared/utils/format'
 
-const { data, pending, error, refresh } = useEffectiveConfiguration()
+const { data, pending, refreshing, error, refresh } = useEffectiveConfiguration()
 
 const processes = computed<EffectiveConfigurationProcess[]>(() => data.value?.processes ?? [])
 
@@ -45,7 +45,7 @@ function originLabel(value: EffectiveConfigurationValue): string {
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="refreshing"
             aria-label="Refresh"
             @click="refresh()"
           />

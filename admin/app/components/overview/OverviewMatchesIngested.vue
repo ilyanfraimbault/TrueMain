@@ -35,6 +35,8 @@ const ingestedChartData = computed(() =>
     inserted: b.matchesInserted,
   })),
 )
+// Deploy markers (#2297): did a drop start with a release?
+const ingestedMarkers = useDeployMarkers(() => (ingested.value?.buckets ?? []).map(b => b.bucket))
 const ingestedChartCategories = {
   inserted: { name: 'Inserted', color: CHART_PRIMARY },
 }
@@ -131,6 +133,7 @@ const ingestedBoundNote = computed(() => {
         :x-formatter="ingestedXFormatter"
         :y-formatter="formatCount"
         :tooltip-title-formatter="labelTooltipTitle"
+        :markers="ingestedMarkers"
         v-bind="timeBarProps()"
       />
       <p class="mt-3 text-xs text-dimmed tabular-nums">

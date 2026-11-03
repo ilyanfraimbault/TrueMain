@@ -80,7 +80,10 @@ public sealed class CompositionRecommendationQueryService(
             criteria.ChampionId, criteria.Position, matches.Matches, matches.MaxPossibleScore, ct);
         // Judged over the selection itself, so every cell of the tool's stat line
         // counts the same games (#1117).
-        var lane = await laneQueryService.GetAsync(criteria.Position, matches.Matches, ct);
+        // A truncated game kept no timeline, so the lane is read over the live ones (#2368);
+        // the strip prints how many it measured.
+        var lane = await laneQueryService.GetAsync(
+            criteria.Position, [.. matches.Matches.Where(match => !match.IsTruncated)], ct);
 
         var response = new CompositionBuildResponse
         {
@@ -121,8 +124,9 @@ public sealed class CompositionRecommendationQueryService(
 
         // The selection order IS the answer here — mains first, then
         // similarity, recency breaking ties — so the page is a plain slice of
-        // it, never re-sorted.
-        var slice = matches.Matches
+        // it, never re-sorted. A truncated game has no row to list (#2368).
+        var listable = matches.Matches.Where(match => !match.IsTruncated).ToList();
+        var slice = listable
             .Skip((clampedPage - 1) * clampedPageSize)
             .Take(clampedPageSize)
             .ToList();
@@ -134,7 +138,8 @@ public sealed class CompositionRecommendationQueryService(
             Patch = matches.Patch,
             Page = clampedPage,
             PageSize = clampedPageSize,
-            Total = matches.Matches.Count,
+            Total = listable.Count,
+            TruncatedGames = matches.Matches.Count - listable.Count,
             MaxPossibleScore = matches.MaxPossibleScore,
             Games = await gamesQueryService.HydrateAsync(slice, ct),
         };

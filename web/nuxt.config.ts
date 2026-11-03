@@ -91,9 +91,10 @@ export default defineNuxtConfig({
     // endpoint (server/routes/__sitemap__/urls.ts, which also says why truemain
     // profiles are *not* advertised, #1337), split by path.
     sitemaps: {
-      pages: { includeAppSources: true, exclude: ['/champions/*', '/players/*'] },
+      pages: { includeAppSources: true, exclude: ['/champions/*', '/players/*', '/truemains/*'] },
       champions: { sources: ['/__sitemap__/urls'], include: ['/champions/*'] },
       players: { sources: ['/__sitemap__/urls'], include: ['/players/*'] },
+      truemains: { sources: ['/__sitemap__/urls'], include: ['/truemains/*'] },
     },
   },
   // On-demand social-share artwork (#926). This was `enabled: false` from the
@@ -286,7 +287,7 @@ export default defineNuxtConfig({
     // stamp, the prod canonical URL on preprod — for the whole visit that lands
     // on it, which is exactly what the runtime-config decision below avoids.
     // The TTL matches the champion slug map's own server cache
-    // (`server/api/static/champion-slugs.get.ts`), so a cached page is never
+    // (`layers/nitro/server/api/static/champion-slugs.get.ts`), so a cached page is never
     // staler than an SSR one.
     '/about': { swr: STATIC_PAGE_SWR_SECONDS },
     '/privacy': { swr: STATIC_PAGE_SWR_SECONDS },

@@ -1,102 +1,35 @@
 <script setup lang="ts">
-import type { CommandPaletteGroup, CommandPaletteItem, NavigationMenuItem } from '@nuxt/ui'
+import type { NavigationMenuItem } from '@nuxt/ui'
+import { withNavBadges, navBadges } from '~/utils/nav-badges'
+import { NAV_GROUPS } from '~/utils/navigation'
+import { createOpsPrefetcher, hoveredRoute } from '~/utils/ops-cache'
+
+const prefetch = createOpsPrefetcher((url, query) => $fetch(url, { query }))
+
+function warm(event: Event) {
+  const route = hoveredRoute(event.target)
+  if (route) {
+    void prefetch(route)
+  }
+}
+
+// Bound in script rather than as template handlers: the wrapper is not itself
+// interactive, its links are, and keyboard focus is covered by `focusin`.
+const navWrapper = useTemplateRef<HTMLElement>('navWrapper')
+useEventListener(navWrapper, ['mouseover', 'focusin'], warm)
 
 const open = ref(false)
 
-// Four labelled groups (#1410) rather than one flat list of 15: the portal
-// answers three questions — is ingestion flowing, is the data right, what is
-// failing — and the sidebar should say so before the operator has to guess which
-// page holds the answer. `UNavigationMenu` renders an array of arrays as groups
-// with a divider between them; the group labels are the first item of each.
-// The three account panels (candidates / explorer / add mains) are one hub with
-// tabs, and Riot API is a tab of Processes — those routes still resolve, via
-// redirect pages.
-const NAV_GROUPS: NavigationMenuItem[][] = [
-  [
-    { label: 'Monitor', type: 'label' },
-    { label: 'Overview', icon: 'i-lucide-layout-dashboard', to: '/' },
-    { label: 'Health', icon: 'i-lucide-heart-pulse', to: '/health' },
-    { label: 'Processes', icon: 'i-lucide-activity', to: '/processes' },
-    { label: 'Logs', icon: 'i-lucide-scroll-text', to: '/logs' },
-  ],
-  [
-    { label: 'Data', type: 'label' },
-    { label: 'Champions', icon: 'i-lucide-swords', to: '/champions' },
-    { label: 'Aggregation', icon: 'i-lucide-combine', to: '/aggregation' },
-    { label: 'Patch Coverage', icon: 'i-lucide-layers', to: '/patch-coverage' },
-    { label: 'Data Quality', icon: 'i-lucide-shield-alert', to: '/data-quality' },
-  ],
-  [
-    { label: 'Accounts', type: 'label' },
-    { label: 'Accounts', icon: 'i-lucide-users-round', to: '/accounts' },
-    { label: 'Known players', icon: 'i-lucide-badge-check', to: '/known-players' },
-  ],
-  [
-    { label: 'System', type: 'label' },
-    { label: 'Database', icon: 'i-lucide-database', to: '/database' },
-    { label: 'Configuration', icon: 'i-lucide-settings', to: '/configuration' },
-    { label: 'Analytics', icon: 'i-lucide-chart-line', to: '/analytics' },
-    { label: 'Desktop app', icon: 'i-lucide-monitor-down', to: '/desktop' },
-  ],
-]
+// Sidebar groups live in `utils/navigation.ts`; the ⌘K palette adds, above its
+// pages, what it recognises in the typed term (#2290, `usePaletteSearch`).
+const { term: searchTerm, groups: searchGroups, loading: searchLoading } = usePaletteSearch()
 
-// Pages that live behind a `?view=` tab rather than their own route: the sidebar
-// only carries the hub, so the palette (#1415) is where they become reachable by
-// name. Keyed by the sidebar group they belong to so each lands under the same
-// heading as its hub.
-const TAB_ENTRIES: Record<string, CommandPaletteItem[]> = {
-  Monitor: [
-    {
-      label: 'Processes → Riot API',
-      icon: 'i-lucide-radio-tower',
-      to: '/processes?view=riot-api',
-    },
-    { label: 'Logs → Crashes', icon: 'i-lucide-skull', to: '/logs?view=crashes' },
-  ],
-  Accounts: [
-    {
-      label: 'Accounts → Pipeline',
-      icon: 'i-lucide-users-round',
-      to: '/accounts?view=pipeline',
-    },
-    {
-      label: 'Accounts → Trace',
-      icon: 'i-lucide-user-search',
-      to: '/accounts?view=trace',
-    },
-    {
-      label: 'Accounts → Add mains',
-      icon: 'i-lucide-user-plus',
-      to: '/accounts?view=seed',
-    },
-  ],
-}
-
-// ⌘K palette (#1415): with 15 destinations across 4 groups, jumping by name beats
-// hunting the sidebar. Same groups, same order, plus the tabbed destinations.
-const searchGroups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() =>
-  NAV_GROUPS.map((group) => {
-    const label = group.find(item => item.type === 'label')?.label ?? ''
-    return {
-      id: String(label).toLowerCase(),
-      label: String(label),
-      items: [
-        ...group
-          .filter(item => item.type !== 'label')
-          .map(item => ({
-            label: String(item.label),
-            icon: item.icon,
-            to: item.to,
-          } satisfies CommandPaletteItem)),
-        ...(TAB_ENTRIES[String(label)] ?? []),
-      ],
-    }
-  }),
-)
+// Pending counts and the health dot (#2294), refreshed every minute while visible.
+const { summary } = useNavSummary()
 
 // Closing the mobile drawer is a link concern; the group labels are not links.
 const groups = computed<NavigationMenuItem[][]>(() =>
-  NAV_GROUPS.map(group => group.map(item => (
+  withNavBadges(NAV_GROUPS, navBadges(summary.value)).map(group => group.map(item => (
     item.type === 'label'
       ? item
       : {
@@ -134,13 +67,17 @@ const groups = computed<NavigationMenuItem[][]>(() =>
       <template #default="{ collapsed }">
         <UDashboardSearchButton :collapsed="collapsed" tooltip class="mb-2" />
 
-        <UNavigationMenu
-          :collapsed="collapsed"
-          :items="groups"
-          orientation="vertical"
-          tooltip
-          popover
-        />
+        <!-- Hovering or focusing an entry warms its page's main reads (#2306). Listened
+             on the wrapper — the events bubble from the menu's own links. -->
+        <div ref="navWrapper">
+          <UNavigationMenu
+            :collapsed="collapsed"
+            :items="groups"
+            orientation="vertical"
+            tooltip
+            popover
+          />
+        </div>
       </template>
 
       <template #footer="{ collapsed }">
@@ -153,13 +90,17 @@ const groups = computed<NavigationMenuItem[][]>(() =>
          dark-only (no theme switch anywhere), so the palette's built-in
          light/dark commands are dropped rather than offering a dead end. -->
     <UDashboardSearch
+      v-model:search-term="searchTerm"
       :groups="searchGroups"
+      :loading="searchLoading"
       :color-mode="false"
-      placeholder="Jump to a page…"
-      title="Search pages"
-      description="Jump to any page of the admin portal."
+      placeholder="Page, Riot ID, known player, match ID, champion…"
+      title="Search"
+      description="Jump to a page, or straight to the account, known player, match or champion typed."
     />
 
     <slot />
+
+    <OpsCacheAgeNotice />
   </UDashboardGroup>
 </template>

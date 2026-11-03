@@ -19,6 +19,7 @@ import type { TableColumn } from '@nuxt/ui'
 import type { ChampionStatsRow } from '~~/shared/types/ops'
 import { ALL_POSITIONS_ICON_URL, POSITION_OPTIONS } from '~/utils/positions'
 import { formatNumber } from '~~/shared/utils/format'
+import { championSitePath } from '~~/shared/utils/site-link'
 
 interface ChampionRowView extends ChampionStatsRow {
   name: string
@@ -52,8 +53,9 @@ function resetFilters() {
   position.value = ALL
 }
 
-const { data, pending, error, refresh } = useChampionStats(filters)
+const { data, pending, refreshing, error, refresh } = useChampionStats(filters)
 const { nameFor, iconFor, pending: staticPending } = useChampionStatic()
+const { slugs } = useChampionSlugs()
 
 // Join the ops rows with DDragon names/icons.
 const rows = computed<ChampionRowView[]>(() =>
@@ -67,6 +69,8 @@ const rows = computed<ChampionRowView[]>(() =>
 // Client-side champion-name search. Scoped to the TABLE only — the charts keep
 // showing the full top-N so they stay a stable overview while you look one up.
 const search = ref('')
+// `?search=` prefills it — the ⌘K palette's champion results (#2290).
+useQueryValue('search', (value) => { search.value = value }, { immediate: true })
 const tableRows = computed<ChampionRowView[]>(() => {
   const q = search.value.trim().toLowerCase()
   if (!q) return rows.value
@@ -148,7 +152,7 @@ const mainsLabelFormatter = computed(() =>
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="ghost"
-            :loading="pending"
+            :loading="refreshing"
             aria-label="Refresh"
             @click="refresh()"
           />
@@ -352,6 +356,7 @@ const mainsLabelFormatter = computed(() =>
               <span class="font-medium text-highlighted">
                 {{ row.original.name }}
               </span>
+              <SiteLink :path="championSitePath(row.original.championId, slugs)" :label="`Open ${row.original.name} on the site`" />
             </div>
           </template>
           <template #games-cell="{ row }">

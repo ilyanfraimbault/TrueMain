@@ -11,7 +11,7 @@ useSeoMeta({
 })
 
 // Homepage snapshot for the active patch (#972): the true games-analyzed
-// total plus a short, pre-sorted slice of the strongest rows — drives both
+// total plus a short, pre-sorted slice of the top tier-list rows — drives both
 // the hero stat chips and the tier-list panel. A dedicated endpoint
 // (`GET /champions/overview`) rather than the full ~500-row `/champions`
 // directory, so the homepage never fetches or sorts data it only shows 8
@@ -178,7 +178,7 @@ await Promise.all([overviewFetch, truemainsReady])
             This patch
           </p>
           <h2 class="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
-            The strongest picks, and the players who main them.
+            The most played and banned champions, and the players who main them.
           </h2>
         </div>
         <div class="grid gap-6 lg:grid-cols-2">

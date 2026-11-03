@@ -140,6 +140,16 @@ is the same measure but not a lane; the accessible name keeps the opponent's nam
 rows' result colours (`result-tone.ts`: red on the losing left, blue on the winning right) rather than the
 rose-gold `data-*` axis — product call, 2026-10-22.
 
+**The spread says "Lane WR … (at 15 minutes)", and a touch reader can read it (2026-11-01).** Revises the "WR" half of the entry
+above: everywhere else on the site "WR" is the game win rate, and the SSR build summary ranks best and worst
+matchups by game win rate, so one page answered "what counters this champion" with two metrics under one label.
+The tooltip and the accessible name now read `Lane WR 43% (at 15 minutes)` — the minute spelled out, not an
+`@15` shorthand; the terse tooltip stays. Tooltips are hover-only,
+so on touch the first tap on an icon selects it (outlined) and one line under the strip reads its rate alone (no
+name, no link: the outlined icon already names the opponent); a second tap follows the icon's link. The strip catches the tap in its capture phase,
+because the icon's link would otherwise navigate first. The optional hardest/easiest list was left out: the
+strip still carries no counts or extremes — #2354.
+
 **Lane win rate stores three counters and divides by the *decided* lanes, not by games played.**
 A gold *threshold* at 15 min (`LaneOutcomeAggregation:GoldLeadThreshold`, 300) is what defines a won lane, and
 a threshold necessarily creates a third outcome: lanes inside the band were neither won nor lost. Folding those
@@ -437,3 +447,23 @@ the stage was right that the portrait should be the control, but sixteen selects
 site and the app drew the same draft two different ways. The cards stay wordless (#1067, #1071); the roles strip
 moved into the duel, where the lane it names is the one being read. Before a role is picked, a card's click takes
 its lane as the role first — the one thing the board needs to know whose card is whose — #2241.
+
+**A matchup slice states its games where the build is read, and a thin one carries the warning dot (2026-11-02).**
+Picking an opponent re-slices every build section with no pick-rate floor (2026-07-30: the honest answer to a thin
+slice is its game count), and the median champion-vs-opponent pair holds a handful of games on a patch — yet the
+count only rode a hover tooltip, and the API reports `minSampleMet: true` for every matchup slice. A line above the
+build tabs now carries the count ("Build against Zed · 64 games"); under 20 games, the draft panel's floor shared as
+`LOW_SAMPLE_GAMES`, the `WarningDot` sits beside the opponent's name, its tooltip stating the fact ("Only 5 games
+against Zed"). The first version wrote the warning on the page with a button back to the standard build, which broke
+the qualifier rule (design-system, 2026-10-13); the operator removed both: a thin sample is never written out, and
+the filter bar already clears the opponent. Widening a thin slice across the retained patches was the alternative
+and was left out: it would change what the slice means — #2355.
+
+**The matchup tool answers first from the cached matchup slice, then refines (2026-11-01).** The composition build
+refolds `match_participants` live on every debounced draft edit, and a cold recommendation runs for tens of seconds
+— too long for champion select, where the page is most useful. With champion, role and opponent set, the
+recommendation card now shows the champion page's `?vs=` matchup slice (behind the champion read cache) while the
+composition build runs, labelled "Refining with the draft", and the refined answer replaces it, labelled "Refined
+with the draft" when the draft holds picks beyond the matchup. The two are different selections (the slice is every
+game of the pair, the recommendation a mains-first similarity sample), which is why both states are labelled rather
+than swapped silently. Pre-warming the most played pairs was left out — #2361.

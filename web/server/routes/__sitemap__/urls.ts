@@ -4,29 +4,29 @@ import type { ChampionSlugMap } from '~~/shared/types/static-data'
 import { defineEventHandler, setResponseHeader } from 'h3'
 import type { PersonaDirectoryResponse } from '~~/shared/types/players'
 import { playerPath } from '~~/shared/utils/player-path'
+import type { LeaderboardResponse } from '~~/shared/types/leaderboard'
+import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { championLastmodById } from '~~/shared/utils/sitemap-lastmod'
 
 /**
  * Dynamic sitemap entries for @nuxtjs/sitemap. Static pages are discovered from
  * the file-based routes automatically; this endpoint enumerates the two
  * data-driven families the sitemap advertises:
- *   - /players/{slug}   — one per known player with a tracked account (#2018)
- *   - /champions/{slug} — one per champion on the latest patch (#1124),
- *                         carrying a day-precision `lastmod` (#1256)
+ *   - /players/{slug}     — one per known player with a tracked account (#2018)
+ *   - /champions/{slug}   — one per champion on the latest patch (#1124),
+ *                           carrying a day-precision `lastmod` (#1256)
+ *   - /truemains/{nameTag} — the top of the leaderboard only (#2359)
  *
  * The list comes from the app's own server route, so the sitemap stays in sync
  * with what the pages actually render, and is fetched defensively: an upstream
  * outage costs the dynamic entries, not the whole sitemap.
  *
- * **Player profiles are deliberately absent.** `/truemains/{nameTag}` fetches
- * its profile client-only (`useTruemainFetch`, #862), so the server-rendered
- * document is a skeleton: the same generic description on every page, the
- * player's name appearing once in the title, and nothing else. Advertising
- * 5,000 of those hands a crawler 5,000 near-duplicate empty documents and
- * buries the champion pages, which are the only fully server-rendered content
- * here. They stay reachable — `/truemains` is in the sitemap and links them, so
- * a crawler can still descend — they are simply not advertised. Revisit if the
- * profile page ever renders its content server-side (#1337).
+ * **Only the top truemain profiles are advertised.** They were left out while
+ * `/truemains/{nameTag}` rendered a skeleton on the server (#1337); since #2359
+ * the profile's banner, ranked card and mains are in the server HTML, so the
+ * leaderboard's head is worth a crawler's visit. Its tail is not advertised: the
+ * thinly sampled accounts at the bottom are the near-duplicates #1337 warned of,
+ * and the leaderboard still links every profile for a crawler that descends.
  */
 
 async function championUrls(): Promise<SitemapUrl[]> {
@@ -71,6 +71,37 @@ async function playerUrls(): Promise<SitemapUrl[]> {
   }))
 }
 
+/** How many leaderboard profiles the sitemap advertises — its head, see above. */
+export const SITEMAP_TRUEMAIN_PROFILES = 500
+const LEADERBOARD_PAGE_SIZE = 50
+
+// The leaderboard's own order (its global ranking), walked at the API's page-size
+// cap (#1334 shipped because a larger size was silently refused), one page at a
+// time: a cold leaderboard page is a heavy read, and a sitemap is worth waiting for,
+// not worth ten of them at once against what visitors are asking for.
+// No `lastmod`: the leaderboard carries no per-profile change date, and an
+// invented one is worse than none.
+async function truemainUrls(): Promise<SitemapUrl[]> {
+  const rows: LeaderboardResponse['rows'] = []
+  const lastPage = Math.ceil(SITEMAP_TRUEMAIN_PROFILES / LEADERBOARD_PAGE_SIZE)
+  for (let page = 1; page <= lastPage; page++) {
+    const response = await $fetch<LeaderboardResponse>('/api/truemains', {
+      query: { page, pageSize: LEADERBOARD_PAGE_SIZE },
+    })
+    rows.push(...response.rows)
+    if (response.rows.length < LEADERBOARD_PAGE_SIZE) break
+  }
+  // `_encoded`: the profile path is already percent-encoded (a Riot ID holds spaces
+  // and any script), and the sitemap module would encode its `%` again, advertising
+  // a URL that reaches no profile.
+  return rows
+    .slice(0, SITEMAP_TRUEMAIN_PROFILES)
+    .map(row => ({
+      loc: truemainProfilePath(truemainNameTag(row.identity.gameName, row.identity.tagLine)),
+      _encoded: true,
+    }))
+}
+
 // Cache the fan-out at the origin (not just via downstream CDNs): @nuxtjs/sitemap
 // caches the rendered sitemap, but this route is publicly reachable, so without
 // this every direct hit would pass straight through to the upstreams. Mirrors
@@ -79,9 +110,10 @@ async function playerUrls(): Promise<SitemapUrl[]> {
 // header below.
 const loadSitemapUrls = defineCachedFunction(
   async (): Promise<SitemapUrl[]> => {
-    const [champions, players] = await Promise.all([
+    const [champions, players, truemains] = await Promise.all([
       championUrls().catch(() => [] as SitemapUrl[]),
       playerUrls().catch(() => null),
+      truemainUrls().catch(() => null),
     ])
     // Degrading to the static pages is deliberate; doing it silently is not.
     // #1334 shipped precisely because an empty family still rendered a valid
@@ -94,7 +126,10 @@ const loadSitemapUrls = defineCachedFunction(
     if (players === null) {
       console.warn('[sitemap] player source failed; known players left out')
     }
-    return [...champions, ...(players ?? [])]
+    if (truemains === null) {
+      console.warn('[sitemap] leaderboard source failed; truemain profiles left out')
+    }
+    return [...champions, ...(players ?? []), ...(truemains ?? [])]
   },
   { maxAge: 60 * 60, name: 'sitemap-urls', getKey: () => 'all' },
 )

@@ -8,7 +8,8 @@ import { isMarked } from '~/utils/recording-moments'
 
 /** Every kind, in the order the settings list them — the biggest plays first. */
 export const AUTO_CLIP_KINDS: { value: AutoClipKind, label: string, description: string }[] = [
-  { value: 'multiKill', label: 'Multi-kills', description: 'A triple kill, a quadra kill, a pentakill.' },
+  { value: 'multiKill', label: 'Multi-kills', description: 'A double kill and up, to the pentakill.' },
+  { value: 'flashKill', label: 'Flash plays', description: 'A kill of yours right after you press Flash.' },
   { value: 'combo', label: 'Kills into an objective', description: 'A multi-kill, then a dragon, a Baron, an inhibitor.' },
   { value: 'steal', label: 'Steals', description: 'An epic monster your side stole.' },
   { value: 'ace', label: 'Aces', description: 'Your side aced the other, you in the fight.' },
@@ -17,7 +18,10 @@ export const AUTO_CLIP_KINDS: { value: AutoClipKind, label: string, description:
 ]
 
 /** The shell's own order (`AutoClipKind::ALL`), which the saved settings keep. */
-const SHELL_ORDER: AutoClipKind[] = ['multiKill', 'steal', 'ace', 'firstBlood', 'teamfight', 'combo']
+const SHELL_ORDER: AutoClipKind[] = ['multiKill', 'steal', 'ace', 'firstBlood', 'teamfight', 'combo', 'flashKill']
+
+/** What the shell clips until the player chooses (`AutoClipKind::DEFAULT`, #2382): every kind clipped too much of a game. */
+export const DEFAULT_AUTO_CLIPS: AutoClipKind[] = ['multiKill', 'flashKill']
 
 /** The kinds with one turned on or off, in the shell's order. */
 export function toggleAutoClip(kinds: readonly AutoClipKind[], kind: AutoClipKind, on: boolean): AutoClipKind[] {

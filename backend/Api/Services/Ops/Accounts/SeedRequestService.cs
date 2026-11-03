@@ -152,9 +152,9 @@ public sealed class SeedRequestService(
         try
         {
             await auditLog.RecordAsync(
-                action: "seed_account",
-                actor: "operator",
-                targetType: "SeedRequest",
+                action: AuditActions.SeedAccount,
+                actor: AuditActors.Operator,
+                targetType: AuditTargets.SeedRequest,
                 targetId: seedRequest.Id.ToString(),
                 metadata: new Dictionary<string, string>
                 {

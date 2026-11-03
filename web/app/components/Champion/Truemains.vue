@@ -17,16 +17,15 @@ const props = defineProps<{
 
 const TOP_N = 10
 
-// `server: false` (#1231): the champion page renders this card behind
-// `hydrate-on-visible`, which defers *hydration*, not server rendering — so the
-// composable's SSR default was firing `/api/truemains?championId=…` on every
-// SSR of every champion page, uncached by Nitro, for a card below the fold.
-// That page's SSR round-trip budget is deliberately spent on the build summary
-// alone (#1123, #926); the skeleton below is the server-rendered state here.
+// Server-rendered (#2359, reversing #1231's `server: false`): the champion's top
+// truemains are what "{champion} otp" / "one trick" queries look for, and a
+// skeleton gave a crawler none of them. The read costs the champion page's SSR
+// one leaderboard round-trip, which #1231 had saved; it runs alongside the build
+// summary rather than after it. `hydrate-on-visible` only defers hydration, and
+// the rows ride the payload, so the deferred hydration finds the same markup.
 const { rows, isInitialLoading, error } = useTruemainsLeaderboard(1, {
   pageSize: TOP_N,
   championId: () => props.championId,
-  server: false,
 })
 
 // Deepest ordinal shown, so every row sizes its rank slot identically.

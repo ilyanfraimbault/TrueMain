@@ -120,6 +120,16 @@ skeleton argument above does not apply to it. The sitemap lists those with at le
 (`GET /players`), with the day of their last upsert as `lastmod`; a person whose accounts are all untracked has
 a page of bare Riot IDs and is left out. Truemain profiles stay excluded, for the reason above.
 
+**The top truemain profiles are back in the sitemap, because their page is server-rendered (2026-11-01, #2359).**
+The skeleton argument above stopped holding once the profile read rode the SSR payload: the server HTML now
+carries the Riot ID, the rank, the truemained champion, the mains and a description naming the player, which is
+what "{champion} otp" / "one trick" queries look for — queries that went to onetricks.gg and dpm.lol. The family is
+the **head** of the global leaderboard only (500 profiles), not all of it: the tail of thinly sampled accounts is
+still the near-duplicate shape #1337 described, and the leaderboard keeps linking every profile for a crawler that
+descends. The champion page's top-truemains card was server-rendered alongside, reversing #1231 and #1570's
+`server: false`, for the same queries; it costs that page one leaderboard read per SSR. The effect is read in the
+weekly Search Console review.
+
 **One sitemap per page family, behind an index (2026-10-23, #1538).** `/sitemap_index.xml` lists
 `/__sitemap__/pages.xml`, `champions.xml` and `players.xml`; `/sitemap.xml` redirects to the index and
 `robots.txt` declares it. Search Console had held the single 7,000-URL sitemap as pending for weeks without
@@ -138,3 +148,26 @@ encoding.** The app's own `to`/`href` builders correctly `encodeURIComponent` a 
 sitemap source encodes it twice, and `Álec Lightwood-Jace` gets advertised as `%25C3%2581lec%2520Lightwood-Jace`,
 which the route hands to the backend as literal text — a 404. Riot IDs are full Unicode, so this hit 2,334 of
 the first 5,000 profiles before the family was dropped. Encoding is per-consumer, and a `loc` is not an href.
+
+## A truemain profile answers 404 for an unknown account, and its canonical is the stored Riot ID (2026-10-26)
+
+**Decision.** `/truemains/{nameTag}` and `/truemains/{nameTag}/champions/{slug}` resolve, on the server, who the
+slug names (`GET /api/truemain-identity/{nameTag}`, a cached Nitro route over the profile endpoint). An unknown
+account answers a real **404**; a known one declares as its canonical the slug of the Riot ID **as TrueMain stores
+it** (`truemainNameTag`, the builder every profile link uses), whatever casing the visitor typed. With no verdict
+(API down, throttled) the page keeps a `200` and the route's own slug — an outage never becomes a 404.
+
+**Why.** The page's content is client-only (#862), so its server render knew nothing about the account: an
+unknown Riot ID was a `200` that drew "not found" in the browser, which Search Console filed as soft 404s; and
+`nuxt-seo-utils` lowercases canonicals by default, so `/truemains/Known%20Ghoster-False` declared a spelling no
+link used, which Google refused and indexed the mixed-case URL instead. Only the slug crosses into the SSR
+payload — the profile itself stays client-only. `canonicalLowercase` stays on for the rest of the site, whose
+slugs are lowercase already; the profile pages override it.
+
+**Source.** #2335, #2336.
+
+**The site stays English-only (2026-11-01, #2366).** All copy is hardcoded English while the pipeline ingests KR, EUW,
+NA and other platforms, and op.gg is localised. Search Console's country split over 90 days was read before deciding:
+the search traffic is still too small to show any non-English language with a share worth a localisation (the figures
+stay with the operator, as every Search Console figure does). Revisit when the weekly SEO review shows sustained search
+volume with one non-English language large enough to justify `@nuxtjs/i18n`, hreflang and a translated champion page.

@@ -18,6 +18,14 @@ same "share of the meta", and the two weren't comparable un-normalized. On a pat
 (pre-#920), the ban term is dropped and its weight folds back into pick rate and win rate proportionally — never
 a fabricated 0%, and tiers stay comparable across ban-data and no-ban-data patches — `ChampionTierCalculator`.
 
+**A presence ranking is never labelled as strength (2026-11-01).**
+The tier score leads with pick and ban rate, and with the default mains-only population the pick rate counts how
+many tracked mains play a champion — a cohort the intake shapes (scarcity-weighted candidate scoring #407, the
+per-champion coverage floor #1531). The homepage teaser, the homepage section title and the desktop dashboard
+called that ranking "Strongest picks"; they now say "Most played and banned". A measurement of the mains-cohort
+pick rate against the whole-lobby one found them broadly aligned but diverging at the head of each lane, so
+computing the tier pick rate over all ten seats is its own follow-up (#2385) — #2356.
+
 **The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions.**
 Patch 16.15 ("League classique") added 60 legacy kits to `champion.json`: alias `Jade_<BaseAlias>`, key
 `60000 + <base key>`, and the *same display name* as the original — `Jade_Ahri` (60103) sits next to Ahri

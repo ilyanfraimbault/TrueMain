@@ -107,6 +107,23 @@ public sealed class MongoLoggingOptions
     public string EffectiveConfigurationCollection { get; set; } = "effective_configuration";
 
     /// <summary>
+    /// Collection holding one document per process boot (#2297): its version and start time,
+    /// appended by every Api and Ingestor at startup and read back as the deploy markers of the
+    /// admin charts. Unlike <see cref="EffectiveConfigurationCollection"/> it is never
+    /// overwritten. Retention is split by what a boot was: a plain restart expires after
+    /// <see cref="ProcessBootRestartsRetention"/>, a boot that changed the version (a deploy)
+    /// is kept for good — deploys are a handful a week.
+    /// </summary>
+    public string ProcessBootsCollection { get; set; } = "process_boots";
+
+    /// <summary>
+    /// How long a boot that did NOT change its process's version is kept, a partial TTL index on
+    /// <c>startedAtUtc</c>. Thirty days, like the other operational rollups: restarts are only
+    /// read as the predecessor a new boot compares itself to. Zero or negative disables it.
+    /// </summary>
+    public TimeSpan ProcessBootRestartsRetention { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>
     /// Collection holding the desktop app's usage (#1805): one document per anonymous install
     /// per UTC day, folded from the batches the app sends to <c>POST /desktop/telemetry</c>.
     /// </summary>
@@ -145,6 +162,40 @@ public sealed class MongoLoggingOptions
     /// Riot call rollups it sits next to. Zero or negative disables it.
     /// </summary>
     public TimeSpan MeterRollupsRetention { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>
+    /// Collection holding the Api's per-minute request-latency rollups of the ops routes
+    /// (#2307), written by its request-latency flusher and read by the admin Processes →
+    /// Performance tab.
+    /// </summary>
+    public string RequestLatencyCollection { get; set; } = "request_latency_rollups";
+
+    /// <summary>
+    /// Retention window for <see cref="RequestLatencyCollection"/>, a TTL index on
+    /// <c>bucketStartUtc</c>. Thirty days, like the other per-minute rollups; the panel reads
+    /// at most seven. Zero or negative disables it.
+    /// </summary>
+    public TimeSpan RequestLatencyRetention { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>
+    /// Collection holding every pipeline-health alert the Api sent (#2292), read by the
+    /// admin <c>/health</c> page's recent-alerts panel.
+    /// </summary>
+    public string HealthAlertsCollection { get; set; } = "health_alerts";
+
+    /// <summary>
+    /// Collection holding the health alerter's one state document (#2292): which signals have
+    /// an open incident, their debounce streaks and cooldowns, so a deploy neither re-alerts
+    /// nor forgets an incident.
+    /// </summary>
+    public string HealthAlertStateCollection { get; set; } = "health_alert_state";
+
+    /// <summary>
+    /// Retention window for <see cref="HealthAlertsCollection"/>, a TTL index on
+    /// <c>sentAtUtc</c>. Alerts are sent on transitions only, so the collection stays tiny;
+    /// ninety days keeps a quarter of incident history. Zero or negative disables it.
+    /// </summary>
+    public TimeSpan HealthAlertsRetention { get; set; } = TimeSpan.FromDays(90);
 
     /// <summary>
     /// Master switch. When false (or when <see cref="ConnectionString"/> is

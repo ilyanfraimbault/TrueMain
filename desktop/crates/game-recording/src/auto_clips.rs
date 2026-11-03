@@ -5,9 +5,10 @@
 //! Each play the player chose in the settings gives a window around it — a
 //! lead-in before, a tail after —, in game time, placed on the video through
 //! the recording's anchor; windows that overlap become one clip, titled after
-//! its most telling play. A title only says what the events show: the
-//! mechanics on screen (a flash, an insec) are read neither from the video nor
-//! from the game's memory.
+//! its most telling play. A title only says what the events show, plus one
+//! input of the player's own: a press of the key the game binds to their
+//! Flash, read like the mark key (#2382). The mechanics on screen are read
+//! neither from the video nor from the game's memory.
 
 use serde::{Deserialize, Serialize};
 
@@ -28,8 +29,13 @@ const TAIL_MS: i64 = 5_000;
 const COMBO_WINDOW_MS: i64 = 45_000;
 /// An ace is the player's play when they killed or assisted this soon before it.
 const ACE_INVOLVEMENT_MS: i64 = 30_000;
-/// A multi-kill is clipped from a triple kill: doubles come too often.
-const MIN_MULTIKILL: u8 = 3;
+/// A multi-kill is clipped from a double kill (#2382).
+const MIN_MULTIKILL: u8 = 2;
+/// A kill of the player's this soon after they pressed Flash is a Flash play.
+const FLASH_KILL_MS: i64 = 6_000;
+/// A press of the Flash key this soon after a counted one is not counted:
+/// Flash is still down (300 s, about 230 s with every summoner haste).
+pub const FLASH_COOLDOWN_MS: u64 = 200_000;
 /// A clip shorter than this is not cut.
 const MIN_CLIP_MS: u64 = 1_000;
 
@@ -49,17 +55,32 @@ pub enum AutoClipKind {
     Teamfight,
     /// A multi-kill, then an objective taken.
     Combo,
+    /// A kill right after the player pressed Flash.
+    FlashKill,
 }
 
 impl AutoClipKind {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::MultiKill,
         Self::Steal,
         Self::Ace,
         Self::FirstBlood,
         Self::Teamfight,
         Self::Combo,
+        Self::FlashKill,
     ];
+
+    /// On until the player chooses: the double kills and up, and the Flash
+    /// plays — every kind on clipped too much of a game (#2382).
+    pub const DEFAULT: [Self; 2] = [Self::MultiKill, Self::FlashKill];
+}
+
+/// Whether a press of the Flash key at `video_ms` counts, given the presses
+/// counted so far: not while Flash is still down after the last one.
+pub fn counts_flash(flashes: &[u64], video_ms: u64) -> bool {
+    flashes
+        .last()
+        .is_none_or(|last| video_ms.saturating_sub(*last) >= FLASH_COOLDOWN_MS)
 }
 
 /// One clip to cut, in video time.
@@ -181,6 +202,40 @@ fn candidates(meta: &RecordingMeta) -> Vec<Candidate> {
             start_ms: kill.game_time_ms - LEAD_MS,
             end_ms: kill.end_game_time_ms + TAIL_MS,
             moment_ms: kill.end_game_time_ms,
+        });
+    }
+
+    // The Flash presses, on the game's clock: they were noted on the video's.
+    let flashes: Vec<i64> = meta
+        .anchor
+        .as_ref()
+        .map(|anchor| {
+            meta.flashes
+                .iter()
+                .map(|video_ms| anchor.game_ms(i64::try_from(*video_ms).unwrap_or(i64::MAX)))
+                .collect()
+        })
+        .unwrap_or_default();
+    for kill in &kills {
+        let Some(flash) = flashes
+            .iter()
+            .copied()
+            .filter(|at| *at <= kill.game_time_ms && kill.game_time_ms - at <= FLASH_KILL_MS)
+            .min()
+        else {
+            continue;
+        };
+        found.push(Candidate {
+            kind: AutoClipKind::FlashKill,
+            title: on_champion(
+                &format!("Flash {}", multi_kill(kill.kills).to_lowercase()),
+                champion,
+            ),
+            // Above the same multi-kill without the Flash, below a bigger one.
+            rank: 41 + u32::from(kill.kills),
+            start_ms: flash - LEAD_MS,
+            end_ms: kill.end_game_time_ms + TAIL_MS,
+            moment_ms: kill.game_time_ms,
         });
     }
 
@@ -383,17 +438,65 @@ mod tests {
     }
 
     #[test]
-    fn a_multikill_from_a_triple_is_clipped_with_a_lead_in_and_a_tail() {
+    fn a_multikill_from_a_double_is_clipped_with_a_lead_in_and_a_tail() {
         let mut meta = recording();
         meta.highlights = vec![kill(300, 300, 1), kill(600, 608, 2), kill(900, 925, 5)];
         let clips = auto_clips(&meta, &AutoClipKind::ALL);
         // Game 900 s is video 920 s: 10 s before the first kill, 5 s after the last.
-        assert_eq!(summary(&clips), vec![("Pentakill on Ahri", 910, 950)]);
-        assert_eq!(clips[0].kinds, vec![AutoClipKind::MultiKill]);
-        assert_eq!(clips[0].moment_ms, 945_000);
+        assert_eq!(
+            summary(&clips),
+            vec![
+                ("Double kill on Ahri", 610, 633),
+                ("Pentakill on Ahri", 910, 950)
+            ]
+        );
+        assert_eq!(clips[1].kinds, vec![AutoClipKind::MultiKill]);
+        assert_eq!(clips[1].moment_ms, 945_000);
 
         meta.champion_name = None;
-        assert_eq!(auto_clips(&meta, &AutoClipKind::ALL)[0].title, "Pentakill");
+        assert_eq!(auto_clips(&meta, &AutoClipKind::ALL)[1].title, "Pentakill");
+    }
+
+    #[test]
+    fn a_kill_right_after_a_flash_is_a_flash_play() {
+        let mut meta = recording();
+        // Flash pressed at video 420 s and 900 s (game 400 s and 880 s).
+        meta.flashes = vec![420_000, 900_000];
+        meta.highlights = vec![
+            kill(403, 403, 1),
+            // Too long after the press.
+            kill(890, 890, 1),
+            // No press before it.
+            kill(1500, 1500, 1),
+        ];
+        let clips = auto_clips(&meta, &AutoClipKind::DEFAULT);
+        // From 10 s before the press to 5 s after the kill.
+        assert_eq!(summary(&clips), vec![("Flash kill on Ahri", 410, 428)]);
+        assert_eq!(clips[0].kinds, vec![AutoClipKind::FlashKill]);
+        assert_eq!(clips[0].moment_ms, 423_000);
+
+        // A Flash into a double kill names the Flash, and is a multi-kill too.
+        meta.highlights = vec![kill(403, 406, 2)];
+        let clips = auto_clips(&meta, &AutoClipKind::DEFAULT);
+        assert_eq!(
+            summary(&clips),
+            vec![("Flash double kill on Ahri", 410, 431)]
+        );
+        assert_eq!(
+            clips[0].kinds,
+            vec![AutoClipKind::MultiKill, AutoClipKind::FlashKill]
+        );
+
+        // Off in the settings, a Flash play is not cut.
+        meta.highlights = vec![kill(403, 403, 1)];
+        assert!(auto_clips(&meta, &[AutoClipKind::MultiKill]).is_empty());
+    }
+
+    #[test]
+    fn a_flash_press_while_flash_is_down_is_not_counted() {
+        assert!(counts_flash(&[], 5_000));
+        assert!(!counts_flash(&[5_000], 5_000 + FLASH_COOLDOWN_MS - 1));
+        assert!(counts_flash(&[5_000], 5_000 + FLASH_COOLDOWN_MS));
     }
 
     #[test]
@@ -435,17 +538,17 @@ mod tests {
     }
 
     #[test]
-    fn a_double_kill_counts_towards_a_combo_but_not_alone() {
+    fn a_double_kill_counts_towards_a_combo() {
         let mut meta = recording();
         meta.highlights = vec![kill(1200, 1204, 2)];
-        assert!(auto_clips(&meta, &AutoClipKind::ALL).is_empty());
+        assert!(auto_clips(&meta, &[AutoClipKind::Combo]).is_empty());
         // A steal the timeline does not hold still makes the combo.
         meta.plays = vec![Play {
             dragon: Some(DragonKind::Ocean),
             objective: Some(ObjectiveKind::Dragon),
             ..play(PlayKind::Steal, 1230, true, true)
         }];
-        let titles: Vec<String> = auto_clips(&meta, &AutoClipKind::ALL)
+        let titles: Vec<String> = auto_clips(&meta, &[AutoClipKind::Combo])
             .into_iter()
             .map(|clip| clip.title)
             .collect();

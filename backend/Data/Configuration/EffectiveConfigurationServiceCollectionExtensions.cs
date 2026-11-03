@@ -29,4 +29,23 @@ public static class EffectiveConfigurationServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Makes this host append its boot (version, start time) to the boot log once at startup
+    /// (#2297). <paramref name="role"/> names which container of a multi-container process this
+    /// is (the ingestor's job mode); omit it for a process that runs once.
+    /// </summary>
+    /// <remarks>
+    /// Same requirements and the same ordering rule as
+    /// <see cref="AddEffectiveConfigurationPublisher"/>: register it before the host's worker.
+    /// </remarks>
+    public static IServiceCollection AddProcessBootRecorder(
+        this IServiceCollection services,
+        Func<IServiceProvider, string?>? role = null)
+    {
+        services.AddSingleton(provider => new ProcessBootRole(role?.Invoke(provider)));
+        services.AddHostedService<ProcessBootRecorder>();
+
+        return services;
+    }
 }

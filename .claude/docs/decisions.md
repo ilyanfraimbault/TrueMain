@@ -34,9 +34,11 @@ Last verified against `develop` on 2026-09-02.
 - The patch the site serves is resolved over mains only, never over the selected population — #1349, #1346, #1109
 - Widening the aggregate meant auditing every existing read, because the dangerous direction is silent
 - The widened population is gated on a flag, because "a separate ops step" was not true otherwise — #1346, #1349, #601
+- The truemains toggle is shown only where the wider population is folded (`populationToggle`, on in preprod only) (2026-11-01) — #2352
 - A demoted account's scopes are demoted, not deleted — once the widening is on — #1346
 - Matchups reject the widened population rather than ignoring it — #1346, #1087
 - The thin-sample caveat is a header tooltip, and it counts games rather than coverage — #1346
+- The champion banner's moves and the trend chart read the page's rank and population, not every rank (2026-11-01) — #2353
 
 ## Champion page — builds, SSR prose — [`decisions/product-champion-page.md`](decisions/product-champion-page.md)
 
@@ -71,6 +73,7 @@ Last verified against `develop` on 2026-09-02.
 ## Champion directory, tier list and served patch — [`decisions/product-directory-and-tiers.md`](decisions/product-directory-and-tiers.md)
 
 - Tier score is presence-first (pick rate + ban rate, weighted above a sample-shrunk win rate) — this reverses #920's "bans don't feed the tier score"
+- A presence ranking is never labelled as strength: the homepage and desktop say "Most played and banned" (2026-11-01) — #2356
 - The static champion list drops Data Dragon entries with an id at or above 10 000 — alternate-mode kits, not champions — #966
 - A champion gets at most two lines in the directory — its dominant lanes — and the cap is applied before tiering — #1082
 - A tier-list chip is a portrait and its lane badge — the name and the three rates are tooltip content
@@ -99,6 +102,7 @@ Last verified against `develop` on 2026-09-02.
 - The matchups panel follows the page's patch filter on the global route, and deliberately does not on the player one — #1087
 - One player's matchups carry no games floor, and the player champion page has an explicit "All positions" slice (2026-10-20) — #2158
 - The champion page shows its matchups as a spread on the lane win rate at 15 min (centred on 50%), replacing the sidebar list — #2094
+- The spread's rate reads "Lane WR NN% (at 15 minutes)", never "WR"; on touch a first tap selects an icon and shows its rate under the strip (2026-11-01) — #2354
 - The player champion page shows the same spread on the player's own lanes (live from their 15-min snapshots, no lane floor), replacing its sidebar list — 2026-10-22
 - The spread follows the page's lane (no picker of its own), its tooltip says only `% WR`, and its wash is the match rows' red-to-blue — 2026-10-22
 - Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
@@ -111,6 +115,8 @@ Last verified against `develop` on 2026-09-02.
 - Draft reads use the current patch with the previous one as a per-champion fallback, not every stored patch — #1906
 - The draft's enemy team is its own opposing-pair aggregate behind its own match flag, weight 0 until a back-test sets it — #1713, #1906
 - A matchup-scoped build page is folded live, not aggregated — #923, #1075, #1098
+- A matchup slice states its games above the build tabs; under 20 the warning dot sits beside the opponent's name (2026-11-02) — #2355
+- The matchup tool shows the cached `?vs=` slice first, labelled as refining, then the composition build (2026-11-01) — #2361
 - The draft tool is the "Matchup" page (`/matchup`), and its opponent is the *role* opponent — #939
 - The recommendation shows no situational-items row — #921, #939
 - The matchup tool judges the lane over its own sampled games — this finishes #1111's merge
@@ -139,7 +145,9 @@ Last verified against `develop` on 2026-09-02.
 - Known players' account conflicts are recorded and settled by the operator (move / keep / detach / merge); exclusions and merged-persona pointers keep the scrapers from undoing it (2026-10-23) — #2253
 - Operators add, edit, unlink and remove known players from the admin; every edit holds against the scrapers, removal keeps the slug, a takedown bars the accounts from every persona (2026-10-24) — #2019
 - Two same-name known players claiming one account are merged automatically (into the older); same-name ones without a common account go to a homonyms queue to merge or mark as different people (2026-10-25) — #2271
+- Two known players listing the same social channel are a conflict even without a common account; with the same name too they are merged automatically into the older (2026-10-26) — #2286
 - The open conflict queue is ordered most certain first: shared social channels (Twitch, YouTube, X…) weigh most, shared reference pages less, differing channels count against (2026-10-25) — #2277
+- The most certain conflicts are merged in bulk into the older known player, from the explicit list previewed at a score floor, never one with a differing channel, each re-checked and audited (2026-10-26) — #2295
 - A main champion row reads its lane and play rate only: the `80 of last 200` sample line is gone (2026-10-13, reverses #1498's line)
 
 ## SEO, share cards and OG images — [`decisions/product-seo-and-sharing.md`](decisions/product-seo-and-sharing.md)
@@ -151,12 +159,14 @@ Last verified against `develop` on 2026-09-02.
 - OG image rendering is on, pinned to Satori + resvg, and deliberately reaches exactly two pages — #551, #926, #600
 - A cold OG render gets 30 s, and the fix is the wait, not a prerender or a warm-up (2026-10-04) — #1545
 - OG image URLs are signed with a secret regenerated at every build, and that is left as the default — #926
-- The sitemap advertises champions, not truemain profiles; known players with a tracked account are in it, their page being server-rendered (2026-09-01, extended 2026-10-14) — #862, #1337, #551, #2018
+- The sitemap advertises champions, known players with a tracked account and, since 2026-11-01, the top 500 truemain profiles — the pages a crawler gets server-rendered (2026-09-01, extended 2026-10-14 and 2026-11-01) — #862, #1337, #551, #2018, #2359
 - The sitemap is an index over one sitemap per family (pages, champions, players); a player's `lastmod` moves only when the page changes (2026-10-23) — #1538
+- A truemain profile answers 404 for an unknown account (server-side), and its canonical is the stored Riot ID's slug, not the lowercased URL (2026-10-26) — #2335, #2336
+- English only: search volume is too small to show a language worth localising; revisit from the weekly SEO review (2026-11-01) — #2366
 
 ## Web frontend rules (hydration, fetches, icons, tooltips) — [`decisions/web-frontend-rules.md`](decisions/web-frontend-rules.md)
 
-- "Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only — #862, #1234
+- "Client-only fetch" has to be enforced on the *side*, not merely intended — an immediate watcher is not client-only; the profile read itself rides the SSR payload since #2359 — #862, #1234, #2359
 - A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own `pending` — #1234
 - Every hand-rolled fetch composable carries a monotonic request token — #1234
 - A backend request nobody waits for any more is cancelled: every fetch forwards an abort signal (2026-09-27) — #1712
@@ -251,6 +261,7 @@ Last verified against `develop` on 2026-09-02.
 - A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
 - The pace benchmark is a per-minute CS / gold-earned histogram per (patch, tier, position), folded from the timeline in memory at ingestion, once per match, the lobby at its tracked account's tier — never a per-minute grid (2026-10-05) — #1912
 - The form benchmark (KDA, KP, CS/min, deaths, vision/min) is a whole-game histogram in its own table, folded in the pace benchmark's pass under its claim, so both describe the same games; no back-fill (2026-10-20) — #2076
+- One truncated-match table outlives retention: ten seats for ~4 patches (matchups, drafts), tracked seats up to 8 (profiles); off in production until preprod has measured it (2026-11-02) — #2358, #2368
 
 ## Backend code conventions — [`decisions/backend-conventions.md`](decisions/backend-conventions.md)
 
@@ -288,6 +299,7 @@ Last verified against `develop` on 2026-09-02.
 - The intake is sized by the claim, not by the ladder (2026-09-02) — #495, #900, #1150
 - Region balance is a target, not a quota: coverage deficit allocates every budget (2026-08-19) — #1149, #495, #900
 - Iron → Platinum are sampled into the pace benchmark by `PaceSampling` under a hard per-day call cap (every call counted), the games never stored — only a ledger of ids and the bins (2026-10-05) — #1912
+- Every ingested match is kept, the seatless fifth included: profiles, the lobby-wide folds, play rates and harvest read them (2026-11-01) — #2378
 
 ## Ingestion pipeline — processes, leases and resilience — [`decisions/pipeline-ingestion.md`](decisions/pipeline-ingestion.md)
 
@@ -343,6 +355,7 @@ Last verified against `develop` on 2026-09-02.
 - The admin `/analytics` iframe stays on Umami's public share view, not the authenticated app — kept as-is on purpose, 2026-08-04 — #1013, #1014
 - Umami session replay/heatmap rows are purged after 7 days by a sidecar container, not left to grow; since #2092 the same sidecar caps the rest of Umami's data at 25 months — #680, #1018, #2092
 - Analytics stay inside the CNIL consent exemption: no session replay, an opt-out on `/privacy` — no consent banner (2026-10-18); since 2026-10-19 a random anonymous visitor id, 13 months from creation and never extended, counts returning visitors across months; since 2026-10-24 no campaign ids, the referrer cut to its domain, data kept 25 months — #2089, #2149, #2092
+- Custom events count a moment by name only (Riot ID search miss, profile not found), to size the "analyse this player" request before building it (2026-11-01) — #2357
 - `/ops/*` is the only authenticated API surface
 - The Riot API key is a permanent *personal* key — not a 24 h dev key, and not production-approved — #532, #780
 - Preprod runs at test volume on its shared host, not at load-test size (2026-09-16)
@@ -351,6 +364,7 @@ Last verified against `develop` on 2026-09-02.
 - Prod's edge Caddyfile is inline in `compose.prod.yaml` (the deploy writes only the compose file and `.env`), and the release asserts compression and HSTS/CSP on the live site — #1598
 - Each service gets a fixed share of PgBouncer's 30 server connections — API 22, ingestors 8 (fetch 5 + aggregate 3), no reserve — and its Npgsql pool matches it (2026-10-19) — #1632
 - The edge Caddy is its own Docker Manager project, redeployed only when it changes, and answers a `503` maintenance page while the app stack rolls (2026-10-20) — #2179
+- The public site shows the maintenance page whenever web, the API or the database is down, through a health check of `/api/readyz`, whose failures in a row web counts because Caddy's count is cumulative; Mongo and the ingestors do not trigger it, and the admin keeps its own trigger (2026-11-02) — #2407, #2416
 
 ## Admin portal — observability data — [`decisions/admin-observability.md`](decisions/admin-observability.md)
 
@@ -379,10 +393,16 @@ Last verified against `develop` on 2026-09-02.
 - Request failures reach the ops logs as counted signal, not as request logging: 429s rolled up per visitor, 5xx and aborts with their request, channel drops counted (2026-09-14) — #1555, #444
 - The frontends report their server errors through the API, with a key of their own (2026-09-15) — #1556, #1555
 - A request the client abandoned is reported by the frontend that saw it, and cancels its API call (2026-09-15) — #1569
+- Ops request latency is measured server-side per route template into per-minute Mongo rollups with a fixed duration histogram, p50/p95 computed at read time; shown on a Processes → Performance tab, slow = p95 over 1 s (2026-10-26) — #2307, #2300
 - The edge's own failures reach the ops logs through the admin, which receives Caddy's error log over TCP — no sidecar, no log-file reader (2026-10-24) — #1580
 - The Ingestor's own meter is folded into Mongo per minute and shown on the Riot API tab — no OpenTelemetry pipeline, no tracing (2026-10-05) — #1636
 - The ops scripts kept outside the repo report their runs into `process_runs` through allow-listed ops endpoints, and the Processes page shows them on a *Scrapers* tab (2026-10-19) — #2119
 - Iterations are paged from a header per pass (`process_iterations`), not grouped from the runs (2026-10-19) — #2124
+- The Aggregation panel prints planner estimates and index probes, never a pass over a fold table; distinct patches and per-row freshness dropped (2026-10-26) — #2303
+- The cockpit payloads are kept warm by one background refresher, only while read, one at a time; a stale value is served with its computed-at time rather than making the click wait (2026-10-26) — #2305
+- A process run is compared with the median of its last 20 successes of the same process and mode, flagged at ≥ +100 % / ≤ −50 %, nothing under 5 runs; thresholds in the Api only (2026-10-26) — #2298
+- The audit trail's wording is one backend catalog served with the events, and a known player's History is the events targeting it (2026-10-26) — #2288
+- The pipeline-health verdict is announced on a Discord webhook, on transitions only (red held 2 evaluations, a process at 3 failed runs, recoveries), 1 h cooldown per signal, state in Mongo, from the cockpit payload read without counting as a visit (2026-10-26) — #2292
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
@@ -403,6 +423,9 @@ Last verified against `develop` on 2026-09-02.
 - The admin portal has one status vocabulary and one duration ladder (2026-08-28) — #924, #1024
 - The admin's tracked-region list stays a checked-in constant, not a read of `/ops/configuration` (2026-08-28) — #1249
 - The cockpit's region balance is informational, and its coverage deficit is the claim allocator's own arithmetic over the same counts (2026-10-04) — #1153, #1150
+- Admin ops reads are stale-while-revalidate across navigations: in-memory only, 10 min TTL, emptied when the session ends; `useOps`' `pending` means "nothing to draw yet", `refreshing` is a request in flight (2026-10-26) — #2306, #2300
+- Deploy markers come from a boot log every backend process appends to, flagged as a deploy at write time; restarts expire after 30 days, deploys are kept; the charts read the rendered axis back to place them (2026-10-26) — #2297
+- The health verdict keeps refreshing in a background tab, once a minute, so the tab title and favicon can carry a non-green verdict; every other live panel still stops when hidden (2026-10-26) — #2296, #1411
 
 ## Desktop companion — [`decisions/desktop.md`](decisions/desktop.md)
 
@@ -446,7 +469,7 @@ Last verified against `develop` on 2026-09-02.
 - Runes are imported on a click only, from a discreet corner icon; the app reuses its one `TrueMain: ` page and never deletes a page of the player's; no spell import (2026-10-03) — #1678
 - Items are imported on a click too, as one `TrueMain: ` item set replaced in place; the whole-list write round-trips the player's sets raw and writes nothing after a failed read (2026-10-05) — #1908
 - A kit is the player's own item tree + rune page + two spells per champion and position, kept on their machine; the active one takes champion select's build pane (its imports reuse the one TrueMain set and page, and set its spells on a click — revising #1678/#1909 for kits only) and drives the next item until it runs out (2026-10-21) — #2185; its boots are a list to pick between, its tree legendaries only — #2201; its picker filters by the shop's classes, served by the API from the game data — #2203; it is offered on several positions, listed on a My kits page, and every kit is a choice in champion select beside the draft's build, no active switch (revises #2185) — #2205
-- The app hovers, locks and bans in champion select on the player's click only — lock = complete what the client shows hovered, from one strip button; a ban (or an ally's intent) asks first; no auto-lock/ban/accept, ever (2026-10-05) — #1909
+- The app hovers, locks and bans in champion select on the player's click only — lock = complete what the client shows hovered, from one strip button; a ban (or an ally's intent) asks first; no auto-lock/ban/accept, ever (2026-10-05) — #1909; during our pick a click on the card hovers (build behind a corner icon), a ban keeps a bar that arms then bans (2026-10-31) — #2381
 - The player's own account is never highlighted — loading screen, game page, match rows, scoreboard, runes; ours only orders the sides (2026-10-02); exception: our line on the match detail's gold / XP / CS curves, in the primary colour (2026-10-19) — #1803, #2102
 - The match detail's Timeline view opens on the ten players' gold / XP / CS curves (lead band, kills and objectives as the recap's blue-above / red-below dots on the axis, a pinning list per side) above the win probability, from the client's timeline, app only, shown only when the timeline carries gold (2026-10-19) — #2102
 - The dashboard's Today card: games, W–L, time played and net LP since local midnight, LP summed only over measured games (partial sum flagged), following the queue filter, absent on a day without a game (2026-10-16) — #2073
@@ -462,7 +485,7 @@ Last verified against `develop` on 2026-09-02.
 - The app records only against a real client, into the system's videos folder; objectives from the match timeline only; Screen Recording asked from the Recordings page (2026-10-01) — #1744
 - Clips are cut by hand from the post-game recap in v1 (reverses #1744's "no trimming by hand"); saved clips are never pruned by the budget; the recap opens on its own only over the game page or the dashboard; Recordings page in DPM's layout (2026-10-01) — #1755, #1777
 - The mark key (⌥⇧0 by default, read like an overlay chord, only while a game records) notes the video's second; each mark becomes a saved clip of the 30 s before it, cut once the game ends, adjustable in the recap (an adjusted range replaces the clip); it is #1767's instant replay too: 30 s / 1 min / 2 min kept per mark, a 2.5 s confirmation over the game in an overlay window of its own, titled "Ahri at 12:34"; the replay buffer without the full game stays deferred (2026-10-20, 2026-10-21) — #2079, #1767
-- Automatic clips: once a game is finalised, the plays the player picks (multi-kills from a triple, a multi-kill into an objective, steals, aces, first blood, teamfights; all on by default) are cut as saved clips, titled only from the events (timeline + the live feed's Stolen/Ace/FirstBlood, sided by the player list, never guessed); overlapping windows merge (2026-10-21) — #1766
+- Automatic clips: once a game is finalised, the plays the player picks (multi-kills from a triple, a multi-kill into an objective, steals, aces, first blood, teamfights; all on by default) are cut as saved clips, titled only from the events (timeline + the live feed's Stolen/Ace/FirstBlood, sided by the player list, never guessed); overlapping windows merge (2026-10-21) — #1766; default since 2026-10-31: multi-kills from a double and Flash plays (a kill ≤ 6 s after the player's Flash key, read like the mark key), the rest opt-in — #2382
 - A clip is published through YouTube's upload page in the player's browser (file dragged from the app, prepared text, link given back), never the YouTube Data API: shared per-project quota, sensitive-scope verification, forced private uploads (2026-10-12) — #1815
 - A published clip may delete its video and play from YouTube's embed, framed through a page the shell serves on 127.0.0.1 (YouTube refuses `tauri://` pages, error 153); only a linked clip can drop its file; a link is kept only once oEmbed confirms an Unlisted/Public video titled as the clip (2026-10-12) — #2005
 - The dashboard reads the player's record from their own client (history, ranked, profile skin, scoreboards, timelines), not TrueMain's API; the site's ranked card, champions and roles lists (shared components since #2029, dashboard figures in slots); the match row, its accordion (a compact same-surface match detail); LP history noted locally; form = last 5 vs own average, no composite score (2026-09-30) — #1683
@@ -470,12 +493,14 @@ Last verified against `develop` on 2026-09-02.
 - The running game is read from its Live Client Data API every 2 s while `InProgress`, sent as a snapshot then numbered changes; `/game` opens from home or the draft only, shows the scoreboard's own information; enemy visibility still to verify live (2026-10-01) — #1748
 - The Game page's player lines show standing, role fit (main ≥ ½ of recent role games, autofill < ¼), champion record, streak and recent games instead of items and K/D/A (reverses #1748's scoreboard copy); all via the client, plus one ranked request per player (2026-10-04) — #1828
 - Each Game-page lane shows an arrow + chance towards the favoured side: TrueMain's champion head-to-head (shrunk to 50 %) moved by each player's last 10 games on the champion — win rate and gold/CS/XP leads at 15 vs their lane opponent, weighted per role; figures not shown (revises #1828's no-composite rule for lanes only) (2026-10-04) — #1863
+- The next item treats an off-advice legendary as covering its need (MR, armour, anti-heal, penetration, tenacity) and stops suggesting that need (2026-11-01) — #2371
 - The next item sits over the game board: the mains' next legendary, one reason, the gold left and the components buyable now, two runners-up and the boots; asked on item changes only; our gold in 50-gold steps (2026-10-01); until a starter is bought, the composition build's starter basket above it and in its place on the overlay (2026-10-08) — #1751, #1989
 - The next item also lays the build out as one row, the boots at the step the mains most often complete them at (a `BootsTiming` slot of the item-context fold, ≥ 20 games, no backfill: it fills from matches folded after the change); due boots become the main item (2026-10-19) — #2101
 - The next item's components come in the order the mains buy them (`champion_item_component_orders`, folded in the item-context pass, mean rank, ≥ 20 games over up to three patches, else recipe order; no backfill); the gold walks that order and stops at the first it cannot cover, "≈" across a 50-gold step; the overlay panel shows it, labelled "Build path" (2026-10-21) — #2183
 - In game the next item sends the five enemies' inventories (champion select sends none, which is not an empty one) and reads what they have built; its reason for those axes is the app's own game-state wording (2026-10-21) — #1750
 - The overlay's pace sets CS/min and gold/min against the median of games at the player's Solo/Duo tier (every tier fetched, the tier picked locally); no Solo/Duo standing → no comparison; a reference, never advice (2026-10-05) — #1912
 - The dashboard's form tiles carry the median of the player's own Solo/Duo tier (not the tier above) on their main role, in muted text with the tier's emblem; under the floor or without a standing, none; dashboard only (2026-10-20) — #2076
+- Game recording is frozen; kept only if ≥ 25% of installs that play with the app open record a game within 30 days, read after the next production release (2026-11-01) — #2364
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 

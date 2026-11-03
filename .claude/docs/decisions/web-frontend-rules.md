@@ -20,6 +20,11 @@ SSR emits `Name#TAG` and the client's first render computes the identical value 
 over once it lands. Anything pre-fetch that consults fetched data instead would reopen the mismatch.
 Disabling SSR on the route or timing out the fetch were both rejected: neither addresses the mismatch, and
 the route is a primary, indexable one — #862.
+**Revised by #2359 (2026-11-01) for the profile read only:** what broke was a fetch the server ran and the client
+did not see, not server rendering itself. The profile is public and keyed on the slug, so it now goes through
+`useAsyncData` (`useTruemainProfile`'s `ssr` option) and rides the payload: server and client start from the same
+data, and the banner, ranked card and mains are in the server HTML. Rank history, activity and matches keep the
+`onMounted` rule above.
 
 The rule covers anything else an immediate watcher can trigger, not just fetches. Its worked example was
 `useErrorToast`, which registered its watcher under `import.meta.client`: the `if (!value) return` guard made
@@ -386,7 +391,7 @@ tried first (#1617) and rejected.
   moves from preprod to prod) — re-reading each value on the client instead would leave the same trap for the
   next `runtimeConfig.public` consumer.
 - **Why one hour.** The TTL matches the champion slug map's own server cache
-  (`server/api/static/champion-slugs.get.ts`), the only backend-derived value in these pages' payload, so a
+  (`web/layers/nitro/server/api/static/champion-slugs.get.ts`), the only backend-derived value in these pages' payload, so a
   cached page is never staler than a freshly rendered one.
 - **Measured**: served locally, a cached response answers in ~3.5 ms against ~117 ms for a full render, and
   the env, version, Umami host/id and canonical URL are the running container's.

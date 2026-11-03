@@ -35,7 +35,8 @@ const props = defineProps<{
   championById?: Map<number, ChampionStaticListItem>
 }>()
 
-const canExpand = computed(() => !!props.nameTag)
+// A game past match retention (#2358) kept nothing to open.
+const canExpand = computed(() => !!props.nameTag && !props.match.isTruncated)
 const expanded = ref(false)
 // Mounted on first open and kept afterwards, so re-opening never re-fetches.
 const hasOpened = ref(false)
@@ -95,7 +96,7 @@ const result = computed(() => resultTone(self.value.win))
       </div>
       <MatchRowKda :self="self" />
       <div class="hidden shrink-0 @[33rem]:block">
-        <MatchRowStats :self="self" :duration-seconds="match.gameDurationSeconds" />
+        <MatchRowStats :self="self" :duration-seconds="match.gameDurationSeconds" :truncated="match.isTruncated" />
       </div>
       <MatchRowLoadout
         :self="self"

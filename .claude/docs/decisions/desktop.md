@@ -455,6 +455,16 @@ while a game records.
   until recording's cost in game is measured. No usage counter yet — the desktop telemetry catalogue is the API's
   (#1952) — #2079, #1767.
 
+**Automatic clips default to multi-kills from the double and Flash plays (2026-10-31, revises the entry below).** The
+product owner found a game clipped too much with every kind on: the default is now multi-kills **from a double kill**
+and a new kind, **Flash plays** — a kill of the player's within 6 s after a press of the key the game binds to the
+summoner spell slot holding Flash (the live feed's spells, the client's input settings), read like the mark key: the
+keyboard's state, over the game, only while it records with the kind chosen, no hook. A press within 200 s of the
+last counted one is not counted (Flash is down: 300 s, ~230 s with every haste); a press typed in chat can still
+count, and only a kill right after it makes a clip. The press is the one input not read from the game's events; the
+title says what it is ("Flash double kill on Ahri"). The other kinds stay as opt-ins; a settings file of version 1
+listing exactly the six old kinds — that version's default, saved untouched — moves to the new default — #2382.
+
 **Automatic clips cut the plays the player picks once a game is finalised, titled only from what the events show
 (2026-10-21).** The product owner's reference is DPM's "Recording & clips": the plays worth keeping cut out on their
 own, listed beside the full games. Deferred on 2026-10-05 until the manual clips proved used, then put on Sprint 9 by
@@ -518,6 +528,15 @@ next item on the overlay: at the start the shop is open for the starter, not a l
 build's starter basket for the ten champions on their lanes, asked once per game, not a next-item model term: the
 item-context counters see a starter item by item, and a basket (Doran's Ring and two potions) is what is bought
 (2026-10-08) — #1989.
+
+**The next item treats an off-advice item as covering its need (2026-11-01).** When the player completes a legendary the
+mains rarely take at that point, few or no games sit behind that prefix, and the panel kept suggesting the need the
+player had just answered another way. The advice is a need, not an item: an item that a build-tree branch starts from
+re-anchors the advice on that branch (as `ResolveBuildPath` already did); otherwise the legendary's situational needs
+— magic resistance, armour, anti-heal, armour or magic penetration, tenacity, read off CommunityDragon's categories and
+the Grievous Wounds flag (`ItemNeeds`, the situational whitelist's own attributes) — count as covered, and no candidate
+answering one of them is suggested again. Damage and health are no need: every legendary carries one. Components and
+boots cover nothing. A branch made only of covered needs still answers rather than going quiet — #2371.
 
 **The next item also says where the game stands in the build, and when the boots come.** Under the item, the build
 is one row: completed items, the next one, the rest of the tree walked forward from it (each branch's best candidate
@@ -938,6 +957,13 @@ hovered champion when the timer runs out is the client's rule; the app says so a
 spells, skins, swaps and trades are not written. Nothing about the enemy that champion select hides is read for
 this — #1909.
 
+**During our pick, a click on a suggested champion hovers it; a ban keeps its own button (2026-10-31).** The
+product owner found a separate "Hover" button a needless step: in the client a click on a champion hovers it, so a
+click on the card does here, while the build it used to open moves to an icon in the card's corner (and out of turn
+the click still opens the build). It is still the player's click and a hover is reversible, so #1909's rule holds;
+a ban, which is not, keeps a bar under the card that arms ("Confirm") and writes on a second click, the confirmation
+popover gone; an ally's pick intent arms the card the same way. The cards no longer grow on hover — #2381.
+
 **A player keeps their own builds as kits: an item tree, a rune page and two spells per champion and position, used
 in champion select and the overlay (2026-10-21).** Benchmarked on a competitor's "My builds" (a flat item route per
 role); ours is a loadout — the item path *and* the rune page *and* the spells — and the path is a tree like our
@@ -964,3 +990,11 @@ as that one), listed on each of their champion pages; the My kits page lists the
 no switch any more — every kit on the pick's lane is offered in champion select as rows of the build pane's list,
 beside the draft's build (still the default, answering the matchup) and the favourite truemains' builds; the kit
 picked there is the one the next item follows in game — #2205.
+
+**Game recording is frozen, and kept or dropped on a bar set in advance (2026-11-01, #2364).** The recorder — two native
+capture helpers, the clip editor, auto clips, the mark key, YouTube publishing — competes with Outplayed, Medal and
+DPM's recorder and uses none of TrueMain's data, while every OS or encoder change pulls the only developer into video
+plumbing. No new recording feature ships until the decision. The bar, fixed before reading the figure: **keep it if
+at least a quarter of the installs that play a game with the app open record at least one game over 30 days.** The
+production app (0.5.0) predates the `gameRecorded` / `clipSaved` / `clipPublished` counters — it only counts the
+recordings pages — so the figure is read 30 days after the next production desktop release, which carries them.

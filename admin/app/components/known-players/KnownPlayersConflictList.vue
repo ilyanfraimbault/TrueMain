@@ -2,23 +2,33 @@
 // The conflict queue's rows (#2253): the disputed account, the known player whose
 // source claims it, the one holding it, what their links have in common — the open
 // queue is ordered by it, most certain first (#2277) — how often the claim came back.
-// Presentational — the container fetches, pages and opens the detail.
+// Presentational — the container fetches, pages and opens the detail. The row the
+// keyboard selects (#2293) is marked and kept in view.
 import type { PersonaConflict } from '~~/shared/types/ops'
+import { nextTick, ref, watch } from 'vue'
 import { formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 import { accountCount, renamedTo, resolutionColor, resolutionLabel, riotId } from '~~/shared/utils/persona-conflicts'
 import { evidenceBadges } from '~~/shared/utils/persona-evidence'
 
-defineProps<{
+const props = defineProps<{
   conflicts: PersonaConflict[]
   pending: boolean
   emptyText: string
+  selectedId?: string | null
 }>()
 
 const emit = defineEmits<{ open: [conflict: PersonaConflict] }>()
+
+const root = ref<HTMLElement | null>(null)
+watch(() => props.selectedId, async (id) => {
+  await nextTick()
+  const row = id ? root.value?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`) : null
+  row?.scrollIntoView?.({ block: 'nearest' })
+})
 </script>
 
 <template>
-  <div class="overflow-x-auto">
+  <div ref="root" class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
         <tr class="text-left text-xs uppercase text-muted border-b border-default">
@@ -47,9 +57,12 @@ const emit = defineEmits<{ open: [conflict: PersonaConflict] }>()
           v-for="conflict in conflicts"
           :key="conflict.id"
           data-row
+          :data-row-id="conflict.id"
+          :data-selected="conflict.id === selectedId || undefined"
+          :aria-current="conflict.id === selectedId || undefined"
           tabindex="0"
           :aria-label="`Open the conflict over ${riotId(conflict.account)}`"
-          class="border-b border-default last:border-0 cursor-pointer hover:bg-elevated/40 focus-visible:outline-2 focus-visible:outline-primary"
+          class="border-b border-default last:border-0 cursor-pointer hover:bg-elevated/40 data-selected:bg-primary/10 data-selected:shadow-[inset_2px_0_0_var(--ui-primary)] focus-visible:outline-2 focus-visible:outline-primary"
           @click="emit('open', conflict)"
           @keydown.enter.prevent="emit('open', conflict)"
           @keydown.space.prevent="emit('open', conflict)"

@@ -257,6 +257,15 @@ public sealed class MatchParticipantConfiguration : IEntityTypeConfiguration<Mat
         entity.HasIndex(e => new { e.MatchId, e.TeamId }, "IX_match_participants_team_position_pending")
             .HasFilter("\"TeamPosition\" = ''");
 
+        // The elo bracket enrichment's work queue and the Aggregation panel's backlog count
+        // (#2303): tracked rows still waiting for their stamp. The champion/position index
+        // above carries the bracket as a trailing column, so both reads walked that whole
+        // index to count a few thousand rows. Partial, so it holds only what is
+        // left to stamp; keyed on Id, the enrichment's keyset cursor. Pre-built out of band
+        // on preprod/prod (docs/production-migrations.md).
+        entity.HasIndex(e => e.Id, "IX_match_participants_elo_bracket_pending")
+            .HasFilter("\"RiotAccountId\" IS NOT NULL AND elo_bracket = ''");
+
         entity.HasOne(e => e.RiotAccount)
             .WithMany()
             .HasForeignKey(e => e.RiotAccountId);

@@ -163,6 +163,10 @@ builder.Services.AddCrashReporting();
 // can report them. Registered ahead of the Worker below: hosted services start in
 // registration order, and the Worker can end the process after its first pass.
 builder.Services.AddEffectiveConfigurationPublisher(IngestorEffectiveConfigurationCatalog.Instance);
+// Appends this boot's version to the boot log the admin deploy markers read (#2297), keyed by
+// the job mode because the fetch and aggregate lanes are two containers of one image.
+builder.Services.AddProcessBootRecorder(
+    services => services.GetRequiredService<IOptions<JobOptions>>().Value.Mode);
 // Metrics pipeline: AddMetrics registers the IMeterFactory that IngestorMetrics builds
 // the "TrueMain.Ingestor" meter from, so the meter's lifetime is the host's instead of a
 // process-wide static. It is idempotent (TryAdd), so calling it explicitly here is safe

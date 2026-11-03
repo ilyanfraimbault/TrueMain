@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The desktop companion's place on the home page (#1719, #1725): a banner right
-// under the hero, above the strongest picks and their mains — the app is those
+// under the hero, above the tier-list teaser and its mains — the app is those
 // two answers brought into champion select, so it is announced before them. It
 // shows the app itself, whole: its dashboard, the screen it opens on. It says it
 // is a beta up front. It sits on the page itself, like the hero above it, rather

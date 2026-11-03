@@ -142,6 +142,42 @@ public sealed class NextItemModel
         return (path, onTree);
     }
 
+    /// <summary>
+    /// The completed items the mains would not have taken where the game took them (#2371):
+    /// those that are no candidate of the branch the build stood on, walked exactly as
+    /// <see cref="ResolveBuildPath"/> walks it. An item the cohort never completes as a build
+    /// step at all is off-advice too; telling a component or a boot from a legendary is the
+    /// caller's, which holds the item data.
+    /// </summary>
+    public IReadOnlyList<int> OffAdviceItems(IReadOnlyList<int> completedInOrder)
+    {
+        ArgumentNullException.ThrowIfNull(completedInOrder);
+
+        var parent = 0;
+        var offAdvice = new List<int>();
+
+        foreach (var itemId in completedInOrder)
+        {
+            if (itemId <= 0)
+            {
+                continue;
+            }
+
+            var isChild = Branch(ItemContextSlot.Build, parent)?.Candidates.Any(c => c.ItemId == itemId) ?? false;
+            if (!isChild)
+            {
+                offAdvice.Add(itemId);
+            }
+
+            if (IsBuildItem(itemId) && _branches.ContainsKey((ItemContextSlot.Build, itemId)))
+            {
+                parent = itemId;
+            }
+        }
+
+        return offAdvice;
+    }
+
     /// <summary>Whether the cohort ever completes this item as a build step, on any branch.</summary>
     public bool IsBuildItem(int itemId) => _buildItems.Contains(itemId);
 
