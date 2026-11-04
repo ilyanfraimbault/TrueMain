@@ -14,7 +14,9 @@ namespace Ingestor.Processes.Components.Retention;
 /// <para>
 /// <b>Written in the deleting transaction.</b> <see cref="WriteAsync"/> runs inside each
 /// batch's transaction, before the match's rows are deleted, so a match is either still whole
-/// or already truncated — never lost between the two, and never truncated twice.
+/// or already truncated — never lost between the two. A match can still come back: ingested
+/// again after its truncation, it has raw rows and seats at once until retention deletes it
+/// again, and it keeps the seats it has (#2449).
 /// </para>
 /// <para>
 /// <b>Two tiers, both bounded.</b> Every seat of the newest <c>TruncatedRetainedPatchCount</c>
@@ -47,7 +49,8 @@ public static class TruncatedMatchRetention
             .Where(match => matchIds.Contains(match.Id)
                 && match.QueueId == queueId
                 && match.GameDurationSeconds >= ChampionCohort.MinimumGameDurationSeconds
-                && !match.EndedInEarlySurrender)
+                && !match.EndedInEarlySurrender
+                && !db.TruncatedMatchSeats.Any(seat => seat.MatchId == match.Id))
             .ToListAsync(ct);
         if (matches.Count == 0)
         {
