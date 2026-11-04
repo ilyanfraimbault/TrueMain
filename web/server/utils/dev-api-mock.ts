@@ -1291,6 +1291,7 @@ function mockPersonaSearch(needle: string): SearchPlayer[] {
       return {
         persona,
         accountCount: page.accounts.length,
+        pictureUrl: page.pictureUrl,
         profileIconId: best?.profileIconId ?? null,
         ranked: best?.ranked ? { tier: best.ranked.tier, division: best.ranked.division, leaguePoints: best.ranked.leaguePoints } : null,
       }
@@ -1327,6 +1328,8 @@ function mockPersona(requested: string): PersonaResponse | null {
   return {
     slug: persona.slug,
     displayName: persona.displayName,
+    // A picture from an allowed host that names nobody: the fixtures stay deterministic.
+    pictureUrl: slug === 'sheiden' ? 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/profileicon/588.png' : null,
     links: slug === 'sheiden'
       ? [
           { kind: 'twitch', url: 'https://www.twitch.tv/sheiden' },

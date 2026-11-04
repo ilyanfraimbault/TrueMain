@@ -21,7 +21,7 @@ namespace Data.CompiledModels
                 "Data.Entities.Persona",
                 typeof(Persona),
                 baseEntityType,
-                propertyCount: 10,
+                propertyCount: 12,
                 navigationCount: 3,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 3,
@@ -82,6 +82,23 @@ namespace Data.CompiledModels
             nameKey.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             nameKey.AddAnnotation("Relational:ComputedColumnSql", "regexp_replace(lower(\"DisplayName\"), '[[:space:]._-]+', '', 'g')");
             nameKey.AddAnnotation("Relational:IsStored", true);
+
+            var pictureRefreshAtUtc = runtimeEntityType.AddProperty(
+                "PictureRefreshAtUtc",
+                typeof(DateTime?),
+                propertyInfo: typeof(Persona).GetProperty("PictureRefreshAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Persona).GetField("<PictureRefreshAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            pictureRefreshAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
+
+            var pictureUrl = runtimeEntityType.AddProperty(
+                "PictureUrl",
+                typeof(string),
+                propertyInfo: typeof(Persona).GetProperty("PictureUrl", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(Persona).GetField("<PictureUrl>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                maxLength: 512);
+            pictureUrl.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var removedAtUtc = runtimeEntityType.AddProperty(
                 "RemovedAtUtc",

@@ -329,14 +329,28 @@ what blocks a merge (#294).
 
 Promoting another rule is a one-line `.editorconfig` change, made in the PR that fixes its findings.
 
-## A process's own timestamp on `riot_accounts` is stamped set-based, never through a tracked entity (2026-10-13)
+## `riot_accounts` carries no concurrency token (2026-11-04, reverses the 2026-10-13 call)
 
-`RiotAccount` carries an `xmin` concurrency token (#231), and the fetch lane writes the same rows in raw SQL at
-any time (`LastSeenInMatchAtUtc`, the summoner profile, the ingest status). A process that loaded accounts tracked
-only to stamp its own column (`LastMainCalcAtUtc`, `LastActivityCheckAtUtc`) lost that race: the save matched 0
-rows, `DbUpdateConcurrencyException` failed the run, and its remaining batches waited for the next cycle.
-`MainActivity` was the most exposed, since it held the rows across a whole run of mastery calls.
+The fetch lane writes these rows in raw SQL at any time (`LastSeenInMatchAtUtc`, the summoner profile, the ingest
+status). Under the whole-row `xmin` token of #231, any such write between a tracked load and its save matched 0
+rows and raised `DbUpdateConcurrencyException`, which dropped the rest of the run. #2046 moved two timestamps to
+set-based stamps and kept the token "for the columns two writers really share". The failures went on in
+AccountRefresh, Discovery and LadderSync: nearly all of AccountRefresh's fell outside every other tracked writer's
+run, so the token was firing on columns the save never writes.
 
-The token stays: it guards the columns two writers really share. A column with a single writer has nothing for it
-to protect, so it is stamped with `ExecuteUpdateAsync` keyed on `(PlatformId, Puuid)`
-(`RiotAccountRepository.Stamps.cs`), inside the transaction that holds the verdict it dates — #2046.
+The token is gone. EF writes only the columns a save changed. Those have one writer (`Status`, the Riot ID, the
+PUUID) or several writers of a fresh Riot reading (the rank bookkeeping, the summoner profile), where the last
+write is the right one and the next reading corrects it. A process's own timestamp is still stamped set-based
+(`RiotAccountRepository.Stamps.cs`), since it has no reason to load the accounts at all. The ingest status moves
+only through predicate-filtered `ExecuteUpdateAsync`. One accepted cost: two rank writers racing over an account's
+first reading of the day can each append a snapshot, which only bends the one-row-a-day storage cap. `main_candidates`
+keeps its token: its statuses are a state machine, and it has not produced a conflict — #2046, #2448.
+
+## Benchmark counters are upserted once per transaction, in conflict-key order (2026-11-04)
+
+Every ingesting account increments the same hot rows of `pace_benchmark_stats` and `form_benchmark_stats`, and an
+upsert holds each row until its transaction commits. Batches locking overlapping rows in first-seen order deadlocked
+(`40P01`). The order lives in the statement (`ORDER BY` the conflict key), so no caller can get it wrong, and
+`TimelineIngestionService` folds the whole plan once, after its last save: a transaction upserting per save batch
+would still take the rows in several passes, which no statement order can reconcile, and would hold them through
+the rest of the account's writes. Pace before form, everywhere — #2448.

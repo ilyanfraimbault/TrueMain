@@ -45,6 +45,16 @@ const contactEmail = 'contact@truemain.lol'
           aggregate it to build per-champion and per-player statistics.
         </ProseP>
         <ProseP>
+          <ProseStrong>Known players.</ProseStrong>
+          For pros, streamers and creators, we list the accounts and channels
+          that public sources associate with them. Their page also shows the
+          profile picture of their public channel, as published on YouTube,
+          Twitch, Kick, SOOP or Chzzk: we refresh it regularly and drop it as
+          soon as the channel no longer has one. The site serves this picture
+          from its own servers, so your browser does not contact these platforms
+          to display it; the desktop app loads it from them directly.
+        </ProseP>
+        <ProseP>
           <ProseStrong>Audience measurement.</ProseStrong>
           We use a self-hosted analytics tool (Umami), for the sole purpose of
           measuring how the site is used: pages viewed, the domain of the site
@@ -129,7 +139,8 @@ const contactEmail = 'contact@truemain.lol'
           the right to access, correct or request deletion of personal data we
           hold about you, and to object to certain processing. Because TrueMain
           surfaces public League of Legends data, you can ask us to remove your
-          player profile and associated data from the site. To make a request,
+          player profile and associated data from the site, including a known
+          player's page and its picture. To make a request,
           contact us at the address below.
         </ProseP>
       </section>
@@ -140,7 +151,9 @@ const contactEmail = 'contact@truemain.lol'
         </ProseH2>
         <ProseP>
           Game data originates from the Riot Games API and is subject to Riot's
-          own terms and privacy practices. We host the site and its analytics on
+          own terms and privacy practices. Known players' channel pictures come
+          from the YouTube Data API, the Twitch API and the public pages of Kick,
+          SOOP and Chzzk. We host the site and its analytics on
           our own infrastructure. We do not share your data with third parties for
           their own marketing.
         </ProseP>

@@ -1,7 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { fileURLToPath } from 'node:url'
 import { addServerHandler, defineNuxtModule } from '@nuxt/kit'
-import { IPX_CACHE_SECONDS, IPX_ROUTE_BASE } from './shared/utils/ipx'
+import { IPX_CACHE_SECONDS, IPX_ROUTE_BASE, IPX_SOURCE_DOMAINS } from './shared/utils/ipx'
 
 // How long a rendered text page stays in the Nitro cache before it is
 // re-rendered in the background (see the `routeRules` entries below).
@@ -271,7 +271,7 @@ export default defineNuxtConfig({
   image: {
     // Allow-list for the ipx provider's URL generation. The storage options
     // themselves live in server/handlers/ipx-cached.ts, which owns `/_ipx/**`.
-    domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org'],
+    domains: IPX_SOURCE_DOMAINS,
   },
   // Satori shapes text with harfbuzzjs, which loads `hb.wasm` from a path it
   // computes at runtime. Nitro's dependency trace only follows static

@@ -144,6 +144,7 @@ Last verified against `develop` on 2026-09-02.
 - Known players' accounts on a platform the pipeline does not ingest are stored as `untracked`, never seeded (2026-10-19) — #2134
 - Known players' account conflicts are recorded and settled by the operator (move / keep / detach / merge); exclusions and merged-persona pointers keep the scrapers from undoing it (2026-10-23) — #2253
 - Operators add, edit, unlink and remove known players from the admin; every edit holds against the scrapers, removal keeps the slug, a takedown bars the accounts from every persona (2026-10-24) — #2019
+- A known player's picture is their first channel's (YouTube > Twitch > Kick > SOOP > Chzzk), official APIs for the first two; account rows keep their Riot icon (2026-11-04) — #2446
 - Two same-name known players claiming one account are merged automatically (into the older); same-name ones without a common account go to a homonyms queue to merge or mark as different people (2026-10-25) — #2271
 - Two known players listing the same social channel are a conflict even without a common account; with the same name too they are merged automatically into the older (2026-10-26) — #2286
 - The open conflict queue is ordered most certain first: shared social channels (Twitch, YouTube, X…) weigh most, shared reference pages less, differing channels count against (2026-10-25) — #2277
@@ -282,7 +283,8 @@ Last verified against `develop` on 2026-09-02.
 - Integration test classes reset their stores in `InitializeAsync`; migration replays get a scratch database; clocks are frozen through the factory (2026-10-05) — #1246
 - Test methods are named `MethodName_State_ExpectedBehavior` (PascalCase segments, never snake_case), enforced by an `IDE1006` rule on `backend/tests` (2026-10-06) — #1246, #290
 - Threading + Roslynator analyzers run on every project: async-correctness rules are errors, JTF-only and false-positive rules are off, Roslynator style stays IDE hints (2026-10-05) — #294
-- A process's own timestamp on `riot_accounts` is stamped set-based, never through a tracked entity (2026-10-13) — #2046, #231
+- `riot_accounts` carries no concurrency token; a process's own timestamp is stamped set-based (2026-11-04) — #2046, #231, #2448
+- Benchmark counters are upserted once per transaction, in conflict-key order (2026-11-04) — #2448
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 

@@ -244,6 +244,7 @@ public sealed partial class PersonaUpsertService(
             }
 
             persona.Links.Add(new PersonaLink { Kind = kind, Url = url, Source = source });
+            persona.PictureRefreshAtUtc = null;
         }
     }
 
