@@ -587,7 +587,7 @@ Beta* with its own bundle identifier, so a tester keeps both installed. The prep
 (`DESKTOP_BETA_SITE_URL`), never written in the repository, and a developer's local builds read it from a gitignored
 `desktop/.env.local`. The webview no longer opens URLs itself: it asks the shell to open a *path* on the build's site
 (`open_on_site`), which replaces the shell plugin's origin-scoped `open`. Revises the line of #1772 that the
-updater polls production only (2026-10-01) — #1779.
+updater polls production only (2026-10-01) — #1779. Widened by #2441: a known player's channels, on a host list.
 
 **The app keeps itself current without the player re-downloading it (2026-10-01).** The product owner's call: a
 companion left open all day must notice a new build while it runs, and installing one must not be a chore. Each
