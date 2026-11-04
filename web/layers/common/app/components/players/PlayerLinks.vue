@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PersonaLink, PersonaLinkKind } from '~~/shared/types/players'
+import type { PersonaLink, PersonaLinkKind } from '#shared/types/players'
 
 // A known player's channels (#2016): Twitch, YouTube and X only, as square
 // buttons carrying the brand's coloured logo and no label — the logo says which
