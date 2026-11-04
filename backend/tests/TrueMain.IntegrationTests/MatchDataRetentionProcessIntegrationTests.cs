@@ -108,6 +108,28 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RunAsync_DeletesAReingestedMatch_KeepingTheSeatsItAlreadyHas()
+    {
+        await SeedRetentionDataAsync();
+        var recorded = BuildRecordedProcess(retainedPatchCount: 1);
+        await recorded.RunCoreAsync(CancellationToken.None);
+
+        await using (var reingest = _fixture.CreateDbContext())
+        {
+            reingest.Matches.Add(BuildMatch("RET_1", "KR", DateTime.UtcNow.AddDays(-10), "16.3.7"));
+            reingest.MatchParticipants.Add(
+                BuildParticipant(Guid.Parse("88888888-8888-8888-8888-888888888881"), "RET_1"));
+            await reingest.SaveChangesAsync();
+        }
+
+        await recorded.RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        (await db.Matches.AsNoTracking().AnyAsync(match => match.Id == "RET_1")).Should().BeFalse();
+        (await db.TruncatedMatchSeats.AsNoTracking().CountAsync(seat => seat.MatchId == "RET_1")).Should().Be(1);
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldDrainNonRankedMatchesEvenWithNoRankedMatchesPresent()
     {
         var now = DateTime.UtcNow;
