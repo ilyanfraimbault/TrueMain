@@ -44,6 +44,16 @@ public class MatchDataRetentionOptions
     public int ExpiredPatchDeleteBatchSize { get; set; } = 500;
 
     /// <summary>
+    /// Participants deleted by one run from which it ends with a <c>VACUUM (ANALYZE)</c> of
+    /// the raw match tables (#2444), so that the game count refresh following it does not
+    /// read a table whose visibility map the purge just cleared. Set between what an
+    /// ordinary run deletes (a few thousand at most) and a whole platform's patch dropping
+    /// out of the window. <c>0</c> disables it and leaves the work to autovacuum.
+    /// </summary>
+    [Range(0, int.MaxValue)]
+    public int VacuumAfterDeletedParticipants { get; set; } = 100_000;
+
+    /// <summary>
     /// Number of most-recent patches whose champion aggregates (scopes+patterns,
     /// matchup stats, synergy stats, ban stats) are retained. <c>0</c>
     /// (the default) disables aggregate retention entirely: old-patch aggregates

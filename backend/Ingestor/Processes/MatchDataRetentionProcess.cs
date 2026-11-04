@@ -98,6 +98,9 @@ public sealed class MatchDataRetentionProcess(
         // (#694). Independent of the deletions above.
         var snapshotPrune = await PruneTimelineSnapshotsAsync(retentionPlan.QueueId, ct);
 
+        var vacuumed = await PostPurgeVacuum.RunIfMassDeleteAsync(
+            dbContextFactory, deletedParticipants, retentionOptions.Value.VacuumAfterDeletedParticipants, logger, ct);
+
         return BuildRetentionPayload(
             retentionPlan,
             deletedMatches,
@@ -107,7 +110,8 @@ public sealed class MatchDataRetentionProcess(
             demotedCandidates,
             aggregateDeletion,
             buildPurge,
-            snapshotPrune);
+            snapshotPrune,
+            vacuumed);
     }
 
     /// <summary>
@@ -451,7 +455,8 @@ public sealed class MatchDataRetentionProcess(
         int demotedQueuedCandidates,
         AggregateRetention.AggregateDeletionResult aggregateDeletion,
         BuildAggregateRetention.BuildPurgeResult buildPurge,
-        SnapshotPruneResult snapshotPrune)
+        SnapshotPruneResult snapshotPrune,
+        bool vacuumedAfterPurge)
     {
         return new MatchDataRetentionSummary(
             retentionPlan.RetainedPatchCount,
@@ -471,7 +476,8 @@ public sealed class MatchDataRetentionProcess(
             retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
                 .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))
-                .ToList());
+                .ToList(),
+            vacuumedAfterPurge);
     }
 
     private sealed record SnapshotPruneResult(int PrunedMatches, int DeletedSnapshots)

@@ -30,6 +30,7 @@ public sealed class PaceBenchmarkStatRepository(TrueMainDbContext db) : IPaceBen
              SELECT gen_random_uuid(), t.patch, t.tier, t.position, t.minute, t.metric, t.bucket, t.count, {aggregatedAtUtc}
              FROM unnest({patches}, {tiers}, {positions}, {minutes}, {metrics}, {buckets}, {values})
                  AS t(patch, tier, position, minute, metric, bucket, count)
+             ORDER BY t.position, t.patch, t.tier, t.minute, t.metric, t.bucket
              ON CONFLICT ("Position", "Patch", "Tier", "Minute", "Metric", "Bucket") DO UPDATE SET
                  "Count" = pace_benchmark_stats."Count" + EXCLUDED."Count",
                  "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"
