@@ -41,7 +41,8 @@ public abstract class PersonaPictureReader(IHttpClientFactory httpClients, ILogg
 
     /// <summary>
     /// The JSON body of a request, or the lookup that answers it without one: no picture for a channel
-    /// the platform does not know (or a name it refuses), unavailable for everything else.
+    /// the platform does not know, unavailable for everything else. A 400 included: it is how YouTube
+    /// answers a revoked key, and reading that as no picture would wipe every stored one.
     /// </summary>
     protected static async Task<(JsonDocument? Body, PersonaPictureLookup? Failure)> ReadJsonAsync(
         HttpClient http, HttpRequestMessage request, CancellationToken ct)
@@ -53,7 +54,7 @@ public abstract class PersonaPictureReader(IHttpClientFactory httpClients, ILogg
             return (await JsonDocument.ParseAsync(stream, cancellationToken: ct), null);
         }
 
-        return (null, response.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.BadRequest
+        return (null, response.StatusCode == System.Net.HttpStatusCode.NotFound
             ? PersonaPictureLookup.None
             : PersonaPictureLookup.Unavailable);
     }

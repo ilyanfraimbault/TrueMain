@@ -55,7 +55,8 @@ public sealed class TwitchPictureReader(
     {
         if (!response.IsSuccessStatusCode)
         {
-            return response.StatusCode == HttpStatusCode.BadRequest ? PersonaPictureLookup.None : PersonaPictureLookup.Unavailable;
+            // An unknown login is a success with no user, so a failure never says the channel is gone.
+            return PersonaPictureLookup.Unavailable;
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);

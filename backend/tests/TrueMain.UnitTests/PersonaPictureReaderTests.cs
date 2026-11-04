@@ -96,6 +96,7 @@ public sealed class PersonaPictureReaderTests
     }
 
     [Theory]
+    [InlineData(HttpStatusCode.BadRequest)] // a revoked or mistyped key
     [InlineData(HttpStatusCode.Forbidden)] // the daily quota
     [InlineData(HttpStatusCode.TooManyRequests)]
     [InlineData(HttpStatusCode.InternalServerError)]
@@ -190,6 +191,29 @@ public sealed class PersonaPictureReaderTests
             : Json("""{"data":[]}"""));
 
         var lookup = await Twitch(handler).ReadAsync("https://www.twitch.tv/gone", CancellationToken.None);
+
+        lookup.Should().Be(PersonaPictureLookup.None);
+    }
+
+    [Fact]
+    public async Task Twitch_ARefusedRequest_IsUnavailable_NotNoPicture()
+    {
+        using var handler = new FakeHandler(request => request.RequestUri!.Host == "id.twitch.tv"
+            ? Json("""{"access_token":"token"}""")
+            : new HttpResponseMessage(HttpStatusCode.BadRequest));
+
+        var lookup = await Twitch(handler).ReadAsync("https://www.twitch.tv/keria", CancellationToken.None);
+
+        lookup.Should().Be(PersonaPictureLookup.Unavailable);
+    }
+
+    [Fact]
+    public async Task Kick_UnknownChannel_IsNoPicture()
+    {
+        using var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var lookup = await new KickPictureReader(Clients(handler), NullLogger<KickPictureReader>.Instance)
+            .ReadAsync("https://kick.com/gone", CancellationToken.None);
 
         lookup.Should().Be(PersonaPictureLookup.None);
     }
