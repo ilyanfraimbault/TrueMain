@@ -177,6 +177,7 @@ services:
       NUXT_DESKTOP_CHANNEL: stable
       NUXT_PUBLIC_APP_ENV: production
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
+      NUXT_PUBLIC_SITE_URL: https://truemain.lol
       NUXT_PUBLIC_UMAMI_HOST: https://analytics.truemain.lol
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     volumes:
