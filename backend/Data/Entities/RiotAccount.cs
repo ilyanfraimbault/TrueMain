@@ -53,8 +53,9 @@ public class RiotAccount
 
     /// <summary>
     /// The value <see cref="LadderGames"/> held when this account's matches were last
-    /// ingested (#1360). The difference between the two is how many ranked games the player
-    /// has played since we last looked — the signal the claim orders by.
+    /// ingested (#1360), or at the ladder reading that found it empty or above the count
+    /// (#2447). The difference between the two is how many ranked games the player has played
+    /// since then — the signal the claim orders by.
     /// </summary>
     public int? LadderGamesAtLastIngest { get; set; }
 

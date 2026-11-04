@@ -78,6 +78,43 @@ public sealed class RankSnapshotWriterLadderGamesTests
         account.LadderGamesAtLastIngest.Should().Be(500);
     }
 
+    [Fact]
+    public void Ingest_SetsAMissingBaseline_SoGamesCountFromThisReading()
+    {
+        var account = NewAccount();
+
+        Write(account, new RankSnapshotInput(RankTier.Diamond, RankDivision.I, 60, Wins: 300, Losses: 260), latest: null);
+
+        // Left empty, the account owes nothing until a visit writes it, and the claim never
+        // visits an account that owes nothing while others owe games (#2447).
+        account.LadderGamesAtLastIngest.Should().Be(560);
+    }
+
+    [Fact]
+    public void Ingest_RestartsTheBaseline_AfterASeasonReset()
+    {
+        var account = NewAccount();
+        account.LadderGames = 800;
+        account.LadderGamesAtLastIngest = 790;
+
+        Write(account, new RankSnapshotInput(RankTier.Diamond, RankDivision.I, 60, Wins: 7, Losses: 5), latest: null);
+
+        // Above the new count, the baseline would hide every game until the player had
+        // replayed the whole previous season.
+        account.LadderGames.Should().Be(12);
+        account.LadderGamesAtLastIngest.Should().Be(12);
+    }
+
+    [Fact]
+    public void Ingest_LeavesAMissingBaseline_WhenTheReadingCarriesNoWinsOrLosses()
+    {
+        var account = NewAccount();
+
+        Write(account, new RankSnapshotInput(RankTier.Diamond, RankDivision.II, 50, Wins: null, Losses: null), latest: null);
+
+        account.LadderGamesAtLastIngest.Should().BeNull();
+    }
+
     private static RankSnapshotOutcome Write(RiotAccount account, RankSnapshotInput input, RankSnapshot? latest)
     {
         var session = Substitute.For<IDataSession>();
