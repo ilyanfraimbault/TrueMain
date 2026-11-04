@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { PersonaAccount } from '~~/shared/types/players'
-import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { formatPercentage } from '~~/shared/utils/ddragon'
-import { truemainNameTag } from '~~/shared/utils/truemain-path'
+import type { PersonaAccount } from '#shared/types/players'
+import type { ChampionStaticListItem } from '#shared/types/static-data'
+import { formatPercentage } from '#shared/utils/ddragon'
+import { truemainNameTag } from '#shared/utils/truemain-path'
 import { formatRank } from '#common/utils/tiers'
 import { formatRelativeTime } from '#common/utils/relativeTime'
 

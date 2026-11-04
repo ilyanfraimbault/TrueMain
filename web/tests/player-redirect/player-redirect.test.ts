@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergedPlayerPath } from '~/utils/player-redirect'
+import { mergedPlayerPath } from '#common/utils/player-redirect'
 
 describe('mergedPlayerPath', () => {
   it('sends a merged player\'s page to the kept player', () => {
