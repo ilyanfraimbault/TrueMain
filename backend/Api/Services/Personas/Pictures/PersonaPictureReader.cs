@@ -33,8 +33,8 @@ public abstract class PersonaPictureReader(IHttpClientFactory httpClients, ILogg
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            // The message, not the exception: no platform's answer belongs in the logs as a stack trace.
-            logger.LogWarning("Reading the {Kind} picture of a known player failed: {Error}", Kind, ex.GetType().Name);
+            // Safe to log whole: no reader puts a credential in a URL, so no exception carries one.
+            logger.LogWarning(ex, "Reading the {Kind} picture of a known player failed.", Kind);
             return PersonaPictureLookup.Unavailable;
         }
     }
