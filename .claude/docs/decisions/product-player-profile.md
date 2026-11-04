@@ -281,7 +281,19 @@ on screen, never the floor alone, so nothing the operator did not read is touche
 (still open, still no differing channel, still at the floor), skips the rest with a reason, and resolves the others one
 by one through the single resolution, so each is audited like one. At most 100 per batch.
 
-**Source.** #2016, #2134, #2253, #2019, #2271, #2273, #2277, #2286, #2295.
+**A known player's picture is their first channel's: YouTube, then Twitch, Kick, SOOP, Chzzk (2026-11-04, #2446).** Read
+through the official APIs for YouTube and Twitch, because a page read would break the platforms' terms for the two
+channels most players have, and from the public endpoints of the other three. X, TikTok and Instagram give none: no
+official access we can use. A person's account rows keep their Riot icon, since a row stands for an account; the page's
+header and the person's search result show the picture. The worker runs only with both YouTube and Twitch configured,
+because the head of the priority missing would hand out lesser pictures that stay until the next refresh. A channel
+that cannot be read (quota, outage) leaves the current picture alone and is retried the next day; only a channel the
+platform says is gone or has no picture clears it. Legacy YouTube links (`/c/name`, `/name`) are skipped, as the API
+cannot look them up and the same word read as a handle could be a stranger's channel: better no picture than the wrong
+face. Refreshed every 25 days, under the 30 days the YouTube API policy allows, and the page keeps the link back to the
+channel. The site serves pictures through its own image route, so a visitor's browser never calls the platforms.
+
+**Source.** #2016, #2134, #2253, #2019, #2271, #2273, #2277, #2286, #2295, #2446.
 
 **A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
 each main's name, so the count would name its denominator next to the champion page's per-patch count. On the
