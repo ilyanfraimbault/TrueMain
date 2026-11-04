@@ -142,6 +142,7 @@ public sealed class PersonaEditService(
         db.PersonaLinkExclusions.RemoveRange(
             await db.PersonaLinkExclusions.Where(e => e.PersonaId == id && e.Url.ToLower() == urlLower).ToListAsync(ct));
         persona.Links.Add(new PersonaLink { Kind = link.Kind, Url = link.Url, Source = PersonaSource.Manual });
+        persona.PictureRefreshAtUtc = null;
         persona.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
         await audit.RecordAsync(AuditActions.AddPersonaLink, id, persona.Slug, new() { ["url"] = link.Url }, ct);
@@ -169,7 +170,8 @@ public sealed class PersonaEditService(
             db.PersonaLinkExclusions.Add(new PersonaLinkExclusion { PersonaId = id, Url = link.Url });
         }
 
-        persona!.UpdatedAtUtc = DateTime.UtcNow;
+        persona!.PictureRefreshAtUtc = null;
+        persona.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
         await audit.RecordAsync(AuditActions.RemovePersonaLink, id, persona.Slug, new() { ["url"] = link.Url }, ct);
         return Ok(id, persona.Slug);

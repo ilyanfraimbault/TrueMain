@@ -427,3 +427,9 @@ than fitting a line to a guessed capacity.
 Discord webhook the Api posts to when the `/health` verdict turns red or recovers.
 Unset means no alerts, which `/health` and the configuration page both say. It is a
 credential — keep it in the stack `.env`, never in a commit.
+
+`PERSONA_PICTURES_YOUTUBE_API_KEY`, `PERSONA_PICTURES_TWITCH_CLIENT_ID` and
+`PERSONA_PICTURES_TWITCH_CLIENT_SECRET` turn known players' pictures on (#2446). All
+three or nothing: unset, players keep the placeholder, and the configuration page says
+so. The YouTube one is a YouTube Data API v3 key, the Twitch pair an application from the
+Twitch developer console. Credentials too — the stack `.env` only.

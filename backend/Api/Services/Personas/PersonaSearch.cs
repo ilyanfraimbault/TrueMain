@@ -38,7 +38,7 @@ internal static class PersonaSearch
             .Where(p => p.Accounts.Any(a => a.RiotAccountId != null))
             .OrderBy(p => p.Slug)
             .Take(CandidateCap)
-            .Select(p => new { p.Id, p.Slug, p.DisplayName, Accounts = p.Accounts.Count(a => a.RiotAccountId != null) })
+            .Select(p => new { p.Id, p.Slug, p.DisplayName, p.PictureUrl, Accounts = p.Accounts.Count(a => a.RiotAccountId != null) })
             .ToListAsync(ct);
 
         if (matches.Count == 0)
@@ -65,6 +65,7 @@ internal static class PersonaSearch
             {
                 p.Slug,
                 p.DisplayName,
+                p.PictureUrl,
                 p.Accounts,
                 Exact = string.Equals(p.DisplayName, termLower, StringComparison.OrdinalIgnoreCase) || p.Slug == termLower,
                 Best = bestByPersona.GetValueOrDefault(p.Id),
@@ -86,6 +87,7 @@ internal static class PersonaSearch
                 {
                     Persona = new PersonaTagReadModel { Slug = p.Slug, DisplayName = p.DisplayName },
                     AccountCount = p.Accounts,
+                    PictureUrl = p.PictureUrl,
                     ProfileIconId = p.Best?.ProfileIconId,
                     Ranked = rank is null || string.IsNullOrEmpty(rank.Tier)
                         ? null
