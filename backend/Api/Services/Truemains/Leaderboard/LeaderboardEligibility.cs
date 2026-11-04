@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore;
 namespace TrueMain.Services.Truemains.Leaderboard;
 
 /// <summary>
-/// Which accounts the leaderboard admits, and the identity cells of a page of
-/// them: the eligible count, the rank-ordered page, and the by-id page the
-/// dedication ranking slices. Runs on the caller's context.
+/// The identity cells of a page of the leaderboard: the rank-ordered page, and the
+/// by-id page the rankings slice. Runs on the caller's context. Which accounts it
+/// admits in all is <see cref="LeaderboardPopulation"/>'s to say.
 /// </summary>
 internal static class LeaderboardEligibility
 {
@@ -18,57 +18,6 @@ internal static class LeaderboardEligibility
     // Shared with the primary/secondary derivation in MainPositions so the
     // filter bar and the "secondary lane" bar can't drift apart.
     public const double MinPositionShare = MainPositions.MinShare;
-
-    public static async Task<int> CountAsync(TrueMainDbContext db, LeaderboardFilter filter, CancellationToken ct)
-    {
-        var (platforms, championFilter, position, minGames, otpOnly) = filter;
-
-        // The /truemains leaderboard is, by definition, the list of truemains
-        // — so the `IsMain = true` EXISTS is unconditional. Accounts that
-        // haven't been through main analysis yet (fresh ingests) are out of
-        // scope until they do. The `championFilter` / `position` / `otpOnly`
-        // parameters degrade to "any champion / any position / any main" so they
-        // compose inside the same EXISTS clause without an outer toggle. When
-        // `otpOnly` is set with a champion filter, both land on the same
-        // main_champion_stats row, so it means "OTP of that champion".
-        //
-        // The ranked-games floor reads main_champion_stats."TotalMatches"
-        // rather than a correlated COUNT(*) over match_participants: that
-        // subquery ran once per candidate account and dominated the whole
-        // query, yet filtered nothing — main analysis only sets IsMain when
-        // TotalMatches >= MinMatchesToEvaluate (20), so every row the EXISTS
-        // already admits clears the same bar. TotalMatches saturates at
-        // MainAnalysis.MatchesToConsider (50), so minGames must stay <= 50 to
-        // remain meaningful.
-        FormattableString sql = $"""
-            SELECT COUNT(*)::int AS "Value"
-            FROM riot_accounts a
-            WHERE a."PlatformId" = ANY ({platforms})
-              AND a."Score" IS NOT NULL
-              AND EXISTS (
-                  SELECT 1 FROM main_champion_stats m
-                  WHERE m."PlatformId" = a."PlatformId"
-                    AND m."Puuid" = a."Puuid"
-                    AND m."IsMain" = true
-                    AND m."IsActive" = true
-                    AND m."TotalMatches" >= {minGames}
-                    AND ({otpOnly}::bool = false OR m."IsOtp" = true)
-                    AND ({championFilter}::int IS NULL OR m."ChampionId" = {championFilter})
-                    AND ({position}::text IS NULL OR EXISTS (
-                        SELECT 1
-                        FROM jsonb_array_elements(m."PositionBreakdown") AS pos
-                        WHERE pos->>'Position' = {position}
-                          AND (pos->>'Rate')::float8 >= {MinPositionShare}
-                    ))
-              )
-            """;
-
-        // SqlQuery wraps this as a subquery; the COUNT always yields exactly one
-        // row, so SingleAsync states that invariant — and avoids EF's spurious
-        // "First/FirstOrDefault without OrderBy" warning (event 10103) that the
-        // wrapper query otherwise triggers.
-        return await db.Database.SqlQuery<int>(sql).SingleAsync(ct);
-    }
 
     public static async Task<List<PageRow>> FetchPageAsync(
         TrueMainDbContext db,
@@ -82,7 +31,7 @@ internal static class LeaderboardEligibility
         // Order + paginate directly on the denormalised riot_accounts."Score"
         // (maintained by RankSnapshotWriter) — no DISTINCT ON, no inline score
         // CASE. "Score IS NOT NULL" is the is-ranked gate and must stay in
-        // lock-step with CountAsync or pagination drifts from the total. The
+        // lock-step with LeaderboardPopulation or pagination drifts from the total. The
         // tier/div/LP display cells are hydrated per page by the query service.
         FormattableString sql = $"""
             SELECT

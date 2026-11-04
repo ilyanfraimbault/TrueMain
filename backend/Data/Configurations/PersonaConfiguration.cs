@@ -8,6 +8,7 @@ public sealed class PersonaConfiguration : IEntityTypeConfiguration<Persona>
 {
     public const int SlugMaxLength = 64;
     public const int DisplayNameMaxLength = 64;
+    public const int PictureUrlMaxLength = 512;
 
     /// <summary>The homonym key of <c>"DisplayName"</c> (#2271), the generation expression of <c>"NameKey"</c>.</summary>
     public const string NameKeySql = "regexp_replace(lower(\"DisplayName\"), '[[:space:]._-]+', '', 'g')";
@@ -34,6 +35,9 @@ public sealed class PersonaConfiguration : IEntityTypeConfiguration<Persona>
         entity.Property(e => e.NameKey)
             .IsRequired()
             .HasComputedColumnSql(NameKeySql, stored: true);
+
+        entity.Property(e => e.PictureUrl)
+            .HasMaxLength(PictureUrlMaxLength);
 
         entity.Property(e => e.Source)
             .IsRequired()

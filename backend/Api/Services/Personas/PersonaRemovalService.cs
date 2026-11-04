@@ -83,6 +83,8 @@ public sealed class PersonaRemovalService(TrueMainDbContext db, PersonaAudit aud
         var now = DateTime.UtcNow;
         persona.RemovedAtUtc = now;
         persona.UpdatedAtUtc = now;
+        persona.PictureUrl = null;
+        persona.PictureRefreshAtUtc = null;
         await db.SaveChangesAsync(ct);
 
         await audit.RecordAsync(

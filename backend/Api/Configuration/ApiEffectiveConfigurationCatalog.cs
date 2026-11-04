@@ -98,6 +98,27 @@ public static class ApiEffectiveConfigurationCatalog
         ]
     };
 
+    /// <summary>
+    /// Known players' pictures (#2446). Every setting is a credential, so the include-list shows
+    /// only <see cref="PersonaPictureOptions.Enabled"/>: whether they are on, never what with.
+    /// </summary>
+    internal static EffectiveConfigurationSectionDescriptor PersonaPictures { get; } = new()
+    {
+        SectionName = PersonaPictureOptions.SectionName,
+        OptionsType = typeof(PersonaPictureOptions),
+        Title = "Known players' pictures",
+        Description = "Whether the worker that reads each known player's channel picture is running.",
+        IncludeProperties = [nameof(PersonaPictureOptions.Enabled)],
+        Notices =
+        [
+            new EffectiveConfigurationNotice(
+                nameof(PersonaPictureOptions.Enabled),
+                UnsetCondition.ZeroOrNegative,
+                "Known players keep the placeholder: set PERSONA_PICTURES_YOUTUBE_API_KEY, "
+                + "PERSONA_PICTURES_TWITCH_CLIENT_ID and PERSONA_PICTURES_TWITCH_CLIENT_SECRET in the stack environment.")
+        ]
+    };
+
     public static EffectiveConfigurationCatalog Instance { get; } = new(
         ProcessName: "Api",
         Sections:
@@ -108,6 +129,7 @@ public static class ApiEffectiveConfigurationCatalog
             ChampionsList,
             DataQualityDetectors,
             StorageHistory,
-            Alerting
+            Alerting,
+            PersonaPictures
         ]);
 }

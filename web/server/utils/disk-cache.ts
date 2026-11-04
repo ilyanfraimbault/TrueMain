@@ -3,15 +3,10 @@ import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** What a processed image needs to be served again without IPX. */
-export interface StoredImage {
-  body: Buffer
-  contentType?: string
-  etag?: string
-  lastModified?: string
-}
+/** An entry: its bytes, and what the caller needs to serve them again. */
+export type DiskCacheEntry<Header> = Header & { body: Buffer }
 
-export interface IpxDiskCacheOptions {
+export interface DiskCacheOptions {
   dir: string
   /** What the directory may hold. {@link IpxDiskCache.sweep} removes the oldest files past it. */
   maxBytes: number
@@ -20,27 +15,26 @@ export interface IpxDiskCacheOptions {
   now?: () => number
 }
 
-export interface IpxDiskCache {
-  get: (key: string) => Promise<StoredImage | null>
-  set: (key: string, image: StoredImage) => Promise<void>
+export interface DiskCache<Header> {
+  get: (key: string) => Promise<DiskCacheEntry<Header> | null>
+  set: (key: string, entry: DiskCacheEntry<Header>) => Promise<void>
   /** Enforces the age and the byte budget. Returns how many files went. */
   sweep: () => Promise<number>
 }
 
 /**
- * The processed images shared by the workers and kept across deploys, under the memory
- * cache of `server/handlers/ipx-cached.ts` (#2425). A deploy used to start every worker
- * empty, so each one fetched each icon again from Riot's CDN and the volunteer-run
- * CommunityDragon mirror, twice over (see that handler), for whoever came first.
+ * What the workers share, on disk: they are separate processes, and only a file reaches all of
+ * them without going through something else (#2425). The processed images use it to outlive a
+ * deploy (`ipx-disk-store.ts`), the rendered pages to be rendered once (`html-cache.ts`).
  *
- * A failure here only costs a cache miss, so nothing throws: a full disk must not break
- * an image. The size of the directory is bounded by {@link IpxDiskCache.sweep} and by what
- * the handler agrees to store (`isDurableImagePath`), since the route is public.
+ * A failure here only costs a cache miss, so nothing throws: a full disk must not break a request.
+ * The size of the directory is bounded by {@link DiskCache.sweep} and by what the caller agrees to
+ * store, since what it stores answers public routes.
  *
- * One file per image: a JSON header line, then the bytes. Written to a temporary name and
- * renamed, because another worker may read the same path at any moment.
+ * One file per entry: a JSON header line, then the bytes. Written to a temporary name and renamed,
+ * because another worker may read the same path at any moment.
  */
-export function createIpxDiskCache(options: IpxDiskCacheOptions): IpxDiskCache {
+export function createDiskCache<Header extends object>(options: DiskCacheOptions): DiskCache<Header> {
   const { dir, maxBytes, maxAgeMs } = options
   const now = options.now ?? Date.now
   const pathOf = (key: string) => join(dir, createHash('sha256').update(key).digest('hex'))
@@ -52,7 +46,7 @@ export function createIpxDiskCache(options: IpxDiskCacheOptions): IpxDiskCache {
         const file = await readFile(pathOf(key))
         const headerEnd = file.indexOf(0x0A)
         if (headerEnd < 0) return null
-        const header = JSON.parse(file.subarray(0, headerEnd).toString('utf8')) as Omit<StoredImage, 'body'>
+        const header = JSON.parse(file.subarray(0, headerEnd).toString('utf8')) as Header
         return { ...header, body: file.subarray(headerEnd + 1) }
       }
       catch {

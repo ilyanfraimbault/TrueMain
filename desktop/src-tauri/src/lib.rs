@@ -7,6 +7,7 @@
 
 mod api;
 mod champselect;
+mod channels;
 mod game;
 mod itemsets;
 mod kits;
@@ -174,10 +175,14 @@ const READABLE_PATHS: &[&str] = &[
 /// and activity grid (`/activity`), their match list and one of their matches
 /// (`/matches/{matchId}`): the favorites page and the in-app profile page. The
 /// Riot ID is percent-encoded into one segment, the champion a number and the
-/// match a Riot match id (`EUW1_7123456789`).
+/// match a Riot match id (`EUW1_7123456789`). Or one known player's page
+/// (`/players/{slug}`).
 fn readable(path: &str) -> bool {
     if READABLE_PATHS.contains(&path) {
         return true;
+    }
+    if let Some(slug) = path.strip_prefix("/players/") {
+        return is_player_slug(slug);
     }
     if let Some(rest) = path.strip_prefix("/champions/") {
         let segments: Vec<&str> = rest.split('/').collect();
@@ -220,6 +225,18 @@ fn readable(path: &str) -> bool {
 /// A champion id: a non-empty run of digits.
 fn is_id(segment: &str) -> bool {
     !segment.is_empty() && segment.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// A known player's slug, as the API writes them (`PersonaUpsertService`): up to
+/// 64 characters of lowercase kebab case.
+fn is_player_slug(segment: &str) -> bool {
+    segment.len() <= 64
+        && segment.split('-').all(|part| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        })
 }
 
 /// The POSTs the app makes: a champion's composition build against a draft and
@@ -309,6 +326,21 @@ fn open_on_site(app: tauri::AppHandle, path: String) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+/// Open a known player's channel in the player's browser — Twitch, YouTube or X,
+/// nothing else (`channels.rs`).
+#[tauri::command]
+fn open_channel(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_shell::ShellExt;
+
+    let channel = channels::channel_url(&url)
+        .ok_or_else(|| format!("{url} is not a channel the app opens"))?;
+    // Deprecated opener, as in `open_on_site`: the host rule above is the guard.
+    #[allow(deprecated)]
+    app.shell()
+        .open(channel, None)
+        .map_err(|error| error.to_string())
+}
+
 pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -366,6 +398,7 @@ pub fn run() {
             api_get,
             api_post,
             open_on_site,
+            open_channel,
             record::player_record,
             record::player_history,
             record::player_game,
@@ -465,6 +498,9 @@ mod tests {
         assert!(readable("/champions/103/item-context"));
         assert!(readable("/champions/234/matchups"));
         assert!(readable("/champions/266/trend"));
+        assert!(readable("/players/faker"));
+        assert!(readable("/players/t1-faker-2"));
+        assert!(readable(&format!("/players/{}", "a".repeat(64))));
     }
 
     #[test]
@@ -482,6 +518,19 @@ mod tests {
 
     #[test]
     fn refuses_anything_else() {
+        assert!(!readable("/players"));
+        assert!(!readable("/players/"));
+        assert!(!readable("/players/faker/accounts"));
+        assert!(!readable("/players/Faker"));
+        assert!(!readable("/players/fa_ker"));
+        assert!(!readable("/players/fa%6Ber"));
+        assert!(!readable("/players/fa.ker"));
+        assert!(!readable("/players/.."));
+        assert!(!readable("/players/-faker"));
+        assert!(!readable("/players/faker-"));
+        assert!(!readable("/players/fa--ker"));
+        assert!(!readable("/players/faker?x=1"));
+        assert!(!readable(&format!("/players/{}", "a".repeat(65))));
         assert!(!readable("/champions/8"));
         assert!(!readable("/champions/x/item-context"));
         assert!(!readable("/champions/x/matchups"));

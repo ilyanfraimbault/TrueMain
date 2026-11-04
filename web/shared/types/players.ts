@@ -55,6 +55,8 @@ export interface PersonaAccount {
 export interface PersonaResponse {
   slug: string
   displayName: string
+  /** The picture of the person's first channel that has one; null when none does. */
+  pictureUrl: string | null
   links: PersonaLink[]
   /** Tracked accounts only, the one played most recently first, then by rank. */
   accounts: PersonaAccount[]

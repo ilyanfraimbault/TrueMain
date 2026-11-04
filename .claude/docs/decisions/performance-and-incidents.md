@@ -414,6 +414,13 @@ under one second, cold or hot, "on reste sur la page maintenance pendant le chau
   default board cost, recomputed every 30 s for a figure that only sizes the pager. The rankings were not cached at
   all any more: their entry cap dated from a much smaller population, so each page of a sorted board rescanned. Their
   order now moves with the aggregation version; the figures on a row still come from the 30 s response.
+- **The leaderboard reads its population once (`LeaderboardPopulation`, #2431).** Every account it can show and their
+  mains, per aggregation version: any combination of filters and sorts is then a walk in memory, where each shape used
+  to re-run its eligibility at seconds a shape, and rarely came up twice within its cache. The figures behind the stat
+  sorts are read once for everyone and narrowed the same way, and the dedication order is scored in memory, which
+  retires the 50,000-candidate cap and its truncated tail. A rank-sorted board's first pages stay on SQL, whose order is
+  live; past 1,000 rows it reads the population's order, up to a pass old, rather than skip that many rows. The rows of
+  a page are always read fresh.
 - **The cache's cap went from 1 024 to 32 768 entries**, because a pass alone fills several thousand, twice over while
   it replaces the version readers are on.
 

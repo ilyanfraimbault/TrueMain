@@ -2,9 +2,9 @@
 import type { SearchPlayer } from '#shared/types/search'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
 
-// A known player in the search palette (`AppSearch`, #2018): the face of their
-// best tracked account, their name, how many accounts they have, and that
-// account's rank crest. It opens `/players/{slug}`, the page listing every one.
+// A known player in the search palette (`AppSearch`, #2018): their picture (#2446)
+// or else the face of their best tracked account, their name, how many accounts
+// they have, and that account's rank crest. It opens `/players/{slug}`, the page listing every one.
 // Drawn here rather than through `Account` for the same reason as
 // `SearchTruemainItem`: the palette re-fills the row DOM on every keystroke.
 const props = defineProps<{
@@ -13,7 +13,7 @@ const props = defineProps<{
   patch: string | null
 }>()
 
-const iconUrl = computed(() => (props.player.profileIconId
+const iconUrl = computed(() => props.player.pictureUrl ?? (props.player.profileIconId
   ? getProfileIconUrl(props.player.profileIconId, props.patch)
   : null))
 const accounts = computed(() => `${props.player.accountCount} ${props.player.accountCount === 1 ? 'account' : 'accounts'}`)

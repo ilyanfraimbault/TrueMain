@@ -110,6 +110,15 @@ vanish with it. It first ran one statement per `(queue, patch, platform)` slice,
 pass over the retained window with no self-join, under a 15 min command timeout, throttled to 30 minutes and run
 after retention, which is why it does not repeat #811's cost — #2132, #2217, #811.
 
+**A retention run that deleted a mass of participants ends with a `VACUUM (ANALYZE)` of the raw match tables (2026-11-04).**
+A platform's patch dropping out of the window clears the visibility map across `match_participants`, and the game
+count refresh that follows retention in the lane reads that table through an index-only scan, which then falls back
+to the heap for each entry while competing with autovacuum: the refresh failed at its timeout on rollover runs only.
+Retention vacuums before handing over, from `MatchDataRetention:VacuumAfterDeletedParticipants` participants deleted
+in one run, throttled like autovacuum and under its own 60 min command timeout; the lane waits for it. A longer
+refresh timeout was rejected: the statement would hold its snapshot, and so the vacuum horizon, for longer, with no
+guarantee of finishing — #2444, #2217.
+
 **The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back (2026-10-19).**
 `champion_aggregate_scopes` was the last full recompute — every live scope rebuilt every run, about an hour on prod
 and two on preprod late in a patch, growing with the patch. It is not additive (a scope is replaced, never added

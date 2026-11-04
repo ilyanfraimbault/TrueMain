@@ -4,6 +4,7 @@ using Data.Entities;
 using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -50,6 +51,40 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RunAsync_VacuumsAfterAMassDelete_LeavingTheParticipantPagesAllVisible()
+    {
+        await SeedRetentionDataAsync();
+        (await ParticipantPagesAllVisibleAsync()).Should().Be(0);
+
+        var recorded = BuildRecordedProcess(retainedPatchCount: 1, vacuumAfterDeletedParticipants: 1);
+
+        var summary = await recorded.RunCoreAsync(CancellationToken.None);
+
+        summary.Should().BeOfType<MatchDataRetentionSummary>().Which.VacuumedAfterPurge.Should().BeTrue();
+        (await ParticipantPagesAllVisibleAsync()).Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task RunAsync_DoesNotVacuumBelowTheThreshold()
+    {
+        await SeedRetentionDataAsync();
+
+        var recorded = BuildRecordedProcess(retainedPatchCount: 1, vacuumAfterDeletedParticipants: 1_000);
+
+        var summary = await recorded.RunCoreAsync(CancellationToken.None);
+
+        summary.Should().BeOfType<MatchDataRetentionSummary>().Which.VacuumedAfterPurge.Should().BeFalse();
+    }
+
+    private async Task<int> ParticipantPagesAllVisibleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+        return await db.Database
+            .SqlQuery<int>($"""SELECT relallvisible::int AS "Value" FROM pg_class WHERE relname = 'match_participants'""")
+            .SingleAsync();
+    }
+
+    [Fact]
     public async Task RunAsync_KeepsTheDeletedRankedMatchesTruncated_NeverANonRankedOne()
     {
         await SeedRetentionDataAsync();
@@ -70,6 +105,28 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
             (seat.Summoner1Id, seat.Summoner2Id).Should().Be((4, 7));
             seat.Kills.Should().Be(1);
         });
+    }
+
+    [Fact]
+    public async Task RunAsync_DeletesAReingestedMatch_KeepingTheSeatsItAlreadyHas()
+    {
+        await SeedRetentionDataAsync();
+        var recorded = BuildRecordedProcess(retainedPatchCount: 1);
+        await recorded.RunCoreAsync(CancellationToken.None);
+
+        await using (var reingest = _fixture.CreateDbContext())
+        {
+            reingest.Matches.Add(BuildMatch("RET_1", "KR", DateTime.UtcNow.AddDays(-10), "16.3.7"));
+            reingest.MatchParticipants.Add(
+                BuildParticipant(Guid.Parse("88888888-8888-8888-8888-888888888881"), "RET_1"));
+            await reingest.SaveChangesAsync();
+        }
+
+        await recorded.RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        (await db.Matches.AsNoTracking().AnyAsync(match => match.Id == "RET_1")).Should().BeFalse();
+        (await db.TruncatedMatchSeats.AsNoTracking().CountAsync(seat => seat.MatchId == "RET_1")).Should().Be(1);
     }
 
     [Fact]
@@ -354,7 +411,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
     private RecordedProcess<MatchDataRetentionProcess> BuildRecordedProcess(
         int retainedPatchCount,
         int aggregateRetainedPatchCount = 0,
-        int buildAggregateRetainedPatchCount = 0)
+        int buildAggregateRetainedPatchCount = 0,
+        int vacuumAfterDeletedParticipants = 0)
     {
         var process = new MatchDataRetentionProcess(
             NullLogger<MatchDataRetentionProcess>.Instance,
@@ -369,7 +427,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
                 NonRankedDeleteBatchSize = 1,
                 ExpiredPatchDeleteBatchSize = 1,
                 AggregateRetainedPatchCount = aggregateRetainedPatchCount,
-                BuildAggregateRetainedPatchCount = buildAggregateRetainedPatchCount
+                BuildAggregateRetainedPatchCount = buildAggregateRetainedPatchCount,
+                VacuumAfterDeletedParticipants = vacuumAfterDeletedParticipants
             }),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {
