@@ -18,6 +18,13 @@ namespace Data.Repositories;
 /// </summary>
 public static class MatchIngestClaimClasses
 {
+    /// <summary>
+    /// The most weight waiting can add to an account in the depth ordering, one per day (#2447).
+    /// Set to about the two-patch match window: a game older than that has already left the
+    /// store, so waiting longer buys nothing, and a capped wait lets a heavy debt keep the lead.
+    /// </summary>
+    public const int VisitAgingCapDays = 30;
+
     /// <summary>The depth arm: an active established main. Inactive mains are out (#900).</summary>
     public static Expression<Func<RiotAccount, bool>> EstablishedMain(TrueMainDbContext db)
         => account => db.MainChampionStats.Any(stat =>

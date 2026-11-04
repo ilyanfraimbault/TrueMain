@@ -55,6 +55,7 @@ public sealed partial class RiotAccountRepository(TrueMainDbContext db) : IRiotA
             establishedByPlatform[platform] = await SelectClaimableAsync(
                 MatchIngestClaimClasses.EstablishedMain(db),
                 platform,
+                nowUtc,
                 leaseCutoff,
                 FetchCapFor(platform),
                 ct);
@@ -63,6 +64,7 @@ public sealed partial class RiotAccountRepository(TrueMainDbContext db) : IRiotA
             queuedByPlatform[platform] = await SelectClaimableAsync(
                 MatchIngestClaimClasses.NewCandidate(db),
                 platform,
+                nowUtc,
                 leaseCutoff,
                 FetchCapFor(platform),
                 ct);
@@ -214,7 +216,7 @@ public sealed partial class RiotAccountRepository(TrueMainDbContext db) : IRiotA
     /// <summary>
     /// The accounts on one platform matching <paramref name="membership"/> that are currently
     /// claimable for match ingestion (active account, Idle or an expired Processing lease),
-    /// oldest-ingested first.
+    /// in the order the claim spends them.
     /// <para>
     /// Scoped to a single platform since #1150. Nulls-first — never-ingested accounts before
     /// everything else — is the right priority <em>within</em> a platform, but it was the
@@ -226,6 +228,7 @@ public sealed partial class RiotAccountRepository(TrueMainDbContext db) : IRiotA
     private Task<List<AccountKey>> SelectClaimableAsync(
         Expression<Func<RiotAccount, bool>> membership,
         string normalizedPlatform,
+        DateTime nowUtc,
         DateTime leaseCutoff,
         int take,
         CancellationToken ct)
@@ -238,8 +241,8 @@ public sealed partial class RiotAccountRepository(TrueMainDbContext db) : IRiotA
                                       && account.MatchIngestClaimedAtUtc != null
                                       && account.MatchIngestClaimedAtUtc < leaseCutoff)))
             .Where(membership)
-            // Never-ingested accounts first, then by how many ranked games the player has
-            // actually played since the last visit, then oldest-visited (#1360).
+            // Never-ingested accounts first, then by games played since the last visit plus the
+            // days waited, then oldest-visited (#1360, #2447).
             //
             // Ordering by age alone spent the batch on whoever had waited longest, whether or
             // not they had played: production revisited an account every 27 days (median) with
@@ -248,19 +251,27 @@ public sealed partial class RiotAccountRepository(TrueMainDbContext db) : IRiotA
             // already refreshes wins/losses for every tracked Emerald+ account at ~310 calls a
             // run, so this signal is free.
             //
-            // An account with no ladder reading has an owed of zero and falls back to the
-            // age ordering, which is exactly the behaviour it had before — no starvation is
-            // introduced, the accounts that played simply stop queueing behind those that
-            // did not.
+            // Games owed alone are not enough either: the pool of accounts owing games refills
+            // as players keep playing, so it never drains and a small debt can wait forever. So
+            // one day waited weighs as one game owed, up to VisitAgingCapDays, for an account
+            // that owes games or whose debt is unknown. An account the ladder says has not
+            // played stays at zero: waiting does not make that visit worth a slot.
             .OrderBy(account => account.LastMatchIngestAtUtc == null ? 0 : 1)
-            // This restates LadderGamesOwed.From as an expression tree, because a query cannot
-            // call it. The two must stay in step; that type documents why each case yields
-            // zero — a missing baseline is "unknown", not "the whole season", and a season
-            // reset makes the raw difference negative for every account at once.
+            // The owed term restates LadderGamesOwed.From as an expression tree, because a query
+            // cannot call it. The two must stay in step; that type documents why each case
+            // yields zero — a missing baseline is "unknown", not "the whole season", and a
+            // season reset makes the raw difference negative for every account at once.
             .ThenByDescending(account =>
                 account.LadderGames != null && account.LadderGamesAtLastIngest != null
-                    ? Math.Max(0, account.LadderGames.Value - account.LadderGamesAtLastIngest.Value)
-                    : 0)
+                    ? account.LadderGames.Value > account.LadderGamesAtLastIngest.Value
+                        ? account.LadderGames.Value - account.LadderGamesAtLastIngest.Value
+                          + Math.Min(
+                              MatchIngestClaimClasses.VisitAgingCapDays,
+                              (nowUtc - account.LastMatchIngestAtUtc!.Value).TotalDays)
+                        : 0
+                    : Math.Min(
+                        MatchIngestClaimClasses.VisitAgingCapDays,
+                        (nowUtc - account.LastMatchIngestAtUtc!.Value).TotalDays))
             .ThenBy(account => account.LastMatchIngestAtUtc)
             .Take(take)
             .Select(account => new AccountKey(account.PlatformId, account.Puuid))

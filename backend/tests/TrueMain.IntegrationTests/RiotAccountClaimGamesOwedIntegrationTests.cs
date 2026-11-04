@@ -112,6 +112,62 @@ public sealed class RiotAccountClaimGamesOwedIntegrationTests(PostgresFixture fi
     }
 
     [Fact]
+    public async Task Claim_AgesASmallDebt_SoItCannotWaitForever()
+    {
+        var now = DateTime.UtcNow;
+
+        // Ordered by games owed alone, this account sits behind a pool that refills as players
+        // keep playing, however long it has waited (#2447).
+        await SeedMainAsync("waiting", lastMatchIngestAtUtc: now.AddDays(-40), ladderGames: 501, ladderGamesAtLastIngest: 500);
+        await SeedMainAsync("fresh", lastMatchIngestAtUtc: now.AddDays(-1), ladderGames: 505, ladderGamesAtLastIngest: 500);
+
+        var claimed = await ClaimAsync(now, take: 1);
+
+        claimed.Should().ContainSingle().Which.Puuid.Should().Be("puuid-waiting");
+    }
+
+    [Fact]
+    public async Task Claim_CapsTheAging_SoAHeavyDebtStillComesFirst()
+    {
+        var now = DateTime.UtcNow;
+
+        await SeedMainAsync("ancient", lastMatchIngestAtUtc: now.AddDays(-200), ladderGames: 501, ladderGamesAtLastIngest: 500);
+        await SeedMainAsync("heavy", lastMatchIngestAtUtc: now.AddDays(-1), ladderGames: 540, ladderGamesAtLastIngest: 500);
+
+        var claimed = await ClaimAsync(now, take: 1);
+
+        claimed.Should().ContainSingle().Which.Puuid.Should().Be("puuid-heavy");
+    }
+
+    [Fact]
+    public async Task Claim_AgesAnUnknownDebt_SoAnAccountWithoutALadderReadingCannotWaitForever()
+    {
+        var now = DateTime.UtcNow;
+
+        await SeedMainAsync("unread", lastMatchIngestAtUtc: now.AddDays(-40), ladderGames: null, ladderGamesAtLastIngest: null);
+        await SeedMainAsync("fresh", lastMatchIngestAtUtc: now.AddDays(-1), ladderGames: 505, ladderGamesAtLastIngest: 500);
+
+        var claimed = await ClaimAsync(now, take: 1);
+
+        claimed.Should().ContainSingle().Which.Puuid.Should().Be("puuid-unread");
+    }
+
+    [Fact]
+    public async Task Claim_NeverAgesAKnownIdleAccount_PastOneThatOwesAGame()
+    {
+        var now = DateTime.UtcNow;
+
+        // The ladder says this player has not played: waiting longer does not make a visit
+        // worth a slot, which is the point of #1360.
+        await SeedMainAsync("idle", lastMatchIngestAtUtc: now.AddDays(-200), ladderGames: 500, ladderGamesAtLastIngest: 500);
+        await SeedMainAsync("played", lastMatchIngestAtUtc: now.AddHours(-1), ladderGames: 501, ladderGamesAtLastIngest: 500);
+
+        var claimed = await ClaimAsync(now, take: 1);
+
+        claimed.Should().ContainSingle().Which.Puuid.Should().Be("puuid-played");
+    }
+
+    [Fact]
     public async Task MarkingAnIngest_ResetsTheOwedBaselineInTheSameStatement()
     {
         var now = DateTime.UtcNow;
