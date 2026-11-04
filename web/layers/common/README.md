@@ -12,6 +12,10 @@ A shared page is a component under `app/components/page/` (`<PageTierList>`). Ea
 what is the app's own — the site's head tags and structured data, the app's `SharedPage` frame (scroll container,
 and a `<Suspense>` so a tab changes before the page's first read is in, #1788) — and nothing else.
 
+A page whose head depends on what it reads takes that read from its route instead: both routes call the same
+composable and hand the result over (`useKnownPlayer` and `<PageKnownPlayer>`). The site awaits it, so its head and
+status are in the first HTML; the app does not, and the page's skeleton stands until the read is in.
+
 ## Imports
 
 - `#common/…` — this layer's `app/` directory. Never `~/…` from in here: inside a layer `~` is the *consuming*
@@ -51,7 +55,12 @@ typecheck.
 Shared pages link to the site's routes as they are (`truemainProfilePath`, …). A route the app does not have — a
 player's champion page — opens on truemain.lol in the browser (`desktop/app/app/pages/[...siteRoute].vue`), so the
 shared code never asks which app it runs in. A player's profile is a route both have, on the same page
-(`page/PlayerProfile.vue`).
+(`page/PlayerProfile.vue`), and so is a known player's page (`page/KnownPlayer.vue`).
+
+The app's webview opens no new tab. A new-tab link in a shared page goes through the shell, which opens only a known
+player's channels (`desktop/app/app/plugins/channel-links.ts`, `desktop/src-tauri/src/channels.rs`): a new external
+link needs its host listed there. The app also bundles its icons at build time, so an icon from a new collection
+needs that collection in its `package.json`.
 
 What a host must supply rather than a name: the banner art of `PageHero` (`splashUrl` — the site through IPX,
 `useCanonicalSplash`, the app straight from Data Dragon), and where an open match row reads its game. The match detail

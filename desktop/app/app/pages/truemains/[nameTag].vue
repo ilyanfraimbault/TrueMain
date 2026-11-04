@@ -57,6 +57,7 @@ const identity = computed(() => profile.value?.identity ?? { gameName: truemainS
       :patch="patch || null"
       :level="profile?.identity.summonerLevel ?? null"
       :ranked="profile?.ranked ?? null"
+      :persona="profile?.persona ?? null"
       :truemain="truemain"
       :splash-url="splashUrl"
       splash-position="62% 22%"
