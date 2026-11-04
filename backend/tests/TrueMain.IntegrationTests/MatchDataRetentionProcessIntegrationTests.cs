@@ -108,6 +108,37 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RunAsync_DeletesAReIngestedMatchWithoutTruncatingItsKeptSeatsTwice()
+    {
+        await SeedRetentionDataAsync();
+        await BuildRecordedProcess(retainedPatchCount: 1).RunCoreAsync(CancellationToken.None);
+
+        // #2450: ingestion brings RET_1 back after retention deleted it. Its seat 1 is already
+        // kept, its seat 2 is not: past the first tier a match only keeps its tracked seats.
+        await using (var reIngest = _fixture.CreateDbContext())
+        {
+            reIngest.Matches.Add(BuildMatch("RET_1", "KR", DateTime.UtcNow.AddDays(-10), "16.3.7"));
+            var keptSeat = BuildParticipant(Guid.Parse("88888888-8888-8888-8888-888888888886"), "RET_1");
+            keptSeat.Kills = 5;
+            var missingSeat = BuildParticipant(Guid.Parse("88888888-8888-8888-8888-888888888887"), "RET_1");
+            missingSeat.ParticipantId = 2;
+            reIngest.MatchParticipants.AddRange(keptSeat, missingSeat);
+            await reIngest.SaveChangesAsync();
+        }
+
+        await BuildRecordedProcess(retainedPatchCount: 1).RunCoreAsync(CancellationToken.None);
+
+        await using var db = _fixture.CreateDbContext();
+        (await db.Matches.AsNoTracking().AnyAsync(match => match.Id == "RET_1")).Should().BeFalse();
+        var seats = await db.TruncatedMatchSeats.AsNoTracking()
+            .Where(seat => seat.MatchId == "RET_1")
+            .OrderBy(seat => seat.ParticipantId)
+            .ToListAsync();
+        seats.Select(seat => seat.ParticipantId).Should().Equal(1, 2);
+        seats[0].Kills.Should().Be(1, "a kept seat stays as it was truncated");
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldDrainNonRankedMatchesEvenWithNoRankedMatchesPresent()
     {
         var now = DateTime.UtcNow;

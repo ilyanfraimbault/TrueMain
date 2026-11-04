@@ -14,7 +14,12 @@ namespace Ingestor.Processes.Components.Retention;
 /// <para>
 /// <b>Written in the deleting transaction.</b> <see cref="WriteAsync"/> runs inside each
 /// batch's transaction, before the match's rows are deleted, so a match is either still whole
-/// or already truncated — never lost between the two, and never truncated twice.
+/// or already truncated — never lost between the two.
+/// </para>
+/// <para>
+/// <b>A match can be truncated again.</b> Ingestion brings back old games through player
+/// histories, including ones retention already deleted (#2450). A seat already kept stays as
+/// it was; only the seats missing from the table are written.
 /// </para>
 /// <para>
 /// <b>Two tiers, both bounded.</b> Every seat of the newest <c>TruncatedRetainedPatchCount</c>
@@ -29,7 +34,7 @@ public static class TruncatedMatchRetention
     /// <summary>
     /// Truncates the games of <paramref name="queueId"/> among <paramref name="matchIds"/> into
     /// <c>truncated_match_seats</c>; remakes are left out, as every build read leaves them out.
-    /// Returns the seats written.
+    /// Returns the seats written, which leaves out those already kept.
     /// </summary>
     public static async Task<int> WriteAsync(
         TrueMainDbContext db,
@@ -55,6 +60,13 @@ public static class TruncatedMatchRetention
         }
 
         var kept = matches.Select(match => match.Id).ToList();
+        var alreadyKept = (await db.TruncatedMatchSeats
+                .AsNoTracking()
+                .Where(seat => kept.Contains(seat.MatchId))
+                .Select(seat => new { seat.MatchId, seat.ParticipantId })
+                .ToListAsync(ct))
+            .Select(seat => (seat.MatchId, seat.ParticipantId))
+            .ToHashSet();
         var participants = await db.MatchParticipants
             .AsNoTracking()
             .Where(participant => kept.Contains(participant.MatchId))
@@ -84,6 +96,7 @@ public static class TruncatedMatchRetention
 
         var matchById = matches.ToDictionary(match => match.Id, StringComparer.Ordinal);
         var seats = participants
+            .Where(participant => !alreadyKept.Contains((participant.MatchId, participant.ParticipantId)))
             .Select(participant =>
             {
                 var match = matchById[participant.MatchId];
