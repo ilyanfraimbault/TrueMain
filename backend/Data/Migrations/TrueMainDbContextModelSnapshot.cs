@@ -2210,6 +2210,13 @@ namespace Data.Migrations
                         .HasColumnType("text")
                         .HasComputedColumnSql("regexp_replace(lower(\"DisplayName\"), '[[:space:]._-]+', '', 'g')", true);
 
+                    b.Property<DateTime?>("PictureRefreshAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PictureUrl")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<DateTime?>("RemovedAtUtc")
                         .HasColumnType("timestamp with time zone");
 

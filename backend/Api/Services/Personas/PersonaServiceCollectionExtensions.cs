@@ -1,3 +1,6 @@
+using TrueMain.Options;
+using TrueMain.Services.Personas.Pictures;
+
 namespace TrueMain.Services.Personas;
 
 /// <summary>
@@ -25,6 +28,27 @@ public static class PersonaServiceCollectionExtensions
         services.AddScoped<IPersonaAdminQueryService, PersonaAdminQueryService>();
         services.AddScoped<IPersonaEditService, PersonaEditService>();
         services.AddScoped<IPersonaRemovalService, PersonaRemovalService>();
+        services.AddPersonaPictures();
         return services;
+    }
+
+    private static void AddPersonaPictures(this IServiceCollection services)
+    {
+        services.AddOptions<PersonaPictureOptions>().BindConfiguration(PersonaPictureOptions.SectionName);
+
+        // No request loggers, like the alerter's: the secret-bearing requests stay out of the logs entirely.
+        services.AddHttpClient(PersonaPictureReader.HttpClientName, client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(15);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("TrueMain/1.0 (+https://truemain.lol)");
+            })
+            .RemoveAllLoggers();
+        services.AddSingleton<IPersonaPictureReader, YouTubePictureReader>();
+        services.AddSingleton<IPersonaPictureReader, TwitchPictureReader>();
+        services.AddSingleton<IPersonaPictureReader, KickPictureReader>();
+        services.AddSingleton<IPersonaPictureReader, SoopPictureReader>();
+        services.AddSingleton<IPersonaPictureReader, ChzzkPictureReader>();
+        services.AddSingleton<PersonaPictureResolver>();
+        services.AddHostedService<PersonaPictureWorker>();
     }
 }

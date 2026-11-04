@@ -32,6 +32,9 @@ public sealed record PersonaReadModel
 
     public string DisplayName { get; init; } = string.Empty;
 
+    /// <summary>The picture of the person's first channel that has one; null when none does.</summary>
+    public string? PictureUrl { get; init; }
+
     /// <summary>Public channels and pages, ordered by kind.</summary>
     public IReadOnlyList<PersonaLinkReadModel> Links { get; init; } = Array.Empty<PersonaLinkReadModel>();
 

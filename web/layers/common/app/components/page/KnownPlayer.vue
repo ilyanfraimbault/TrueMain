@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PersonaResponse } from '#shared/types/players'
+import { PLAYER_PICTURE_FETCH_SIZE } from '#common/utils/icon-fetch'
 
 // A known player's page (#2016): the person — a pro, a streamer, a creator or
 // any notable player — their public channels, and every account of theirs
@@ -45,10 +46,18 @@ const breadcrumbItems = computed(() => [
 
     <template v-else-if="persona">
       <!-- The person first: their picture, their name, and their channels on
-           the name's line. The picture is a placeholder slot until persona
-           images are collected (#2064). -->
+           the name's line. The picture is their first channel's that has one
+           (#2446), the placeholder otherwise. -->
       <header class="flex items-center gap-4">
+        <SkeletonImage
+          v-if="persona.pictureUrl"
+          :src="persona.pictureUrl"
+          :alt="persona.displayName"
+          :fetch-size="PLAYER_PICTURE_FETCH_SIZE"
+          class="size-20 shrink-0 rounded-xl ring-1 ring-default"
+        />
         <UAvatar
+          v-else
           :alt="persona.displayName"
           icon="i-lucide-user-round"
           :ui="{ root: 'size-20 shrink-0 rounded-xl bg-elevated ring-1 ring-default text-2xl', icon: 'size-9 text-dimmed' }"

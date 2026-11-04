@@ -16,6 +16,8 @@ export interface SearchPlayer {
   persona: PersonaTag
   /** Every account sources list for the person, tracked or not. */
   accountCount: number
+  /** The picture of the person's first channel that has one; null when none does. */
+  pictureUrl: string | null
   /** The best-ranked tracked account's icon; null when none is tracked. */
   profileIconId: number | null
   /** The best-ranked tracked account's rank; null when none is tracked or ranked. */

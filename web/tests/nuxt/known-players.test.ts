@@ -109,6 +109,7 @@ describe('SearchPlayerItem', () => {
   const player: SearchPlayer = {
     persona: { slug: 'irelking', displayName: 'Irelking' },
     accountCount: 3,
+    pictureUrl: null,
     profileIconId: 6,
     ranked: { tier: 'CHALLENGER', division: 'I', leaguePoints: 1500 },
   }
@@ -119,6 +120,17 @@ describe('SearchPlayerItem', () => {
     expect(wrapper.text()).toContain('Irelking')
     expect(wrapper.text()).toContain('3 accounts')
     expect(wrapper.find('img').attributes('src')).toContain('profileicon/6.png')
+  })
+
+  it('draws the person\'s own picture over their account\'s face when they have one (#2446)', async () => {
+    const wrapper = await inApp(SearchPlayerItem, {
+      player: { ...player, pictureUrl: 'https://yt3.ggpht.com/irelking' },
+      patch: '16.19.1',
+    })
+
+    const src = decodeURIComponent(wrapper.find('img').attributes('src')!)
+    expect(src).toContain('yt3.ggpht.com/irelking')
+    expect(src).not.toContain('profileicon')
   })
 
   it('says one account in the singular', async () => {
@@ -134,7 +146,7 @@ describe('SearchPlayerItem', () => {
 describe('useTruemainSearch', () => {
   it('exposes the known players the search answered, and clears them below the floor', async () => {
     vi.useFakeTimers()
-    const player: SearchPlayer = { persona: { slug: 'irelking', displayName: 'Irelking' }, accountCount: 1, profileIconId: 6, ranked: null }
+    const player: SearchPlayer = { persona: { slug: 'irelking', displayName: 'Irelking' }, accountCount: 1, pictureUrl: null, profileIconId: 6, ranked: null }
     apiFetch.mockResolvedValue({ results: [], players: [player] })
 
     const term = ref('')
@@ -214,6 +226,40 @@ describe('known player page', () => {
     expect(wrapper.find('a[aria-label="Twitch"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Hide on bush')
     expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('heads the page with the person\'s picture, fetched sharper than an icon (#2446)', async () => {
+    apiFetch.mockImplementation(async (url: string) => url === '/players/picture-faker'
+      ? {
+          slug: 'picture-faker',
+          displayName: 'Faker',
+          pictureUrl: 'https://yt3.ggpht.com/faker',
+          links: [],
+          accounts: [{ gameName: 'Hide on bush', tagLine: 'KR1', platformId: 'KR', region: 'korea', profileIconId: 6, lastPlayedAtUtc: null, ranked: null, topChampions: [] }],
+        }
+      : null)
+
+    const wrapper = await mountPage('/players/picture-faker')
+
+    const src = decodeURIComponent(wrapper.find('header img').attributes('src')!)
+    expect(src).toContain('yt3.ggpht.com/faker')
+    expect(src).toContain('s_160x160')
+  })
+
+  it('keeps the placeholder for a person without a picture', async () => {
+    apiFetch.mockImplementation(async (url: string) => url === '/players/plain-faker'
+      ? {
+          slug: 'plain-faker',
+          displayName: 'Faker',
+          pictureUrl: null,
+          links: [],
+          accounts: [{ gameName: 'Hide on bush', tagLine: 'KR1', platformId: 'KR', region: 'korea', profileIconId: 6, lastPlayedAtUtc: null, ranked: null, topChampions: [] }],
+        }
+      : null)
+
+    const wrapper = await mountPage('/players/plain-faker')
+
+    expect(wrapper.find('header img').exists()).toBe(false)
   })
 
   it('says a slug nobody answers to is unknown', async () => {

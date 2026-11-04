@@ -1157,6 +1157,11 @@ leaves a misleading version on the page (#1637).
   the stack `.env` only. The compose files also set `Alerting__AdminBaseUrl` (the
   `/health` link) and `Alerting__EnvironmentLabel` (the title prefix that tells the
   two stacks apart in one channel).
+- `PERSONA_PICTURES_YOUTUBE_API_KEY`, `PERSONA_PICTURES_TWITCH_CLIENT_ID` and
+  `PERSONA_PICTURES_TWITCH_CLIENT_SECRET` turn known players' pictures on (#2446), passed as
+  `PersonaPictures__*` and defaulting to empty. All three or nothing: they head the channel
+  priority, so the worker stays off rather than give players a lesser channel's picture. They
+  are credentials, so they live in the stack `.env` only.
 - `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
   projects against (#925). Unset means no forecast at all, which the admin
   panel says explicitly instead of fitting a line to a guessed capacity.

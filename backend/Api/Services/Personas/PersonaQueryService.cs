@@ -45,7 +45,7 @@ public sealed class PersonaQueryService(TrueMainDbContext db) : IPersonaQuerySer
         var persona = await db.Personas
             .AsNoTracking()
             .Where(p => p.Slug == key)
-            .Select(p => new { p.Id, p.Slug, p.DisplayName, p.MergedIntoPersonaId })
+            .Select(p => new { p.Id, p.Slug, p.DisplayName, p.PictureUrl, p.MergedIntoPersonaId })
             .FirstOrDefaultAsync(ct);
         if (persona?.MergedIntoPersonaId is { } keptId)
         {
@@ -54,7 +54,7 @@ public sealed class PersonaQueryService(TrueMainDbContext db) : IPersonaQuerySer
             persona = await db.Personas
                 .AsNoTracking()
                 .Where(p => p.Id == keptId)
-                .Select(p => new { p.Id, p.Slug, p.DisplayName, p.MergedIntoPersonaId })
+                .Select(p => new { p.Id, p.Slug, p.DisplayName, p.PictureUrl, p.MergedIntoPersonaId })
                 .FirstOrDefaultAsync(ct);
         }
 
@@ -157,6 +157,7 @@ public sealed class PersonaQueryService(TrueMainDbContext db) : IPersonaQuerySer
         {
             Slug = persona.Slug,
             DisplayName = persona.DisplayName,
+            PictureUrl = persona.PictureUrl,
             Links = links
                 .Select(link => new PersonaLinkReadModel { Kind = link.Kind.ToString().ToLowerInvariant(), Url = link.Url })
                 .ToList(),

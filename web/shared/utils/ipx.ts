@@ -6,6 +6,23 @@
 export const IPX_CACHE_SECONDS = 60 * 60 * 24 * 7 // 7 days
 
 /**
+ * The hosts IPX fetches from: Riot's static data, and the image hosts of the
+ * channels a known player's picture is read from (#2446). The Api only ever
+ * stores a picture from these (`PersonaPictureLookup`), and the desktop app's CSP
+ * lists them too (`desktop/src-tauri/tauri.conf.json`): the three move together.
+ */
+export const IPX_SOURCE_DOMAINS = [
+  'ddragon.leagueoflegends.com',
+  'raw.communitydragon.org',
+  'yt3.ggpht.com',
+  'yt3.googleusercontent.com',
+  'static-cdn.jtvnw.net',
+  'files.kick.com',
+  'profile.img.sooplive.co.kr',
+  'nng-phinf.pstatic.net',
+]
+
+/**
  * The route `/_ipx/**` is served from, shared so the three places that need it
  * cannot drift: the Nitro route registration, the browser cache-control rule, and
  * the handler that has to strip this prefix before handing the rest to IPX.

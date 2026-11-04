@@ -134,6 +134,9 @@ services:
       LogIngest__ApiKey: ${LOG_INGEST_KEY:-}
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Alerting__DiscordWebhookUrl: "${ALERTING_DISCORD_WEBHOOK_URL:-}"
+      PersonaPictures__YouTubeApiKey: "${PERSONA_PICTURES_YOUTUBE_API_KEY:-}"
+      PersonaPictures__TwitchClientId: "${PERSONA_PICTURES_TWITCH_CLIENT_ID:-}"
+      PersonaPictures__TwitchClientSecret: "${PERSONA_PICTURES_TWITCH_CLIENT_SECRET:-}"
       Alerting__AdminBaseUrl: "https://admin.truemain.lol"
       Alerting__EnvironmentLabel: prod
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
