@@ -5,10 +5,8 @@ namespace Data.Repositories;
 
 public sealed partial class RiotAccountRepository
 {
-    // Set-based on purpose (#2046): a tracked stamp is checked against the row's xmin, which
-    // the fetch lane's raw-SQL writes (LastSeenInMatchAtUtc, the summoner profile, the ingest
-    // status) bump at any time, so the save matched 0 rows and failed the whole run. Each of
-    // these columns has a single writer, so there is no concurrent write for xmin to protect.
+    // Set-based on purpose (#2046): a process that only stamps its own column has no reason to
+    // load and track the accounts, least of all across a whole run of Riot calls.
 
     public Task<int> StampLastMainCalcAsync(
         IReadOnlyCollection<AccountKey> accounts, DateTime atUtc, CancellationToken ct)

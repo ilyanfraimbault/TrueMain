@@ -241,7 +241,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
     {
         // #2046: a raw-SQL write of the fetch lane between this batch's reads and its save
         // bumps the account row's xmin. A tracked LastMainCalcAtUtc stamp then matched 0 rows
-        // and failed the whole run; the set-based stamp does not look at xmin.
+        // and failed the whole run; the set-based stamp is not exposed to that race.
         await SeedEstablishedMainAsync(
             puuid: "puuid-race-1",
             candidateStatus: MainCandidateStatus.Validated,

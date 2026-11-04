@@ -82,6 +82,8 @@ public sealed class TimelineIngestionService(
     {
         var timelineUpdated = 0;
         var batchSize = Math.Max(1, saveBatchSize);
+        var paceKeys = new List<PaceBenchmarkKey>();
+        var formKeys = new List<FormBenchmarkKey>();
 
         foreach (var batch in plan.Timelines.Chunk(batchSize))
         {
@@ -114,23 +116,37 @@ public sealed class TimelineIngestionService(
             await session.MatchParticipantTimelineSnapshots.DeleteByMatchIdsAsync(appliedMatchIds, ct);
 
             await session.Matches.SetTimelineIngestedAsync(appliedMatchIds, true, ct);
-            await FoldPaceBenchmarkAsync(session, applied, ct);
+            await CollectBenchmarkKeysAsync(session, applied, paceKeys, formKeys, ct);
             await session.SaveChangesAsync(ct);
             timelineUpdated += appliedMatchIds.Count;
+        }
+
+        // Once for the whole plan, after its last save (#2448). Every ingesting account upserts
+        // these same hot rows and holds them until the commit, so a transaction has to take them
+        // in one ordered statement, as late as it can: one upsert per batch took them in several
+        // passes, which no statement order can reconcile with another transaction's.
+        if (timelineUpdated > 0)
+        {
+            var aggregatedAtUtc = DateTime.UtcNow;
+            await session.PaceBenchmarkStats.AddCountsAsync(PaceBenchmarkBuilder.Count(paceKeys), aggregatedAtUtc, ct);
+            await session.FormBenchmarkStats.AddCountsAsync(FormBenchmarkBuilder.Count(formKeys), aggregatedAtUtc, ct);
         }
 
         return timelineUpdated;
     }
 
     /// <summary>
-    /// Folds the batch's timelines into the pace benchmark (#1912) while they are still in
+    /// Reads the batch's timelines into pace benchmark keys (#1912) while they are still in
     /// memory — the per-minute values are never written anywhere else — and the same games'
-    /// end-of-game lines into the form benchmark (#2076), under the same claim. Runs inside
-    /// the caller's transaction, so the claim flag, the counters and the timeline commit together.
+    /// end-of-game lines into form benchmark keys (#2076), under the same claim.
+    /// <see cref="WriteAsync"/> upserts them inside the caller's transaction, so the claim flag,
+    /// the counters and the timeline commit together.
     /// </summary>
-    private async Task FoldPaceBenchmarkAsync(
+    private async Task CollectBenchmarkKeysAsync(
         IDataSession session,
         IReadOnlyList<AppliedTimeline> applied,
+        List<PaceBenchmarkKey> paceKeys,
+        List<FormBenchmarkKey> formKeys,
         CancellationToken ct)
     {
         var claims = await session.Matches.ClaimPaceBenchmarkFoldAsync(
@@ -149,8 +165,6 @@ public sealed class TimelineIngestionService(
             .ToList();
         var tierHistory = await session.RankSnapshots.GetTierHistoryForAccountsAsync(trackedAccountIds, ct);
 
-        var keys = new List<PaceBenchmarkKey>();
-        var formKeys = new List<FormBenchmarkKey>();
         var unplaced = 0;
         foreach (var claim in claims)
         {
@@ -161,13 +175,9 @@ public sealed class TimelineIngestionService(
                 unplaced++;
             }
 
-            keys.AddRange(matchKeys);
+            paceKeys.AddRange(matchKeys);
             formKeys.AddRange(FormBenchmarkBuilder.Build(claim, timeline.Participants, tierHistory));
         }
-
-        var aggregatedAtUtc = DateTime.UtcNow;
-        await session.PaceBenchmarkStats.AddCountsAsync(PaceBenchmarkBuilder.Count(keys), aggregatedAtUtc, ct);
-        await session.FormBenchmarkStats.AddCountsAsync(FormBenchmarkBuilder.Count(formKeys), aggregatedAtUtc, ct);
 
         if (unplaced > 0)
         {

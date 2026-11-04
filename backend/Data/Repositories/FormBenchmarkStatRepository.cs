@@ -29,6 +29,7 @@ public sealed class FormBenchmarkStatRepository(TrueMainDbContext db) : IFormBen
              SELECT gen_random_uuid(), t.patch, t.tier, t.position, t.metric, t.bucket, t.count, {aggregatedAtUtc}
              FROM unnest({patches}, {tiers}, {positions}, {metrics}, {buckets}, {values})
                  AS t(patch, tier, position, metric, bucket, count)
+             ORDER BY t.position, t.patch, t.tier, t.metric, t.bucket
              ON CONFLICT ("Position", "Patch", "Tier", "Metric", "Bucket") DO UPDATE SET
                  "Count" = form_benchmark_stats."Count" + EXCLUDED."Count",
                  "AggregatedAtUtc" = EXCLUDED."AggregatedAtUtc"

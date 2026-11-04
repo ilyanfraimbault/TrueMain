@@ -118,9 +118,7 @@ public sealed class MainActivityProcess(
 
         // Tracked on purpose: the IsActive flips and the mastery facts below are
         // change-tracked mutations of these very entities, flushed once at the end of the
-        // run. The accounts are not loaded: held across a whole run of mastery calls, a
-        // tracked stamp lost the xmin race to any fetch-lane write to the row (#2046), so
-        // LastActivityCheckAtUtc is stamped set-based instead.
+        // run. The accounts are not loaded: LastActivityCheckAtUtc is stamped set-based (#2046).
         var statsByAccount = await session.MainChampionStats.GetByAccountsAsync(accounts, ct);
         var checkedAccounts = new List<AccountKey>(accounts.Count);
         var inactiveBefore = nowUtc.AddDays(-Math.Max(0, options.InactiveAfterDays));
