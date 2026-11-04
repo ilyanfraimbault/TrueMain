@@ -58,7 +58,8 @@ public sealed class ChampionGameCountRefreshProcess(
     /// The bound on the single pass. Its duration swings with concurrent load — ingestion
     /// writes and autovacuum compete for the same participant pages — so it gets more room
     /// than the connection's 300 s; a pass that still overruns fails the run, and the
-    /// previous rollup stays in place until the next one.
+    /// previous rollup stays in place until the next one. The worst case, a run right after a
+    /// patch left the window, is what retention's <c>PostPurgeVacuum</c> takes away (#2444).
     /// </summary>
     internal static readonly TimeSpan CommandTimeout = TimeSpan.FromMinutes(15);
 

@@ -4,6 +4,7 @@ using Data.Entities;
 using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -47,6 +48,40 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
         remainingMatchIds.Should().BeEquivalentTo(["RET_2", "RET_4"]);
         (await db.MatchParticipants.AsNoTracking().CountAsync()).Should().Be(2);
         _processRunStore.Runs.Should().Contain(run => run.ProcessName == "MatchDataRetention");
+    }
+
+    [Fact]
+    public async Task RunAsync_VacuumsAfterAMassDelete_LeavingTheParticipantPagesAllVisible()
+    {
+        await SeedRetentionDataAsync();
+        (await ParticipantPagesAllVisibleAsync()).Should().Be(0);
+
+        var recorded = BuildRecordedProcess(retainedPatchCount: 1, vacuumAfterDeletedParticipants: 1);
+
+        var summary = await recorded.RunCoreAsync(CancellationToken.None);
+
+        summary.Should().BeOfType<MatchDataRetentionSummary>().Which.VacuumedAfterPurge.Should().BeTrue();
+        (await ParticipantPagesAllVisibleAsync()).Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task RunAsync_DoesNotVacuumBelowTheThreshold()
+    {
+        await SeedRetentionDataAsync();
+
+        var recorded = BuildRecordedProcess(retainedPatchCount: 1, vacuumAfterDeletedParticipants: 1_000);
+
+        var summary = await recorded.RunCoreAsync(CancellationToken.None);
+
+        summary.Should().BeOfType<MatchDataRetentionSummary>().Which.VacuumedAfterPurge.Should().BeFalse();
+    }
+
+    private async Task<int> ParticipantPagesAllVisibleAsync()
+    {
+        await using var db = _fixture.CreateDbContext();
+        return await db.Database
+            .SqlQuery<int>($"""SELECT relallvisible::int AS "Value" FROM pg_class WHERE relname = 'match_participants'""")
+            .SingleAsync();
     }
 
     [Fact]
@@ -354,7 +389,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
     private RecordedProcess<MatchDataRetentionProcess> BuildRecordedProcess(
         int retainedPatchCount,
         int aggregateRetainedPatchCount = 0,
-        int buildAggregateRetainedPatchCount = 0)
+        int buildAggregateRetainedPatchCount = 0,
+        int vacuumAfterDeletedParticipants = 0)
     {
         var process = new MatchDataRetentionProcess(
             NullLogger<MatchDataRetentionProcess>.Instance,
@@ -369,7 +405,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
                 NonRankedDeleteBatchSize = 1,
                 ExpiredPatchDeleteBatchSize = 1,
                 AggregateRetainedPatchCount = aggregateRetainedPatchCount,
-                BuildAggregateRetainedPatchCount = buildAggregateRetainedPatchCount
+                BuildAggregateRetainedPatchCount = buildAggregateRetainedPatchCount,
+                VacuumAfterDeletedParticipants = vacuumAfterDeletedParticipants
             }),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions
             {

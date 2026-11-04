@@ -46,10 +46,10 @@ public sealed class ProcessRunSummaryJsonTests
 
         ProcessRunSummaryJson.Serialize(new MatchDataRetentionSummary(
             3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 8, ["16.1"], 700,
-            [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]))
+            [new RetainedPatchesSummary("KR", ["16.3", "16.4"])], true))
             .Should().Be(
                 """
-                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"demotedQueuedCandidates":42,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedSynergyStats":8,"buildPurgedPatches":["16.1"],"deletedBuildPatterns":700,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}]}
+                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"demotedQueuedCandidates":42,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedSynergyStats":8,"buildPurgedPatches":["16.1"],"deletedBuildPatterns":700,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}],"vacuumedAfterPurge":true}
                 """);
     }
 
@@ -329,7 +329,7 @@ public sealed class ProcessRunSummaryJsonTests
 
         yield return (
             new MatchDataRetentionSummary(3, 420, 10, 100, 4, 7, 42, 5, 900, 1, 2, 8, ["16.1"], 700,
-            [new RetainedPatchesSummary("KR", ["16.3", "16.4"])]),
+            [new RetainedPatchesSummary("KR", ["16.3", "16.4"])], true),
             new
             {
                 retainedPatchCount = 3,
@@ -349,7 +349,8 @@ public sealed class ProcessRunSummaryJsonTests
                 retainedPatchesByPlatform = new[]
                 {
                     new { platformId = "KR", patches = new[] { "16.3", "16.4" } }
-                }
+                },
+                vacuumedAfterPurge = true
             });
     }
 }
