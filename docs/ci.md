@@ -1116,6 +1116,10 @@ leaves a misleading version on the page (#1637).
   new variable and no host in the repo), `http://localhost:3000` in the two
   local stacks. Passed as `${PREPROD_SITE_URL:-}` on the admin rather than
   required: an empty value only hides the buttons.
+- The web service needs the same variable wherever `NUXT_HTML_CACHE_ENABLED` is
+  on (#2433). The renders it asks for itself have no visitor to take a host
+  from, so they read it, or the stored page prints `localhost` in its share
+  links; and a page asked on any other host is only stored when it is set.
 - Prod's ingestors set `MatchDataRetention__TruncatedRetainedPatchCount: "0"`:
   match truncation (#2368) stays off there until its storage and its retention
   time are measured on preprod and accepted. Preprod runs the default, 4.
