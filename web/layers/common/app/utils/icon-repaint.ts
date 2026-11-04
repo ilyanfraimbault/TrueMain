@@ -17,6 +17,14 @@ import type { InjectionKey, Ref } from 'vue'
  * would draw an icon hovered while still loading as an empty box instead of a
  * skeleton; the painted set alone would also apply during hydration, where the first
  * render must match the server's, which never shows a picture as loaded.
+ *
+ * Painted does not mean available, though. Measured on a champion page in Chromium, the
+ * first re-creation of a source does not find it in memory even with other `<img>`s still
+ * showing it: the new one is served by the HTTP cache a few milliseconds later, and an
+ * opaque `<img>` with no picture yet paints its alt text. Only a source already re-fetched
+ * this way comes back complete. So `LazyTooltip` warms the picture before re-creating the
+ * icon (`warmIconPicture`), and the `<img>` keeps a transparent text colour for whatever
+ * still gets through, a picture that fails to decode for one.
  */
 
 /** Provided by `LazyTooltip`: true once the tooltip is armed, i.e. its slot is being re-created. */
@@ -34,6 +42,19 @@ export function markIconPainted(src: string | null | undefined) {
 /** Whether an icon being created now can be drawn at once instead of loading again. */
 export function isIconRepaint(remounting: boolean, src: string | null | undefined): boolean {
   return remounting && Boolean(src) && paintedSources.has(src!)
+}
+
+/**
+ * Loads the picture of an icon about to be re-created, so the new `<img>` finds it in
+ * memory and is complete from its first frame. The caller waits for `decode()` and holds
+ * the returned image until the icon is re-created. Null when the icon has no picture to
+ * keep: it can be re-created at once and go on loading behind its skeleton.
+ */
+export function warmIconPicture(current: HTMLImageElement | null | undefined): HTMLImageElement | null {
+  if (!current?.complete || !current.naturalWidth) return null
+  const warm = new Image()
+  warm.src = current.currentSrc
+  return warm
 }
 
 /** Test seam: the set is module state, shared by every test of a run. */

@@ -14,3 +14,6 @@
  * downloads and four cache entries for one image.
  */
 export const ICON_FETCH_SIZE = 64
+
+/** The square a known player's picture is fetched at on their page: twice its 80 px box, for sharp screens. */
+export const PLAYER_PICTURE_FETCH_SIZE = 160

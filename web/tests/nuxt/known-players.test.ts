@@ -11,14 +11,16 @@ import PlayerPage from '~/pages/players/[slug].vue'
 // the search palette's player row, and the search composable carrying the
 // players the same request answers.
 
-const { apiFetch, schemaOrg } = vi.hoisted(() => ({ apiFetch: vi.fn(), schemaOrg: vi.fn() }))
+const { apiFetch, schemaOrg, navigate } = vi.hoisted(() => ({ apiFetch: vi.fn(), schemaOrg: vi.fn(), navigate: vi.fn() }))
 mockNuxtImport('useApiFetch', () => () => apiFetch)
+mockNuxtImport('navigateTo', () => navigate)
 // Captured rather than rendered: the test reads the nodes the page hands the module.
 mockNuxtImport('useSchemaOrg', () => schemaOrg)
 
 afterEach(() => {
   apiFetch.mockReset()
   schemaOrg.mockReset()
+  navigate.mockReset()
   vi.useRealTimers()
 })
 
@@ -107,6 +109,7 @@ describe('SearchPlayerItem', () => {
   const player: SearchPlayer = {
     persona: { slug: 'irelking', displayName: 'Irelking' },
     accountCount: 3,
+    pictureUrl: null,
     profileIconId: 6,
     ranked: { tier: 'CHALLENGER', division: 'I', leaguePoints: 1500 },
   }
@@ -117,6 +120,17 @@ describe('SearchPlayerItem', () => {
     expect(wrapper.text()).toContain('Irelking')
     expect(wrapper.text()).toContain('3 accounts')
     expect(wrapper.find('img').attributes('src')).toContain('profileicon/6.png')
+  })
+
+  it('draws the person\'s own picture over their account\'s face when they have one (#2446)', async () => {
+    const wrapper = await inApp(SearchPlayerItem, {
+      player: { ...player, pictureUrl: 'https://yt3.ggpht.com/irelking' },
+      patch: '16.19.1',
+    })
+
+    const src = decodeURIComponent(wrapper.find('img').attributes('src')!)
+    expect(src).toContain('yt3.ggpht.com/irelking')
+    expect(src).not.toContain('profileicon')
   })
 
   it('says one account in the singular', async () => {
@@ -132,7 +146,7 @@ describe('SearchPlayerItem', () => {
 describe('useTruemainSearch', () => {
   it('exposes the known players the search answered, and clears them below the floor', async () => {
     vi.useFakeTimers()
-    const player: SearchPlayer = { persona: { slug: 'irelking', displayName: 'Irelking' }, accountCount: 1, profileIconId: 6, ranked: null }
+    const player: SearchPlayer = { persona: { slug: 'irelking', displayName: 'Irelking' }, accountCount: 1, pictureUrl: null, profileIconId: 6, ranked: null }
     apiFetch.mockResolvedValue({ results: [], players: [player] })
 
     const term = ref('')
@@ -158,6 +172,16 @@ describe('useTruemainSearch', () => {
 })
 
 describe('known player page', () => {
+  // Unmounted after each test: a page left mounted would follow the next test's route.
+  const mounted: Array<{ unmount: () => void }> = []
+  afterEach(() => mounted.splice(0).forEach(wrapper => wrapper.unmount()))
+
+  async function mountPage(route: string) {
+    const wrapper = await mountSuspended(defineComponent({ setup: () => () => h(UApp, null, () => h(PlayerPage)) }), { route })
+    mounted.push(wrapper)
+    return wrapper
+  }
+
   it('describes itself as the profile of a person, under the leaderboard', async () => {
     apiFetch.mockImplementation(async (url: string) => url === '/players/faker'
       ? {
@@ -171,7 +195,7 @@ describe('known player page', () => {
         }
       : null)
 
-    await mountSuspended(defineComponent({ setup: () => () => h(UApp, null, () => h(PlayerPage)) }), { route: '/players/faker' })
+    await mountPage('/players/faker')
 
     const nodes = (schemaOrg.mock.lastCall![0] as unknown[]).map(node => toValue(node) as Record<string, unknown>)
     const person = nodes.find(node => node.name === 'Faker' && 'sameAs' in node)
@@ -184,5 +208,75 @@ describe('known player page', () => {
     })
     expect(page).toMatchObject({ '@type': ['WebPage', 'ProfilePage'], 'mainEntity': { '@id': '#/schema/person/faker' } })
     expect((breadcrumb!.itemListElement as Array<{ name: unknown }>).map(item => toValue(item.name))).toEqual(['Truemains', 'Faker'])
+  })
+
+  it('shows the person, their channels and their accounts', async () => {
+    apiFetch.mockImplementation(async (url: string) => url === '/players/shared-faker'
+      ? {
+          slug: 'shared-faker',
+          displayName: 'Faker',
+          links: [{ kind: 'twitch', url: 'https://www.twitch.tv/faker' }],
+          accounts: [{ gameName: 'Hide on bush', tagLine: 'KR1', platformId: 'KR', region: 'korea', profileIconId: 6, lastPlayedAtUtc: null, ranked: null, topChampions: [] }],
+        }
+      : null)
+
+    const wrapper = await mountPage('/players/shared-faker')
+
+    expect(wrapper.find('h1').text()).toBe('Faker')
+    expect(wrapper.find('a[aria-label="Twitch"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Hide on bush')
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('heads the page with the person\'s picture, fetched sharper than an icon (#2446)', async () => {
+    apiFetch.mockImplementation(async (url: string) => url === '/players/picture-faker'
+      ? {
+          slug: 'picture-faker',
+          displayName: 'Faker',
+          pictureUrl: 'https://yt3.ggpht.com/faker',
+          links: [],
+          accounts: [{ gameName: 'Hide on bush', tagLine: 'KR1', platformId: 'KR', region: 'korea', profileIconId: 6, lastPlayedAtUtc: null, ranked: null, topChampions: [] }],
+        }
+      : null)
+
+    const wrapper = await mountPage('/players/picture-faker')
+
+    const src = decodeURIComponent(wrapper.find('header img').attributes('src')!)
+    expect(src).toContain('yt3.ggpht.com/faker')
+    expect(src).toContain('s_160x160')
+  })
+
+  it('keeps the placeholder for a person without a picture', async () => {
+    apiFetch.mockImplementation(async (url: string) => url === '/players/plain-faker'
+      ? {
+          slug: 'plain-faker',
+          displayName: 'Faker',
+          pictureUrl: null,
+          links: [],
+          accounts: [{ gameName: 'Hide on bush', tagLine: 'KR1', platformId: 'KR', region: 'korea', profileIconId: 6, lastPlayedAtUtc: null, ranked: null, topChampions: [] }],
+        }
+      : null)
+
+    const wrapper = await mountPage('/players/plain-faker')
+
+    expect(wrapper.find('header img').exists()).toBe(false)
+  })
+
+  it('says a slug nobody answers to is unknown', async () => {
+    apiFetch.mockResolvedValue(null)
+
+    const wrapper = await mountPage('/players/nobody')
+
+    expect(wrapper.text()).toContain('Unknown player')
+  })
+
+  it('follows a merged player to the kept one', async () => {
+    apiFetch.mockImplementation(async (url: string) => url === '/players/peng-dpm'
+      ? { slug: 'peng', displayName: 'Peng', links: [], accounts: [] }
+      : null)
+
+    await mountPage('/players/peng-dpm')
+
+    expect(navigate).toHaveBeenCalledWith('/players/peng', { replace: true })
   })
 })

@@ -52,8 +52,14 @@ public sealed class PersonaMerger(TrueMainDbContext db)
         await db.Personas.Where(p => p.MergedIntoPersonaId == mergedId)
             .ExecuteUpdateAsync(set => set.SetProperty(p => p.MergedIntoPersonaId, keptId), ct);
         await db.Personas.Where(p => p.Id == mergedId).ExecuteUpdateAsync(
-            set => set.SetProperty(p => p.MergedIntoPersonaId, keptId).SetProperty(p => p.UpdatedAtUtc, now), ct);
-        await db.Personas.Where(p => p.Id == keptId).ExecuteUpdateAsync(set => set.SetProperty(p => p.UpdatedAtUtc, now), ct);
+            set => set
+                .SetProperty(p => p.MergedIntoPersonaId, keptId)
+                .SetProperty(p => p.UpdatedAtUtc, now)
+                .SetProperty(p => p.PictureUrl, (string?)null)
+                .SetProperty(p => p.PictureRefreshAtUtc, (DateTime?)null),
+            ct);
+        await db.Personas.Where(p => p.Id == keptId).ExecuteUpdateAsync(
+            set => set.SetProperty(p => p.UpdatedAtUtc, now).SetProperty(p => p.PictureRefreshAtUtc, (DateTime?)null), ct);
         return settled;
     }
 

@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import { Buffer } from 'node:buffer'
 import { createIPX, createIPXFetchHandler, ipxFSStorage, ipxHttpStorage } from 'ipx'
-import { IPX_CACHE_SECONDS, ipxRequestPath } from '~~/shared/utils/ipx'
+import { IPX_CACHE_SECONDS, IPX_SOURCE_DOMAINS, ipxRequestPath } from '~~/shared/utils/ipx'
 import { createBoundedByteCache } from '../utils/bounded-byte-cache'
 import { getIpxDiskCache } from '../utils/ipx-disk-store'
 import { createPatchRetention, isOutsideRetention } from '../utils/ipx-patch-retention'
@@ -29,7 +29,7 @@ import { isDurableImagePath } from '../utils/warmup-catalog'
  * URL's bytes are immutable — a new patch means new URLs.
  *
  * Each worker's memory sits on a disk they share and that outlives a deploy
- * (`ipx-disk-cache.ts`, #2425), so a deploy no longer replays the catalogue upstream.
+ * (`ipx-disk-store.ts`, #2425), so a deploy no longer replays the catalogue upstream.
  */
 
 // `/_ipx/**` is a public, unauthenticated route: anyone can request any
@@ -72,7 +72,7 @@ const ipx = createIPX({
   // (see web/Dockerfile: `node .output/server/index.mjs`).
   storage: ipxFSStorage({ dir: import.meta.dev ? 'public' : '.output/public' }),
   httpStorage: ipxHttpStorage({
-    domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org'],
+    domains: IPX_SOURCE_DOMAINS,
     // Ignore upstream Cache-Control (CommunityDragon's `latest` redirects use
     // a short TTL) and advertise our own long max-age instead.
     maxAge: IPX_CACHE_SECONDS,

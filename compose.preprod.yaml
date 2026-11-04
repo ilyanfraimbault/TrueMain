@@ -150,6 +150,9 @@ services:
       LogIngest__ApiKey: ${LOG_INGEST_KEY:-}
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Alerting__DiscordWebhookUrl: "${ALERTING_DISCORD_WEBHOOK_URL:-}"
+      PersonaPictures__YouTubeApiKey: "${PERSONA_PICTURES_YOUTUBE_API_KEY:-}"
+      PersonaPictures__TwitchClientId: "${PERSONA_PICTURES_TWITCH_CLIENT_ID:-}"
+      PersonaPictures__TwitchClientSecret: "${PERSONA_PICTURES_TWITCH_CLIENT_SECRET:-}"
       Alerting__AdminBaseUrl: "${PREPROD_ADMIN_URL:?set PREPROD_ADMIN_URL before deploying}"
       Alerting__EnvironmentLabel: preprod
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
@@ -187,6 +190,7 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_WARMUP_ENABLED: "true"
+      NUXT_HTML_CACHE_ENABLED: "true"
       NUXT_IPX_CACHE_DIR: /app/.ipx-cache
       NITRO_CLUSTER_WORKERS: "1"
       NUXT_API_BASE_URL: http://api:8080

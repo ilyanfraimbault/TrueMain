@@ -20,9 +20,9 @@ import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 export function useCanonicalIcon() {
   const ipx = useImage()
 
-  return (src: string | null | undefined): string | undefined =>
+  return (src: string | null | undefined, size: number = ICON_FETCH_SIZE): string | undefined =>
     src
-      ? ipx(src, { width: ICON_FETCH_SIZE, height: ICON_FETCH_SIZE, format: 'webp' })
+      ? ipx(src, { width: size, height: size, format: 'webp' })
       : undefined
 }
 

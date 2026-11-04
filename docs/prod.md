@@ -213,7 +213,8 @@ With the edge in its own project, an app rollout leaves Caddy running, and the
   keep the site down. Web reads that body and does not report it as a failure.
 - **Web is warming its workers after a start** (#2425). Each one renders the main
   pages and reads each champion's data for itself once the API is ready, and one fetches the
-  images the shared volume does not hold yet. `/api/readyz` answers `503` `warming`
+  images the shared volume does not hold yet and renders every champion page into the
+  workers' shared HTML cache (`x-html-cache` on an answer says it came from there). `/api/readyz` answers `503` `warming`
   until they have all finished, or `warmupBudgetSeconds` has gone by (480 s, from the
   process's start). A later aggregation run moves nothing here: the API publishes
   the new version once complete.
@@ -426,3 +427,9 @@ than fitting a line to a guessed capacity.
 Discord webhook the Api posts to when the `/health` verdict turns red or recovers.
 Unset means no alerts, which `/health` and the configuration page both say. It is a
 credential — keep it in the stack `.env`, never in a commit.
+
+`PERSONA_PICTURES_YOUTUBE_API_KEY`, `PERSONA_PICTURES_TWITCH_CLIENT_ID` and
+`PERSONA_PICTURES_TWITCH_CLIENT_SECRET` turn known players' pictures on (#2446). All
+three or nothing: unset, players keep the placeholder, and the configuration page says
+so. The YouTube one is a YouTube Data API v3 key, the Twitch pair an application from the
+Twitch developer console. Credentials too — the stack `.env` only.

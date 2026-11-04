@@ -144,6 +144,7 @@ Last verified against `develop` on 2026-09-02.
 - Known players' accounts on a platform the pipeline does not ingest are stored as `untracked`, never seeded (2026-10-19) — #2134
 - Known players' account conflicts are recorded and settled by the operator (move / keep / detach / merge); exclusions and merged-persona pointers keep the scrapers from undoing it (2026-10-23) — #2253
 - Operators add, edit, unlink and remove known players from the admin; every edit holds against the scrapers, removal keeps the slug, a takedown bars the accounts from every persona (2026-10-24) — #2019
+- A known player's picture is their first channel's (YouTube > Twitch > Kick > SOOP > Chzzk), official APIs for the first two; account rows keep their Riot icon (2026-11-04) — #2446
 - Two same-name known players claiming one account are merged automatically (into the older); same-name ones without a common account go to a homonyms queue to merge or mark as different people (2026-10-25) — #2271
 - Two known players listing the same social channel are a conflict even without a common account; with the same name too they are merged automatically into the older (2026-10-26) — #2286
 - The open conflict queue is ordered most certain first: shared social channels (Twitch, YouTube, X…) weigh most, shared reference pages less, differing channels count against (2026-10-25) — #2277
@@ -189,6 +190,7 @@ Last verified against `develop` on 2026-09-02.
 - The `/_ipx/**` cache evicts by patch, keeping the current patch and the two before it — #997
 - `/_ipx` images are pre-warmed at boot and kept on a bounded disk that outlives a deploy, revising #997 at the product owner's request (2026-11-03) — #2425
 - The directory and the tier list render on the server, and the HTML no longer prefetches the whole site (2026-11-03) — #2425, #149
+- The pages everyone reads come from a cache the workers share, fresh for a minute and served stale for an hour while a background render replaces them (2026-11-03) — #2431
 - `web/` and `admin/` share their server code and Data Dragon helpers through `web/layers/nitro`, which the admin extends through a second Docker build context; the labelled twins and their planned drift check are gone (2026-10-19, revises 2026-08-26); the site and the desktop app share `web/layers/common` since #1732 — #1226, #947, #966, #1623, #1732, #1684, #1625
 - SSR calls to the site's own `/api` forward the visitor, and a failure is never cached as an answer (2026-09-14) — #1557, #1546
 - A public section card is its title and its content — no explanatory subtitle, no method footnote; definitions go in a hover (2026-09-25) — #1699
@@ -236,6 +238,7 @@ Last verified against `develop` on 2026-09-02.
 - Aggregation is incremental per match, flagged on `matches`, never a full recompute — #811, #922, #920
 - The pattern aggregation is incremental by slice, not fold-once: a rewritten participant sends its match back, and the bracket is the participant's stamp (2026-10-19) — #1367, #1365
 - The operator champion game counts are a whole-table recompute of the raw rows in one statement, not a fold (2026-10-19, 2026-10-21) — #2132, #2217, #811
+- A retention run that deleted a mass of participants ends with a throttled `VACUUM (ANALYZE)` of the raw match tables, before the game count refresh reads them (2026-11-04) — #2444, #2217
 - Ban rate is its own aggregate pair with a stored denominator, and `ALL` is a stored band — not a summed one — #920
 - Champion profiles (`champion_profile_stats`) are measured from the champion's own games over the full pool, never labelled by hand; the ranged flag is the one static attribute — #1449
 - Damage profiles are served through the fold's own snapshot rule; the per-build split is a sibling table filled forward (no backfill); an unprofiled champion gets a Data Dragon class, never a share (2026-10-05) — #1905
@@ -280,7 +283,8 @@ Last verified against `develop` on 2026-09-02.
 - Integration test classes reset their stores in `InitializeAsync`; migration replays get a scratch database; clocks are frozen through the factory (2026-10-05) — #1246
 - Test methods are named `MethodName_State_ExpectedBehavior` (PascalCase segments, never snake_case), enforced by an `IDE1006` rule on `backend/tests` (2026-10-06) — #1246, #290
 - Threading + Roslynator analyzers run on every project: async-correctness rules are errors, JTF-only and false-positive rules are off, Roslynator style stays IDE hints (2026-10-05) — #294
-- A process's own timestamp on `riot_accounts` is stamped set-based, never through a tracked entity (2026-10-13) — #2046, #231
+- `riot_accounts` carries no concurrency token; a process's own timestamp is stamped set-based (2026-11-04) — #2046, #231, #2448
+- Benchmark counters are upserted once per transaction, in conflict-key order (2026-11-04) — #2448
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
@@ -330,6 +334,7 @@ Last verified against `develop` on 2026-09-02.
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
 - A warm pass fills the next version before anyone reads it, and the site stays on the maintenance page for the first one (2026-11-03) — #2425, #1945
+- The leaderboard reads its population once per aggregation version, so any filter and sort is a walk in memory (2026-11-03) — #2431
 - A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15) — #1570
 - A Riot ID resolves through a functional index on the lowered name and tag (2026-09-15) — #1570
 - The public web server runs one Node worker per useful core (2026-09-15) — #1579
@@ -504,6 +509,7 @@ Last verified against `develop` on 2026-09-02.
 - The overlay's pace sets CS/min and gold/min against the median of games at the player's Solo/Duo tier (every tier fetched, the tier picked locally); no Solo/Duo standing → no comparison; a reference, never advice (2026-10-05) — #1912
 - The dashboard's form tiles carry the median of the player's own Solo/Duo tier (not the tier above) on their main role, in muted text with the tier's emblem; under the floor or without a standing, none; dashboard only (2026-10-20) — #2076
 - Game recording is frozen; kept only if ≥ 25% of installs that play with the app open record a game within 30 days, read after the next production release (2026-11-01) — #2364
+- A known player opens in the app; the shell opens their channels through a host list (Twitch, YouTube, X), the one exception to the webview naming only a path on its site (2026-11-04) — #2441
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 

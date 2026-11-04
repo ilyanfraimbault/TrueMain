@@ -34,8 +34,9 @@ public sealed class ChampionCacheWarmer(
 {
     internal const string ClientName = nameof(ChampionCacheWarmer);
 
-    // A slice can take seconds, and it queues behind the ones the same pass is computing.
-    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(120);
+    // Past the longest read behind a request: the directory's patterns read has 180 s, and the
+    // first slices of a patch wait for it.
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(200);
 
     // A pass with more than a tenth of its requests failed is not published.
     private const int MaxFailureShareDivisor = 10;

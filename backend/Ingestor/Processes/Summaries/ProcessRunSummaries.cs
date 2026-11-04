@@ -396,4 +396,6 @@ public sealed record MatchDataRetentionSummary(
     // tables this run purged (their scopes and light record stay), and the patterns removed.
     IReadOnlyList<string> BuildPurgedPatches,
     int DeletedBuildPatterns,
-    IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform) : IProcessRunSummary;
+    IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform,
+    // Whether this run deleted enough participants to vacuum the raw match tables (#2444).
+    bool VacuumedAfterPurge) : IProcessRunSummary;

@@ -1,5 +1,6 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import { GameTooltipItemIcon, UApp } from '#components'
 import type { StaticItemData } from '#shared/types/static-data'
@@ -52,5 +53,78 @@ describe('LazyTooltip icon re-creation', () => {
     expect(after.attributes('decoding')).toBeUndefined()
     expect(after.classes()).toContain('opacity-0')
     expect(wrapper.find('span.absolute').exists()).toBe(true)
+  })
+
+  describe('with a picture on screen', () => {
+    const CURRENT_SRC = 'https://truemain.test/_ipx/f_webp&s_64x64/item/3078.png'
+    let warmed: { src: string }[]
+    let settleDecode: { resolve: () => void, reject: () => void }
+
+    beforeEach(() => {
+      warmed = []
+      vi.stubGlobal('Image', class {
+        src = ''
+        constructor() {
+          warmed.push(this)
+        }
+
+        decode() {
+          return new Promise<void>((resolve, reject) => {
+            settleDecode = { resolve, reject: () => reject(new Error('decode')) }
+          })
+        }
+      })
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    // The test DOM loads no picture, so the icon's is declared drawn by hand.
+    async function mountDrawn() {
+      const wrapper = await mountSuspended(Icon)
+      const img = wrapper.find('img')
+      await img.trigger('load')
+      Object.defineProperties(img.element, {
+        complete: { value: true },
+        naturalWidth: { value: 64 },
+        currentSrc: { value: CURRENT_SRC },
+      })
+      return wrapper
+    }
+
+    // The bug itself: an opaque <img> re-created before its picture is back in memory
+    // paints its alt text. The icon must stay in place until the picture is warm.
+    it('keeps the icon in place until its picture is warm', async () => {
+      const wrapper = await mountDrawn()
+      const before = wrapper.find('img').element
+
+      await wrapper.find('span.contents').trigger('mouseover')
+      await wrapper.find('span.contents').trigger('mouseover')
+
+      expect(warmed).toEqual([{ src: CURRENT_SRC }])
+      expect(wrapper.find('img').element).toBe(before)
+
+      settleDecode.resolve()
+      await flushPromises()
+
+      expect(wrapper.find('img').element).not.toBe(before)
+      expect(wrapper.find('img').attributes('decoding')).toBe('sync')
+    })
+
+    it('still arms the tooltip when the picture fails to decode', async () => {
+      const wrapper = await mountDrawn()
+      const before = wrapper.find('img').element
+
+      await wrapper.find('span.contents').trigger('mouseover')
+      settleDecode.reject()
+      await flushPromises()
+
+      expect(wrapper.find('span.contents').exists()).toBe(false)
+      expect(wrapper.find('img').element).not.toBe(before)
+    })
+  })
+
+  it('never lets an icon without a picture paint its alt text', async () => {
+    const wrapper = await mountSuspended(Icon)
+
+    expect(wrapper.find('img').classes()).toContain('text-transparent')
   })
 })

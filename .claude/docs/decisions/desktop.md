@@ -42,7 +42,7 @@ icon, name and lane icon — no "Your pick"/"Ally" wording — and the draft bui
 icon (2026-09-29) — #1671.
 
 **The app has no browser chrome: no back/forward arrows and no patch label in the top bar.** Both made the window
-read as a web page; the sidebar is how the app is navigated, and the bar keeps only the ⌘K champion search
+read as a web page; the sidebar is how the app is navigated, and the bar keeps only the ⌘K search
 (2026-09-28) — #1671.
 
 **Picks are ranked from the player's pool or from the whole lane, never from a "meta" slice.** "My pool" is the
@@ -587,7 +587,7 @@ Beta* with its own bundle identifier, so a tester keeps both installed. The prep
 (`DESKTOP_BETA_SITE_URL`), never written in the repository, and a developer's local builds read it from a gitignored
 `desktop/.env.local`. The webview no longer opens URLs itself: it asks the shell to open a *path* on the build's site
 (`open_on_site`), which replaces the shell plugin's origin-scoped `open`. Revises the line of #1772 that the
-updater polls production only (2026-10-01) — #1779.
+updater polls production only (2026-10-01) — #1779. Widened by #2441: a known player's channels, on a host list.
 
 **The app keeps itself current without the player re-downloading it (2026-10-01).** The product owner's call: a
 companion left open all day must notice a new build while it runs, and installing one must not be a chore. Each
@@ -998,3 +998,13 @@ plumbing. No new recording feature ships until the decision. The bar, fixed befo
 at least a quarter of the installs that play a game with the app open record at least one game over 30 days.** The
 production app (0.5.0) predates the `gameRecorded` / `clipSaved` / `clipPublished` counters — it only counts the
 recordings pages — so the figure is read 30 days after the next production desktop release, which carries them.
+
+**A known player opens in the app, and the shell opens their channels on a host list (2026-11-04, #2441).** The page
+is the site's, shared through the layer, and its read is allow-listed for a slug as the API writes them. Its channel
+buttons are the one thing it could not take as it was: the webview opens no new tab and has no opener permission, so
+a click goes to the shell's `open_channel`. **This widens #1779's rule** that the webview only names a path on the
+build's site: here it names a whole URL, because a channel lives on another host and a path could not say which. The
+guard is the host list in `channels.rs` — `https` on the default port, no credentials, Twitch, YouTube and X, the
+three platforms the page shows. The other link kinds the intake stores stay out: those URLs come from public sources
+through the API, and nothing else may reach the system opener from a page's anchor. Not a general "open a URL"
+command: a new external link in a shared page needs its host listed there, or it does nothing in the app — #2441.

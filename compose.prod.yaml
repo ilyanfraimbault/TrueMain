@@ -134,6 +134,9 @@ services:
       LogIngest__ApiKey: ${LOG_INGEST_KEY:-}
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Alerting__DiscordWebhookUrl: "${ALERTING_DISCORD_WEBHOOK_URL:-}"
+      PersonaPictures__YouTubeApiKey: "${PERSONA_PICTURES_YOUTUBE_API_KEY:-}"
+      PersonaPictures__TwitchClientId: "${PERSONA_PICTURES_TWITCH_CLIENT_ID:-}"
+      PersonaPictures__TwitchClientSecret: "${PERSONA_PICTURES_TWITCH_CLIENT_SECRET:-}"
       Alerting__AdminBaseUrl: "https://admin.truemain.lol"
       Alerting__EnvironmentLabel: prod
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
@@ -169,6 +172,7 @@ services:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
       NUXT_WARMUP_ENABLED: "true"
+      NUXT_HTML_CACHE_ENABLED: "true"
       NUXT_IPX_CACHE_DIR: /app/.ipx-cache
       NITRO_CLUSTER_WORKERS: "3"
       NUXT_API_BASE_URL: http://api:8080
@@ -176,6 +180,7 @@ services:
       NUXT_DESKTOP_CHANNEL: stable
       NUXT_PUBLIC_APP_ENV: production
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
+      NUXT_PUBLIC_SITE_URL: https://truemain.lol
       NUXT_PUBLIC_UMAMI_HOST: https://analytics.truemain.lol
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     volumes:
