@@ -49,7 +49,7 @@ typecheck.
 | `useCanonicalLoadingArt()` | `composables/useCanonicalIcon.ts` — IPX, at Data Dragon's own width | `composables/useSiteShims.ts` — the CDN URL as given |
 
 Shared pages link to the site's routes as they are (`truemainProfilePath`, …). A route the app does not have — a
-player's champion page — opens on truemain.lol in the browser (`desktop/app/app/plugins/site-routes.ts`), so the
+player's champion page — opens on truemain.lol in the browser (`desktop/app/app/pages/[...siteRoute].vue`), so the
 shared code never asks which app it runs in. A player's profile is a route both have, on the same page
 (`page/PlayerProfile.vue`).
 

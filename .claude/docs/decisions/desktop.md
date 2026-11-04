@@ -42,7 +42,7 @@ icon, name and lane icon — no "Your pick"/"Ally" wording — and the draft bui
 icon (2026-09-29) — #1671.
 
 **The app has no browser chrome: no back/forward arrows and no patch label in the top bar.** Both made the window
-read as a web page; the sidebar is how the app is navigated, and the bar keeps only the ⌘K champion search
+read as a web page; the sidebar is how the app is navigated, and the bar keeps only the ⌘K search
 (2026-09-28) — #1671.
 
 **Picks are ranked from the player's pool or from the whole lane, never from a "meta" slice.** "My pool" is the
