@@ -15,8 +15,8 @@ import { TRUEMAIN_SEARCH_MESSAGES, truemainSearchAnnouncement, truemainSearchSta
 // is instantiated in setup — so it runs on every page, since the header mounts
 // this component — but stays inert while the modal is closed: `term` is `''`, so
 // its watcher returns early without firing a request or a debounce timer. The
-// one player search of both apps: the site's header and pages, and the app's
-// truemains and build pages (#2027).
+// one player search of both apps: the site's header and pages, and the app's top
+// bar, truemains and build pages (#2027).
 const props = withDefaults(defineProps<{
   /** `field` = full search-bar trigger (page hero); `button` = compact icon (header). */
   variant?: 'field' | 'button'
@@ -43,9 +43,10 @@ const props = withDefaults(defineProps<{
   mainsOf?: number | null
   placeholder?: string
   /**
-   * Register the ⌘K shortcut on this instance. Set only on the header instance
-   * (mounted on every page) so the shortcut isn't bound twice on pages that
-   * also render a field instance (home, leaderboard).
+   * Register the ⌘K shortcut on this instance, and show its hint on the field.
+   * Set only on the header instance (mounted on every page) so the shortcut
+   * isn't bound twice on pages that also render a field instance (home,
+   * leaderboard).
    */
   shortcut?: boolean
   /** Field trigger height (`SearchTrigger`); ignored for the `button` variant. */
@@ -194,7 +195,7 @@ function truemainItemsFor(state: Exclude<TruemainSearchState, { kind: 'idle' }>)
 }
 
 const BROWSE: SearchItem[] = [
-  { label: 'Champion tier list', icon: 'i-lucide-swords', onSelect: () => go('/champions') },
+  { label: 'Champion directory', icon: 'i-lucide-swords', onSelect: () => go('/champions') },
   { label: 'Truemains leaderboard', icon: 'i-lucide-trophy', onSelect: () => go('/truemains') },
 ]
 
@@ -237,10 +238,23 @@ watch(open, (isOpen) => {
   if (!isOpen) term.value = ''
 })
 
+function toggleFromShortcut() {
+  // Another dialog is up — a page's own search instance, a confirmation: a
+  // second modal over it would trap the first one's focus.
+  if (!open.value && document.querySelector('[role="dialog"][data-state="open"]')) return
+  open.value = !open.value
+}
+
 // Registered unconditionally — composables must not be called inside an `if`.
 // `false` leaves ⌘K to the header instance, the one that sets `shortcut`.
+//
+// `usingInput`: by default a shortcut is off while an input has the focus, which
+// is wrong for this one: ⌘K types nothing, and it has to close the palette from
+// the palette's own input. It also matters in WebKit (Safari, the app on macOS),
+// where removing a focused input fires no blur: `defineShortcuts` went on seeing
+// the closed palette's input as focused, and ⌘K was dead from the first close on.
 defineShortcuts(computed(() => ({
-  meta_k: props.shortcut ? () => { open.value = !open.value } : false,
+  meta_k: props.shortcut ? { usingInput: true, handler: toggleFromShortcut } : false,
 })))
 </script>
 
@@ -249,6 +263,7 @@ defineShortcuts(computed(() => ({
     <SearchTrigger
       :variant="variant"
       :size="size"
+      :hint="shortcut"
       :placeholder="placeholder"
       :label="label"
       :active-champion="activeChampion"
