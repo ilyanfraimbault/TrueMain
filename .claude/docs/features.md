@@ -105,7 +105,7 @@ Static legal prose — required for the Riot production-key application. `/priva
 Component playgrounds (`charts`, `match-row`, `profile`, `build-skeleton`) plus the design-system reference screen (`design-system`). **Stripped from production** by a `pages:extend` hook in `nuxt.config.ts`.
 
 ### Cross-cutting (web)
-- **Search / command palette** — `AppSearch.vue` (shared layer): one modal + lazy `UCommandPalette` (keeps Fuse out of the site-wide bundle, #832). Groups: champions (local Fuse), known players (#2018 — the same `GET /truemains/search` call answers `players`: a substring of the person's name or slug, best tracked account's icon and rank crest, account count, opening `/players/{slug}`; never for a `Name#TAG` query, and not in the `players` scope), truemains (debounced server search), browse shortcuts. ⌘K bound only on the header instance. Two variants (`field`, `button`, drawn by `search/SearchTrigger.vue`); `champion-mode="filter"` makes selection filter instead of navigate; `scope="players"` + `mains-of` searches one champion's mains and hands the pick to the host — the app's build page (#2027).
+- **Search / command palette** — `AppSearch.vue` (shared layer): one modal + lazy `UCommandPalette` (keeps Fuse out of the site-wide bundle, #832). Groups: champions (local Fuse), known players (#2018 — the same `GET /truemains/search` call answers `players`: a substring of the person's name or slug, best tracked account's icon and rank crest, account count, opening `/players/{slug}`; never for a `Name#TAG` query, and not in the `players` scope), truemains (debounced server search), browse shortcuts. ⌘K bound only on the header instance (the site's header, the app's top bar), usable from an input, a no-op while another dialog is open. Two variants (`field`, `button`, drawn by `search/SearchTrigger.vue`); `champion-mode="filter"` makes selection filter instead of navigate; `scope="players"` + `mains-of` searches one champion's mains and hands the pick to the host — the app's build page (#2027).
 - **Design system** (#1060) — primary `rosegold`, neutral `ink` (`app.config.ts`). Rose gold carries brand, interaction **and the good end of a measurement**: the `--color-data-*` axis is **one-sided** (`rosegold-400` above average, stepping down the neutral ramp to `ink-500` below it), with one rarer step above it — `--color-gold`, text and small marks only, for a standout value (Perfect KDA, 75+ performance score) and the MVP crown. The tier ladder is the **medal** scale (rose gold → gold → silver → bronze → iron). #1060 shipped a cold→warm teal/amber axis and a matching tier ladder; both were withdrawn in #1096 — see decisions. Consequence worth knowing: the accent no longer means "interactive" on its own. Four opaque elevation steps (`--ui-bg` / `-muted` / `-elevated` / `-accented`). Every `UCard` is `surface rounded-xl` + `soft`. No translucent material — `glass` was removed with the rest of the glassmorphism. Utilities `surface`, `surface-hover`, `stat-value`, `stat-label`, `deselected`, `selected-perk` live in `web/app/assets/css/main.css`. Riot's own vocabularies get their own families, prose-only and never on a measurement: `--color-stat-*` (tooltips) and `--color-rune-*` (the five keystone trees, #1143). Inter carries everything the reader reads, measurements included (#1111 withdrew #1060's Geist Mono stat faces); Geist Mono is left with tier letters, the builder's empty-slot glyph and hex codes. Full rationale in `decisions.md`; conventions in `web/docs/DESIGN_SYSTEM.md`; every colour family on one screen at `/dev/design-system`.
 - **Backdrop** — `AppBackdrop.vue`: WebGL rose-gold "eclipse", cursor-reactive, degrades to a CSS wash, respects reduced-motion. Mounted **inside the home hero only** (#1060) — as a viewport-fixed layer it bled through the data tables and made rows change luminance down the list.
 - **Riot legal notice under every page** (#2090) — the "isn't endorsed by Riot Games" paragraph Riot's General Policies want readily visible: `AppFooter.vue` draws it on every site page, the desktop app at the foot of its dashboard and of every shared page (`SharedPage.vue`). One copy, `web/layers/common/app/components/RiotDisclaimer.vue`; no page carries its own.
@@ -261,7 +261,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
 
 - **Shell** — sidebar (Dashboard, Champions, Tier list, Matchup, Truemains, Favorites; Champ select, Game — each
   badged "Live" during its phase; Overlay; Recordings, badged "Rec" while a game is recorded, listed once the shell answers for
-  recording), player card (Riot ID, level, client status), top bar with a ⌘K champion search (no
+  recording), player card (Riot ID, level, client status), top bar with the site's ⌘K search — champions, known players (opening on the site), truemains (no
   back/forward, no patch label). Hash routing; the gameflow phase opens `/draft` on its own, and `/game` from home or
   the draft (never from a page opened by hand); leaving either phase goes home only from its page.
 - **Window** (#1914) — resizable down to 960 × 640 and maximisable, 1180 × 760 by default. Below 1100 px wide the
@@ -273,7 +273,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`shell_state::window`).
 - **Loading** (#1788) — a sidebar click changes the page at once: the shared pages' setup await is caught by the app's
   own `<Suspense>` (`SharedPage.vue`), which draws the page's header over a skeleton until it resolves. A 2 px primary
-  bar across the window's top edge (`AppLoadingBar.vue`, over the champion search) runs while anything is loading — a
+  bar across the window's top edge (`AppLoadingBar.vue`, over the search) runs while anything is loading — a
   route change, a shared page's first read, every TrueMain read (`apiGet` / `apiPost`, filter changes and the matchup
   recommendation included), the player record and champion builds; the in-game next item reads in the background.
 - **Dashboard** (`/`) — the player's profile, read from their own client (any account, tracked by TrueMain or not), on
@@ -667,7 +667,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   TrueMain reads through the shell (`api_get`: `READABLE_PATHS`, a champion's item context, a true main's build,
   profile, LP history, activity, matches and one match; `api_post`: the composition build and its games, 30 s
   deadline), the site's static data (versions, champions, one champion, items, rune tree, summoner spells) from Data
-  Dragon, `/champions/{id}` links — and opens in the browser any route only the site has (`plugins/site-routes.ts`,
+  Dragon, `/champions/{id}` links — and opens in the browser any route only the site has (`pages/[...siteRoute].vue`,
   e.g. a player's champion page). A player's profile opens **in the app** (`pages/truemains/[nameTag].vue`,
   #1983): the site's shared profile page on TrueMain's reads — banner on the champion they truemain, form tiles,
   paged history with the shared detail, ranked card, activity, Truemain score and roles (the main-champions card
