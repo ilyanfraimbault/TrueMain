@@ -29,8 +29,8 @@ public interface IRiotAccountRepository
     Task<List<AccountKey>> GetAccountsForMainAnalysisAsync(DateTime cutoff, int batchSize, CancellationToken ct);
 
     /// <summary>
-    /// Sets <see cref="RiotAccount.LastMainCalcAtUtc"/> on <paramref name="accounts"/>, set-based:
-    /// never checked against <c>xmin</c>, which the fetch lane bumps concurrently (#2046).
+    /// Sets <see cref="RiotAccount.LastMainCalcAtUtc"/> on <paramref name="accounts"/>, set-based,
+    /// so the process that stamps it never has to load the accounts (#2046).
     /// </summary>
     Task<int> StampLastMainCalcAsync(IReadOnlyCollection<AccountKey> accounts, DateTime atUtc, CancellationToken ct);
 
