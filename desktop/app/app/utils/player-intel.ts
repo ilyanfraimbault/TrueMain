@@ -1,11 +1,11 @@
 import type { GamePlayer } from '~/types/game'
-import type { LoadingPlayer, PlayerForm, PositionGames } from '~/types/loading'
+import type { KnownPlayer, LoadingPlayer, PlayerForm, PositionGames } from '~/types/loading'
 import type { RankedQueue } from '~/types/record'
 import { kdaRatio } from '#shared/utils/kda'
 
 /**
  * What the Game page says about each player (#1828), read off what the
- * loading screen already fetched through the client (`src-tauri/src/loading.rs`):
+ * loading screen already fetched through the client (`src-tauri/src/loading/`):
  * their standing, whether they are on their role, how they do on the champion
  * they are on, and the streak they are on. Counts and ratios only — no score
  * made of them (#1671).
@@ -13,7 +13,7 @@ import { kdaRatio } from '#shared/utils/kda'
 
 /**
  * The loading line of a player the game lists: by Riot ID, else — an
- * anonymous player, whose name the loading screen never kept — by side and
+ * hidden player, whose name the loading screen never kept — by side and
  * champion, which no two players of a side share.
  */
 export function loadingLineOf(
@@ -22,7 +22,7 @@ export function loadingLineOf(
   championIdOf: (alias: string) => number | undefined,
 ): LoadingPlayer | null {
   const riotId = player.riotId.toLowerCase()
-  const byName = riotId ? lines.find(line => line.riotId && line.riotId.toLowerCase() === riotId) : undefined
+  const byName = riotId ? lines.find(line => line.kind === 'known' && line.riotId && line.riotId.toLowerCase() === riotId) : undefined
   if (byName) return byName
   const championId = championIdOf(player.champion)
   if (championId === undefined) return null
@@ -149,14 +149,14 @@ export interface TruemainMark {
  */
 export function lookupPlayers(lines: LoadingPlayer[]): string[] {
   return lines
-    .filter(line => !line.anonymous && line.riotId.includes('#') && line.championId > 0)
+    .filter((line): line is KnownPlayer => line.kind === 'known' && line.riotId.includes('#') && line.championId > 0)
     .map(line => `${line.riotId}:${line.championId}`)
     .sort()
 }
 
 /** The mark of a loading line: their Riot ID and the champion they are on, both matching. */
 export function markOf(marks: TruemainMark[], line: LoadingPlayer | null): TruemainMark | null {
-  if (!line || line.anonymous || !line.riotId) return null
+  if (line?.kind !== 'known' || !line.riotId) return null
   const riotId = line.riotId.toLowerCase()
   return marks.find(mark => mark.championId === line.championId && mark.riotId.toLowerCase() === riotId) ?? null
 }

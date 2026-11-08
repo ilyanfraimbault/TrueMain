@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { Clip } from '~/types/recordings'
+import { type Clip, videoOnDisk, youtubeUrl } from '~/types/recordings'
 import { formatBytes } from '~/utils/recording-library'
 
 /**
  * The publish dialog's last step: the video's link, given back once it is up and
  * checked with YouTube — then the clip can leave this PC and play from there.
  */
-defineProps<{
+const props = defineProps<{
   clip: Clip
   saving: boolean
   error: string | null
@@ -16,16 +16,18 @@ const link = defineModel<string>('link', { required: true })
 const emit = defineEmits<{ save: [], forget: [], free: [] }>()
 
 const { openVideo } = useClipPublish()
+const url = computed(() => youtubeUrl(props.clip.video))
+const onDisk = computed(() => videoOnDisk(props.clip.video))
 </script>
 
 <template>
-  <template v-if="clip.youtubeUrl">
+  <template v-if="url">
     <div class="flex items-center gap-2 text-sm">
       <UIcon name="i-lucide-circle-check" class="size-4 shrink-0 text-success" />
-      <span class="min-w-0 flex-1 truncate text-default">{{ clip.youtubeUrl }}</span>
+      <span class="min-w-0 flex-1 truncate text-default">{{ url }}</span>
       <UButton icon="i-lucide-external-link" label="Watch" color="neutral" variant="outline" size="xs" @click="openVideo(clip.id)" />
       <UButton
-        v-if="clip.videoOnDisk"
+        v-if="onDisk"
         icon="i-lucide-x"
         color="neutral"
         variant="ghost"
@@ -36,7 +38,7 @@ const { openVideo } = useClipPublish()
       />
     </div>
     <p v-if="error" class="text-xs text-error" role="alert">{{ error }}</p>
-    <div v-if="clip.videoOnDisk" class="flex items-center gap-3">
+    <div v-if="onDisk" class="flex items-center gap-3">
       <UButton
         icon="i-lucide-hard-drive-download"
         :label="`Remove from this PC · ${formatBytes(clip.sizeBytes)}`"

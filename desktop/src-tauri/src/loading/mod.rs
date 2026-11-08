@@ -11,7 +11,12 @@
 //! one client request and their standing another, queued after every history;
 //! three requests run at a time, ours first and our lane
 //! opponent's next, so the most useful line is never the last to fill. Each
-//! line is sent as it lands.
+//! line is sent as it lands. What each read stands at, and the board's own
+//! status, are explicit states (`view.rs`, #2472): a read whose task dies
+//! fails that field instead of leaving it pending, and once every read is over
+//! nothing is left pending; a roster the client never lists says so.
+//!
+//! The players are kept through a reconnect, and cleared once no game runs.
 //!
 //! Once a player's history lands, their games on the champion they are on are
 //! looked for further back if need be, and each one's timeline read for the
@@ -26,6 +31,7 @@
 //! The session's teams leave such a player out; they are put back from its
 //! champion selections (`GameflowGameData::teams`).
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -33,15 +39,20 @@ use lcu::laning::LaneGaps;
 use lcu::record::MatchHistory;
 use lcu::{
     gaps_at_fifteen, laning_games, GameflowPhase, GameflowPlayer, LaningForm, LcuClient,
-    PlayerForm, RankedQueue, FORM_GAMES, LANING_DEPTH, LANING_GAMES,
+    FORM_GAMES, LANING_DEPTH, LANING_GAMES,
 };
-use serde::Serialize;
 use shell_state::AppState;
 use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Semaphore;
+use tokio::task::{Id, JoinSet};
 
 use crate::record::SharedClient;
+
+mod view;
+
+pub use view::LoadingView;
+use view::{Answer, Field, Identity, Known, LoadingPlayer};
 
 /// The players changed: the payload is the new `LoadingView`.
 pub const EVENT: &str = "loading://players";
@@ -53,42 +64,6 @@ const SESSION_TRIES: u32 = 15;
 /// Client requests in flight at once.
 const PARALLEL_READS: usize = 3;
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LoadingPlayer {
-    /// Empty for an anonymous player, and until the name is read.
-    pub riot_id: String,
-    pub champion_id: i64,
-    /// `ORDER` (blue side) or `CHAOS`.
-    pub team: &'static str,
-    pub position: String,
-    pub is_me: bool,
-    /// The player hides their name: nothing about them is read.
-    pub anonymous: bool,
-    /// Absent until read, and for good when the client could not read it.
-    pub form: Option<PlayerForm>,
-    pub failed: bool,
-    /// Solo/Duo, else a ranked Flex (`RankedStats::headline`). Absent until
-    /// read, for an unranked player, and when the client could not read it.
-    pub rank: Option<RankedQueue>,
-    /// The standing was read: an absent `rank` is then an unranked player.
-    pub rank_read: bool,
-    /// The client could not read the standing.
-    pub rank_failed: bool,
-    /// How they fare on the champion they are on (#1863); absent until read,
-    /// and for good when their history could not be.
-    pub laning: Option<LaningForm>,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LoadingView {
-    pub players: Vec<LoadingPlayer>,
-    /// The shard the game is played on, e.g. `EUW1`, from the first history
-    /// read; empty until then. The true-main lookup is asked on it (#1910).
-    pub platform_id: String,
-}
-
 #[derive(Default)]
 pub struct Loading {
     view: Mutex<LoadingView>,
@@ -97,25 +72,26 @@ pub struct Loading {
 
 pub type SharedLoading = Arc<Loading>;
 
-/// Follow the phase: read the players when a game is in progress, clear
-/// them when it is not. Called with every state the app publishes.
+/// Follow the phase: read the players once the game is in progress, keep them
+/// through a reconnect, clear them once no game runs. Called with every state
+/// the app publishes.
 pub fn follow(app: &AppHandle, state: &AppState) {
     let loading = app.state::<SharedLoading>().inner().clone();
     let mut task = loading.task.lock().expect("loading task poisoned");
-    if state.phase != GameflowPhase::InProgress {
+    if !state.phase.is_game_running() {
         if let Some(running) = task.take() {
             running.abort();
         }
         let cleared = {
             let mut view = loading.view.lock().expect("loading view poisoned");
-            !std::mem::take(&mut *view).players.is_empty()
+            std::mem::take(&mut *view) != LoadingView::default()
         };
         if cleared {
             let _ = app.emit(EVENT, LoadingView::default());
         }
         return;
     }
-    if task.is_some() {
+    if task.is_some() || state.phase != GameflowPhase::InProgress {
         return;
     }
     let client = app
@@ -126,6 +102,7 @@ pub fn follow(app: &AppHandle, state: &AppState) {
     let Some(client) = client else {
         return;
     };
+    publish(app, &loading, |view| *view = LoadingView::reading());
     let riot_id = state.riot_id.clone();
     let handle = app.clone();
     let shared = loading.clone();
@@ -172,27 +149,52 @@ impl Me {
     }
 }
 
+/// The reads in flight, each known by its task: a task that panics or is
+/// cancelled still says whose read it was, so that field fails instead of
+/// staying pending.
+struct Reads {
+    set: JoinSet<(usize, Answer)>,
+    of: HashMap<Id, (usize, Field)>,
+}
+
+impl Reads {
+    fn spawn(
+        &mut self,
+        index: usize,
+        field: Field,
+        read: impl std::future::Future<Output = Answer> + Send + 'static,
+    ) {
+        let task = self.set.spawn(async move { (index, read.await) });
+        self.of.insert(task.id(), (index, field));
+    }
+}
+
 async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>, me: &Me) {
-    let Some((players, puuids)) = roster(client, me).await else {
+    let Some(players) = roster(client, me).await else {
         tracing::info!("the game's roster could not be read from the client");
+        publish(app, loading, LoadingView::roster_failed);
         return;
     };
-    publish(app, loading, |view| view.players = players.clone());
+    let readable: Vec<(usize, Known, i64)> = players
+        .iter()
+        .enumerate()
+        .filter_map(|(index, player)| {
+            Some((index, Known::clone(player.known()?), player.champion_id))
+        })
+        .collect();
+    publish(app, loading, |view| view.roster_read(players));
 
     let gate = Arc::new(Semaphore::new(PARALLEL_READS));
-    let mut reads = tokio::task::JoinSet::new();
-    let readable: Vec<(usize, String)> = puuids
-        .into_iter()
-        .enumerate()
-        .filter_map(|(index, puuid)| Some((index, puuid?)))
-        .collect();
+    let mut reads = Reads {
+        set: JoinSet::new(),
+        of: HashMap::new(),
+    };
     // Every history is queued before any standing: the semaphore hands out its
     // permits in order, so the standings never hold up the form lines.
-    for (index, puuid) in readable.iter().cloned() {
+    for (index, known, _) in &readable {
         let (gate, client) = (gate.clone(), client.clone());
-        let champion = players[index].champion_id;
-        let named = !players[index].riot_id.is_empty();
-        reads.spawn(async move {
+        let (puuid, named) = (known.puuid.clone(), !known.riot_id.is_empty());
+        reads.spawn(*index, Field::Form, async move {
             let _permit = gate.acquire_owned().await;
             let name = if named {
                 None
@@ -207,67 +209,45 @@ async fn read(app: &AppHandle, loading: &SharedLoading, client: &Arc<LcuClient>,
                 }
             };
             let history = client.match_history_of(&puuid, FORM_GAMES).await;
-            (
-                index,
-                Read::Form(name, history.map(|history| (history, puuid, champion))),
-            )
+            Answer::Form { name, history }
         });
     }
-    for (index, puuid) in readable {
+    for (index, known, _) in &readable {
         let (gate, client) = (gate.clone(), client.clone());
-        reads.spawn(async move {
+        let puuid = known.puuid.clone();
+        reads.spawn(*index, Field::Rank, async move {
             let _permit = gate.acquire_owned().await;
-            (index, Read::Rank(client.ranked_stats_of(&puuid).await))
+            Answer::Rank(client.ranked_stats_of(&puuid).await)
         });
     }
-    while let Some(Ok((index, mut read))) = reads.join_next().await {
-        if let Read::Form(_, Ok((history, puuid, champion))) = &read {
-            let (gate, client) = (gate.clone(), client.clone());
-            let (history, puuid, champion) = (history.clone(), puuid.clone(), *champion);
-            reads.spawn(async move {
-                let form = laning(&gate, &client, &puuid, history, champion).await;
-                (index, Read::Laning(form))
-            });
+    while let Some(joined) = reads.set.join_next_with_id().await {
+        let (id, index, answer) = match joined {
+            Ok((id, (index, answer))) => (id, index, answer),
+            Err(error) => {
+                if let Some((index, field)) = reads.of.remove(&error.id()) {
+                    tracing::warn!(%error, ?field, "a player's read ended without an answer");
+                    publish(app, loading, |view| view.failed(index, field));
+                }
+                continue;
+            }
+        };
+        reads.of.remove(&id);
+        if let Answer::Form {
+            history: Ok(history),
+            ..
+        } = &answer
+        {
+            if let Some((_, known, champion)) = readable.iter().find(|(i, ..)| *i == index) {
+                let (gate, client) = (gate.clone(), client.clone());
+                let (history, puuid, champion) = (history.clone(), known.puuid.clone(), *champion);
+                reads.spawn(index, Field::Laning, async move {
+                    Answer::Laning(laning(&gate, &client, &puuid, history, champion).await)
+                });
+            }
         }
-        publish(app, loading, |view| {
-            let Some(player) = view.players.get_mut(index) else {
-                return;
-            };
-            if let Read::Form(Some(name), _) = &mut read {
-                player.riot_id = std::mem::take(name);
-            }
-            match read {
-                Read::Form(_, Ok((history, _, champion))) => {
-                    player.form = Some(PlayerForm::from_history(&history, champion));
-                    if view.platform_id.is_empty() {
-                        view.platform_id = history.platform_id;
-                    }
-                }
-                Read::Form(_, Err(error)) => {
-                    tracing::debug!(%error, "a player's history could not be read");
-                    player.failed = true;
-                }
-                Read::Rank(Ok(stats)) => {
-                    player.rank = stats.headline();
-                    player.rank_read = true;
-                }
-                Read::Rank(Err(error)) => {
-                    tracing::debug!(%error, "a player's rank could not be read");
-                    player.rank_failed = true;
-                }
-                Read::Laning(form) => player.laning = Some(form),
-            }
-        });
+        publish(app, loading, |view| view.answer(index, answer));
     }
-}
-
-/// One client answer about one player.
-enum Read {
-    /// The name read by puuid when the session left it out, and the history
-    /// with the puuid and champion it was read for.
-    Form(Option<String>, lcu::Result<(MatchHistory, String, i64)>),
-    Rank(lcu::Result<lcu::record::RankedStats>),
-    Laning(LaningForm),
+    publish(app, loading, LoadingView::done);
 }
 
 /// The player's form on `champion`: their games on it in `history`, looked for
@@ -317,10 +297,9 @@ async fn laning(
     LaningForm::new(&games, &gaps)
 }
 
-/// The ten players, ours first and our lane opponent next, with their puuids
-/// in the same order — none for an anonymous player, whose history is not
-/// read. `None` when the session never listed them.
-async fn roster(client: &LcuClient, me: &Me) -> Option<(Vec<LoadingPlayer>, Vec<Option<String>>)> {
+/// The ten players, ours first and our lane opponent next. `None` when the
+/// session never listed them.
+async fn roster(client: &LcuClient, me: &Me) -> Option<Vec<LoadingPlayer>> {
     for _ in 0..SESSION_TRIES {
         if let Ok(Some(session)) = client.gameflow_session().await {
             let data = session.game_data;
@@ -334,43 +313,32 @@ async fn roster(client: &LcuClient, me: &Me) -> Option<(Vec<LoadingPlayer>, Vec<
     None
 }
 
-fn ordered(
-    blue: &[GameflowPlayer],
-    red: &[GameflowPlayer],
-    me: &Me,
-) -> (Vec<LoadingPlayer>, Vec<Option<String>>) {
-    let mut rows: Vec<(LoadingPlayer, Option<String>)> = blue
+fn ordered(blue: &[GameflowPlayer], red: &[GameflowPlayer], me: &Me) -> Vec<LoadingPlayer> {
+    let mut rows: Vec<LoadingPlayer> = blue
         .iter()
         .map(|player| (player, "ORDER"))
         .chain(red.iter().map(|player| (player, "CHAOS")))
         .map(|(player, team)| {
-            let riot_id = player.riot_id();
             let is_me = me.is(player);
             // Our own line is ours to read, whatever the others are shown.
-            let anonymous = !is_me && player.is_anonymous();
-            (
-                LoadingPlayer {
-                    riot_id: if anonymous { String::new() } else { riot_id },
-                    champion_id: player.champion_id,
-                    team,
-                    position: player.selected_position.to_uppercase(),
-                    is_me,
-                    anonymous,
-                    form: None,
-                    failed: false,
-                    rank: None,
-                    rank_read: false,
-                    rank_failed: false,
-                    laning: None,
-                },
-                (!anonymous).then(|| player.puuid.clone()),
-            )
+            let identity = if !is_me && player.is_anonymous() {
+                Identity::Hidden
+            } else {
+                Identity::Known(Box::new(Known::new(player.riot_id(), player.puuid.clone())))
+            };
+            LoadingPlayer {
+                champion_id: player.champion_id,
+                team,
+                position: player.selected_position.to_uppercase(),
+                is_me,
+                identity,
+            }
         })
         .collect();
     let ours = rows
         .iter()
-        .find(|(player, _)| player.is_me)
-        .map(|(player, _)| (player.team, player.position.clone()));
+        .find(|player| player.is_me)
+        .map(|player| (player.team, player.position.clone()));
     let rank = |player: &LoadingPlayer| match &ours {
         _ if player.is_me => 0,
         Some((team, position))
@@ -381,8 +349,8 @@ fn ordered(
         _ => 2,
     };
     // A stable sort: past the first two, the game's own order.
-    rows.sort_by_key(|(player, _)| rank(player));
-    rows.into_iter().unzip()
+    rows.sort_by_key(rank);
+    rows
 }
 
 #[cfg(test)]
@@ -407,16 +375,28 @@ mod tests {
         }
     }
 
+    fn name(player: &LoadingPlayer) -> &str {
+        player.known().map_or("", |known| known.riot_id.as_str())
+    }
+
+    fn puuid(player: &LoadingPlayer) -> Option<&str> {
+        player.known().map(|known| known.puuid.as_str())
+    }
+
     #[test]
     fn ours_first_then_our_lane_opponent_then_the_games_order() {
         let blue = [player("Ally", "TOP"), player("Me", "MIDDLE")];
         let red = [player("Foe", "TOP"), player("Mirror", "MIDDLE")];
-        let (players, puuids) = ordered(&blue, &red, &me());
-        let names: Vec<&str> = players.iter().map(|p| p.riot_id.as_str()).collect();
+        let players = ordered(&blue, &red, &me());
+        let names: Vec<&str> = players.iter().map(name).collect();
         assert_eq!(names, ["Me#EUW", "Mirror#EUW", "Ally#EUW", "Foe#EUW"]);
-        assert_eq!(puuids[1].as_deref(), Some("puuid-Mirror"));
+        assert_eq!(puuid(&players[1]), Some("puuid-Mirror"));
         assert!(players[0].is_me);
         assert_eq!(players[1].team, "CHAOS");
+        assert!(players
+            .iter()
+            .filter_map(LoadingPlayer::known)
+            .all(|known| known.form.is_pending() && known.rank.is_pending()));
     }
 
     #[test]
@@ -428,19 +408,19 @@ mod tests {
         };
         let blue = [player("Me", "MIDDLE")];
         let red = [hidden, player("Foe", "TOP")];
-        let (players, puuids) = ordered(&blue, &red, &me());
+        let players = ordered(&blue, &red, &me());
         let anonymous = players
             .iter()
-            .position(|p| p.anonymous)
+            .position(|p| p.identity == Identity::Hidden)
             .expect("one anonymous");
-        assert_eq!(
-            players[anonymous].riot_id, "",
-            "the name the client sent is never kept"
-        );
         assert_eq!(players[anonymous].champion_id, 81);
         assert_eq!(players[anonymous].position, "BOTTOM");
-        assert_eq!(puuids[anonymous], None, "their history is not read");
-        assert_eq!(players.iter().filter(|p| p.anonymous).count(), 1);
+        assert_eq!(
+            puuid(&players[anonymous]),
+            None,
+            "neither their name nor their history is kept or read"
+        );
+        assert_eq!(players.iter().filter(|p| p.known().is_none()).count(), 1);
     }
 
     #[test]
@@ -459,11 +439,9 @@ mod tests {
         };
         let blue = [hidden("Me", "MIDDLE"), hidden("Ally", "TOP")];
         let red = [hidden("Foe", "TOP"), hidden("Mirror", "MIDDLE")];
-        let (players, puuids) = ordered(&blue, &red, &me());
-        assert!(players
-            .iter()
-            .all(|p| !p.anonymous && !p.riot_id.is_empty()));
-        assert!(puuids.iter().all(Option::is_some));
+        let players = ordered(&blue, &red, &me());
+        assert!(players.iter().all(|p| !name(p).is_empty()));
+        assert!(players.iter().all(|p| puuid(p).is_some()));
     }
 
     #[test]
@@ -477,20 +455,19 @@ mod tests {
             puuid: "puuid-Me".into(),
             riot_id: "Me#EUW".into(),
         };
-        let (players, puuids) = ordered(
+        let players = ordered(
             &[nameless("Ally", "TOP"), nameless("Me", "MIDDLE")],
             &[nameless("Mirror", "MIDDLE")],
             &me,
         );
         assert!(players[0].is_me, "ours, found by puuid");
         assert_eq!(
-            puuids[1].as_deref(),
+            puuid(&players[1]),
             Some("puuid-Mirror"),
             "our lane opponent next"
         );
-        assert!(players.iter().all(|p| !p.anonymous));
         assert!(
-            puuids.iter().all(Option::is_some),
+            players.iter().all(|p| puuid(p).is_some()),
             "every name and history is read"
         );
     }
