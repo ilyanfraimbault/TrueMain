@@ -203,6 +203,7 @@ Last verified against `develop` on 2026-09-02.
 - The three text pages are cached at runtime (`swr`), never prerendered — a prerendered page freezes the build's runtime config (2026-09-18) — #1617
 - A page awaits its API data in setup; a loading bar under the header covers the wait, only statics keep a skeleton (2026-09-23) — #1689
 - Starred champions live under their own key next to the untouched player list, not in a v2 of it; matchups are not starrable; a clip's favourite stays the library's flag (2026-10-20) — #2080
+- Only a 404 is "not found": a read of one resource is one `RemoteRead` phase, and any other failure is an error shown beside the last answer (2026-11-08) — #2476, #2468
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
@@ -531,6 +532,7 @@ Last verified against `develop` on 2026-09-02.
 - Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 - Agent disciplines (debugging, grilling, glossary, retro) adapted from mattpocock/skills; review split into Spec and Standards axes; PR bodies carry a merge-danger call (2026-10-05) — #1938
 - The repository is licensed under PolyForm Noncommercial 1.0.0: public and readable, no commercial reuse without a separate license (2026-10-16) — #2070
+- A lifecycle is one explicit state (a union or an enum from one classifier or guarded transition, presented by one table), never a set of flags or ad hoc status strings (2026-11-08) — #2468
 
 ## CI runs only what the diff can break, and config files carry no comments (2026-09-02)
 

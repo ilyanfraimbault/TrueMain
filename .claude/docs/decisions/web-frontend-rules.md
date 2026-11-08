@@ -668,3 +668,26 @@ once while a background render replaces it. The warm-up renders every champion p
   has no reason to apply: rendering every champion is a few thousand reads in under a minute from one container.
 
 Source: #2431, #2425, #1557.
+
+## Only a 404 is "not found": a remote read is one `RemoteRead` phase (2026-11-08)
+
+**Decision:** a client read of one resource (the truemain profile, its matches, rank history and activity, a
+known player, a match's detail) is one `RemoteRead<T>` value (`web/layers/common/app/utils/remote-read.ts`):
+`waiting | cleared | loading(previous) | ready | notFound | error(previous)`. `useTruemainFetch` holds it; its
+`isLoading` / `isInitialLoading` / `notFound` / `error` are read-only views of it. A request lets a failed
+response throw (no `ignoreResponseError`), and only a thrown 404 becomes `notFound`; a 5xx, a 429 or a network
+failure is an `error`, shown with `FetchErrorAlert`, and the last answer stays on screen beside it.
+
+- **Why.** With `ignoreResponseError` every failure resolved to an error body, failed the shape check and read as
+  "not found": an API outage answered `/players/{slug}` with an "Unknown player" page *and an HTTP 404 to
+  crawlers*, told a favorite's follower the player was "no longer tracked", and showed "Player not found" under a
+  profile that had loaded. Four independent refs also let "loading" stick on after the name tag emptied, and let a
+  previous not-found or error stand while the next request loaded.
+- **Why the SSR status stays 200 on an error.** The edge answers a 503 with its own maintenance page
+  (`compose.*.edge.yaml`), so the page says the failure itself; only a real 404 sets a 404, as
+  `useTruemainPageIndexing` already did ("a 502 or a 429 is no verdict").
+- **How to apply.** A new read of one resource uses `RemoteRead` and `isNotFoundError`; a host that receives an
+  `error` renders it (`MatchHistoryList` takes an `error` prop, `MatchDetailState` an optional `error`). The
+  panel-level phase for champion pages and directories is #2469.
+
+Source: #2476, #2468, #2359, #2336.
