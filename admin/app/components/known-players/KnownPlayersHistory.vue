@@ -2,34 +2,26 @@
 // A known player's own trail in the edit panel (#2288): the operator actions that
 // targeted it, newest first, from the same endpoint as the Audit page. `version`
 // moves after each edit the panel makes, so the new action shows up at once.
-import type { AuditEvent } from '~~/shared/types/ops'
-import { ref, watch } from 'vue'
+import type { AuditEventsResponse } from '~~/shared/types/ops'
+import { computed, watch } from 'vue'
+import { useKeyedFetch } from '~/composables/useKeyedFetch'
+import { panelPhase } from '~/composables/useLastGoodPayload'
 
 const props = defineProps<{ personaId: string, version: number }>()
 
 const PAGE_SIZE = 20
-const events = ref<AuditEvent[]>([])
-const total = ref(0)
-const pending = ref(false)
-const error = ref<unknown>(null)
 
-async function load() {
-  pending.value = true
-  error.value = null
-  try {
-    const page = await getAuditEvents({ targetType: 'Persona', targetId: props.personaId, pageSize: PAGE_SIZE })
-    events.value = page.entries
-    total.value = page.total
-  }
-  catch (e) {
-    error.value = e
-  }
-  finally {
-    pending.value = false
-  }
-}
+// Keyed by the player (#2471): a ⌘K jump drops the previous player's trail at once,
+// and its late answer never lands here; a reload after an edit keeps the trail drawn.
+const { state, value: page, load } = useKeyedFetch<string, AuditEventsResponse>(
+  personaId => getAuditEvents({ targetType: 'Persona', targetId: personaId, pageSize: PAGE_SIZE }),
+)
+watch(() => [props.personaId, props.version] as const, ([personaId]) => load(personaId), { immediate: true })
 
-watch(() => [props.personaId, props.version], load, { immediate: true })
+const events = computed(() => page.value?.entries ?? [])
+const total = computed(() => page.value?.total ?? 0)
+const error = computed(() => state.value.s === 'error' ? state.value.error : null)
+const phase = computed(() => panelPhase({ hasData: page.value !== null, pending: state.value.s === 'loading', error: error.value }))
 </script>
 
 <template>
@@ -49,7 +41,12 @@ watch(() => [props.personaId, props.version], load, { immediate: true })
         All {{ total }} on the Audit page
       </ULink>
     </div>
-    <FetchErrorAlert v-if="error" :error="error" title="Failed to load this player's history" />
-    <AuditEventList v-else :events="events" :pending="pending" :show-target="false" empty-text="No operator action on this known player yet." />
+    <FetchErrorAlert v-if="phase === 'failed'" :error="error" title="Failed to load this player's history" />
+    <template v-else>
+      <p v-if="phase === 'stale'" class="text-xs text-muted mb-1">
+        The last reload failed; showing the trail as it was.
+      </p>
+      <AuditEventList :events="events" :pending="phase === 'loading'" :show-target="false" empty-text="No operator action on this known player yet." />
+    </template>
   </section>
 </template>
