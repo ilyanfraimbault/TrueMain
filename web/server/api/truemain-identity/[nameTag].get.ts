@@ -1,6 +1,7 @@
 import type { ProfileResponse } from '~~/shared/types/profile'
 import type { TruemainIdentity } from '~~/shared/types/truemain-identity'
 import { truemainNameTag } from '~~/shared/utils/truemain-path'
+import { readOrAbsent, visitorAddress } from '~~/server/utils/upstream'
 
 /**
  * Who a `/truemains/{nameTag}` URL names, resolved on the server (#2335, #2336).
@@ -41,27 +42,13 @@ const MAX_NAME_TAG_LENGTH = 80
 
 type IdentityLookup = { found: true, identity: TruemainIdentity } | { found: false }
 
-/** The status of a failed upstream call, when it got as far as an HTTP answer. */
-function upstreamStatus(error: unknown): number | undefined {
-  const failure = error as { statusCode?: unknown, response?: { status?: unknown } } | null
-  const status = failure?.statusCode ?? failure?.response?.status
-  return typeof status === 'number' ? status : undefined
-}
-
 const lookupTruemainIdentity = defineCachedFunction<IdentityLookup, [string, string?]>(
   async (nameTag: string, forwardedFor?: string): Promise<IdentityLookup> => {
-    const headers = forwardedFor ? { 'x-forwarded-for': forwardedFor } : undefined
-    try {
-      const profile = await $fetch<ProfileResponse>(`/api/truemains/${encodeURIComponent(nameTag)}/profile`, { headers })
-      if (!profile?.identity?.gameName) return { found: false }
-      return {
-        found: true,
-        identity: { nameTag: truemainNameTag(profile.identity.gameName, profile.identity.tagLine) },
-      }
-    }
-    catch (error) {
-      if (upstreamStatus(error) === 404) return { found: false }
-      throw error
+    const profile = await readOrAbsent<ProfileResponse>(`/api/truemains/${encodeURIComponent(nameTag)}/profile`, { forwardedFor })
+    if (!profile?.identity?.gameName) return { found: false }
+    return {
+      found: true,
+      identity: { nameTag: truemainNameTag(profile.identity.gameName, profile.identity.tagLine) },
     }
   },
   {
@@ -79,7 +66,7 @@ export default defineEventHandler(async (event): Promise<TruemainIdentity> => {
 
   let lookup: IdentityLookup
   try {
-    lookup = await lookupTruemainIdentity(nameTag, getRequestHeader(event, 'x-forwarded-for'))
+    lookup = await lookupTruemainIdentity(nameTag, visitorAddress(event))
   }
   catch {
     throw createError({ statusCode: 502, statusMessage: 'Profile lookup unavailable' })

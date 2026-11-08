@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ProfileMainChampion } from '~~/shared/types/profile'
 import {
-  parseOgChampionId,
   selectChampionSummaryRow,
   selectSignatureMain,
 } from '~~/shared/utils/og-card'
@@ -102,20 +101,5 @@ describe('selectSignatureMain', () => {
     expect(selectSignatureMain([])).toBeNull()
     expect(selectSignatureMain(null)).toBeNull()
     expect(selectSignatureMain(undefined)).toBeNull()
-  })
-})
-
-describe('parseOgChampionId', () => {
-  it('accepts a plain positive integer', () => {
-    expect(parseOgChampionId('103')).toBe(103)
-  })
-
-  it('rejects everything that is not one, instead of coercing it', () => {
-    // The value reaches us from a URL segment; `Number('')` is 0 and
-    // `Number(' 12 ')` is 12, either of which would turn a hand-crafted OG URL
-    // into an upstream call we never meant to make.
-    for (const raw of ['', ' 12 ', '0', '-4', '1e3', '12.5', 'abc', '12345678', null, undefined]) {
-      expect(parseOgChampionId(raw)).toBeNull()
-    }
   })
 })

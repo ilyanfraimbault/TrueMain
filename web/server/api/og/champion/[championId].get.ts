@@ -1,8 +1,9 @@
-import type { H3Event } from 'h3'
 import type { ChampionSummaryResponse } from '~~/shared/types/champions'
 import type { ChampionOgCard } from '~~/shared/types/og-card'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
-import { parseOgChampionId, selectChampionSummaryRow } from '~~/shared/utils/og-card'
+import { selectChampionSummaryRow } from '~~/shared/utils/og-card'
+import { readChampionId, readChampionSliceQuery, type ChampionSliceQuery } from '~~/server/utils/champion-slice-query'
+import { defineCachedRead, readOrAbsent, visitorAddress } from '~~/server/utils/upstream'
 
 /**
  * Card model for `/champions/{id}`'s share image (#926).
@@ -19,53 +20,23 @@ import { parseOgChampionId, selectChampionSummaryRow } from '~~/shared/utils/og-
  * with the site about a champion's win rate, pick rate or tier.
  */
 
-// Shape guards on the query, not semantic validation: an unknown position or a
-// nonsense elo bracket simply fails to match a row and degrades the card. The
-// point here is to bound the *cache key* space, since this route is publicly
-// reachable and each distinct key costs one backend call.
-const PATCH_RE = /^\d{1,3}\.\d{1,3}$/
-const ELO_BRACKET_RE = /^[A-Z_]{1,20}$/
-const POSITION_RE = /^[A-Z]{1,10}$/
-
-interface ChampionOgQuery {
-  patch: string | null
-  eloBracket: string | null
-  position: string | null
-}
-
-function readQuery(event: H3Event): ChampionOgQuery {
-  const query = getQuery(event) as Record<string, unknown>
-  const pick = (key: string, pattern: RegExp): string | null => {
-    const raw = query[key]
-    if (typeof raw !== 'string') return null
-    const value = raw.trim().toUpperCase()
-    return pattern.test(value) ? value : null
-  }
-  return {
-    // The patch is the one value that isn't upper-cased meaningfully, but
-    // digits and a dot survive `toUpperCase()` unchanged.
-    patch: pick('patch', PATCH_RE),
-    eloBracket: pick('eloBracket', ELO_BRACKET_RE),
-    position: pick('position', POSITION_RE),
-  }
-}
-
 /**
- * Resolves the card. Both upstreams are independent and both degrade on their
- * own: a DDragon outage costs the portrait and the name, a backend outage costs
- * the stats block, and neither substitutes for the other. That is the whole
- * fallback contract — the template renders the branded card when both are gone.
+ * Resolves the card. An absence degrades only its own block: no static data
+ * costs the portrait and the name, no directory row costs the stats. A failing
+ * upstream is never cached (`server/utils/upstream.ts`, #1557): that one render
+ * gets the branded card, and the next one retries.
  */
-const loadChampionOgCard = defineCachedFunction(
-  async (championId: number, query: ChampionOgQuery): Promise<ChampionOgCard> => {
+const loadChampionOgCard = defineCachedRead<ChampionOgCard, [number, ChampionSliceQuery, string?]>(
+  async (championId: number, query: ChampionSliceQuery, forwardedFor?: string): Promise<ChampionOgCard> => {
     const [staticData, summaries] = await Promise.all([
-      $fetch<ChampionStaticData>(`/api/static/${championId}`).catch(() => null),
-      $fetch<ChampionSummaryResponse[]>('/api/champions', {
+      readOrAbsent<ChampionStaticData>(`/api/static/${championId}`, { forwardedFor }),
+      readOrAbsent<ChampionSummaryResponse[]>('/api/champions', {
         query: {
           patch: query.patch ?? undefined,
           eloBracket: query.eloBracket ?? undefined,
         },
-      }).catch(() => null),
+        forwardedFor,
+      }),
     ])
 
     const row = selectChampionSummaryRow(summaries, championId, query.position)
@@ -93,15 +64,16 @@ const loadChampionOgCard = defineCachedFunction(
   {
     maxAge: 60 * 60,
     name: 'og-champion-card',
-    getKey: (championId: number, query: ChampionOgQuery) =>
+    getKey: (championId: number, query: ChampionSliceQuery) =>
       [championId, query.patch ?? '', query.eloBracket ?? '', query.position ?? ''].join('-'),
   },
+  (championId: number): ChampionOgCard => ({ championId, championName: null, championIconUrl: null, stats: null }),
 )
 
 export default defineEventHandler(async (event): Promise<ChampionOgCard> => {
-  const championId = parseOgChampionId(getRouterParam(event, 'championId'))
+  const championId = readChampionId(getRouterParam(event, 'championId'))
   if (championId === null) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid championId' })
   }
-  return loadChampionOgCard(championId, readQuery(event))
+  return loadChampionOgCard(championId, readChampionSliceQuery(event), visitorAddress(event))
 })
