@@ -1,4 +1,5 @@
-import type { Ref } from 'vue'
+import { useKeyedFetch } from '~/composables/useKeyedFetch'
+import { keyedId } from '~/utils/keyed-fetch'
 
 interface DeepLinkedDetailOptions<T> {
   /** Route query key that mirrors the open detail id (e.g. `candidate`). */
@@ -23,45 +24,38 @@ export function useDeepLinkedDetail<T>(options: DeepLinkedDetailOptions<T>) {
   const router = useRouter()
 
   const detailOpen = ref(false)
-  const detail = ref(null) as Ref<T | null>
-  const detailPending = ref(false)
-  const detailError = ref<string | null>(null)
-  // Only set for a genuine backend/network failure, never for the 404 case —
-  // a missing id is an expected outcome, not something worth correlating to a
-  // server log line.
-  const detailErrorTraceId = ref<string | undefined>(undefined)
-  const detailId = ref<string | null>(null)
+  // One keyed fetch (#2471): a slow answer for the previous id can neither land
+  // under the one open now nor clear its loading state.
+  const { state, load } = useKeyedFetch<string, T>(id => options.fetch(id))
+  const detailId = computed(() => keyedId(state.value))
+  const detail = computed(() => state.value.s === 'ready' ? state.value.value : null)
+  const detailPending = computed(() => state.value.s === 'loading')
+  const failure = computed(() => state.value.s === 'error' ? state.value : null)
+  // A 404 is an expected outcome, not something worth correlating to a server log
+  // line, so only a genuine backend/network failure carries a trace id.
+  const detailError = computed(() => {
+    const failed = failure.value
+    if (!failed) {
+      return null
+    }
+    return isNotFound(failed.error) ? options.notFoundMessage(failed.id) : extractFetchError(failed.error, options.loadErrorMessage)
+  })
+  const detailErrorTraceId = computed(() => {
+    const failed = failure.value
+    return failed && !isNotFound(failed.error) ? extractFetchErrorTraceId(failed.error) : undefined
+  })
 
   async function openDetail(rawId: string) {
     const id = rawId.trim()
     if (!id) {
       return
     }
-    detailId.value = id
     detailOpen.value = true
-    detailPending.value = true
-    detailError.value = null
-    detailErrorTraceId.value = undefined
-    detail.value = null
     // Reflect the open detail in the URL so the view is deep-linkable.
     if (route.query[options.queryKey] !== id) {
       router.replace({ query: { ...route.query, [options.queryKey]: id } })
     }
-    try {
-      detail.value = await options.fetch(id)
-    }
-    catch (err: unknown) {
-      if ((err as { statusCode?: number })?.statusCode === 404) {
-        detailError.value = options.notFoundMessage(id)
-      }
-      else {
-        detailError.value = extractFetchError(err, options.loadErrorMessage)
-        detailErrorTraceId.value = extractFetchErrorTraceId(err)
-      }
-    }
-    finally {
-      detailPending.value = false
-    }
+    await load(id)
   }
 
   // Drop the query param when the slide-over closes so a refresh doesn't
@@ -91,5 +85,9 @@ export function useDeepLinkedDetail<T>(options: DeepLinkedDetailOptions<T>) {
     }
   })
 
-  return { detailOpen, detail, detailPending, detailError, detailErrorTraceId, detailId, openDetail }
+  return { state, detailOpen, detail, detailPending, detailError, detailErrorTraceId, detailId, openDetail }
+}
+
+function isNotFound(error: unknown): boolean {
+  return (error as { statusCode?: number } | null)?.statusCode === 404
 }

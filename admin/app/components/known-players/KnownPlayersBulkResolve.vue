@@ -9,74 +9,62 @@ import { formatNumber } from '~~/shared/utils/format'
 import { BULK_FLOORS, DEFAULT_BULK_FLOOR, bulkMergeLine, bulkResolvedMessage, skipReasonLabel } from '~~/shared/utils/persona-conflict-bulk'
 import { resolveErrorMessage, riotId } from '~~/shared/utils/persona-conflicts'
 import { evidenceBadges } from '~~/shared/utils/persona-evidence'
+import { useArmedConfirm } from '~/composables/useArmedConfirm'
+import { useKeyedFetch } from '~/composables/useKeyedFetch'
 
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ resolved: [] }>()
 
 const floorItems = [...BULK_FLOORS]
 const floor = ref<number>(DEFAULT_BULK_FLOOR)
-const preview = ref<PersonaConflictBulkPreview | null>(null)
-const previewError = ref<unknown>(null)
-const loading = ref(false)
-const armed = ref(false)
-const busy = ref(false)
+// The preview is keyed by the floor it was asked for (#2471): only the answer for
+// the floor on screen is ever drawn — or sent. A superseded request, failed or not,
+// writes nothing.
+const { state: previewState, load, reset } = useKeyedFetch<number, PersonaConflictBulkPreview>(asked => previewBulkResolve(asked))
+const preview = computed(() => {
+  const current = previewState.value
+  return current.s === 'ready' && current.id === floor.value ? current : null
+})
+const previewError = computed(() => previewState.value.s === 'error' ? previewState.value.error : null)
+const loading = computed(() => previewState.value.s === 'loading')
+const confirmation = useArmedConfirm<'bulk'>({ scope: preview })
+const armed = computed(() => confirmation.armed.value === 'bulk')
+const busy = computed(() => confirmation.sending.value === 'bulk')
 const result = ref<PersonaConflictBulkResolved | null>(null)
 const toast = useActionToast()
 
-const candidates = computed(() => preview.value?.conflicts ?? [])
+const candidates = computed(() => preview.value?.value.conflicts ?? [])
 const count = computed(() => candidates.value.length)
 const byId = computed(() => new Map(candidates.value.map(c => [c.conflict.id, c])))
 
-async function load() {
-  armed.value = false
-  result.value = null
-  previewError.value = null
-  loading.value = true
-  const asked = floor.value
-  try {
-    const answer = await previewBulkResolve(asked)
-    if (asked === floor.value) {
-      preview.value = answer
-    }
-  }
-  catch (e) {
-    previewError.value = e
-    preview.value = null
-  }
-  finally {
-    loading.value = false
-  }
-}
-
 watch([open, floor], ([isOpen]) => {
+  result.value = null
   if (isOpen) {
-    load()
+    load(floor.value)
+  }
+  else {
+    reset()
   }
 }, { immediate: true })
 
-async function submit() {
-  if (count.value === 0 || busy.value) {
+function submit() {
+  // What is sent is the preview on screen and the floor IT was asked for, never the
+  // select's current value: they are the same object, so they cannot disagree.
+  const shown = preview.value
+  if (!shown || shown.value.conflicts.length === 0) {
     return
   }
-  if (!armed.value) {
-    armed.value = true
-    return
-  }
-
-  armed.value = false
-  busy.value = true
-  try {
-    result.value = await bulkResolvePersonaConflicts({ ids: candidates.value.map(c => c.conflict.id), minScore: floor.value })
-    const message = bulkResolvedMessage(result.value)
-    toast.success(message.title, message.description)
-    emit('resolved')
-  }
-  catch (e) {
-    toast.failure('Conflicts not resolved', resolveErrorMessage(e))
-  }
-  finally {
-    busy.value = false
-  }
+  return confirmation.run('bulk', async () => {
+    try {
+      result.value = await bulkResolvePersonaConflicts({ ids: shown.value.conflicts.map(c => c.conflict.id), minScore: shown.id })
+      const message = bulkResolvedMessage(result.value)
+      toast.success(message.title, message.description)
+      emit('resolved')
+    }
+    catch (e) {
+      toast.failure('Conflicts not resolved', resolveErrorMessage(e))
+    }
+  })
 }
 
 const confirmLabel = computed(() => {
@@ -97,7 +85,7 @@ const confirmLabel = computed(() => {
         <div class="flex flex-wrap items-center gap-3">
           <USelect v-model="floor" data-floor :items="floorItems" icon="i-lucide-gauge" class="w-40" :disabled="busy || Boolean(result)" />
           <p v-if="preview && !result" data-summary class="text-sm text-muted">
-            {{ formatNumber(preview.eligible) }} {{ preview.eligible === 1 ? 'conflict qualifies' : 'conflicts qualify' }}<template v-if="preview.eligible > count">
+            {{ formatNumber(preview.value.eligible) }} {{ preview.value.eligible === 1 ? 'conflict qualifies' : 'conflicts qualify' }}<template v-if="preview.value.eligible > count">
               — this batch takes the first {{ formatNumber(count) }}, the rest come with the next
             </template>.
           </p>
