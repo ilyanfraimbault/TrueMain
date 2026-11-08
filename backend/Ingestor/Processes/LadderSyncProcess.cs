@@ -2,6 +2,7 @@ using Core.Lol.Identifiers;
 using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -47,6 +48,7 @@ namespace Ingestor.Processes;
 /// picks them up in its normal rotation, which is also what re-detects a demotion.
 /// </para>
 /// </remarks>
+[PipelineStep(JobMode.LadderSyncOnly)]
 public sealed class LadderSyncProcess(
     ILogger<LadderSyncProcess> logger,
     IRiotPlatformClient riotPlatformClient,
@@ -57,9 +59,6 @@ public sealed class LadderSyncProcess(
     IOptions<LadderSyncOptions> ladderSyncOptions) : IIngestorProcess
 {
     private const string RankedSoloQueue = "RANKED_SOLO_5x5";
-
-    public string Name => "LadderSync";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = ladderSyncOptions.Value;
@@ -78,7 +77,7 @@ public sealed class LadderSyncProcess(
         // is therefore excluded from the answer.
         if (options.MinRunInterval > TimeSpan.Zero)
         {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.LadderSync.Name, nowUtc, ct);
             if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
             {
                 logger.LogInformation(
@@ -89,7 +88,7 @@ public sealed class LadderSyncProcess(
             }
         }
 
-        var ledger = await LadderSyncRunLedger.ReadAsync(processRunStore, Name, options, nowUtc, ct);
+        var ledger = await LadderSyncRunLedger.ReadAsync(processRunStore, PipelineCatalog.LadderSync.Name, options, nowUtc, ct);
         var apexDue = ledger.IsApexDue(options.ApexRefreshInterval, nowUtc);
         var budget = ledger.RemainingBudget(options);
 

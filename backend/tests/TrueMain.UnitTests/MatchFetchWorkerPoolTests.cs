@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using AwesomeAssertions;
+using Data.Pipeline;
 using Ingestor.FetchWorkers;
 using Ingestor.Options;
 using Ingestor.Processes;

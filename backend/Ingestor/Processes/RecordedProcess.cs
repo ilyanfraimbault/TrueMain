@@ -1,4 +1,5 @@
 using Data.Logging;
+using Data.Pipeline;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 
@@ -19,6 +20,7 @@ namespace Ingestor.Processes;
 /// </remarks>
 public sealed class RecordedProcess<TInner>(
     TInner inner,
+    PipelineProcess step,
     IProcessRunRecorder recorder,
     TimeProvider timeProvider,
     ILogger<RecordedProcess<TInner>> logger) : IIngestorProcess
@@ -33,7 +35,7 @@ public sealed class RecordedProcess<TInner>(
     /// </summary>
     private static readonly TimeSpan ShutdownRecordBudget = TimeSpan.FromSeconds(10);
 
-    public string Name => inner.Name;
+    private string Name => step.Name;
 
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {

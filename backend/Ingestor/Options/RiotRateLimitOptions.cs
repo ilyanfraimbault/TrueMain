@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Data.Pipeline;
 
 namespace Ingestor.Options;
 
@@ -77,11 +78,9 @@ public class RiotRateLimitOptions
     /// defaults reserve 5 + 2 permits per window, so another caller keeps at most 44 a
     /// minute while both are active.
     /// </remarks>
-    public Dictionary<string, double> ReservedShares { get; set; } = new(StringComparer.Ordinal)
-    {
-        ["AccountRefresh"] = 0.05,
-        ["ManualSeed"] = 0.02
-    };
+    public Dictionary<string, double> ReservedShares { get; set; } = PipelineCatalog.Steps
+        .Where(step => step.ReservedRiotShare is not null)
+        .ToDictionary(step => step.Name, step => step.ReservedRiotShare!.Value, StringComparer.Ordinal);
 
     /// <summary>
     /// How long after its last request a reserved caller still counts as active, in seconds.

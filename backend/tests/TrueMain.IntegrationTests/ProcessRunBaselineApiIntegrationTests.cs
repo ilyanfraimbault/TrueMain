@@ -3,6 +3,7 @@ using System.Text.Json;
 using AwesomeAssertions;
 using Data.Entities;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.AspNetCore.Mvc.Testing;
 using MongoDB.Driver;
 

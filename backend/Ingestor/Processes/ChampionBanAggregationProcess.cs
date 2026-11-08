@@ -3,6 +3,7 @@ using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Data.Entities;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes.Components.IncrementalFolds;
 using Ingestor.Processes.Summaries;
@@ -49,6 +50,7 @@ namespace Ingestor.Processes;
 /// come from the match payload itself and gating on timelines would drop matches for
 /// no benefit.
 /// </summary>
+[PipelineStep(JobMode.BanAggregationOnly)]
 public sealed class ChampionBanAggregationProcess(
     ILogger<ChampionBanAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
@@ -68,9 +70,6 @@ public sealed class ChampionBanAggregationProcess(
             .Key("Patch", "text", r => r.Key.Patch)
             .Key("elo_bracket", "text", r => r.Key.EloBracket)
             .Sum("Matches", "integer", r => r.Value);
-
-    public string Name => "ChampionBanAggregation";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
