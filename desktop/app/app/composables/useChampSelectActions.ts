@@ -33,7 +33,9 @@ const KEY: InjectionKey<ReturnType<typeof create>> = Symbol('champ-select-action
 /**
  * Hover, lock and ban from the draft screen (#1909), twin of `useRuneImport`:
  * every write is the player's own click, the shell re-checks it against the
- * client before sending, and every refusal is said in a toast — never retried.
+ * client before sending, and a refused lock or ban is said in a toast — never
+ * retried. A hover says nothing (#2465): it is a selection, made and remade
+ * click after click, and the card it lands on already shows it.
  *
  * The draft screen creates it (`provideChampSelectActions`); the controls under
  * it share that one instance (`useChampSelectActions`).
@@ -134,16 +136,16 @@ function create(draft: Ref<DraftState>) {
       : { title: 'Nothing was sent to the client', description: message, icon: 'i-lucide-circle-x', color: 'error' })
   }
 
-  /** One write, from one click: no queue, no retry. */
-  async function run(kind: ChampSelectKind | 'lock', championId: number, write: () => Promise<void>, done: string) {
+  /** One write, from one click: no queue, no retry. `done` is the dev server's toast; null keeps the write silent. */
+  async function run(kind: ChampSelectKind | 'lock', championId: number, write: () => Promise<void>, done: string | null) {
     if (pending.value) return
     pending.value = { kind, championId }
     try {
       await write()
-      if (!insideTauri()) toast.add({ title: done, description: 'Dev server: nothing was sent to a client.', icon: 'i-lucide-check', color: 'success' })
+      if (done && !insideTauri()) toast.add({ title: done, description: 'Dev server: nothing was sent to a client.', icon: 'i-lucide-check', color: 'success' })
     }
     catch (error) {
-      refused(error, championId)
+      if (done) refused(error, championId)
     }
     finally {
       pending.value = null
@@ -151,11 +153,11 @@ function create(draft: Ref<DraftState>) {
     }
   }
 
-  /** Hover `championId` on our open pick or ban — the planning phase's intent included. */
+  /** Hover `championId` on our open pick or ban — the planning phase's intent included. Silent, refused or not. */
   function hover(championId: number) {
     const current = kind.value
     if (!current) return
-    return run(current, championId, () => send('champ_select_hover', current, championId), `${nameOf(championId)} hovered`)
+    return run(current, championId, () => send('champ_select_hover', current, championId), null)
   }
 
   /** Ban `championId`: hovered, then the ban completed — one confirmed click. */

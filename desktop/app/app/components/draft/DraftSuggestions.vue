@@ -12,7 +12,9 @@ import { damageNote } from '~/utils/draft-damage'
  * client would (#2381), and its corner opens the build against this draft;
  * out of turn the click opens the build. A ban, which cannot be undone, keeps a
  * "Ban" control under each card. The search reaches every other champion the
- * same way — the lock itself is the strip's button, away from the cards.
+ * same way. The champion the client shows hovered is the selected card: ringed,
+ * with its "Lock in" bar under it — the only place the pick is locked from
+ * (#2465); a hover the podium does not rank is listed beside it to lock too.
  *
  * Picks: "My pool" ranks the player's own champions (their most-mastered on
  * the lane); off, every champion played on the lane. Bans: the threats to the
@@ -42,7 +44,7 @@ const myPool = defineModel<boolean>('myPool', { default: true })
 const emit = defineEmits<{ 'preview': [championId: number], 'choose-lane': [lane: string | null] }>()
 
 const { nameOf, champions } = useChampionStatics()
-const { writable } = useChampSelectActions()
+const { writable, kind, hovered: clientHovered } = useChampSelectActions()
 const { hovers, status, click } = useDraftCardClick(() => props.mode, championId => emit('preview', championId))
 const { entryOf, status: tierListStatus } = useTierList()
 const { profileOf } = useDamageProfiles()
@@ -87,18 +89,27 @@ const targetLabel = computed(() => {
   return 'Most banned on this lane'
 })
 
+/** The champion the client shows hovered on our pick: the selected card, the one "Lock in" commits. */
+const selected = computed(() => (props.mode === 'pick' && writable.value && kind.value === 'pick' ? clientHovered.value : null))
+
 /**
  * Champions the search names that the podium does not rank — so any champion
- * can be hovered or banned from here, not only the lane's candidates.
+ * can be hovered or banned from here, not only the lane's candidates — led by
+ * our hover when the podium does not show it, so it can still be locked.
  */
 const others = computed(() => {
+  if (!writable.value) return []
   const query = search.value.trim().toLowerCase()
-  if (!query || !writable.value) return []
+  const onPodium = new Set(shown.value.map(item => item.championId))
   const ranked = new Set(props.suggestions.map(item => item.championId))
-  return [...champions.value.values()]
-    .filter(champion => !ranked.has(champion.id) && champion.name.toLowerCase().includes(query))
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .slice(0, 12)
+  const named = query
+    ? [...champions.value.values()]
+        .filter(champion => !ranked.has(champion.id) && champion.name.toLowerCase().includes(query))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, 12)
+    : []
+  const hover = selected.value !== null && !onPodium.has(selected.value) ? champions.value.get(selected.value) : undefined
+  return hover ? [hover, ...named.filter(champion => champion.id !== hover.id)] : named
 })
 
 /** The card in focus: the hovered one, else the best. */
@@ -171,7 +182,7 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
           :thin="item.thin"
           :position="position"
           :entry="entryOf(item.championId, position)"
-          :focused="focused === item.championId"
+          :focused="focused === item.championId || selected === item.championId"
           :height="heightOf(index)"
           :note="notes.get(item.championId) ?? null"
           :comfort="comforts.get(item.championId) ?? null"
@@ -198,9 +209,10 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
               />
             </UTooltip>
           </template>
-          <!-- A ban cannot be undone: it keeps a control of its own, under the card. -->
-          <template v-if="mode === 'ban'" #action>
-            <DraftChampionAction :champion-id="item.championId" block />
+          <!-- A ban cannot be undone: it keeps a control of its own, under the card. Our hover's card locks it. -->
+          <template v-if="mode === 'ban' || selected === item.championId" #action>
+            <DraftChampionAction v-if="mode === 'ban'" :champion-id="item.championId" block />
+            <DraftLockButton v-else block />
           </template>
         </DraftSuggestionCard>
       </div>
@@ -208,15 +220,19 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
       <div v-if="others.length" class="flex h-full shrink-0 flex-col justify-end gap-1.5">
         <span class="stat-label px-1">Not ranked for this draft</span>
         <div class="grid grid-flow-col grid-rows-3 gap-1.5">
+          <!-- Our hover's row holds its lock button, so it is no button itself. -->
           <component
-            :is="mode === 'pick' ? 'button' : 'div'"
+            :is="mode === 'pick' && selected !== champion.id ? 'button' : 'div'"
             v-for="champion in others"
             :key="champion.id"
-            :type="mode === 'pick' ? 'button' : undefined"
-            class="flex w-44 items-center gap-2 rounded-lg bg-elevated p-1.5 text-left ring-1 ring-default"
-            :class="mode === 'pick' && 'outline-none transition-colors hover:bg-accented focus-visible:ring-2 focus-visible:ring-primary'"
-            :aria-label="mode === 'pick' ? (hovers(champion.id) ? `Hover ${champion.name}` : `Build for ${champion.name}`) : undefined"
-            @click="mode === 'pick' && click(champion.id)"
+            :type="mode === 'pick' && selected !== champion.id ? 'button' : undefined"
+            class="flex w-44 items-center gap-2 rounded-lg bg-elevated p-1.5 text-left ring-1"
+            :class="[
+              selected === champion.id ? 'ring-primary' : 'ring-default',
+              mode === 'pick' && selected !== champion.id && 'outline-none transition-colors hover:bg-accented focus-visible:ring-2 focus-visible:ring-primary',
+            ]"
+            :aria-label="mode === 'pick' && selected !== champion.id ? (hovers(champion.id) ? `Hover ${champion.name}` : `Build for ${champion.name}`) : undefined"
+            @click="mode === 'pick' && selected !== champion.id && click(champion.id)"
           >
             <ChampionPortrait :champion-id="champion.id" size="sm" class="size-8! rounded-md!" />
             <span class="min-w-0 flex-1 truncate text-xs font-semibold text-highlighted">{{ champion.name }}</span>
@@ -224,6 +240,7 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
               {{ status(champion.id)!.text }}
             </span>
             <DraftChampionAction v-if="mode === 'ban'" :champion-id="champion.id" />
+            <DraftLockButton v-else-if="selected === champion.id" />
           </component>
         </div>
       </div>

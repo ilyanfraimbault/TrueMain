@@ -3,8 +3,6 @@
  * The strip over the draft: each side's bans at its own edge, and between them
  * where the draft stands and the phase timer running down.
  *
- * Beside the clock, the `action` slot: the draft screen's "Lock in" button.
- *
  * The reference apps put a win probability here. We do not have a model that
  * produces one, and a number that comes from neither an endpoint nor a
  * measurement is not one this app shows (#1671) — so the middle is the clock.
@@ -71,7 +69,6 @@ const urgent = computed(() => props.secondsLeft > 0 && props.secondsLeft <= 10)
           />
         </div>
       </div>
-      <slot name="action" />
     </div>
   </div>
 </template>

@@ -408,15 +408,16 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   pick", "Declare your pick" in ranked planning, "Your pick in N turns"). During our pick a click on a card hovers that champion
   in the client, as a click in the client would — no button (#2381); a book icon in the card's corner opens its
   build, and out of turn the card's click opens the build as before. During our ban each card carries a full-width
-  "Ban" bar under its art. The cards never grow on hover, focus only rings one; over the art a card says
-  "Hovered", or why it cannot be (banned, already picked, not owned or disabled). Typing in the pick search also
+  "Ban" bar under its art. The cards never grow on hover, focus only rings one; the champion the client shows hovered is the selected
+  card, ringed, with a "Lock in" bar under it (#2465); over the art a card says why it cannot be hovered (banned,
+  already picked, not owned or disabled). A hover raises no toast, refused or not (#2465). Typing in the pick search also
   lists every other champion it names, a click on the row hovering it (a compact "Ban" control during our ban). A
   ban always asks first: the bar arms ("Confirm") and a second click bans, disarming after 4 s — no popover; a
   hover, ban or lock of a champion an ally is hovering asks too (the card armed: "your Jungle's pick — click
-  again"). "Lock in
-  <Champion>" sits in the strip beside the clock, enabled during our pick once the client shows our hover, and locks
-  only that hovered champion. A disabled ban bar says the champion's own reason on it, "not your turn" in its tooltip. The shell re-reads the session and the client's pickable/bannable lists before every write,
-  resolves our open action itself, and refuses with a reason toast (`champselect.rs`, `lcu::champ_select`). Nothing
+  again"). "Lock in" sits under the hovered champion's card — or on its row beside the podium when the podium does not
+  rank it (a search result, a hover made in the client) — enabled during our pick, and locks only that hovered
+  champion; nothing sits in the strip by the clock (#2465). A disabled ban bar says the champion's own reason on it, "not your turn" in its tooltip. The shell re-reads the session and the client's pickable/bannable lists before every write,
+  resolves our open action itself, and refuses a lock or a ban with a reason toast (`champselect.rs`, `lcu::champ_select`). Nothing
   is ever written without the click: no auto-lock, no auto-ban, no auto-accept. Hidden on a tape replay.
 - **Draft simulator** (development only, `/dev/draft-sim` + `npm run tauri:sim`) — a champion select filled by clicking
   (our position, any pick or ban on either side, our pick hovered then locked), sent to the shell as the client's own

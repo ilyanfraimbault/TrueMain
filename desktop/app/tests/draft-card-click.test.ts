@@ -57,12 +57,12 @@ describe('useDraftCardClick', () => {
     }
   })
 
-  it('previews the build of the champion the client already shows hovered, and says so', () => {
+  it('previews the build of the champion the client already shows hovered, with no label: its card is ringed and locks it', () => {
     const { card, hover, preview } = setup({ availability: { allowed: false, reason: 'Hovered in the client' } })
     card.click(105)
     expect(hover).not.toHaveBeenCalled()
     expect(preview).toHaveBeenCalledWith(105)
-    expect(card.status(105)).toEqual({ text: 'Hovered', tone: 'primary' })
+    expect(card.status(105)).toBeNull()
   })
 
   it('says why a champion cannot be hovered, but not that it is not our turn', () => {
