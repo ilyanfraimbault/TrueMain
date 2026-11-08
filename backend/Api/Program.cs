@@ -452,7 +452,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+app.UseHttpsRedirectionWhenServed();
 
 // The OpenAPI JSON document (default /openapi/v1.json) and the Scalar UI
 // at /scalar/v1 are served only in Development so no API surface metadata
