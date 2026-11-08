@@ -1,4 +1,4 @@
-import type { ProcessRun } from '~~/shared/types/ops'
+import type { ProcessRunReadModel } from '#site-shared/contract/api'
 import { describe, expect, it } from 'vitest'
 import { PIPELINE_CHAIN, PIPELINE_LANES } from '~~/shared/types/pipeline-chain'
 import { buildLaneBranches, laneForProcess, pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
@@ -10,7 +10,7 @@ import { buildLaneBranches, laneForProcess, pickCurrentLanes } from '~~/shared/u
 // (the flat chain at least drew it in the wrong place), and a step in BOTH is drawn
 // twice, once per branch.
 
-function run(processName: string, overrides: Partial<ProcessRun> = {}): ProcessRun {
+function run(processName: string, overrides: Partial<ProcessRunReadModel> = {}): ProcessRunReadModel {
   return {
     id: processName,
     processName,

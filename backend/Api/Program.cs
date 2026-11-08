@@ -42,6 +42,7 @@ using TrueMain.Services.Ops.Processes;
 using TrueMain.Services.Ops.Stats;
 using TrueMain.Services.Personas;
 using TrueMain.Services.Truemains;
+using TrueMain.OpenApi;
 using AspNetCorsOptions = Microsoft.AspNetCore.Cors.Infrastructure.CorsOptions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -59,8 +60,7 @@ builder.Services.AddProblemDetails(options =>
     options.CustomizeProblemDetails = context =>
         context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
 });
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApi();
+builder.Services.AddTrueMainContract();
 // Bound the shared response cache so a crafted fan-out of distinct request
 // shapes (the /truemains leaderboard key includes region/champion/position/
 // page) can't grow it without limit. Entries are counted (Size = 1 each, set

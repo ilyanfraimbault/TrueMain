@@ -354,3 +354,19 @@ upsert holds each row until its transaction commits. Batches locking overlapping
 `TimelineIngestionService` folds the whole plan once, after its last save: a transaction upserting per save batch
 would still take the rows in several passes, which no statement order can reconcile, and would hold them through
 the rest of the account's writes. Pace before form, everywhere — #2448.
+
+## The API's TypeScript types are generated from its OpenAPI document, which is committed (2026-11-08)
+
+The site, the admin and the desktop app read the API through types generated from the API's OpenAPI document, not
+copied by hand from `Api/ReadModels`: about 75 read models had three hand-kept TypeScript mirrors, and a rename only
+broke at runtime. `AddTrueMainContract` (`backend/Api/OpenApi`) owns the wire: enums travel by their C# name
+everywhere (a read model types a status as its enum, never as a `ToString()`), and the document says what the API
+writes — every response field present (`T | null` when nullable), numbers as numbers, JSON only. Request bodies keep
+C#'s rule: only `required` members are required.
+
+`web/shared/contract/openapi.json` and the `openapi-typescript` output `web/shared/contract/api.ts` are both
+committed: a frontend builds without the .NET SDK and a contract change shows in the PR diff. A stale one fails CI
+(`OpenApiContractTests`, `npm run contract -- --check`). The front end imports the generated names (the C# names,
+`ProcessRunReadModel`) — no alias layer; hand-written types remain only for shapes the front end builds itself. The
+admin's `useOps` is typed by path through `contract/routes.ts`, so a renamed route is a type error. Regenerating:
+`docs/ci.md` → "The API contract" — #2493, #2481.
