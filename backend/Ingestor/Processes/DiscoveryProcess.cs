@@ -62,8 +62,9 @@ public sealed class DiscoveryProcess(
     /// </summary>
     private async Task<DateTime?> ShouldSkipForCadenceAsync(TimeSpan minRunInterval, CancellationToken ct)
     {
-        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
-        return lastRunUtc is not null && timeProvider.GetUtcNow().UtcDateTime - lastRunUtc.Value < minRunInterval
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
+        return lastRunUtc is not null && nowUtc - lastRunUtc.Value < minRunInterval
             ? lastRunUtc
             : null;
     }

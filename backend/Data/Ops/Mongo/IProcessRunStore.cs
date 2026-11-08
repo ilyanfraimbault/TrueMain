@@ -17,12 +17,16 @@ public interface IProcessRunStore
 
     /// <summary>
     /// Finalises the in-flight run in place (finish time, duration, terminal
-    /// status, error, summary). Returns false when no document matched
-    /// <paramref name="id"/> — the caller then records a fresh terminal document so
-    /// the outcome is never lost. Returns true without writing when the store is
-    /// inactive.
+    /// status, error, summary), guarded on <see cref="ProcessRunStatus.Running"/>: the
+    /// only transition a run takes (<see cref="ProcessRunStatusExtensions.CanTransitionTo"/>).
+    /// <see cref="ProcessRunFinalizeOutcome.NotFound"/> tells the caller to record a fresh
+    /// terminal document so the outcome is never lost;
+    /// <see cref="ProcessRunFinalizeOutcome.AlreadyTerminal"/> means the run was already
+    /// closed (the boot reconcile abandoned it) and is left as it is. Returns
+    /// <see cref="ProcessRunFinalizeOutcome.Finalized"/> without writing when the store is
+    /// inactive. Throws when <paramref name="status"/> is not terminal.
     /// </summary>
-    Task<bool> FinalizeAsync(
+    Task<ProcessRunFinalizeOutcome> FinalizeAsync(
         Guid id,
         DateTime finishedAtUtc,
         int durationMs,
@@ -62,8 +66,11 @@ public interface IProcessRunStore
     /// <summary>
     /// The start time of the most recent run of <paramref name="processName"/> that
     /// actually did its work, or null when none exists — the Discovery cadence gate.
+    /// Judged on the effective status as of <paramref name="nowUtc"/>
+    /// (<see cref="ProcessRunStatusExtensions.CountsAsCompleted"/> after
+    /// <see cref="ProcessRunStaleness.EffectiveStatus"/>).
     /// <para>
-    /// <see cref="ProcessRunStatus.Running"/> and <see cref="ProcessRunStatus.Skipped"/>
+    /// A fresh <see cref="ProcessRunStatus.Running"/> row and <see cref="ProcessRunStatus.Skipped"/>
     /// are both excluded: the former is the caller's own in-flight row, the latter is a
     /// run that deliberately did nothing. Counting a skip here would let it stand in for
     /// the work it declined to do, re-arming the guard on every iteration (#1149).
@@ -72,7 +79,7 @@ public interface IProcessRunStore
     /// existed — as the <see cref="ProcessRunStatus.Abandoned"/> row it used to leave.
     /// </para>
     /// </summary>
-    Task<DateTime?> GetLastCompletedRunStartAsync(string processName, CancellationToken ct);
+    Task<DateTime?> GetLastCompletedRunStartAsync(string processName, DateTime nowUtc, CancellationToken ct);
 
     /// <summary>
     /// One page of runs, newest-first (started desc, id desc), with the total
@@ -116,11 +123,13 @@ public interface IProcessRunStore
     /// the latest run's raw status + heartbeat, last run start, last successful
     /// finish, and run/failure counts within the window
     /// (<paramref name="windowStart"/> null = unbounded, true all-time totals).
-    /// Ordered by process name.
+    /// A failure is judged on the effective status as of <paramref name="nowUtc"/>, so a
+    /// stale Running row counts as the Abandoned run it is. Ordered by process name.
     /// </summary>
     Task<IReadOnlyList<ProcessRunRollup>> GetRollupsAsync(
         string? processName,
         DateTime? windowStart,
+        DateTime nowUtc,
         CancellationToken ct);
 
     /// <summary>
@@ -168,18 +177,19 @@ public interface IProcessRunStore
         CancellationToken ct);
 
     /// <summary>
-    /// How many terminal (non-Running) runs of <paramref name="processName"/> started
-    /// strictly after <paramref name="afterUtc"/>; null counts every terminal run.
+    /// How many runs of <paramref name="processName"/> that count as a failure
+    /// (<see cref="ProcessRunStatusExtensions.CountsAsFailure"/> of the effective status as of
+    /// <paramref name="nowUtc"/>, so a stale Running row counts as Abandoned) started strictly
+    /// after <paramref name="afterUtc"/>; null counts every failed run.
     /// </summary>
     /// <remarks>
     /// Pass the process's last successful finish and the count <em>is</em> its current
-    /// failure streak — every terminal run since a success is by definition not one. Kept a
-    /// count rather than folded into <see cref="GetRollupsAsync"/> because the streak needs
-    /// the last-success timestamp that rollup computes in the same <c>$group</c>, and
-    /// because the cockpit (#1031) only asks it of processes whose latest run did not
-    /// succeed — usually none, so the healthy case costs nothing.
+    /// failure streak. Kept a count rather than folded into <see cref="GetRollupsAsync"/>
+    /// because the streak needs the last-success timestamp that rollup computes in the same
+    /// <c>$group</c>, and because the cockpit (#1031) only asks it of processes whose latest
+    /// run did not succeed — usually none, so the healthy case costs nothing.
     /// </remarks>
-    Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct);
+    Task<long> CountFailuresSinceAsync(string processName, DateTime? afterUtc, DateTime nowUtc, CancellationToken ct);
 }
 
 /// <summary>
@@ -208,6 +218,19 @@ public sealed record ProcessRunRollup(
     DateTime? LastSuccessAtUtc,
     long RunCountInWindow,
     long FailureCountInWindow);
+
+/// <summary>What <see cref="IProcessRunStore.FinalizeAsync"/> did with the run.</summary>
+public enum ProcessRunFinalizeOutcome
+{
+    /// <summary>The Running document now carries its terminal status.</summary>
+    Finalized,
+
+    /// <summary>The document exists but was no longer Running; it was left untouched.</summary>
+    AlreadyTerminal,
+
+    /// <summary>No document has this id (reaped by the TTL, or never inserted).</summary>
+    NotFound
+}
 
 /// <summary>One iteration header (grouping key + pass start) for the chain view.</summary>
 public sealed record ProcessIterationHeader(Guid IterationId, DateTime StartedAtUtc);

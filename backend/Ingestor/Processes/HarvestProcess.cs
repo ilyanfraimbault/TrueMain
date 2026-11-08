@@ -53,7 +53,7 @@ public sealed class HarvestProcess(
         // speed (#2261).
         if (configured.MinRunInterval > TimeSpan.Zero)
         {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
             if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < configured.MinRunInterval)
             {
                 logger.LogInformation(

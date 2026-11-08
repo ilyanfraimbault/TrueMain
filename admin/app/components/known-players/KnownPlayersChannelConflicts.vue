@@ -10,6 +10,7 @@ import { computed, ref, watch } from 'vue'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { resolveErrorMessage } from '~~/shared/utils/persona-conflicts'
 import { linkHandle, markedMessage, mergedMessage } from '~~/shared/utils/persona-homonyms'
+import { useArmedConfirm } from '~/composables/useArmedConfirm'
 
 const props = defineProps<{
   /** The conflict queue's search, applied to either known player's name or slug. */
@@ -35,18 +36,20 @@ watch(() => props.stamp, () => refresh())
 
 const selected = ref<PersonaChannelConflict | null>(null)
 const detailOpen = ref(false)
-const armed = ref<'older' | 'newer' | null>(null)
-const busy = ref(false)
+// Merging into either side asks twice; "different people" sends at once. A
+// confirmation is for one pair: opening another disarms it.
+const confirmation = useArmedConfirm<'older' | 'newer' | 'distinct'>({ scope: selected })
+const armed = confirmation.armed
+const sending = confirmation.sending
+const busy = computed(() => sending.value !== null)
 const toast = useActionToast()
 
 function open(conflict: PersonaChannelConflict) {
   selected.value = conflict
-  armed.value = null
   detailOpen.value = true
 }
 
 async function act(run: () => Promise<{ title: string, description?: string }>, failure: string) {
-  busy.value = true
   try {
     const message = await run()
     toast.success(message.title, message.description)
@@ -56,31 +59,23 @@ async function act(run: () => Promise<{ title: string, description?: string }>, 
     toast.failure(failure, resolveErrorMessage(e))
   }
   finally {
-    busy.value = false
-    armed.value = null
     refresh()
   }
 }
 
 function merge(keep: 'older' | 'newer') {
   const conflict = selected.value
-  if (!conflict || busy.value) {
+  if (!conflict) {
     return
   }
-
-  if (armed.value !== keep) {
-    armed.value = keep
-    return
-  }
-
   const [kept, merged] = keep === 'older' ? [conflict.older, conflict.newer] : [conflict.newer, conflict.older]
-  return act(async () => mergedMessage(await mergePersonaHomonyms({ keepId: kept.id, mergeIds: [merged.id] })), 'Not merged')
+  return confirmation.run(keep, () => act(async () => mergedMessage(await mergePersonaHomonyms({ keepId: kept.id, mergeIds: [merged.id] })), 'Not merged'))
 }
 
 function distinct() {
   const conflict = selected.value
-  if (conflict && !busy.value) {
-    return act(async () => markedMessage(await markPersonaHomonymsDistinct({ personaIds: [conflict.older.id, conflict.newer.id] })), 'Not marked')
+  if (conflict) {
+    return confirmation.run('distinct', () => act(async () => markedMessage(await markPersonaHomonymsDistinct({ personaIds: [conflict.older.id, conflict.newer.id] })), 'Not marked'), { confirm: false })
   }
 }
 
@@ -182,6 +177,7 @@ function distinct() {
               icon="i-lucide-merge"
               color="primary"
               :variant="armed === keep ? 'solid' : 'subtle'"
+              :loading="sending === keep"
               :disabled="busy"
               :label="`${armed === keep ? 'Confirm: merge' : 'Merge'} into ${selected[keep].slug}`"
               @click="merge(keep)"
@@ -191,6 +187,7 @@ function distinct() {
               icon="i-lucide-users"
               color="neutral"
               variant="subtle"
+              :loading="sending === 'distinct'"
               :disabled="busy"
               label="Different people"
               @click="distinct()"

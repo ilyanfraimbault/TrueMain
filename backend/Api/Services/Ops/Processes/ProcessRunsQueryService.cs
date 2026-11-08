@@ -69,7 +69,7 @@ public sealed class ProcessRunsQueryService(IProcessRunStore store, IProcessRunB
 
         var runs = await baselines.AttachAsync(pageResult.Runs, now, ct);
 
-        var rollupRows = await store.GetRollupsAsync(normalizedProcessName, windowStart, ct);
+        var rollupRows = await store.GetRollupsAsync(normalizedProcessName, windowStart, now, ct);
 
         var rollup = rollupRows
             .Select(row => new ProcessRunRollupReadModel

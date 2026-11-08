@@ -87,7 +87,7 @@ public sealed class PaceSamplingProcess(
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         if (options.MinRunInterval > TimeSpan.Zero)
         {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
             if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
             {
                 return new SkippedSummary("Within MinRunInterval; pace sampling skipped this iteration.", true);

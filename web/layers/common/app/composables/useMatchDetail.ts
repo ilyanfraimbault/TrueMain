@@ -1,5 +1,6 @@
 import type { MatchDetailResponse } from '#shared/types/match-detail'
 import { isLoadingStatus } from '#common/utils/async-data'
+import { isNotFoundError } from '#common/utils/remote-read'
 
 /**
  * Single-match detail fetch for `GET /truemains/{nameTag}/matches/{matchId}`,
@@ -8,7 +9,7 @@ import { isLoadingStatus } from '#common/utils/async-data'
  * inline detail panel of an expanded `MatchRow` accordion. A 404 from the
  * controller (malformed name tag, unknown account, or a match the account
  * never played) is surfaced as `notFound = true` so the panel renders an
- * empty state instead of an error.
+ * empty state; any other failure is an `error` (#2476).
  */
 export function useMatchDetail(
   nameTag: MaybeRefOrGetter<string>,
@@ -26,18 +27,18 @@ export function useMatchDetail(
     async (_nuxtApp, { signal }) => {
       if (!nameTagRef.value || !matchIdRef.value) return null
 
-      const response = await apiFetch<MatchDetailResponse | null>(
-        `/truemains/${encodeURIComponent(nameTagRef.value)}/matches/${encodeURIComponent(matchIdRef.value)}`,
-        { ignoreResponseError: true, signal },
-      )
-
-      // `ignoreResponseError: true` turns the controller's 404 into a null
-      // body — the only way to tell "not found" apart from a real payload is
-      // the shape check. Anything missing the participants array is a 404,
-      // which the handler reports the only way it can: by resolving null.
-      if (!response || !Array.isArray(response.participants)) return null
-
-      return response
+      try {
+        const response = await apiFetch<MatchDetailResponse | null>(
+          `/truemains/${encodeURIComponent(nameTagRef.value)}/matches/${encodeURIComponent(matchIdRef.value)}`,
+          { signal },
+        )
+        // A 2xx missing the participants array reads as a 404.
+        return response && Array.isArray(response.participants) ? response : null
+      }
+      catch (err) {
+        if (isNotFoundError(err)) return null
+        throw err
+      }
     },
     {
       server: false,

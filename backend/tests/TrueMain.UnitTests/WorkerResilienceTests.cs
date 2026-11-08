@@ -89,10 +89,11 @@ public sealed class WorkerResilienceTests
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
 
-        // One scope is created and disposed per process in the sequence, plus the two
+        // One scope is created and disposed per process in the sequence, plus the three
         // startup steps that each run once before the main loop in a scope of their own:
-        // the orphaned-run reconciliation and the orphaned-claim release (#1513).
-        const int startupScopes = 2;
+        // the orphaned-run reconciliation, the orphaned-claim release (#1513) and the
+        // return of orphaned seed-request claims (#2474).
+        const int startupScopes = 3;
         countingScopeFactory.ScopesCreated.Should().Be(steps.Count + startupScopes);
         countingScopeFactory.ScopesDisposed.Should().Be(steps.Count + startupScopes);
         lifetime.Received(1).StopApplication();

@@ -87,16 +87,32 @@ public interface ISeedRequestStore
     /// <summary>Rolls an interrupted claim back (Resolving → Pending) so a later run can re-claim it.</summary>
     Task<bool> ResetResolvingToPendingAsync(Guid id, CancellationToken ct);
 
-    /// <summary>Stamps the successful terminal state with the resolved identity.</summary>
-    Task MarkIngestedAsync(
+    /// <summary>
+    /// Returns every Resolving request to Pending — the claims a killed predecessor never
+    /// finished (#2474). Called once at the boot of the single ingestor lane that owns the
+    /// manual seed, before it claims anything. Returns how many were given back; 0 when the
+    /// store is inactive.
+    /// </summary>
+    Task<long> ReturnOrphanedClaimsAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Stamps the successful terminal state with the resolved identity, guarded on
+    /// Resolving (<see cref="SeedRequestTransitions"/>). False when the request was not
+    /// Resolving — already terminal, or given back — and was left untouched.
+    /// </summary>
+    Task<bool> MarkIngestedAsync(
         Guid id,
         string resolvedPuuid,
         Guid? resolvedRiotAccountId,
         DateTime processedAtUtc,
         CancellationToken ct);
 
-    /// <summary>Stamps the failed terminal state with the (truncated) error.</summary>
-    Task MarkFailedAsync(Guid id, string? error, DateTime processedAtUtc, CancellationToken ct);
+    /// <summary>
+    /// Stamps the failed terminal state with the (truncated) error, guarded on Resolving
+    /// like <see cref="MarkIngestedAsync"/>: a request that already reached a terminal state
+    /// is never overwritten.
+    /// </summary>
+    Task<bool> MarkFailedAsync(Guid id, string? error, DateTime processedAtUtc, CancellationToken ct);
 
     /// <summary>
     /// The newest request that resolved to this account (matched on resolved PUUID
