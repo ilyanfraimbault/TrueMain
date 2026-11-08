@@ -417,13 +417,11 @@ mod tests {
         let catalog =
             include_str!("../../../backend/Api/Services/Desktop/DesktopTelemetryCatalog.cs");
         let source = include_str!("telemetry.rs");
-        let body = source
-            .split("fn key(self) -> &'static str {")
-            .nth(1)
-            .and_then(|rest| rest.split("\n    }\n").next())
-            .expect("Feature::key in telemetry.rs");
-        let keys: Vec<&str> = body
+        // Line by line, so a CRLF checkout (Windows) reads the same.
+        let keys: Vec<&str> = source
             .lines()
+            .skip_while(|line| !line.contains("fn key(self) -> &'static str {"))
+            .take_while(|line| *line != "    }")
             .filter_map(|line| line.split("=> \"").nth(1))
             .filter_map(|rest| rest.split('"').next())
             .collect();
