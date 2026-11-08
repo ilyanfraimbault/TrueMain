@@ -32,10 +32,12 @@ const props = defineProps<{
 }>()
 
 const readDetail = inject(MATCH_DETAIL_SOURCE, useMatchDetail)
-const { data: detail, isLoading, notFound } = readDetail(
+const { data: detail, isLoading, notFound, error } = readDetail(
   () => props.nameTag,
   () => props.matchId,
 )
+// A reader that cannot fail (the app's own) provides no error ref.
+const failure = computed(() => error?.value ?? null)
 
 const participants = computed(() => detail.value?.participants ?? [])
 const championsById = useChampionsById(() => props.champions)
@@ -79,6 +81,12 @@ const tabItems = computed(() => [
          ~the loaded height and the real content swaps in without the row
          lurching once the (large) detail fetch resolves. -->
     <MatchDetailSkeleton v-if="isLoading && !detail" />
+
+    <FetchErrorAlert
+      v-else-if="failure && !detail"
+      :error="failure"
+      title="This game could not be loaded"
+    />
 
     <UEmpty
       v-else-if="notFound || !detail"
