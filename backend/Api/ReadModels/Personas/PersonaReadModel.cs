@@ -2,13 +2,16 @@ namespace TrueMain.ReadModels.Personas;
 
 /// <summary>
 /// The persona a tracked account belongs to, as the leaderboard row and the profile carry it
-/// (#2016): enough to show the person's name and link to <c>/players/{slug}</c>.
+/// (#2016): enough to show the person's name and picture and link to <c>/players/{slug}</c>.
 /// </summary>
 public sealed record PersonaTagReadModel
 {
     public string Slug { get; init; } = string.Empty;
 
     public string DisplayName { get; init; } = string.Empty;
+
+    /// <summary>The picture of the person's first channel that has one (#2446); null when none does.</summary>
+    public string? PictureUrl { get; init; }
 }
 
 /// <summary>The known players worth a sitemap entry (<c>GET /players</c>, #2018).</summary>

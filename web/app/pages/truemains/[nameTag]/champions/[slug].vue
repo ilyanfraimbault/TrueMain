@@ -126,10 +126,9 @@ const isRefetching = computed(() =>
   || isLoadingStatus(summonersStatus.value),
 )
 
-// The profile's banner, on this champion's splash: the same identity line (the
-// truemain it names is the account's, whichever champion the page is on).
+// The profile's banner, on this champion's splash: the same identity line.
 const latestPatch = computed(() => versions.value?.[0] ?? null)
-const { truemainChampion, identity: heroIdentity } = useTruemainBanner(profile, staticList, playerLabel)
+const { identity: heroIdentity } = useTruemainBanner(profile, staticList, playerLabel)
 
 // Frozen prop bundle for the lazy (hydrate-on-visible) matchup spread: `staticList`
 // is client-only (`server: false`), so it stays out of the SSR markup until the
@@ -176,9 +175,6 @@ await Promise.all([championReady, profileReady, rankHistoryReady, indexingReady]
     <PagePlayerProfile
       :identity="heroIdentity"
       :patch="latestPatch"
-      :level="profile?.identity.summonerLevel ?? null"
-      :ranked="profile?.ranked ?? null"
-      :truemain="truemainChampion"
       :persona="profile?.persona ?? null"
       :splash-url="splashUrl"
       splash-position="60% 20%"

@@ -10,6 +10,8 @@ import type { RegionSlug } from './leaderboard'
 export interface PersonaTag {
   slug: string
   displayName: string
+  /** The picture of the person's first channel that has one (#2446); null when none does. */
+  pictureUrl: string | null
 }
 
 export type PersonaLinkKind =

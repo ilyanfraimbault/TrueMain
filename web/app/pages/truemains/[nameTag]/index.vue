@@ -162,9 +162,6 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady, 
       v-else
       :identity="heroIdentity"
       :patch="latestPatch"
-      :level="profile?.identity.summonerLevel ?? null"
-      :ranked="profile?.ranked ?? null"
-      :truemain="truemainChampion"
       :persona="profile?.persona ?? null"
       :splash-url="splashUrl"
       splash-position="62% 22%"
