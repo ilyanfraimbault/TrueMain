@@ -12,6 +12,9 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
   },
   resolve: {
+    // The `web/layers/nitro` server utils this app extends import `h3` too: one copy, the
+    // app's, as in the built server, so a test that mocks it mocks it for them as well.
+    dedupe: ['h3'],
     alias: {
       '~~': fileURLToPath(new URL('./', import.meta.url)),
       // Mirror Nuxt 4's `~` → app/ alias so utils that import sibling modules
