@@ -126,3 +126,65 @@ describe('provideChampSelectActions', () => {
     expect(toasts.map(toast => toast.title)).toEqual(['Fizz locked in'])
   })
 })
+
+describe('DraftSuggestions — the selected card', () => {
+  const champions = new Map([[103, { id: 103, name: 'Ahri' }], [238, { id: 238, name: 'Zed' }], [61, { id: 61, name: 'Orianna' }]])
+
+  async function strip(hovered: number | null, kind: ChampSelectKind | null = 'pick') {
+    vi.stubGlobal('useChampionStatics', () => ({ nameOf: (id: number) => champions.get(id)?.name ?? '', champions: ref(champions) }))
+    vi.stubGlobal('useChampSelectActions', () => ({ writable: ref(true), kind: ref(kind), hovered: ref(hovered) }))
+    vi.stubGlobal('useDraftCardClick', () => ({ hovers: () => true, status: () => null, click: () => {} }))
+    vi.stubGlobal('useTierList', () => ({ entryOf: () => null, status: ref('ready') }))
+    vi.stubGlobal('useDamageProfiles', () => ({ profileOf: () => null }))
+    vi.stubGlobal('usePlayerRecord', () => ({ games: ref([]) }))
+    const { default: DraftSuggestions } = await import('../app/components/draft/DraftSuggestions.vue')
+    return mount(DraftSuggestions, {
+      props: {
+        mode: 'pick',
+        suggestions: [{ championId: 103, reasons: [], thin: false }, { championId: 238, reasons: [], thin: false }],
+        hasPool: true,
+        pending: false,
+        position: 'MIDDLE',
+        error: null,
+        allies: [],
+      },
+      global: {
+        stubs: {
+          DraftSuggestionCard: {
+            props: ['championId', 'focused'],
+            template: '<div data-card :data-id="championId" :data-focused="focused"><slot /><slot name="action" /></div>',
+          },
+          DraftLockButton: { template: '<span data-lock />' },
+          DraftChampionAction: true,
+          ChampionPortrait: true,
+          UTooltip: { template: '<div><slot /></div>' },
+          UButton: true,
+          UIcon: true,
+          USwitch: true,
+          UInput: true,
+        },
+      },
+    })
+  }
+
+  it('rings the hovered champion\'s card and puts the lock under it alone', async () => {
+    const wrapper = await strip(238)
+    const cards = wrapper.findAll('[data-card]')
+    // The best card stays in focus too: the hover rings the selected one without taking the focus off it.
+    expect(cards[1]!.attributes('data-focused')).toBe('true')
+    expect(cards[0]!.find('[data-lock]').exists()).toBe(false)
+    expect(cards[1]!.find('[data-lock]').exists()).toBe(true)
+  })
+
+  it('lists a hover the podium does not rank beside it, with its lock', async () => {
+    const wrapper = await strip(61)
+    expect(wrapper.text()).toContain('Orianna')
+    expect(wrapper.findAll('[data-card] [data-lock]')).toHaveLength(0)
+    expect(wrapper.findAll('[data-lock]')).toHaveLength(1)
+  })
+
+  it('locks nothing out of our pick', async () => {
+    const wrapper = await strip(238, 'ban')
+    expect(wrapper.findAll('[data-lock]')).toHaveLength(0)
+  })
+})
