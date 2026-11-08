@@ -151,7 +151,7 @@ the baseline still runs the check — otherwise loosening an entry would be the 
 It also runs `deploy-scripts` for eight seconds, which is cheaper than a second filter output.
 
 Generated code (migrations, the compiled model, build output), every test tree
-and `web/server/utils/dev-api-mock.ts` are excluded — a long test file costs far
+and `web/server/dev/` (the dev mock) are excluded — a long test file costs far
 less to read than a long production file. The job runs its own test suite
 (`check-file-size.test.sh`) first, because the check is shell walking a
 directory tree and its failure mode is silently passing.
