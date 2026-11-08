@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Clip } from '~/types/recordings'
+import { type Clip, youtubeUrl } from '~/types/recordings'
 import { clipPublishText } from '~/utils/clip-publish'
 
 /**
@@ -36,7 +36,7 @@ watch(open, (opened) => {
   title.value = text.title
   description.value = text.description
   tags.value = text.tags
-  link.value = props.clip.youtubeUrl ?? ''
+  link.value = youtubeUrl(props.clip.video) ?? ''
   linkError.value = null
 }, { immediate: true })
 watch(link, () => (linkError.value = null))

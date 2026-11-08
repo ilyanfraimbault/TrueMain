@@ -44,6 +44,31 @@ impl GameflowPhase {
             _ => Self::Unknown,
         }
     }
+
+    /// The groupings below are the only place a set of phases is named
+    /// (#2472); `desktop/app/app/utils/gameflow.ts` mirrors them.
+    ///
+    /// The champion select.
+    pub fn is_champ_select(self) -> bool {
+        self == Self::ChampSelect
+    }
+
+    /// A game is on: being played, or crashed and offered to rejoin. The
+    /// recording, the loading screen's players and the update prompt hold
+    /// through a reconnect. Only `InProgress` has the game's own API up: the
+    /// Game screen opens on that phase alone (`AppState::screen`).
+    pub fn is_game_running(self) -> bool {
+        matches!(self, Self::InProgress | Self::Reconnect)
+    }
+
+    /// The game is over and the client is on its stats or the end-of-game
+    /// screen.
+    pub fn is_post_game(self) -> bool {
+        matches!(
+            self,
+            Self::WaitingForStats | Self::PreEndOfGame | Self::EndOfGame
+        )
+    }
 }
 
 /// `GET /lol-gameflow/v1/session`, reduced to the game it is about. Read when a
@@ -440,6 +465,45 @@ mod tests {
             champion_id,
             champion_pick_intent: intent,
             assigned_position: position.to_string(),
+        }
+    }
+
+    #[test]
+    fn each_phase_falls_in_at_most_one_grouping() {
+        use GameflowPhase::*;
+        let all = [
+            None,
+            Lobby,
+            Matchmaking,
+            ReadyCheck,
+            ChampSelect,
+            InProgress,
+            Reconnect,
+            WaitingForStats,
+            PreEndOfGame,
+            EndOfGame,
+            Unknown,
+        ];
+        let running: Vec<_> = all.into_iter().filter(|p| p.is_game_running()).collect();
+        let post: Vec<_> = all.into_iter().filter(|p| p.is_post_game()).collect();
+        let select: Vec<_> = all.into_iter().filter(|p| p.is_champ_select()).collect();
+        assert_eq!(
+            running,
+            [InProgress, Reconnect],
+            "a reconnect is still the game"
+        );
+        assert_eq!(post, [WaitingForStats, PreEndOfGame, EndOfGame]);
+        assert_eq!(select, [ChampSelect]);
+        for phase in all {
+            let groups = [
+                phase.is_game_running(),
+                phase.is_post_game(),
+                phase.is_champ_select(),
+            ];
+            assert!(
+                groups.iter().filter(|in_it| **in_it).count() <= 1,
+                "{phase:?}"
+            );
         }
     }
 

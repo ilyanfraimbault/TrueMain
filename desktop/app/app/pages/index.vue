@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { GameflowPhase } from '~/types/lcu'
+import { isPostGame } from '~/utils/gameflow'
 import type { QueueFilter } from '~/utils/player-form'
 import { QUEUE_FILTERS, championLines, counted, gamesIn, laneLines, mainLane } from '~/utils/player-form'
 import { toMatchSummary, toProfileRanked } from '~/utils/match-summary'
@@ -70,9 +70,8 @@ watch(() => state.value.riotId, () => refresh())
 
 // A game that ends reaches the history once the client has its stats: read
 // again at the end-of-game screen, and once more on the way back to the lobby.
-const POST_GAME: GameflowPhase[] = ['WaitingForStats', 'PreEndOfGame', 'EndOfGame']
 watch(() => state.value.phase, (next, previous) => {
-  if (next === 'EndOfGame' || (POST_GAME.includes(previous) && !POST_GAME.includes(next))) void refresh(true)
+  if (next === 'EndOfGame' || (isPostGame(previous) && !isPostGame(next))) void refresh(true)
 })
 </script>
 

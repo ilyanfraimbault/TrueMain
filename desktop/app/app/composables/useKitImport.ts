@@ -1,3 +1,4 @@
+import { isChampSelect } from '~/utils/gameflow'
 import type { Kit } from '#shared/types/kit'
 import { itemSetFailureToast } from '~/composables/useItemSetImport'
 import { kitItemSetBlocks } from '~/utils/item-set'
@@ -21,7 +22,7 @@ export function useKitImport() {
 
   const available = computed(() => state.value.connected)
   /** Spells can only be written while a champion select runs. */
-  const inChampSelect = computed(() => state.value.connected && state.value.phase === 'ChampSelect')
+  const inChampSelect = computed(() => state.value.connected && isChampSelect(state.value.phase))
 
   const dev = () => (insideTauri() ? null : 'Dev server: nothing was sent to a client.')
 

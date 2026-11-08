@@ -69,7 +69,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
           to: '/recordings',
           active: isActive('/recordings'),
           // Lit while a game is being recorded, wherever the player is.
-          ...lit('Recordings', REC, recording.value.recordingGameId !== null),
+          ...lit('Recordings', REC, recording.value.activity.kind === 'recording'),
         }]
       : []),
   ],

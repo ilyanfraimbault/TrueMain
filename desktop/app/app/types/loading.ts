@@ -52,32 +52,64 @@ export interface LaningForm {
   xpDiff15: number | null
 }
 
-/** Mirrors `LoadingPlayer` in `src-tauri/src/loading.rs`. */
-export interface LoadingPlayer {
-  /** Empty for an anonymous player, and until the name is read. */
-  riotId: string
+/**
+ * Mirrors `Read<T>` in `src-tauri/src/loading/view.rs`: one thing read about a
+ * player — asked and not answered yet, read, or failed for good.
+ */
+export type Read<T> =
+  | { state: 'pending' }
+  | { state: 'ok', value: T }
+  | { state: 'failed' }
+
+/** The value of a read once it is in; null while pending or failed. */
+export function readValue<T>(read: Read<T>): T | null {
+  return read.state === 'ok' ? read.value : null
+}
+
+/** Mirrors `LoadingStatus`: where the board stands. */
+export type LoadingStatus =
+  /** No game is loading or running. */
+  | 'idle'
+  /** The roster or its players' reads are under way. */
+  | 'reading'
+  /** Every read answered or failed: nothing more is coming. */
+  | 'done'
+  /** The client never listed the game's players. */
+  | 'rosterFailed'
+
+interface LoadingSeat {
   championId: number
   team: GameTeam
   position: string
   isMe: boolean
-  /** The player hides their name (Streamer Mode): only their champion shows. */
-  anonymous: boolean
-  /** Absent until read, and for good when the client could not read it. */
-  form: PlayerForm | null
-  failed: boolean
-  /** Solo/Duo, else a ranked Flex; null until read, when unranked, or unreadable. */
-  rank: RankedQueue | null
-  /** The standing was read: a null `rank` is then an unranked player. */
-  rankRead: boolean
-  /** The client could not read the standing. */
-  rankFailed: boolean
-  /** Their form on the champion (#1863); null until read, and when their history could not be. */
-  laning: LaningForm | null
 }
 
-/** Mirrors `LoadingView` in `src-tauri/src/loading.rs`. */
+/** Mirrors `Known`: a player whose name and history are read. */
+export interface KnownPlayer extends LoadingSeat {
+  kind: 'known'
+  /** Empty until read, when the session left it out. */
+  riotId: string
+  form: Read<PlayerForm>
+  /** Solo/Duo, else a ranked Flex; `ok` with null for an unranked player. */
+  rank: Read<RankedQueue | null>
+  /** Their form on the champion (#1863): read once their history is, failed with it. */
+  laning: Read<LaningForm>
+}
+
+/** Mirrors `Identity::Hidden`: the player hides their name (Streamer Mode); only their champion and lane show. */
+export interface HiddenPlayer extends LoadingSeat {
+  kind: 'hidden'
+}
+
+/** Mirrors `LoadingPlayer` in `src-tauri/src/loading/view.rs`. */
+export type LoadingPlayer = KnownPlayer | HiddenPlayer
+
+/** Mirrors `LoadingView` in `src-tauri/src/loading/view.rs`. */
 export interface LoadingView {
+  status: LoadingStatus
   players: LoadingPlayer[]
   /** The shard the game is played on, e.g. `EUW1`; empty until the first history is read. */
   platformId: string
 }
+
+export const IDLE_LOADING: LoadingView = { status: 'idle', players: [], platformId: '' }
