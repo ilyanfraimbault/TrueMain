@@ -10,9 +10,10 @@ namespace Data.Ops.Mongo;
 /// latest-per-process) are written as explicit pipelines over
 /// the document field names, mirroring the SQL the Postgres implementation used
 /// (grouped scans + DISTINCT ON), with the same tie-breaks (id desc) so paging
-/// and latest-run picks stay deterministic.
+/// and latest-run picks stay deterministic. The lifecycle writes (the transitions
+/// a run takes) live in ProcessRunStore.Lifecycle.cs.
 /// </summary>
-internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStore
+internal sealed partial class ProcessRunStore(MongoLogContext context) : IProcessRunStore
 {
     // Same first-use index bootstrap as DbStorageSnapshotStore: no sink to hang
     // startup index creation off, so ensure lazily; the flag is only set after a
@@ -21,149 +22,26 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
     private int _headersBackfilled;
     private readonly ProcessIterationHeaders _headers = new(context);
 
-    public async Task InsertAsync(ProcessRunDocument run, CancellationToken ct)
-    {
-        if (!context.IsActive)
-        {
-            return;
-        }
-
-        await EnsureIndexesOnceAsync(ct);
-        await context.ProcessRuns.InsertOneAsync(run, cancellationToken: ct);
-        await _headers.RecordRunAsync(run, ct);
-    }
-
-    public async Task<bool> FinalizeAsync(
-        Guid id,
-        DateTime finishedAtUtc,
-        int durationMs,
-        ProcessRunStatus status,
-        string? error,
-        string? summaryJson,
-        CancellationToken ct)
-    {
-        if (!context.IsActive)
-        {
-            // Pretend the update matched so the caller doesn't insert a fallback
-            // terminal document into an inactive store (it would no-op anyway).
-            return true;
-        }
-
-        await EnsureIndexesOnceAsync(ct);
-
-        var update = Builders<ProcessRunDocument>.Update
-            .Set(doc => doc.FinishedAtUtc, finishedAtUtc)
-            .Set(doc => doc.DurationMs, durationMs)
-            .Set(doc => doc.Status, status)
-            .Set(doc => doc.Error, error)
-            .Set(doc => doc.SummaryJson, summaryJson);
-
-        var result = await context.ProcessRuns.UpdateOneAsync(
-            Builders<ProcessRunDocument>.Filter.Eq(doc => doc.Id, id),
-            update,
-            cancellationToken: ct);
-
-        return result.MatchedCount > 0;
-    }
-
-    public async Task TouchHeartbeatAsync(Guid id, DateTime nowUtc, CancellationToken ct)
-    {
-        if (!context.IsActive)
-        {
-            return;
-        }
-
-        // Guarded on Status == Running: a no-op when the run is gone or already
-        // terminal — refreshing a finished row would resurrect it as "fresh".
-        await context.ProcessRuns.UpdateOneAsync(
-            Builders<ProcessRunDocument>.Filter.Eq(doc => doc.Id, id)
-            & Builders<ProcessRunDocument>.Filter.Eq(doc => doc.Status, ProcessRunStatus.Running),
-            Builders<ProcessRunDocument>.Update.Set(doc => doc.LastHeartbeatAtUtc, nowUtc),
-            cancellationToken: ct);
-    }
-
-    public async Task<int> AbandonRunningAsync(
-        DateTime finishedAtUtc,
-        string error,
-        IReadOnlyCollection<string> processNames,
-        CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(processNames);
-
-        if (!context.IsActive)
-        {
-            return 0;
-        }
-
-        await EnsureIndexesOnceAsync(ct);
-
-        // Per-document duration (finish − that run's own start) can't ride a
-        // single UpdateMany, so fetch the (few) running docs and bulk-update them.
-        // Narrowed to the caller's own processes when it names them: with the pipeline
-        // split into a fetch lane and an aggregate lane (#1362), each in its own process,
-        // an unrestricted sweep at one lane's boot would abandon the other lane's in-flight
-        // runs and make the admin panels report a healthy pipeline as broken.
-        var filter = processNames.Count == 0
-            ? Builders<ProcessRunDocument>.Filter.Eq(doc => doc.Status, ProcessRunStatus.Running)
-            : Builders<ProcessRunDocument>.Filter.And(
-                Builders<ProcessRunDocument>.Filter.Eq(doc => doc.Status, ProcessRunStatus.Running),
-                Builders<ProcessRunDocument>.Filter.In(doc => doc.ProcessName, processNames));
-
-        var running = await context.ProcessRuns
-            .Find(filter)
-            .ToListAsync(ct);
-
-        if (running.Count == 0)
-        {
-            return 0;
-        }
-
-        var writes = running
-            .Select(doc =>
-            {
-                // Clamp before the int cast: an orphaned run can be arbitrarily old,
-                // and a span over int.MaxValue ms would overflow to negative.
-                var durationMs = (int)Math.Clamp(
-                    (finishedAtUtc - doc.StartedAtUtc).TotalMilliseconds, 0, int.MaxValue);
-
-                var update = Builders<ProcessRunDocument>.Update
-                    .Set(d => d.Status, ProcessRunStatus.Abandoned)
-                    .Set(d => d.FinishedAtUtc, finishedAtUtc)
-                    .Set(d => d.DurationMs, durationMs)
-                    .Set(d => d.Error, error);
-
-                return (WriteModel<ProcessRunDocument>)new UpdateOneModel<ProcessRunDocument>(
-                    // Re-check Running so a run that finished between the read and
-                    // this write keeps its real terminal state.
-                    Builders<ProcessRunDocument>.Filter.Eq(d => d.Id, doc.Id)
-                    & Builders<ProcessRunDocument>.Filter.Eq(d => d.Status, ProcessRunStatus.Running),
-                    update);
-            })
-            .ToList();
-
-        var result = await context.ProcessRuns.BulkWriteAsync(
-            writes, new BulkWriteOptions { IsOrdered = false }, ct);
-
-        return (int)result.ModifiedCount;
-    }
-
-    public async Task<DateTime?> GetLastCompletedRunStartAsync(string processName, CancellationToken ct)
+    public async Task<DateTime?> GetLastCompletedRunStartAsync(string processName, DateTime nowUtc, CancellationToken ct)
     {
         if (!context.IsActive)
         {
             return null;
         }
 
-        // Running is excluded because the caller is itself the in-flight run the recorder just
-        // opened. Skipped is excluded because a cadence guard asks "when did this process last
-        // actually run?" — counting a skip as an answer makes the skip its own predecessor, so
-        // the guard re-arms on every iteration and the process never runs again (#1149). Failed
-        // and Cancelled still count: both spent part of their Riot budget, so the interval
-        // before the next attempt is deliberate (#1513).
+        // Judged on the effective status (#2474). A fresh Running row is excluded because the
+        // caller is itself the in-flight run the recorder just opened; a stale one reads as
+        // Abandoned and counts like any other run that started its work. Skipped is excluded
+        // because a cadence guard asks "when did this process last actually run?" — counting
+        // a skip as an answer makes the skip its own predecessor, so the guard re-arms on
+        // every iteration and the process never runs again (#1149). Failed and Cancelled
+        // still count: both spent part of their Riot budget, so the interval before the next
+        // attempt is deliberate (#1513).
+        var filter = Builders<ProcessRunDocument>.Filter.Eq(doc => doc.ProcessName, processName)
+                     & ProcessRunStaleness.EffectiveStatusIn(ProcessRunStatusExtensions.CompletedStatuses, nowUtc);
+
         var latest = await context.ProcessRuns
-            .Find(doc => doc.ProcessName == processName
-                         && doc.Status != ProcessRunStatus.Running
-                         && doc.Status != ProcessRunStatus.Skipped)
+            .Find(filter)
             .SortByDescending(doc => doc.StartedAtUtc)
             .Limit(1)
             .FirstOrDefaultAsync(ct);
@@ -234,6 +112,7 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
     public async Task<IReadOnlyList<ProcessRunRollup>> GetRollupsAsync(
         string? processName,
         DateTime? windowStart,
+        DateTime nowUtc,
         CancellationToken ct)
     {
         if (!context.IsActive)
@@ -283,7 +162,10 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
                         new BsonDocument("$and", new BsonArray
                         {
                             inWindow,
-                            new BsonDocument("$eq", new BsonArray { "$status", nameof(ProcessRunStatus.Failed) })
+                            // Effective status (#2474): Failed, Abandoned, and a Running row
+                            // whose host stopped beating all count against the process.
+                            ProcessRunStaleness.EffectiveStatusInExpression(
+                                ProcessRunStatusExtensions.FailureStatuses, nowUtc)
                         }),
                         1,
                         0
@@ -416,7 +298,11 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
             .ToListAsync(ct);
     }
 
-    public async Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct)
+    public async Task<long> CountFailuresSinceAsync(
+        string processName,
+        DateTime? afterUtc,
+        DateTime nowUtc,
+        CancellationToken ct)
     {
         if (!context.IsActive)
         {
@@ -425,12 +311,14 @@ internal sealed class ProcessRunStore(MongoLogContext context) : IProcessRunStor
 
         await EnsureIndexesOnceAsync(ct);
 
-        // Running is not terminal, and Skipped (#1149) / Cancelled (#1513) are terminal but are
-        // not failures — a process that skips hourly between real runs, or one stopped by a
-        // redeploy, would otherwise report a consecutive-failure streak for doing nothing wrong.
+        // Judged on the effective status (#2474): a dead host's stale Running row is a failure
+        // here exactly as it reads Abandoned on the panels — before, it counted for nothing and
+        // the per-process alert never opened. Skipped (#1149) and Cancelled (#1513) are terminal
+        // but not failures: a process that skips hourly between real runs, or one stopped by a
+        // redeploy, would otherwise report a streak for doing nothing wrong.
         var builder = Builders<ProcessRunDocument>.Filter;
         var filter = builder.Eq(doc => doc.ProcessName, processName)
-                     & builder.Nin(doc => doc.Status, [ProcessRunStatus.Running, ProcessRunStatus.Skipped, ProcessRunStatus.Cancelled]);
+                     & ProcessRunStaleness.EffectiveStatusIn(ProcessRunStatusExtensions.FailureStatuses, nowUtc);
 
         if (afterUtc is not null)
         {

@@ -293,7 +293,7 @@ public sealed class LadderSyncProcessTests
                 .Returns(RankSnapshotOutcome.Inserted);
 
             var runStore = Substitute.For<IProcessRunStore>();
-            runStore.GetLastCompletedRunStartAsync("LadderSync", Arg.Any<CancellationToken>())
+            runStore.GetLastCompletedRunStartAsync("LadderSync", Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(LastCompletedRunUtc));
             runStore.GetRunSummariesAsync(
                     Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())

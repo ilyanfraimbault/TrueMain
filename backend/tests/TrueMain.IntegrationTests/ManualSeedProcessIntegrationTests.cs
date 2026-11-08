@@ -157,13 +157,132 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
         request.ProcessedAtUtc.Should().BeNull();
     }
 
-    private ManualSeedProcess BuildProcess(IRiotAccountClient accountClient, IRiotPlatformClient platformClient)
+    [Fact]
+    public async Task ReturnOrphanedClaims_AfterAKillBetweenClaimAndTerminalWrite_MakesTheRequestReclaimable()
+    {
+        var requestId = Guid.NewGuid();
+        await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1");
+        var store = new SeedRequestStore(_context);
+
+        // The host dies right after its claim: the request is Resolving and nothing will
+        // ever write its terminal state.
+        (await store.ClaimAsync(requestId, CancellationToken.None)).Should().BeTrue();
+        (await store.GetPendingAsync(25, CancellationToken.None)).Should().BeEmpty();
+
+        // The next boot of the lane gives the claim back (#2474)...
+        (await store.ReturnOrphanedClaimsAsync(CancellationToken.None)).Should().Be(1);
+        (await GetRequestAsync(requestId)).Status.Should().Be(SeedRequestStatus.Pending);
+
+        // ...and the next run claims and ingests it.
+        await BuildProcess(
+                new FakeRiotAccountClient(("Phantasm", "EUW1", "puuid-seed-1")),
+                new FakeRiotPlatformClient(summonerId: "summoner-seed-1", masteries: [Mastery(64, 500_000, 1)]))
+            .RunCoreAsync(CancellationToken.None);
+
+        (await GetRequestAsync(requestId)).Status.Should().Be(SeedRequestStatus.Ingested);
+    }
+
+    [Fact]
+    public async Task ReturnOrphanedClaims_LeavesTerminalAndPendingRequestsAlone()
+    {
+        var store = new SeedRequestStore(_context);
+        var ingested = Guid.NewGuid();
+        var failed = Guid.NewGuid();
+        var pending = Guid.NewGuid();
+        await SeedRequestAsync(ingested, "A", "EUW1", "EUW1", SeedRequestStatus.Ingested);
+        await SeedRequestAsync(failed, "B", "EUW1", "EUW1", SeedRequestStatus.Failed);
+        await SeedRequestAsync(pending, "C", "EUW1", "EUW1");
+
+        (await store.ReturnOrphanedClaimsAsync(CancellationToken.None)).Should().Be(0);
+
+        (await GetRequestAsync(ingested)).Status.Should().Be(SeedRequestStatus.Ingested);
+        (await GetRequestAsync(failed)).Status.Should().Be(SeedRequestStatus.Failed);
+        (await GetRequestAsync(pending)).Status.Should().Be(SeedRequestStatus.Pending);
+    }
+
+    [Theory]
+    [InlineData(SeedRequestStatus.Pending)]
+    [InlineData(SeedRequestStatus.Ingested)]
+    [InlineData(SeedRequestStatus.Failed)]
+    public async Task TerminalWrites_OnlyApplyToAResolvingRequest(SeedRequestStatus status)
+    {
+        var store = new SeedRequestStore(_context);
+        var requestId = Guid.NewGuid();
+        await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1", status);
+
+        (await store.MarkFailedAsync(requestId, "late failure", DateTime.UtcNow, CancellationToken.None))
+            .Should().BeFalse();
+        (await store.MarkIngestedAsync(requestId, "puuid", Guid.NewGuid(), DateTime.UtcNow, CancellationToken.None))
+            .Should().BeFalse();
+        (await store.ResetResolvingToPendingAsync(requestId, CancellationToken.None))
+            .Should().BeFalse();
+
+        var request = await GetRequestAsync(requestId);
+        request.Status.Should().Be(status);
+        request.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TerminalWrites_OnAResolvingRequest_ApplyOnceAndNeverOverwriteEachOther()
+    {
+        var store = new SeedRequestStore(_context);
+        var requestId = Guid.NewGuid();
+        await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1", SeedRequestStatus.Resolving);
+
+        (await store.MarkIngestedAsync(requestId, "puuid", Guid.NewGuid(), DateTime.UtcNow, CancellationToken.None))
+            .Should().BeTrue();
+        // A stale writer's catch-all can no longer turn the seed that happened into a failure.
+        (await store.MarkFailedAsync(requestId, "late failure", DateTime.UtcNow, CancellationToken.None))
+            .Should().BeFalse();
+
+        var request = await GetRequestAsync(requestId);
+        request.Status.Should().Be(SeedRequestStatus.Ingested);
+        request.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_TerminalWriteFailsAfterTheSqlCommitted_ReturnsTheRequestToPendingInsteadOfFailed()
+    {
+        var requestId = Guid.NewGuid();
+        await SeedRequestAsync(requestId, "Phantasm", "EUW1", "EUW1");
+
+        var process = BuildProcess(
+            new FakeRiotAccountClient(("Phantasm", "EUW1", "puuid-seed-1")),
+            new FakeRiotPlatformClient(summonerId: "summoner-seed-1", masteries: [Mastery(64, 500_000, 1)]),
+            new FailingMarkIngestedStore(new SeedRequestStore(_context)));
+
+        await process.RunCoreAsync(CancellationToken.None);
+
+        // The account and its candidates were written: the seed happened, so the request
+        // must not read Failed. It goes back to Pending and the next run stamps it.
+        await using (var db = _fixture.CreateDbContext())
+        {
+            (await db.MainCandidates.CountAsync(c => c.Puuid == "puuid-seed-1" && c.Status == MainCandidateStatus.Queued))
+                .Should().Be(1);
+        }
+
+        var request = await GetRequestAsync(requestId);
+        request.Status.Should().Be(SeedRequestStatus.Pending);
+        request.Error.Should().BeNull();
+
+        await BuildProcess(
+                new FakeRiotAccountClient(("Phantasm", "EUW1", "puuid-seed-1")),
+                new FakeRiotPlatformClient(summonerId: "summoner-seed-1", masteries: [Mastery(64, 500_000, 1)]))
+            .RunCoreAsync(CancellationToken.None);
+
+        (await GetRequestAsync(requestId)).Status.Should().Be(SeedRequestStatus.Ingested);
+    }
+
+    private ManualSeedProcess BuildProcess(
+        IRiotAccountClient accountClient,
+        IRiotPlatformClient platformClient,
+        ISeedRequestStore? store = null)
         => new(
             NullLogger<ManualSeedProcess>.Instance,
             accountClient,
             platformClient,
             _fixture.CreateSessionFactory(),
-            new SeedRequestStore(_context),
+            store ?? new SeedRequestStore(_context),
             new AccountUpsertService(),
             new CandidateUpsertService(),
             new NoOpAuditLog(),
@@ -181,14 +300,19 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
     private async Task<SeedRequestDocument> GetRequestAsync(Guid id)
         => await Requests().Find(doc => doc.Id == id).SingleAsync();
 
-    private async Task SeedRequestAsync(Guid id, string gameName, string tagLine, string platformId)
+    private async Task SeedRequestAsync(
+        Guid id,
+        string gameName,
+        string tagLine,
+        string platformId,
+        SeedRequestStatus status = SeedRequestStatus.Pending)
         => await Requests().InsertOneAsync(new SeedRequestDocument
         {
             Id = id,
             GameName = gameName,
             TagLine = tagLine,
             PlatformId = platformId,
-            Status = SeedRequestStatus.Pending,
+            Status = status,
             RequestedAtUtc = DateTime.UtcNow
         });
 
@@ -281,5 +405,40 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
             int page,
             CancellationToken ct)
             => throw new NotSupportedException();
+    }
+
+    /// <summary>The real store, except that stamping Ingested fails as a Mongo blip would.</summary>
+    private sealed class FailingMarkIngestedStore(ISeedRequestStore inner) : ISeedRequestStore
+    {
+        public Task InsertAsync(SeedRequestDocument request, CancellationToken ct) => inner.InsertAsync(request, ct);
+
+        public Task<SeedRequestDocument?> FindUnprocessedByRiotIdAsync(string gameName, string tagLine, string platformId, CancellationToken ct)
+            => inner.FindUnprocessedByRiotIdAsync(gameName, tagLine, platformId, ct);
+
+        public Task<SeedRequestDocument?> GetByIdAsync(Guid id, CancellationToken ct) => inner.GetByIdAsync(id, ct);
+
+        public Task<IReadOnlyList<SeedRequestDocument>> GetRecentAsync(SeedRequestStatus? status, string? search, int limit, CancellationToken ct)
+            => inner.GetRecentAsync(status, search, limit, ct);
+
+        public Task<SeedRequestPage> GetPageAsync(SeedRequestStatus? status, string? search, string? platformId, int skip, int take, CancellationToken ct)
+            => inner.GetPageAsync(status, search, platformId, skip, take, ct);
+
+        public Task<IReadOnlyList<SeedRequestDocument>> GetPendingAsync(int batchSize, CancellationToken ct)
+            => inner.GetPendingAsync(batchSize, ct);
+
+        public Task<bool> ClaimAsync(Guid id, CancellationToken ct) => inner.ClaimAsync(id, ct);
+
+        public Task<bool> ResetResolvingToPendingAsync(Guid id, CancellationToken ct) => inner.ResetResolvingToPendingAsync(id, ct);
+
+        public Task<long> ReturnOrphanedClaimsAsync(CancellationToken ct) => inner.ReturnOrphanedClaimsAsync(ct);
+
+        public Task<bool> MarkIngestedAsync(Guid id, string resolvedPuuid, Guid? resolvedRiotAccountId, DateTime processedAtUtc, CancellationToken ct)
+            => throw new TimeoutException("Mongo did not answer.");
+
+        public Task<bool> MarkFailedAsync(Guid id, string? error, DateTime processedAtUtc, CancellationToken ct)
+            => inner.MarkFailedAsync(id, error, processedAtUtc, ct);
+
+        public Task<SeedRequestDocument?> GetLatestResolvedForAccountAsync(string puuid, string platformId, CancellationToken ct)
+            => inner.GetLatestResolvedForAccountAsync(puuid, platformId, ct);
     }
 }

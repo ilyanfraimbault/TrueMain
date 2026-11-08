@@ -414,6 +414,7 @@ Last verified against `develop` on 2026-09-02.
 - A process run is compared with the median of its last 20 successes of the same process and mode, flagged at ≥ +100 % / ≤ −50 %, nothing under 5 runs; thresholds in the Api only (2026-10-26) — #2298
 - The audit trail's wording is one backend catalog served with the events, and a known player's History is the events targeting it (2026-10-26) — #2288
 - The pipeline-health verdict is announced on a Discord webhook, on transitions only (red held 2 evaluations, a process at 3 failed runs, recoveries), 1 h cooldown per signal, state in Mongo, from the cockpit payload read without counting as a visit (2026-10-26) — #2292
+- Seed requests and process runs each have one transition table and every write is filtered on its source status; the ManualSeed lane returns `Resolving` requests to `Pending` at boot, and the store counts judge a stale Running run as the Abandoned failure it is (2026-11-08) — #2474
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 

@@ -61,14 +61,14 @@ public sealed class HarvestCadenceTests
         var summary = await harness.Process(TimeSpan.Zero).RunCoreAsync(CancellationToken.None);
 
         summary.Should().BeOfType<HarvestSummary>();
-        await harness.RunStore.DidNotReceiveWithAnyArgs().GetLastCompletedRunStartAsync(default!, default);
+        await harness.RunStore.DidNotReceiveWithAnyArgs().GetLastCompletedRunStartAsync(default!, default, default);
     }
 
     private sealed class Harness
     {
         public Harness(DateTime? lastCompletedRunUtc)
         {
-            RunStore.GetLastCompletedRunStartAsync("Harvest", Arg.Any<CancellationToken>())
+            RunStore.GetLastCompletedRunStartAsync("Harvest", Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult(lastCompletedRunUtc));
             SessionFactory.CreateAsync(Arg.Any<CancellationToken>())
                 .Returns(_ => Task.FromResult(Substitute.For<IDataSession>()));
