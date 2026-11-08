@@ -109,9 +109,10 @@ public sealed class ManualSeedProcess(
             return;
         }
 
+        var attempt = new SeedAttempt();
         try
         {
-            await ResolveAndIngestAsync(request, options, summary, ct);
+            await ResolveAndIngestAsync(request, options, summary, attempt, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -123,6 +124,19 @@ public sealed class ManualSeedProcess(
             // Use CancellationToken.None — ct is already cancelled.
             await seedRequestStore.ResetResolvingToPendingAsync(request.Id, CancellationToken.None);
             throw;
+        }
+        catch (Exception ex) when (attempt.SqlCommitted)
+        {
+            // The account and its candidates are written and queued; only the terminal
+            // write failed (#2474). Marking the request Failed would report a seed that
+            // happened as one that did not, so give the claim back instead: the next run
+            // redoes the idempotent upsert and stamps Ingested. If the store is unreachable
+            // this throws too and the request stays Resolving until the next boot returns it.
+            logger.LogWarning(
+                ex,
+                "Seed request {SeedRequestId} was ingested but its terminal state could not be written; returned to Pending for a retry.",
+                request.Id);
+            await seedRequestStore.ResetResolvingToPendingAsync(request.Id, CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -140,6 +154,7 @@ public sealed class ManualSeedProcess(
         SeedRequestDocument request,
         ManualSeedOptions options,
         SeedSummary summary,
+        SeedAttempt attempt,
         CancellationToken ct)
     {
         var platform = PlatformId.Parse(request.PlatformId).Route;
@@ -241,9 +256,20 @@ public sealed class ManualSeedProcess(
             MainCandidateStatus.Queued,
             ct);
         summary.CandidatesQueued += queued;
+        attempt.SqlCommitted = true;
 
-        await seedRequestStore.MarkIngestedAsync(
+        var marked = await seedRequestStore.MarkIngestedAsync(
             request.Id, account.Puuid, upsert.Account.Id, timeProvider.GetUtcNow().UtcDateTime, ct);
+        if (!marked)
+        {
+            // Guarded on Resolving (#2474): the claim is no longer ours — another boot gave
+            // it back, or something closed it — so whatever state it holds now stands.
+            logger.LogWarning(
+                "Seed request {SeedRequestId} was no longer Resolving when its ingest completed; its state was left as it is.",
+                request.Id);
+            return;
+        }
+
         summary.Ingested++;
 
         // Named ops event (#444): the seed request reached its successful terminal
@@ -300,6 +326,12 @@ public sealed class ManualSeedProcess(
 
     private static string? Truncate(string? value, int maxLength)
         => string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value[..maxLength];
+
+    /// <summary>How far one request got: past this point a failure is not the seed's.</summary>
+    private sealed class SeedAttempt
+    {
+        public bool SqlCommitted { get; set; }
+    }
 
     private sealed class SeedSummary
     {

@@ -23,7 +23,7 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         return Task.CompletedTask;
     }
 
-    public Task<bool> FinalizeAsync(
+    public Task<ProcessRunFinalizeOutcome> FinalizeAsync(
         Guid id,
         DateTime finishedAtUtc,
         int durationMs,
@@ -35,7 +35,13 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         var run = Runs.FirstOrDefault(candidate => candidate.Id == id);
         if (run is null)
         {
-            return Task.FromResult(false);
+            return Task.FromResult(ProcessRunFinalizeOutcome.NotFound);
+        }
+
+        // Same guard as the Mongo store (#2474): only a Running run is finalized.
+        if (!run.Status.CanTransitionTo(status))
+        {
+            return Task.FromResult(ProcessRunFinalizeOutcome.AlreadyTerminal);
         }
 
         run.FinishedAtUtc = finishedAtUtc;
@@ -43,7 +49,7 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         run.Status = status;
         run.Error = error;
         run.SummaryJson = summaryJson;
-        return Task.FromResult(true);
+        return Task.FromResult(ProcessRunFinalizeOutcome.Finalized);
     }
 
     public Task TouchHeartbeatAsync(Guid id, DateTime nowUtc, CancellationToken ct)
@@ -67,7 +73,7 @@ public sealed class FakeProcessRunStore : IProcessRunStore
         return Task.FromResult(running.Count);
     }
 
-    public Task<DateTime?> GetLastCompletedRunStartAsync(string processName, CancellationToken ct)
+    public Task<DateTime?> GetLastCompletedRunStartAsync(string processName, DateTime nowUtc, CancellationToken ct)
         => Task.FromResult(LastCompletedRunStartUtc);
 
     public Task<ProcessRunPage> QueryRunsAsync(
@@ -97,6 +103,7 @@ public sealed class FakeProcessRunStore : IProcessRunStore
     public Task<IReadOnlyList<ProcessRunRollup>> GetRollupsAsync(
         string? processName,
         DateTime? windowStart,
+        DateTime nowUtc,
         CancellationToken ct)
         => Task.FromResult<IReadOnlyList<ProcessRunRollup>>([]);
 
@@ -131,9 +138,9 @@ public sealed class FakeProcessRunStore : IProcessRunStore
             .Select(run => new ProcessRunBaselineSample(run.DurationMs, run.SummaryJson))
             .ToList());
 
-    public Task<long> CountTerminalRunsSinceAsync(string processName, DateTime? afterUtc, CancellationToken ct)
+    public Task<long> CountFailuresSinceAsync(string processName, DateTime? afterUtc, DateTime nowUtc, CancellationToken ct)
         => Task.FromResult((long)Runs.Count(run =>
             run.ProcessName == processName
-            && run.Status != ProcessRunStatus.Running
+            && ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, nowUtc).CountsAsFailure()
             && (afterUtc is null || run.StartedAtUtc > afterUtc.Value)));
 }

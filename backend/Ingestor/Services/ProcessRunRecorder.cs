@@ -60,14 +60,16 @@ public sealed class ProcessRunRecorder(
         var durationMs = (int)Math.Clamp((finishedAtUtc - startedAtUtc).TotalMilliseconds, 0, int.MaxValue);
         var truncatedError = Truncate(error, MaxErrorLength);
 
-        // Finalise the in-flight Running document in place. If the update misses
-        // (the document was reaped by the TTL before completion, or runId isn't a
-        // real id) fall back to inserting a fresh terminal document so the outcome
-        // is never lost.
-        var finalized = await store.FinalizeAsync(
+        // Finalise the in-flight Running document in place. If no document has this id
+        // (it was reaped by the TTL before completion, or runId isn't a real id) fall back
+        // to inserting a fresh terminal document so the outcome is never lost. A document
+        // that is already terminal stays as it is (#2474): something closed it — the boot
+        // reconcile, for a run that outlived its own host's restart — and a second terminal
+        // write would rewrite an outcome the health alerting may already have acted on.
+        var outcome = await store.FinalizeAsync(
             runId, finishedAtUtc, durationMs, status, truncatedError, summaryJson, ct);
 
-        if (!finalized)
+        if (outcome == ProcessRunFinalizeOutcome.NotFound)
         {
             await store.InsertAsync(
                 new ProcessRunDocument
