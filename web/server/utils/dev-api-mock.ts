@@ -1269,9 +1269,12 @@ function buildPlayers(): MockPlayer[] {
   return players
 }
 
+// A picture from an allowed host that names nobody: the fixtures stay deterministic.
+const MOCK_PERSONA_PICTURE = 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/profileicon/588.png'
+
 const MOCK_PERSONAS = {
-  sheiden: { slug: 'sheiden', displayName: 'Sheiden TV' },
-  koralis: { slug: 'koralis', displayName: 'Koralis' },
+  sheiden: { slug: 'sheiden', displayName: 'Sheiden TV', pictureUrl: MOCK_PERSONA_PICTURE },
+  koralis: { slug: 'koralis', displayName: 'Koralis', pictureUrl: null },
 } as const
 
 const MOCK_PERSONA_ACCOUNTS: ReadonlyArray<readonly [number, PersonaTag]> = [
@@ -1328,8 +1331,7 @@ function mockPersona(requested: string): PersonaResponse | null {
   return {
     slug: persona.slug,
     displayName: persona.displayName,
-    // A picture from an allowed host that names nobody: the fixtures stay deterministic.
-    pictureUrl: slug === 'sheiden' ? 'https://ddragon.leagueoflegends.com/cdn/14.1.1/img/profileicon/588.png' : null,
+    pictureUrl: persona.pictureUrl,
     links: slug === 'sheiden'
       ? [
           { kind: 'twitch', url: 'https://www.twitch.tv/sheiden' },
