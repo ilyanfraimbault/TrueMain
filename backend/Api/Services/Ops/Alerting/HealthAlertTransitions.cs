@@ -2,6 +2,8 @@ using System.Globalization;
 using Data.Ops.Mongo;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
+using TrueMain.Services.Ops.DataQuality;
+using TrueMain.Services.Ops.Health;
 
 namespace TrueMain.Services.Ops.Alerting;
 
@@ -43,9 +45,6 @@ internal static class HealthAlertTransitions
     /// <summary>Evaluation intervals after which saved streaks no longer count.</summary>
     public const int StaleAfterIntervals = 3;
 
-    private const string Red = "red";
-    private const string Unknown = "unknown";
-
     /// <summary>What one evaluation says about every watched key.</summary>
     public static IReadOnlyList<HealthObservation> Observe(PipelineHealthReadModel health, AlertingOptions options)
     {
@@ -55,10 +54,11 @@ internal static class HealthAlertTransitions
         var observations = new List<HealthObservation>(health.Signals.Count + health.Processes.Count);
         foreach (var signal in health.Signals)
         {
-            bool? failing = signal.Status switch
+            // Judged on the enum (#2474); the string is only the wire form.
+            bool? failing = PipelineHealthEvaluator.FromWireName(signal.Status) switch
             {
-                Red => true,
-                Unknown => null,
+                DetectorStatus.Red => true,
+                DetectorStatus.Unknown => null,
                 _ => false
             };
             observations.Add(new HealthObservation(

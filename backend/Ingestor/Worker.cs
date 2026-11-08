@@ -1,3 +1,4 @@
+using Data.Ops.Mongo;
 using Ingestor.FetchWorkers;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -34,6 +35,7 @@ public sealed class Worker(
 
         await ReconcileOrphanedRunsAsync(mode, stoppingToken);
         await ReleaseOrphanedClaimsAsync(mode, stoppingToken);
+        await ReturnOrphanedSeedClaimsAsync(mode, stoppingToken);
 
         // The heartbeat used to be touched once per iteration, at the top. A Full pass runs
         // for many minutes and the wait between passes for a whole Job:IntervalMinutes, so
@@ -230,6 +232,38 @@ public sealed class Worker(
             // Never block the boot: the lease-based reap at the top of the next
             // MatchIngestion pass is the fallback that was doing this job on its own.
             logger.LogError(ex, "Startup release of orphaned claims failed; continuing to start the worker.");
+        }
+    }
+
+    private async Task ReturnOrphanedSeedClaimsAsync(JobMode mode, CancellationToken stoppingToken)
+    {
+        // Only the lane that runs the manual seed: a Resolving seed request is that
+        // process's claim, and another lane's boot has no business releasing it.
+        if (!JobModeSequence.For(mode).Contains(JobMode.ManualSeedOnly))
+        {
+            return;
+        }
+
+        // A single-instance lane cannot hold a live seed claim at boot, so every Resolving
+        // request was stranded by a predecessor killed between claim and terminal write
+        // (#2474). Without this it never reaches GetPendingAsync again and keeps answering
+        // the create endpoint as "already queued", so its Riot ID could never be re-seeded.
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var store = scope.ServiceProvider.GetRequiredService<ISeedRequestStore>();
+
+            var returned = await store.ReturnOrphanedClaimsAsync(stoppingToken);
+            if (returned > 0)
+            {
+                logger.LogWarning(
+                    "Returned {SeedRequests} seed request(s) left Resolving by the previous incarnation to Pending at startup.",
+                    returned);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Startup return of orphaned seed-request claims failed; continuing to start the worker.");
         }
     }
 
