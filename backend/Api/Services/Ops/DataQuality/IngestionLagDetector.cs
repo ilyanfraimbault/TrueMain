@@ -82,12 +82,6 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
         var pendingTimelines = await db.Matches
             .AsNoTracking()
             .LongCountAsync(match => !match.TimelineIngested, ct);
-        rows.Add(QueueDepthRow(
-            "Matches awaiting a timeline",
-            pendingTimelines,
-            settings.PendingTimelineAmber,
-            settings.PendingTimelineRed,
-            "Normal backlog while MatchIngestion catches up; a standing pile means timelines are failing."));
 
         var candidateCounts = await db.MainCandidates
             .AsNoTracking()
@@ -100,18 +94,28 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
         var queued = candidateCounts.FirstOrDefault(row => row.Status == MainCandidateStatus.Queued)?.Count ?? 0;
         var processing = candidateCounts.FirstOrDefault(row => row.Status == MainCandidateStatus.Processing)?.Count ?? 0;
 
-        rows.Add(QueueDepthRow(
-            "Candidates queued",
-            queued,
-            settings.QueuedCandidatesAmber,
-            settings.QueuedCandidatesRed,
-            "Work waiting for MainAnalysis."));
-        rows.Add(QueueDepthRow(
-            "Candidates processing",
-            processing,
-            settings.ProcessingCandidatesAmber,
-            settings.ProcessingCandidatesRed,
-            "Processing is a lease state — a large standing population means leases are leaking, not that work is queued."));
+        QueueDepth[] queues =
+        [
+            new(
+                "Matches awaiting a timeline",
+                pendingTimelines,
+                settings.PendingTimelineAmber,
+                settings.PendingTimelineRed,
+                "Normal backlog while MatchIngestion catches up; a standing pile means timelines are failing."),
+            new(
+                "Candidates queued",
+                queued,
+                settings.QueuedCandidatesAmber,
+                settings.QueuedCandidatesRed,
+                "Work waiting for MainAnalysis."),
+            new(
+                "Candidates processing",
+                processing,
+                settings.ProcessingCandidatesAmber,
+                settings.ProcessingCandidatesRed,
+                "Processing is a lease state — a large standing population means leases are leaking, not that work is queued.")
+        ];
+        rows.AddRange(queues.Select(QueueDepthRow));
 
         var lagStatus = DataQualityDetectorEvaluator.Worst(rows.Select(DetectorCards.ParseStatus));
 
@@ -122,14 +126,7 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
             Status = lagStatus.ToWireName(),
             Count = lagging,
             CountLabel = "platforms behind their ingestion line",
-            Headline = lagStatus switch
-            {
-                DetectorStatus.Green => "Every platform has ingested a match within its expected window.",
-                DetectorStatus.Unknown => "Ingestion lag could not be measured on part of the corpus.",
-                _ => string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{lagging} platform(s) have not ingested a recent match, or a queue has stopped draining."),
-            },
+            Headline = Headline(lagStatus, lagging, queues),
             SourceNote = "Newest match per platform (grouped over the ranked queue), plus the two queue depths that "
                 + "distinguish a backlog from a stall. Same order of cost as the overview panel's counts.",
             Rows = rows,
@@ -143,17 +140,62 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
         };
     }
 
-    private static DataQualityDetectorRowReadModel QueueDepthRow(
-        string label,
-        long value,
-        long amber,
-        long red,
-        string note) => new()
+    /// <summary>
+    /// The card's sentence, built from the rows that fired: a queue that crossed its line
+    /// is named with its depth and the line, so a verdict tripped by a backlog never reads
+    /// as "0 platform(s) behind" (#2459).
+    /// </summary>
+    internal static string Headline(DetectorStatus status, long lagging, IReadOnlyList<QueueDepth> queues)
+    {
+        if (status == DetectorStatus.Green)
         {
-            Label = label,
-            Status = DataQualityDetectorEvaluator.Classify(value, amber, red).ToWireName(),
-            Value = value,
-            ValueLabel = string.Create(CultureInfo.InvariantCulture, $"{value}"),
-            Note = note
-        };
+            return "Every platform has ingested a match within its expected window.";
+        }
+
+        if (status == DetectorStatus.Unknown)
+        {
+            return "Ingestion lag could not be measured on part of the corpus.";
+        }
+
+        var causes = new List<string>();
+        if (lagging > 0)
+        {
+            causes.Add(lagging == 1
+                ? "1 platform has not ingested a recent match"
+                : string.Create(CultureInfo.InvariantCulture, $"{lagging} platforms have not ingested a recent match"));
+        }
+
+        foreach (var queue in queues)
+        {
+            var queueStatus = queue.Status;
+            if (queueStatus is DetectorStatus.Amber or DetectorStatus.Red)
+            {
+                var line = queueStatus == DetectorStatus.Red ? queue.Red : queue.Amber;
+                causes.Add(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{queue.Value:N0} {char.ToLowerInvariant(queue.Label[0])}{queue.Label[1..]} ({queueStatus.ToWireName()} from {line:N0})"));
+            }
+        }
+
+        // Unreachable while the verdict is the worst of these rows, but a sentence that
+        // names nothing must still not read as a pass.
+        return causes.Count == 0
+            ? "A platform or a queue is past its line."
+            : string.Concat(char.ToUpperInvariant(causes[0][0]), string.Join("; ", causes)[1..], ".");
+    }
+
+    private static DataQualityDetectorRowReadModel QueueDepthRow(QueueDepth queue) => new()
+    {
+        Label = queue.Label,
+        Status = queue.Status.ToWireName(),
+        Value = queue.Value,
+        ValueLabel = string.Create(CultureInfo.InvariantCulture, $"{queue.Value}"),
+        Note = queue.Note
+    };
+
+    /// <summary>One queue the card watches, with the two lines it is judged against.</summary>
+    internal sealed record QueueDepth(string Label, long Value, long Amber, long Red, string Note = "")
+    {
+        public DetectorStatus Status => DataQualityDetectorEvaluator.Classify(Value, Amber, Red);
+    }
 }
