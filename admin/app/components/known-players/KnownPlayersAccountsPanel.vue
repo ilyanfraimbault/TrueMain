@@ -6,6 +6,7 @@
 import type { PersonaAccountInput, PersonaAdminAccount } from '~~/shared/types/ops'
 import { computed, ref } from 'vue'
 import { ACCOUNT_PLATFORMS, accountInput, accountLabel } from '~~/shared/utils/known-players'
+import { useArmedConfirm } from '~/composables/useArmedConfirm'
 
 const props = defineProps<{
   accounts: PersonaAdminAccount[]
@@ -17,18 +18,12 @@ const emit = defineEmits<{
   add: [account: PersonaAccountInput]
 }>()
 
-const armed = ref<string | null>(null)
+const { armed, sending, press } = useArmedConfirm({ busy: () => props.busy })
 
 function unlink(account: PersonaAdminAccount) {
-  if (props.busy) {
-    return
+  if (press(account.id)) {
+    emit('unlink', account)
   }
-  if (armed.value !== account.id) {
-    armed.value = account.id
-    return
-  }
-  armed.value = null
-  emit('unlink', account)
 }
 
 const riotId = ref('')
@@ -67,6 +62,7 @@ const tracked = computed(() => props.accounts.filter(a => a.riotAccountId).lengt
           :variant="armed === account.id ? 'solid' : 'ghost'"
           :label="armed === account.id ? 'Confirm unlink' : undefined"
           :aria-label="`Unlink ${account.gameName}#${account.tagLine}`"
+          :loading="busy && sending === account.id"
           :disabled="busy"
           @click="unlink(account)"
         />

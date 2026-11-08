@@ -84,11 +84,9 @@ describe('AccountsTrace', () => {
 describe('AccountsSeedSingle', () => {
   it('prefills the name fields from ?riotId=, either spelling', async () => {
     vi.stubGlobal('useSeedTracking', () => ({
+      state: ref({ s: 'idle' }),
       submitting: ref(false),
       tracked: ref(null),
-      submitError: ref(null),
-      polling: ref(false),
-      polledOut: ref(false),
       submit: vi.fn(),
     }))
     vi.stubGlobal('seedStatusColor', () => 'neutral')
