@@ -972,6 +972,14 @@ the click still opens the build). It is still the player's click and a hover is 
 a ban, which is not, keeps a bar under the card that arms ("Confirm") and writes on a second click, the confirmation
 popover gone; an ally's pick intent arms the card the same way. The cards no longer grow on hover — #2381.
 
+**The pick is locked from the hovered champion's card, and a hover is silent (2026-11-08).** The product owner wanted
+the lock where the choice is made: a click on a card selects (hovers) the champion, and that card — ringed — carries
+a small "Lock in" bar under it; the strip's "Lock in <Champion>" button is gone. A hover the podium does not show is
+listed beside it with the same control, so a pick can always be locked. It is still its own button, never the card's
+click, so #1909's "a misclick on a card can never lock" holds, and an ally's pick intent still asks first. A hover
+raises no toast, success or refusal: it is a selection the card already shows, made and remade; a refused lock or
+ban still says why — #2465.
+
 **A player keeps their own builds as kits: an item tree, a rune page and two spells per champion and position, used
 in champion select and the overlay (2026-10-21).** Benchmarked on a competitor's "My builds" (a flat item route per
 role); ours is a loadout — the item path *and* the rune page *and* the spells — and the path is a tree like our

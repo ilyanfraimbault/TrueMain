@@ -121,7 +121,7 @@ describe('DraftSuggestions', () => {
     const { ref } = await import('vue')
     vi.stubGlobal('ref', ref)
     vi.stubGlobal('useChampionStatics', () => ({ nameOf: (id: number) => (id === 103 ? 'Ahri' : 'Zed'), champions: ref(new Map()) }))
-    vi.stubGlobal('useChampSelectActions', () => ({ writable: ref(true) }))
+    vi.stubGlobal('useChampSelectActions', () => ({ writable: ref(true), kind: ref('pick'), hovered: ref(null) }))
     vi.stubGlobal('useDraftCardClick', () => ({ hovers: () => false, status: () => null, click: () => {} }))
     vi.stubGlobal('useTierList', () => ({ entryOf: () => null, status: ref('ready') }))
     vi.stubGlobal('useDamageProfiles', () => ({ profileOf: () => null }))

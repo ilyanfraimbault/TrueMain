@@ -148,7 +148,7 @@ describe('DraftSuggestions without a lane from the client', () => {
     vi.stubGlobal('ref', ref)
     vi.stubGlobal('computed', computed)
     vi.stubGlobal('useChampionStatics', () => ({ nameOf: () => 'Ahri', champions: ref(new Map()) }))
-    vi.stubGlobal('useChampSelectActions', () => ({ writable: ref(true) }))
+    vi.stubGlobal('useChampSelectActions', () => ({ writable: ref(true), kind: ref('pick'), hovered: ref(null) }))
     vi.stubGlobal('useDraftCardClick', () => ({ hovers: () => false, status: () => null, click: () => {} }))
     vi.stubGlobal('useTierList', () => ({ entryOf: () => null, status: ref('ready') }))
     vi.stubGlobal('useDamageProfiles', () => ({ profileOf: () => null }))
