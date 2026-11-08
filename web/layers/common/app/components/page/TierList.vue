@@ -3,7 +3,7 @@ import { championDisplayName } from '#shared/utils/champion-name'
 // The tier list, as the site and the desktop app both render it (#1732): each
 // app's route file wraps this with its own head tags and nothing else.
 import type { ChampionTierListResponse } from '#shared/types/champions'
-import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
+import { isChampionPosition, type ChampionPosition } from '#shared/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { describeStaleFetchError } from '#common/utils/errors'
 

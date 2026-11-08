@@ -12,23 +12,7 @@
  * It is no longer the *page* default — see `DEFAULT_ELO_BRACKET`.
  */
 
-import { formatTierName } from '#common/utils/tiers'
-
-/** Ranked tiers, ascending (Iron→Challenger); each apex tier is its own bucket. */
-export const ELO_TIERS = [
-  'IRON',
-  'BRONZE',
-  'SILVER',
-  'GOLD',
-  'PLATINUM',
-  'EMERALD',
-  'DIAMOND',
-  'MASTER',
-  'GRANDMASTER',
-  'CHALLENGER',
-] as const
-
-export type EloTier = typeof ELO_TIERS[number]
+import { ELO_TIERS, formatTierName, isEloTier, type EloTier } from './ranks'
 
 export const ELO_BRACKET_ALL = 'ALL'
 export const ELO_PLUS_SUFFIX = '_PLUS'
@@ -63,10 +47,6 @@ export function tierPlus(tier: EloTier): string {
 /** Challenger tops the ladder, so its "+" would add nothing — hide it. */
 export function hasPlus(tier: EloTier): boolean {
   return tier !== 'CHALLENGER'
-}
-
-export function isEloTier(value: unknown): value is EloTier {
-  return typeof value === 'string' && (ELO_TIERS as readonly string[]).includes(value)
 }
 
 /** True for `ALL`, a bare tier, or a recognised `<TIER>_PLUS` form. */

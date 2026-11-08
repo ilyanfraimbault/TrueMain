@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { positionLabel } from '#common/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import type { Lane } from '~/types/draft'
 

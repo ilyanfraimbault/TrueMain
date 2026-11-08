@@ -2,7 +2,7 @@
 import { clipDeleteDescription, dayLabel, formatBytes, recordingKda, revealLabel } from '~/utils/recording-library'
 import { type RecordingWinProbability, videoOnDisk } from '~/types/recordings'
 import { formatClock, momentCast } from '~/utils/recording-moments'
-import { getQueueLabel } from '#common/utils/queues'
+import { getQueueLabel } from '#shared/utils/queues'
 
 /**
  * A saved clip's player: the clip's own file with the moments inside it on its

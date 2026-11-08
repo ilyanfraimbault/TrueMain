@@ -474,7 +474,7 @@ read as modern and the other pages of both apps did not. Option A was chosen ove
   — the truemains table, the champion page's rows, the home teaser, the app's build mains and the match scoreboard
   (crest only, 18 px). The table's variant won where the copies had drifted (the home teaser and the champion page
   drew a 26 px crest with a `text-sm` division). Every rank written out goes through `formatRank` /
-  `formatTierName` / `formatLeaguePoints` (`utils/tiers.ts`): **title case**, the way the client prints it —
+  `formatTierName` / `formatLeaguePoints` (`web/shared/utils/ranks.ts`): **title case**, the way the client prints it —
   `Diamond II · 1,204 LP`, `Master` with no division at the apex — on the pages, the tooltips, the crest's own
   title and the share card; the capitals `DIAMOND II` of the old `formatTier` are gone. The truemains table and the
   champion page's rows share their columns (`LeaderboardLanes`, `LeaderboardChampions`, `LeaderboardScore`,
