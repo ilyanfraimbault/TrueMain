@@ -677,6 +677,8 @@ known player, a match's detail) is one `RemoteRead<T>` value (`web/layers/common
 `isLoading` / `isInitialLoading` / `notFound` / `error` are read-only views of it. A request lets a failed
 response throw (no `ignoreResponseError`), and only a thrown 404 becomes `notFound`; a 5xx, a 429 or a network
 failure is an `error`, shown with `FetchErrorAlert`, and the last answer stays on screen beside it.
+In the desktop app the shell rejects with a string (`TrueMain answered 404 …`, `api.rs`); its `useApiFetch` hands
+the shared pages that rejection as the same ofetch-shaped error (`desktop/app/app/utils/shell-error.ts`).
 
 - **Why.** With `ignoreResponseError` every failure resolved to an error body, failed the shape check and read as
   "not found": an API outage answered `/players/{slug}` with an "Unknown player" page *and an HTTP 404 to
