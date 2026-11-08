@@ -1,20 +1,22 @@
 import type { EventHandler, H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { abortOnAbandonment } from '~~/../web/layers/nitro/server/utils/abandoned-request'
-import { toRouteTemplate } from '~~/../web/layers/nitro/server/utils/log-forwarder'
-import { isUnsafeProxyPath } from '~~/../web/layers/nitro/server/utils/proxy-path'
+import { proxyToBackend } from '~~/../web/layers/nitro/server/utils/backend-proxy'
 
-// The only entry point to the privileged backend. It is a Nitro route, so the three things
-// it leans on — `requireUserSession`, `useRuntimeConfig` and `isUnsafeProxyPath` — are
-// auto-imports rather than module imports; stubbing them as globals is what lets the
-// handler run outside Nitro. `isUnsafeProxyPath` is stubbed with the real implementation
-// (imported directly, not mocked) rather than a `vi.fn()`, so the escaping-path cases below
-// exercise the actual predicate — pinned separately in web/tests/proxy-path/proxy-path.test.ts —
-// instead of a canned return value. `proxyRequest` is mocked so nothing here ever opens a
-// socket, which is also what makes "no session rejects before any network call" an
-// assertion rather than a hope.
+// The only entry point to the privileged backend. It is a Nitro route, so what it leans on —
+// `requireUserSession`, `useRuntimeConfig`, `proxyToBackend` — are auto-imports; stubbing them
+// as globals is what lets the handler run outside Nitro. `proxyToBackend` is the real one, so
+// the escaping-path cases below exercise the actual guards. `proxyRequest` is mocked so nothing
+// here ever opens a socket, which is also what makes "no session rejects before any network
+// call" an assertion rather than a hope.
 const proxyRequest = vi.fn()
+
+const reportToOpsLogs = vi.fn()
+
+vi.mock('~~/../web/layers/nitro/server/utils/log-forwarder', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~~/../web/layers/nitro/server/utils/log-forwarder')>()
+  return { ...actual, reportToOpsLogs: (...args: Parameters<typeof actual.reportToOpsLogs>) => reportToOpsLogs(...args) }
+})
 
 vi.mock('h3', async (importOriginal) => {
   const actual = await importOriginal<typeof import('h3')>()
@@ -29,11 +31,7 @@ const useRuntimeConfig = vi.fn()
 
 vi.stubGlobal('requireUserSession', (event: H3Event) => requireUserSession(event))
 vi.stubGlobal('useRuntimeConfig', (event: H3Event) => useRuntimeConfig(event))
-vi.stubGlobal('isUnsafeProxyPath', isUnsafeProxyPath)
-const reportToOpsLogs = vi.fn()
-vi.stubGlobal('toRouteTemplate', toRouteTemplate)
-vi.stubGlobal('reportToOpsLogs', reportToOpsLogs)
-vi.stubGlobal('abortOnAbandonment', abortOnAbandonment)
+vi.stubGlobal('proxyToBackend', proxyToBackend)
 
 async function loadHandler(): Promise<EventHandler> {
   const module = await import('~~/server/api/ops/[...path]')

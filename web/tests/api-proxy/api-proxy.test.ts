@@ -1,30 +1,29 @@
 import type { EventHandler, H3Event } from 'h3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { abortOnAbandonment } from '~~/layers/nitro/server/utils/abandoned-request'
-import { isInternalApiPath } from '~~/server/utils/internal-api-path'
-import { toRouteTemplate } from '~~/layers/nitro/server/utils/log-forwarder'
-import { isUnsafeProxyPath } from '~~/layers/nitro/server/utils/proxy-path'
+import { proxyToBackend } from '~~/layers/nitro/server/utils/backend-proxy'
 
 // The public `/api` proxy (#1556): it must never forward a visitor to the API's
 // `/internal` surface, and every 429 or 5xx the API answers through it is reported to
-// the ops logs. Nitro auto-imports are stubbed as globals, the guards with their real
+// the ops logs. Nitro auto-imports are stubbed as globals with their real
 // implementations; `proxyRequest` is mocked so nothing opens a socket.
 const proxyRequest = vi.fn()
+
+const reportToOpsLogs = vi.fn()
+
+vi.mock('~~/layers/nitro/server/utils/log-forwarder', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('~~/layers/nitro/server/utils/log-forwarder')>()
+  return { ...actual, reportToOpsLogs: (...args: Parameters<typeof actual.reportToOpsLogs>) => reportToOpsLogs(...args) }
+})
 
 vi.mock('h3', async (importOriginal) => {
   const actual = await importOriginal<typeof import('h3')>()
   return { ...actual, proxyRequest: (...args: unknown[]) => proxyRequest(...args) }
 })
 
-const reportToOpsLogs = vi.fn()
 
 vi.stubGlobal('useRuntimeConfig', () => ({ apiBaseUrl: 'http://api:8080' }))
-vi.stubGlobal('isUnsafeProxyPath', isUnsafeProxyPath)
-vi.stubGlobal('isInternalApiPath', isInternalApiPath)
-vi.stubGlobal('toRouteTemplate', toRouteTemplate)
-vi.stubGlobal('reportToOpsLogs', reportToOpsLogs)
-vi.stubGlobal('abortOnAbandonment', abortOnAbandonment)
+vi.stubGlobal('proxyToBackend', proxyToBackend)
 
 async function loadHandler(): Promise<EventHandler> {
   const module = await import('~~/server/api/[...path]')
@@ -66,6 +65,16 @@ describe('api proxy handler', () => {
     expect(proxyRequest).not.toHaveBeenCalled()
   })
 
+  // #2290: h3 decodes `event.path`, and a decoded `#` is a fragment the forwarded request drops.
+  it('forwards the path as the browser sent it, so a Riot ID keeps its tag', async () => {
+    const handler = await loadHandler()
+    const event = { path: '/api/truemains/Faker#KR1', method: 'GET', node: { req: { originalUrl: '/api/truemains/Faker%23KR1' } } }
+
+    await handler(event as unknown as H3Event)
+
+    expect(proxyRequest.mock.calls[0]![1]).toBe('http://api:8080/truemains/Faker%23KR1')
+  })
+
   it('still forwards a path that merely contains the word', async () => {
     const handler = await loadHandler()
 
@@ -86,7 +95,7 @@ describe('api proxy handler', () => {
     expect(reportToOpsLogs).toHaveBeenCalledWith(expect.objectContaining({
       level,
       eventType: 'FrontendUpstreamErrors',
-      requestPath: '/api/champions/{n}/scaling',
+      requestPath: '/champions/{n}/scaling',
       statusCode: status,
     }))
   })
