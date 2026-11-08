@@ -4,10 +4,10 @@
 // queued (Pending -> Resolving -> Ingested/Failed). The submit + polling live in
 // `useSeedTracking`; split out of `AccountsSeed.vue` (#1436).
 import type { FormError, FormSubmitEvent } from '@nuxt/ui'
-import type { SeedRequestStatus } from '~~/shared/types/ops'
 import { TRACKED_REGION_ITEMS, TRACKED_REGIONS_LABEL } from '~~/shared/utils/regions'
 import { formatRiotId, parseRiotIdOrSlug } from '~~/shared/utils/riot-id'
 import { SEED_POLL_TIMEOUT_MS } from '~/composables/useSeedTracking'
+import { SEED_STEP_STYLE, SEED_STEPS, seedStepStates } from '~/utils/seed-tracking'
 
 const emit = defineEmits<{
   /** A request was queued: the queue's first page now holds it. */
@@ -61,7 +61,7 @@ function validate(s: SeedFormState): FormError[] {
   return errors
 }
 
-const { submitting, tracked, submitError, polling, polledOut, submit } = useSeedTracking({
+const { state: seed, submitting, tracked, submit } = useSeedTracking({
   onSubmitted: () => emit('submitted'),
   onSettled: () => emit('settled'),
 })
@@ -83,23 +83,10 @@ const trackedRiotId = computed(() =>
 // tab badges a status exactly like the account explorer and the candidate
 // pipeline do.
 
-// Stepper model: Pending -> Resolving -> (Ingested | Failed). The active step
-// derives from the tracked status; Failed marks the resolve step as errored.
-const STEPS: { key: SeedRequestStatus, label: string }[] = [
-  { key: 'Pending', label: 'Queued' },
-  { key: 'Resolving', label: 'Resolving Riot ID' },
-  { key: 'Ingested', label: 'Account queued' },
-]
-const STEP_RANK: Record<SeedRequestStatus, number> = {
-  Pending: 0,
-  Resolving: 1,
-  Ingested: 2,
-  // Failed shares the resolve stage visually (that's where it usually breaks).
-  Failed: 1,
-}
-const activeRank = computed(() =>
-  tracked.value ? STEP_RANK[tracked.value.status] : -1,
-)
+// Stepper: Pending -> Resolving -> (Ingested | Failed), each step's look read from
+// one table (`utils/seed-tracking.ts`); Failed marks the resolve step, where it broke.
+const steps = computed(() => tracked.value ? seedStepStates(tracked.value.status) : [])
+const polling = computed(() => seed.value.s === 'polling')
 const isFailed = computed(() => tracked.value?.status === 'Failed')
 </script>
 
@@ -172,8 +159,8 @@ const isFailed = computed(() => tracked.value?.status === 'Failed')
 
     <!-- Submit-level error (network / 400 before an id was issued) -->
     <FetchErrorAlert
-      v-if="submitError"
-      :message="submitError"
+      v-if="seed.s === 'rejected'"
+      :message="seed.error"
       title="Could not queue this Riot ID"
       class="mt-6"
     />
@@ -201,43 +188,25 @@ const isFailed = computed(() => tracked.value?.status === 'Failed')
 
       <!-- Stepper -->
       <ol class="flex items-center gap-2">
-        <template v-for="(step, i) in STEPS" :key="step.key">
-          <li class="flex items-center gap-2 min-w-0">
+        <template v-for="(step, i) in SEED_STEPS" :key="step.key">
+          <li class="flex items-center gap-2 min-w-0" :data-step-state="steps[i]">
             <span
               class="flex items-center justify-center size-6 rounded-full text-xs shrink-0 ring-1"
-              :class="[
-                isFailed && i === 2
-                  ? 'bg-error/10 text-error ring-error/30'
-                  : i < activeRank || (i === 2 && tracked.status === 'Ingested')
-                    ? 'bg-success/10 text-success ring-success/30'
-                    : i === activeRank
-                      ? 'bg-primary/10 text-primary ring-primary/30'
-                      : 'bg-elevated text-dimmed ring-default',
-              ]"
+              :class="SEED_STEP_STYLE[steps[i]!].dot"
             >
-              <UIcon
-                v-if="i < activeRank || (i === 2 && tracked.status === 'Ingested')"
-                name="i-lucide-check"
-                class="size-3.5"
-              />
-              <UIcon
-                v-else-if="i === activeRank && polling"
-                name="i-lucide-loader"
-                class="size-3.5 animate-spin"
-              />
+              <UIcon v-if="steps[i] === 'done'" name="i-lucide-check" class="size-3.5" />
+              <UIcon v-else-if="steps[i] === 'failed'" name="i-lucide-x" class="size-3.5" />
+              <UIcon v-else-if="steps[i] === 'active' && polling" name="i-lucide-loader" class="size-3.5 animate-spin" />
               <span v-else>{{ i + 1 }}</span>
             </span>
-            <span
-              class="text-xs truncate"
-              :class="i <= activeRank ? 'text-default' : 'text-dimmed'"
-            >
+            <span class="text-xs truncate" :class="SEED_STEP_STYLE[steps[i]!].label">
               {{ step.label }}
             </span>
           </li>
           <li
-            v-if="i < STEPS.length - 1"
+            v-if="i < SEED_STEPS.length - 1"
             class="flex-1 h-px min-w-4"
-            :class="i < activeRank ? 'bg-success/40' : 'bg-default'"
+            :class="SEED_STEP_STYLE[steps[i]!].connector"
           />
         </template>
       </ol>
@@ -260,7 +229,7 @@ const isFailed = computed(() => tracked.value?.status === 'Failed')
           title="Seeding failed"
           :description="tracked.error ?? 'The Riot ID could not be resolved.'"
         />
-        <p v-else-if="polledOut" class="text-muted">
+        <p v-else-if="seed.s === 'timedOut'" class="text-muted">
           Still processing after {{ SEED_POLL_TIMEOUT_MS / 1000 }}s — it will
           continue in the background. Use refresh to check on it later.
         </p>

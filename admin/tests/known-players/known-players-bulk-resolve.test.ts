@@ -123,6 +123,35 @@ describe('KnownPlayersBulkResolve', () => {
     expect(failing.wrapper.emitted('resolved')).toBeUndefined()
   })
 
+  it('sends the floor the preview on screen was asked for, never a superseded one (#2471)', async () => {
+    const toast = { success: vi.fn(), warning: vi.fn(), failure: vi.fn() }
+    let failFloor20!: (error: unknown) => void
+    const previewBulkResolve = vi.fn((floor: number) => floor === 20
+      ? new Promise((_, reject) => {
+          failFloor20 = reject
+        })
+      : Promise.resolve({ ...preview([candidate()]), minScore: floor }))
+    const bulk = vi.fn().mockResolvedValue({ resolved: 1, skipped: 0, outcomes: [] })
+    vi.stubGlobal('previewBulkResolve', previewBulkResolve)
+    vi.stubGlobal('bulkResolvePersonaConflicts', bulk)
+    vi.stubGlobal('useActionToast', () => toast)
+    const wrapper = mount(KnownPlayersBulkResolve, { props: { open: true }, global: { components: ui } })
+
+    // The operator moves the floor to 30 while the floor-20 preview is still loading…
+    wrapper.findComponent(ui.USelect).vm.$emit('update:modelValue', 30)
+    await flushPromises()
+    // …and the floor-20 request fails late: it must not blank the floor-30 preview.
+    failFloor20(new Error('timeout'))
+    await flushPromises()
+    expect(wrapper.find('aside').exists()).toBe(false)
+    expect(wrapper.findAll('[data-candidate]')).toHaveLength(1)
+
+    await wrapper.find('[data-action="bulk-confirm"]').trigger('click')
+    await wrapper.find('[data-action="bulk-confirm"]').trigger('click')
+    await flushPromises()
+    expect(bulk).toHaveBeenCalledWith({ ids: ['c1'], minScore: 30 })
+  })
+
   it('shows a preview that failed to load', async () => {
     const { wrapper } = setup(Promise.reject(new Error('boom')))
     await flushPromises()

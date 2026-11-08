@@ -117,3 +117,21 @@ export function summaryJson(summary: ProcessRun['summary']): string | null {
   }
   return JSON.stringify(summary, null, 2)
 }
+
+/**
+ * The run a detail slide-over shows (#2471): the clicked run as the live feeds have
+ * it now, so a Running run settles in place on the next refresh; the click's
+ * snapshot only when the run has left every feed (paged out of a short history).
+ */
+export function liveRun(selected: ProcessRun | null, feeds: readonly (readonly ProcessRun[])[]): ProcessRun | null {
+  if (!selected) {
+    return null
+  }
+  for (const runs of feeds) {
+    const found = runs.find(run => run.id === selected.id)
+    if (found) {
+      return found
+    }
+  }
+  return selected
+}
