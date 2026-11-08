@@ -440,7 +440,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   games on, then their win rate, games and KDA on the champion among their last twenty ("First time" with none) over
   their last ten games as the loading screen's bars — all from the loading screen's read (`useLoadingPlayers`, one more
   client request per player for the standing), matched to the live player by Riot ID, an anonymous one by side and
-  champion; a standing still being read shows a placeholder, one the client could not read shows nothing — under a
+  champion; a standing still being read shows a placeholder, one the client could not read shows nothing; each read is
+  pending, read or failed for good, and once the board's reads are over nothing stays a placeholder (#2472) — under a
   strip with the map, each side's kills and a running game clock. Between each lane's two players, **the lane's edge**
   (#1863, `game/GameLaneEdge.vue`, `utils/lane-edge.ts`, `useLaneEdges`): an arrow towards the favoured side (doubled
   from 60 %) with its chance — TrueMain's head-to-head of the two champions at that position (`/champions/{id}/matchups?opponent=`,
@@ -449,7 +450,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   themselves not shown. The same arrows sit between the two columns of the waiting state's loading board. A loading
   state until the game has started (`GameStart`), with the loading screen board (#1753, `loading/LoadingBoard.vue`:
   form on the champion and last ten games as bars, names and histories read by puuid through the client — #1869 —
-  and the same true-main mark after a name), a
+  and the same true-main mark after a name; kept through a reconnect; "the client did not list this game's players"
+  when the roster never comes, #2472), a
   waiting state outside a game. What the API reveals about enemies is documented in `desktop/README.md` and still to verify in
   a live game.
   Over the board, when we are a player, **the next item** (#1751, `game/GameNextItem.vue`): the legendary the mains
@@ -654,7 +656,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   YouTube link). The clip stays in Recordings with its thumbnail, title and K/D/A, its card marked "On YouTube", and
   counts only its remaining bytes. Its player becomes YouTube's embedded player (with "Watch on YouTube" under it — a
   private video only plays on YouTube); no drag, "Show in Finder" or publish entry, and its link can no longer be
-  forgotten. The embed is framed through a page the shell serves on `127.0.0.1` (`recording/embed.rs`): YouTube's
+  forgotten. A clip whose file is gone and was never published (deleted by hand) is marked "Video missing" and its
+  player says so, never an empty YouTube frame (#2472). The embed is framed through a page the shell serves on `127.0.0.1` (`recording/embed.rs`): YouTube's
   player refuses to play in the app's own `tauri://` page on macOS (error 153, no `Referer`). Counted as
   `clipVideoDeleted`.
 - **Recording settings** (slideover from the Recordings header) — capture status with the permission button, on/off,
@@ -692,7 +695,7 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   offers its newest beta at once, truemain.lol's the production build once it is served. The installed app checks its own site's feed (Tauri updater) at
   launch and every 15 minutes (the timer skips its ticks during a game, #1916), downloads a newer build in the background and installs it itself at launch when no
   champion select or game runs; found later, it waits behind "Restart now" (toast + sidebar) or the next launch.
-  No toast during champion select or a game (#1914): a build found then is offered in the sidebar only, its toast
+  No toast during champion select or a game, a reconnect included (#1914, #2472): a build found then is offered in the sidebar only, its toast
   waits for the phase to end, and an offer already on screen steps aside for the phase and comes back after it.
   An install that has not restarted the app 30 s in swaps its progress toast for "Restart now" (a plain relaunch, never a
   second install over the running one, #1793).
