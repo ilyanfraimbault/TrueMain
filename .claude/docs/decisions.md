@@ -145,6 +145,7 @@ Last verified against `develop` on 2026-09-02.
 - Known players' account conflicts are recorded and settled by the operator (move / keep / detach / merge); exclusions and merged-persona pointers keep the scrapers from undoing it (2026-10-23) — #2253
 - Operators add, edit, unlink and remove known players from the admin; every edit holds against the scrapers, removal keeps the slug, a takedown bars the accounts from every persona (2026-10-24) — #2019
 - A known player's picture is their first channel's (YouTube > Twitch > Kick > SOOP > Chzzk), official APIs for the first two; account rows keep their Riot icon (2026-11-04) — #2446
+- The profile banner's line under the Riot ID is the region flag and the known player (picture + name) only: no rank, level or truemain, the page carries them (2026-11-08) — #2463
 - Two same-name known players claiming one account are merged automatically (into the older); same-name ones without a common account go to a homonyms queue to merge or mark as different people (2026-10-25) — #2271
 - Two known players listing the same social channel are a conflict even without a common account; with the same name too they are merged automatically into the older (2026-10-26) — #2286
 - The open conflict queue is ordered most certain first: shared social channels (Twitch, YouTube, X…) weigh most, shared reference pages less, differing channels count against (2026-10-25) — #2277

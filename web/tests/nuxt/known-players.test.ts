@@ -1,7 +1,7 @@
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref, toValue } from 'vue'
-import { PlayersPlayerAccountRow, PlayersPlayerLinks, SearchPlayerItem, UApp } from '#components'
+import { PagePlayerProfile, PlayersPlayerAccountRow, PlayersPlayerLinks, SearchPlayerItem, UApp } from '#components'
 import type { PersonaAccount } from '~~/shared/types/players'
 import type { SearchPlayer } from '~~/shared/types/search'
 import { useTruemainSearch } from '#common/composables/useTruemainSearch'
@@ -107,7 +107,7 @@ describe('PlayerAccountRow', () => {
 
 describe('SearchPlayerItem', () => {
   const player: SearchPlayer = {
-    persona: { slug: 'irelking', displayName: 'Irelking' },
+    persona: { slug: 'irelking', displayName: 'Irelking', pictureUrl: null },
     accountCount: 3,
     pictureUrl: null,
     profileIconId: 6,
@@ -143,10 +143,37 @@ describe('SearchPlayerItem', () => {
   })
 })
 
+describe('PlayerProfile', () => {
+  const identity = { gameName: 'IRELKING', tagLine: 'KR1', profileIconId: 6, platformId: 'KR' }
+  const profile = (pictureUrl: string | null) => inApp(PagePlayerProfile, {
+    identity,
+    patch: '14.1.1',
+    matches: [],
+    persona: { slug: 'irelking', displayName: 'Irelking', pictureUrl },
+  })
+
+  it('shows the known player\'s picture beside their name, and nothing else under the Riot ID (#2463)', async () => {
+    const wrapper = await profile('https://yt3.ggpht.com/irelking')
+    const link = wrapper.find('a[href="/players/irelking"]')
+
+    expect(link.text()).toBe('Irelking')
+    expect(link.attributes('aria-label')).toBe('All of Irelking\'s accounts')
+    expect(link.find('img').attributes('src')).toContain('yt3.ggpht.com/irelking')
+  })
+
+  it('keeps the user icon for a known player without a picture', async () => {
+    const wrapper = await profile(null)
+    const link = wrapper.find('a[href="/players/irelking"]')
+
+    expect(link.text()).toContain('Irelking')
+    expect(link.find('img').exists()).toBe(false)
+  })
+})
+
 describe('useTruemainSearch', () => {
   it('exposes the known players the search answered, and clears them below the floor', async () => {
     vi.useFakeTimers()
-    const player: SearchPlayer = { persona: { slug: 'irelking', displayName: 'Irelking' }, accountCount: 1, pictureUrl: null, profileIconId: 6, ranked: null }
+    const player: SearchPlayer = { persona: { slug: 'irelking', displayName: 'Irelking', pictureUrl: null }, accountCount: 1, pictureUrl: null, profileIconId: 6, ranked: null }
     apiFetch.mockResolvedValue({ results: [], players: [player] })
 
     const term = ref('')
