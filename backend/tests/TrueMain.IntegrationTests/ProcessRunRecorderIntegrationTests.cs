@@ -236,6 +236,90 @@ public sealed class ProcessRunRecorderIntegrationTests : IAsyncLifetime
         (await recorder.ReconcileOrphanedRunsAsync(["Discovery"], CancellationToken.None)).Should().Be(0);
     }
 
+    [Fact]
+    public async Task RecordAsync_OnARunTheBootReconcileAbandoned_LeavesItAbandonedAndInsertsNothing()
+    {
+        using var context = BuildContext();
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
+        var startedAt = DateTime.UtcNow.AddMinutes(-5);
+        var runId = await recorder.RecordStartAsync("Discovery", startedAt, CancellationToken.None);
+
+        // Another incarnation's boot closed the run while it was still finishing.
+        (await recorder.ReconcileOrphanedRunsAsync(["Discovery"], CancellationToken.None)).Should().Be(1);
+
+        // Its late finalize must not rewrite Abandoned into Success (#2474), nor fall back to
+        // inserting a second terminal document under the same id.
+        await recorder.RecordAsync(
+            runId,
+            "Discovery",
+            startedAt,
+            DateTime.UtcNow,
+            ProcessRunStatus.Success,
+            summary: null,
+            error: null,
+            CancellationToken.None);
+
+        var runs = await Collection().Find(doc => doc.ProcessName == "Discovery").ToListAsync();
+        runs.Should().ContainSingle().Which.Status.Should().Be(ProcessRunStatus.Abandoned);
+    }
+
+    [Theory]
+    [InlineData(ProcessRunStatus.Success)]
+    [InlineData(ProcessRunStatus.Failed)]
+    [InlineData(ProcessRunStatus.Abandoned)]
+    [InlineData(ProcessRunStatus.Skipped)]
+    [InlineData(ProcessRunStatus.Cancelled)]
+    public async Task FinalizeAsync_OnATerminalRun_ReportsAlreadyTerminalAndKeepsItsOutcome(ProcessRunStatus terminal)
+    {
+        var runId = Guid.NewGuid();
+        var startedAt = DateTime.UtcNow.AddMinutes(-5);
+        await Collection().InsertOneAsync(new ProcessRunDocument
+        {
+            Id = runId,
+            ProcessName = "Discovery",
+            StartedAtUtc = startedAt,
+            FinishedAtUtc = startedAt.AddMinutes(1),
+            DurationMs = 60_000,
+            Status = terminal,
+            Error = "original",
+            Host = "host"
+        });
+
+        using var context = BuildContext();
+        var store = new ProcessRunStore(context);
+        var outcome = await store.FinalizeAsync(
+            runId, DateTime.UtcNow, 1, ProcessRunStatus.Failed, "late", null, CancellationToken.None);
+
+        outcome.Should().Be(ProcessRunFinalizeOutcome.AlreadyTerminal);
+        var run = await GetRunAsync(runId);
+        run.Status.Should().Be(terminal);
+        run.Error.Should().Be("original");
+    }
+
+    [Fact]
+    public async Task FinalizeAsync_ToRunning_IsRefused()
+    {
+        using var context = BuildContext();
+        var store = new ProcessRunStore(context);
+
+        var act = () => store.FinalizeAsync(
+            Guid.NewGuid(), DateTime.UtcNow, 0, ProcessRunStatus.Running, null, null, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public async Task FinalizeAsync_OnAnUnknownId_ReportsNotFound()
+    {
+        using var context = BuildContext();
+        var store = new ProcessRunStore(context);
+
+        var outcome = await store.FinalizeAsync(
+            Guid.NewGuid(), DateTime.UtcNow, 0, ProcessRunStatus.Success, null, null, CancellationToken.None);
+
+        outcome.Should().Be(ProcessRunFinalizeOutcome.NotFound);
+    }
+
     private IMongoCollection<ProcessRunDocument> Collection()
         => _mongo.GetCollection<ProcessRunDocument>(MongoFixture.ProcessRunsCollection);
 

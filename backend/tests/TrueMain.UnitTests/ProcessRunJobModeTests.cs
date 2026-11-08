@@ -61,7 +61,7 @@ public sealed class ProcessRunJobModeTests
         store.FinalizeAsync(
                 Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<ProcessRunStatus>(),
                 Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns(false);
+            .Returns(ProcessRunFinalizeOutcome.NotFound);
 
         var context = new IterationContext();
         var recorder = new ProcessRunRecorder(store, context);
