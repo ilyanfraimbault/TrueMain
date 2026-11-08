@@ -160,7 +160,8 @@ export async function devRecordingCall(command: string, args: Record<string, unk
       if (link && !id) throw new Error('this is not a link to a YouTube video')
       // As the shell's `ClipVideo::new`.
       const url = id ? `https://www.youtube.com/watch?v=${id}` : null
-      found.video = url ? (onDisk ? { kind: 'both', url } : { kind: 'youtube', url }) : { kind: 'local' }
+      if (!url) found.video = { kind: 'local' }
+      else found.video = onDisk ? { kind: 'both', url } : { kind: 'youtube', url }
       return copy(found)
     }
     default:
