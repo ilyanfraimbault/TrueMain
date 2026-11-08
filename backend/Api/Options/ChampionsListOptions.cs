@@ -309,6 +309,9 @@ public sealed class ChampionsListOptions : IApiOptions, IValidatableObject
     public int MinSynergyBaselineGames { get; set; } = 50;
 
     IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+        => ValidateGameFloors().Concat(ValidateShares());
+
+    private IEnumerable<ValidationResult> ValidateGameFloors()
     {
         if (MinSampleGames < 0)
         {
@@ -335,15 +338,28 @@ public sealed class ChampionsListOptions : IApiOptions, IValidatableObject
             yield return new ValidationResult("ChampionsList:MinMatchupGames must be >= 0.");
         }
 
+        if (MinDecidedLaneGames < 0)
+        {
+            yield return new ValidationResult("ChampionsList:MinDecidedLaneGames must be >= 0.");
+        }
+
+        if (MinPlayerBuildGames is < 1 or > PlayerChampionPerformanceQueryService.Window)
+        {
+            yield return new ValidationResult($"ChampionsList:MinPlayerBuildGames must be in [1, {PlayerChampionPerformanceQueryService.Window}].");
+        }
+
+        if (MaxLanesPerChampion < 0)
+        {
+            yield return new ValidationResult("ChampionsList:MaxLanesPerChampion must be >= 0.");
+        }
+    }
+
+    private IEnumerable<ValidationResult> ValidateShares()
+    {
         // A share: 1 would demand a single opponent account for every game the champion played.
         if (MinMatchupPlayRate is < 0d or >= 1d)
         {
             yield return new ValidationResult("ChampionsList:MinMatchupPlayRate must be in [0, 1).");
-        }
-
-        if (MinDecidedLaneGames < 0)
-        {
-            yield return new ValidationResult("ChampionsList:MinDecidedLaneGames must be >= 0.");
         }
 
         // A share: 1 would demand a pairing present in every game the champion played.
@@ -356,16 +372,6 @@ public sealed class ChampionsListOptions : IApiOptions, IValidatableObject
         if (MinSynergyPartnerLanePlayRate is < 0d or > 1d)
         {
             yield return new ValidationResult("ChampionsList:MinSynergyPartnerLanePlayRate must be in [0, 1].");
-        }
-
-        if (MinPlayerBuildGames is < 1 or > PlayerChampionPerformanceQueryService.Window)
-        {
-            yield return new ValidationResult($"ChampionsList:MinPlayerBuildGames must be in [1, {PlayerChampionPerformanceQueryService.Window}].");
-        }
-
-        if (MaxLanesPerChampion < 0)
-        {
-            yield return new ValidationResult("ChampionsList:MaxLanesPerChampion must be >= 0.");
         }
 
         if (MinSecondaryLanePlayRate is < 0 or > 1)

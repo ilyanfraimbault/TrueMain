@@ -35,12 +35,23 @@ public static class ApiOptionsServiceCollectionExtensions
         Action<OptionsBuilder<TOptions>>? rules = null)
         where TOptions : class
     {
-        if (services.Any(descriptor => descriptor.ServiceType == typeof(BoundSection<TOptions>)))
+        // Filtered on the type first: ImplementationInstance throws on a keyed descriptor.
+        var bound = services
+            .Where(descriptor => !descriptor.IsKeyedService && descriptor.ServiceType == typeof(BoundSections))
+            .Select(descriptor => descriptor.ImplementationInstance)
+            .OfType<BoundSections>()
+            .FirstOrDefault();
+        if (bound is null)
+        {
+            bound = new BoundSections();
+            services.AddSingleton(bound);
+        }
+
+        if (!bound.Types.Add(typeof(TOptions)))
         {
             return services;
         }
 
-        services.AddSingleton<BoundSection<TOptions>>();
         var builder = services.AddOptions<TOptions>().BindConfiguration(section).ValidateDataAnnotations();
         rules?.Invoke(builder);
         builder.ValidateOnStart();
@@ -52,5 +63,9 @@ public static class ApiOptionsServiceCollectionExtensions
         return services;
     }
 
-    private sealed class BoundSection<TOptions>;
+    /// <summary>The options types already bound, kept in the container being built.</summary>
+    private sealed class BoundSections
+    {
+        public HashSet<Type> Types { get; } = [];
+    }
 }
