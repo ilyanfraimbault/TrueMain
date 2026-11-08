@@ -1,4 +1,10 @@
+x-main-analysis-environment: &main-analysis-environment
+      MainAnalysis__MatchesToConsider: "30"
+      MainAnalysis__MinMatchesToEvaluate: "10"
+      MainAnalysis__AggregateNonMainPopulation: "true"
+
 x-ingestor-environment: &ingestor-environment
+      <<: *main-analysis-environment
       DOTNET_ENVIRONMENT: Production
       AppVersion: ${APP_VERSION:-}
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=5;No Reset On Close=true;Application Name=truemain-ingestor
@@ -16,9 +22,6 @@ x-ingestor-environment: &ingestor-environment
       Harvest__MaxCandidatesPerRun: "500"
       MatchIngestion__BatchSize: "25"
       MatchIngestion__MatchesPerAccount: "10"
-      MainAnalysis__MatchesToConsider: "30"
-      MainAnalysis__MinMatchesToEvaluate: "10"
-      MainAnalysis__AggregateNonMainPopulation: "true"
 
 services:
   postgres:
@@ -139,6 +142,7 @@ services:
     cpu_shares: 1024
     init: true
     environment:
+      <<: *main-analysis-environment
       ASPNETCORE_ENVIRONMENT: Production
       AppVersion: ${APP_VERSION:-}
       ASPNETCORE_HTTP_PORTS: "8080"
