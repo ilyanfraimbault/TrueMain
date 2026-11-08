@@ -2,7 +2,7 @@
 import { formatPercentage } from '#shared/utils/ddragon'
 import { positionIndex } from '#common/utils/positions'
 import type { GameTeam } from '~/types/game'
-import type { LoadingPlayer } from '~/types/loading'
+import type { LoadingPlayer, PlayerForm } from '~/types/loading'
 import type { LaneEdge } from '~/utils/lane-edge'
 
 /**
@@ -43,7 +43,7 @@ const rows = computed(() => {
 })
 
 const name = (riotId: string) => riotId.split('#')[0]
-const rate = (player: LoadingPlayer) => player.form!.championWins / player.form!.championGames
+const rate = (form: PlayerForm) => form.championWins / form.championGames
 </script>
 
 <template>
@@ -69,7 +69,7 @@ const rate = (player: LoadingPlayer) => player.form!.championWins / player.form!
           >
           <span v-else class="size-7 shrink-0 rounded bg-elevated" />
           <div class="min-w-0 flex-1 leading-tight">
-            <template v-if="player.anonymous">
+            <template v-if="player.kind === 'hidden'">
               <p class="flex items-center gap-1 truncate text-xs font-medium text-muted">
                 <UIcon name="i-lucide-eye-off" class="size-3 shrink-0" />{{ nameOf(player.championId) }}
               </p>
@@ -80,15 +80,17 @@ const rate = (player: LoadingPlayer) => player.form!.championWins / player.form!
                 <span class="truncate">{{ name(player.riotId) || nameOf(player.championId) }}</span>
                 <TruemainMark v-if="markOf(player)" :mark="markOf(player)!" />
               </p>
-              <p v-if="player.form && player.form.championGames > 0" class="text-[11px] tabular-nums text-muted">
-                {{ player.form.championGames }} · <span :class="rate(player) >= 0.5 ? 'text-data-good' : 'text-data-bad'">{{ formatPercentage(rate(player), 0) }}</span>
-              </p>
-              <p v-else-if="player.form" class="text-[11px] text-dimmed">1st</p>
-              <p v-else-if="player.failed" class="text-[11px] text-dimmed">–</p>
+              <template v-if="player.form.state === 'ok'">
+                <p v-if="player.form.value.championGames > 0" class="text-[11px] tabular-nums text-muted">
+                  {{ player.form.value.championGames }} · <span :class="rate(player.form.value) >= 0.5 ? 'text-data-good' : 'text-data-bad'">{{ formatPercentage(rate(player.form.value), 0) }}</span>
+                </p>
+                <p v-else class="text-[11px] text-dimmed">1st</p>
+              </template>
+              <p v-else-if="player.form.state === 'failed'" class="text-[11px] text-dimmed">–</p>
               <USkeleton v-else class="mt-1 h-2 w-12" />
             </template>
           </div>
-          <LoadingRecent v-if="player.form?.recent.length" :games="player.form.recent" />
+          <LoadingRecent v-if="player.kind === 'known' && player.form.state === 'ok' && player.form.value.recent.length" :games="player.form.value.recent" />
         </div>
         <span v-else :class="index === 0 ? 'order-1' : 'order-3'" />
       </template>

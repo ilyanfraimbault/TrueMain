@@ -1,14 +1,14 @@
-import type { LoadingView } from '~/types/loading'
+import { IDLE_LOADING, type LoadingView } from '~/types/loading'
 
 /**
  * The loading screen's roster (#1753) as the shell reads it through the
  * player's own client: the ten players, then each one's form as its history
- * lands (`src-tauri/src/loading.rs`). Read on mount, then followed through
+ * lands, and the board's status (`src-tauri/src/loading/`). Read on mount, then followed through
  * `loading://players`. In a browser-only `npm run dev`, the "In game ·
  * loading" scenario stands in (`utils/loading-dev.ts`).
  */
 export function useLoadingPlayers() {
-  const view = useState<LoadingView>('loading-players', () => ({ players: [], platformId: '' }))
+  const view = useState<LoadingView>('loading-players', () => IDLE_LOADING)
   const subscribed = useState<boolean>('loading-players-subscribed', () => false)
 
   if (!subscribed.value) {

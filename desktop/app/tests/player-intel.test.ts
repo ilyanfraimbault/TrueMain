@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GamePlayer } from '~/types/game'
-import type { LoadingPlayer, PlayerForm } from '~/types/loading'
+import type { KnownPlayer, LoadingPlayer, PlayerForm } from '~/types/loading'
 import type { RankedQueue } from '~/types/record'
 import type { TruemainMark } from '~/utils/player-intel'
 import { MIN_STREAK, championRecord, loadingLineOf, lookupPlayers, markFigures, markOf, recentWinRate, roleFit, seasonWinRate, streakOf } from '~/utils/player-intel'
@@ -20,22 +20,17 @@ function form(overrides: Partial<PlayerForm> = {}): PlayerForm {
   }
 }
 
-function line(overrides: Partial<LoadingPlayer> = {}): LoadingPlayer {
-  return {
-    riotId: '',
-    championId: 1,
-    team: 'ORDER',
-    position: 'TOP',
-    isMe: false,
-    anonymous: false,
-    form: null,
-    failed: false,
-    rank: null,
-    rankRead: false,
-    rankFailed: false,
-    laning: null,
-    ...overrides,
+type LineOverrides = Partial<Omit<KnownPlayer, 'kind'>> & { anonymous?: boolean }
+
+/** A known line, or with `anonymous` a hidden one keeping only its seat. */
+function line({ anonymous, ...overrides }: LineOverrides = {}): LoadingPlayer {
+  const seat = { championId: 1, team: 'ORDER' as const, position: 'TOP', isMe: false }
+  if (anonymous) {
+    const { championId, team, position, isMe } = { ...seat, ...overrides }
+    return { kind: 'hidden', championId, team, position, isMe }
   }
+  const pending = { state: 'pending' } as const
+  return { kind: 'known', riotId: '', ...seat, form: pending, rank: pending, laning: pending, ...overrides }
 }
 
 function player(overrides: Partial<GamePlayer> = {}): GamePlayer {

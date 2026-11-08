@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ref, watch, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
+import type { GameflowPhase } from '~/types/lcu'
 
 /**
  * `useAppUpdate` against stand-ins for the Nuxt auto-imports and the Tauri
@@ -23,7 +24,7 @@ interface ToastMessage { id?: string, title: string, actions?: { label: string, 
 
 let toasts: ToastMessage[]
 let states: Map<string, Ref<unknown>>
-let screen: Ref<string>
+let phase: Ref<GameflowPhase>
 
 function fakeUpdate(install: () => Promise<void>) {
   return { version: '0.2.1', download: vi.fn(async () => {}), install: vi.fn(install) }
@@ -49,7 +50,7 @@ beforeEach(() => {
   vi.resetModules()
   toasts = []
   states = new Map()
-  screen = ref('lobby')
+  phase = ref<GameflowPhase>('Lobby')
   proc.relaunch.mockReset().mockReturnValue(new Promise(() => {}))
   shellEvents.clear()
   vi.stubGlobal('useToast', () => ({
@@ -60,7 +61,8 @@ beforeEach(() => {
     if (!states.has(key)) states.set(key, ref(init()))
     return states.get(key)
   })
-  vi.stubGlobal('useLcuState', () => ({ screen, ready: ref(true) }))
+  vi.stubGlobal('useLcuState', () => ({ state: computed(() => ({ connected: true, phase: phase.value })), ready: ref(true) }))
+  vi.stubGlobal('computed', computed)
   vi.stubGlobal('watch', watch)
   vi.stubGlobal('onScopeDispose', () => {})
   vi.stubGlobal('insideTauri', () => true)
@@ -93,7 +95,7 @@ describe('useAppUpdate install deadline', () => {
   })
 
   it('restarts from the sidebar during a stall instead of starting a second install', async () => {
-    screen.value = 'draft'
+    phase.value = 'ChampSelect'
     const update = fakeUpdate(() => new Promise(() => {}))
     const app = await launch(update)
     expect(app.readyVersion.value).toBe('0.2.1')
@@ -143,17 +145,22 @@ describe('useAppUpdate install deadline', () => {
 
 describe('useAppUpdate during champion select and games', () => {
   it('offers a build found during champion select in the sidebar only, and in a toast once it is over', async () => {
-    screen.value = 'draft'
+    phase.value = 'ChampSelect'
     const update = fakeUpdate(() => new Promise(() => {}))
     const app = await launch(update)
     expect(app.readyVersion.value).toBe('0.2.1')
     expect(current()).toBeUndefined()
 
-    screen.value = 'in-game'
+    phase.value = 'InProgress'
     await vi.advanceTimersByTimeAsync(0)
     expect(current()).toBeUndefined()
 
-    screen.value = 'home'
+    // A crashed game offered to rejoin is still the game: no restart under it.
+    phase.value = 'Reconnect'
+    await vi.advanceTimersByTimeAsync(0)
+    expect(current()).toBeUndefined()
+
+    phase.value = 'Lobby'
     await vi.advanceTimersByTimeAsync(0)
     expect(current()?.title).toBe('TrueMain 0.2.1 is ready')
     expect(update.install).not.toHaveBeenCalled()
@@ -172,18 +179,18 @@ describe('useAppUpdate during champion select and games', () => {
     await vi.advanceTimersByTimeAsync(15 * 60 * 1000)
     expect(current()?.title).toBe('TrueMain 0.2.1 is ready')
 
-    screen.value = 'draft'
+    phase.value = 'ChampSelect'
     await vi.advanceTimersByTimeAsync(0)
     expect(current()).toBeUndefined()
     expect(app.readyVersion.value).toBe('0.2.1')
 
-    screen.value = 'home'
+    phase.value = 'Lobby'
     await vi.advanceTimersByTimeAsync(0)
     expect(current()?.title).toBe('TrueMain 0.2.1 is ready')
   })
 
   it('answers "Check for Updates…" at once, even during champion select', async () => {
-    screen.value = 'draft'
+    phase.value = 'ChampSelect'
     await launch(fakeUpdate(() => new Promise(() => {})))
     expect(current()).toBeUndefined()
 
@@ -204,12 +211,12 @@ describe('useAppUpdate timer', () => {
     expect(updater.check).toHaveBeenCalledTimes(1)
 
     updater.check.mockResolvedValue(update)
-    screen.value = 'in-game'
+    phase.value = 'InProgress'
     await vi.advanceTimersByTimeAsync(15 * 60 * 1000)
     expect(updater.check).toHaveBeenCalledTimes(1)
     expect(update.download).not.toHaveBeenCalled()
 
-    screen.value = 'lobby'
+    phase.value = 'Lobby'
     await vi.advanceTimersByTimeAsync(15 * 60 * 1000)
     expect(updater.check).toHaveBeenCalledTimes(2)
     expect(update.download).toHaveBeenCalled()

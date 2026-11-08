@@ -3,7 +3,7 @@ import { getPositionIconUrl } from '#shared/utils/ddragon'
 import { isChampionPosition, positionLabel } from '#common/utils/positions'
 import { formatDuration } from '#common/utils/relativeTime'
 import type { GamePlayer, GameState, GameTeam } from '~/types/game'
-import type { LoadingPlayer } from '~/types/loading'
+import type { LoadingPlayer, LoadingStatus } from '~/types/loading'
 import { laneRows, leftTeam } from '~/utils/item-value'
 import { loadingLineOf } from '~/utils/player-intel'
 
@@ -25,6 +25,8 @@ const props = defineProps<{
   syncedAt: number
   /** The loading screen's players (`useLoadingPlayers`); empty until the roster is read. */
   lines?: LoadingPlayer[]
+  /** Where the loading screen stands: while it reads, a player with no line yet is still coming. */
+  loadingStatus?: LoadingStatus
 }>()
 
 // ─── The clock ──────────────────────────────────────────────────────────────
@@ -57,7 +59,7 @@ const { champions } = useChampionStatics()
 const idOfAlias = computed(() => new Map([...champions.value.values()].map(champion => [champion.alias.toLowerCase(), champion.id])))
 const lineOf = (player: GamePlayer | null) =>
   player ? loadingLineOf(player, props.lines ?? [], alias => idOfAlias.value.get(alias.toLowerCase())) : null
-const reading = computed(() => (props.lines?.length ?? 0) > 0)
+const reading = computed(() => props.loadingStatus === 'reading')
 /** Each lane's edge, by position (#1863). */
 const edges = useLaneEdges(() => props.lines ?? [])
 

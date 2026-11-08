@@ -81,7 +81,7 @@ pub fn set_recording_settings(
     recorder.replace_settings(settings).map_err(text)?;
     let protect = recorder
         .activity()
-        .folder
+        .folder()
         .map(|id| recorder.folder().join(id));
     let pruned = recorder
         .store()
@@ -198,9 +198,7 @@ pub fn recording_delete(
     recorder: State<'_, SharedRecorder>,
     id: String,
 ) -> Result<(), String> {
-    if recorder.activity().folder.as_deref() == Some(id.as_str())
-        && recorder.activity().recording.is_some()
-    {
+    if recorder.activity().records(&id) {
         return Err("this game is still being recorded".into());
     }
     let recording = find(&recorder, &id)?;

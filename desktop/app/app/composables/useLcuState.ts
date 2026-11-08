@@ -1,3 +1,4 @@
+import { isChampSelect } from '~/utils/gameflow'
 import type { AppState, Screen } from '~/types/lcu'
 import { EMPTY_STATE } from '~/types/lcu'
 
@@ -62,11 +63,10 @@ export function useLcuState() {
    */
   const screen = computed<Screen>(() => {
     if (!state.value.connected) return 'no-client'
-    switch (state.value.phase) {
-      case 'ChampSelect': return 'draft'
-      case 'InProgress': return 'in-game'
-      default: return 'dashboard'
-    }
+    if (isChampSelect(state.value.phase)) return 'draft'
+    // Not `isGameRunning`: during a reconnect the game's API is down.
+    if (state.value.phase === 'InProgress') return 'in-game'
+    return 'dashboard'
   })
 
   return { state, screen, ready }

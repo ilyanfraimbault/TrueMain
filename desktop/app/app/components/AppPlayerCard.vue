@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { GameflowPhase } from '~/types/lcu'
+import { isPostGame } from '~/utils/gameflow'
 import type { AccountIdentity } from '#common/components/Account.vue'
 import { riotIdLabel } from '#shared/utils/truemain-path'
 
@@ -31,12 +32,10 @@ const STATUS: Partial<Record<GameflowPhase, { label: string, live?: boolean }>> 
   ChampSelect: { label: 'Champion select', live: true },
   InProgress: { label: 'In game', live: true },
   Reconnect: { label: 'Reconnecting', live: true },
-  WaitingForStats: { label: 'Post-game' },
-  PreEndOfGame: { label: 'Post-game' },
-  EndOfGame: { label: 'Post-game' },
 }
 const status = computed(() => {
   if (!state.value.connected) return { label: 'Client not running', live: false }
+  if (isPostGame(state.value.phase)) return { label: 'Post-game' }
   return STATUS[state.value.phase] ?? { label: 'Online' }
 })
 const dot = computed(() => (!state.value.connected ? 'bg-ink-400' : status.value.live ? 'bg-primary' : 'bg-success'))

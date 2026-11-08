@@ -2,7 +2,8 @@
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 import { formatKdaRatio } from '#shared/utils/kda'
 import { isChampionPosition, positionLabel } from '#common/utils/positions'
-import type { LoadingPlayer } from '~/types/loading'
+import type { LoadingPlayer, PlayerForm, Read } from '~/types/loading'
+import type { RankedQueue } from '~/types/record'
 import { formatLeaguePoints, formatRank, tierColor } from '#common/utils/tiers'
 import {
   GOOD_KDA,
@@ -29,7 +30,7 @@ const props = withDefaults(defineProps<{
   championId: number | null
   /** The loading screen's line for this player; null when it has none. */
   line: LoadingPlayer | null
-  /** The loading screen is reading the game: a line still missing is coming. */
+  /** The loading screen's status is `reading`: a line still missing is coming. */
   reading: boolean
   mirrored?: boolean
 }>(), { mirrored: false })
@@ -42,16 +43,22 @@ const mark = computed(() => markOf(props.line))
 const name = computed(() => props.riotId.split('#')[0] ?? '')
 const tag = computed(() => props.riotId.split('#')[1] ?? '')
 
-const form = computed(() => props.line?.form ?? null)
-/** Something about this player is still to come: the line itself, their history or their standing. */
-const expected = computed(() => (props.reading || Boolean(props.line)) && !props.line?.anonymous)
-const settled = computed(() => Boolean(props.line && (props.line.form || props.line.failed)))
-const pending = computed(() => !settled.value && expected.value)
-const rankPending = computed(() => !props.line?.rankRead && !props.line?.rankFailed && expected.value)
+const known = computed(() => (props.line?.kind === 'known' ? props.line : null))
+const hidden = computed(() => props.line?.kind === 'hidden')
+/**
+ * Where each read stands, as the loading screen sent it: a line still missing
+ * while the board reads is pending; without a line once it is done, or for a
+ * hidden player, nothing is coming and nothing is drawn.
+ */
+const PENDING = { state: 'pending' } as const
+const coming = computed(() => props.line === null && props.reading)
+const formRead = computed<Read<PlayerForm> | null>(() => known.value?.form ?? (coming.value ? PENDING : null))
+const rankRead = computed<Read<RankedQueue | null> | null>(() => known.value?.rank ?? (coming.value ? PENDING : null))
+const form = computed(() => (formRead.value?.state === 'ok' ? formRead.value.value : null))
 
 // ─── Rank ───────────────────────────────────────────────────────────────────
 
-const rank = computed(() => props.line?.rank ?? null)
+const rank = computed(() => (rankRead.value?.state === 'ok' ? rankRead.value.value : null))
 const ranked = computed(() => (rank.value && isRanked(rank.value) ? rank.value : null))
 const rankTitle = computed(() => {
   const queue = rank.value
@@ -97,7 +104,7 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
     <!-- Who: name, standing, role and streak. -->
     <div class="flex min-w-0 flex-1 flex-col gap-1 leading-tight" :class="mirrored && 'items-end text-right'">
       <p class="flex max-w-full items-baseline gap-1.5 truncate text-[13px]" :class="mirrored && 'flex-row-reverse'" :title="riotId">
-        <template v-if="line?.anonymous">
+        <template v-if="hidden">
           <UIcon name="i-lucide-eye-off" class="size-3 shrink-0 self-center text-dimmed" />
           <span class="text-muted">Anonymous</span>
         </template>
@@ -117,8 +124,8 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
           <span v-if="ranked.queueType === 'RANKED_FLEX_SR'" class="rounded-sm px-1 text-[9px] font-semibold uppercase tracking-wide text-dimmed ring-1 ring-default" title="No Solo/Duo standing: their Flex one">Flex</span>
         </template>
         <span v-else-if="rank" class="text-[11px] text-muted" :title="rankTitle">Placements · {{ rank.wins + rank.losses }} played</span>
-        <USkeleton v-else-if="rankPending" class="h-3 w-20" />
-        <span v-else-if="line?.rankRead" class="text-[11px] text-dimmed">Unranked</span>
+        <USkeleton v-else-if="rankRead?.state === 'pending'" class="h-3 w-20" />
+        <span v-else-if="rankRead?.state === 'ok'" class="text-[11px] text-dimmed">Unranked</span>
       </div>
 
       <div v-if="fit || streak" class="flex flex-wrap items-center gap-1" :class="mirrored && 'flex-row-reverse'">
@@ -169,12 +176,12 @@ const recentRate = computed(() => (form.value ? recentWinRate(form.value) : null
           <span v-if="recentRate !== null" class="text-[10px] tabular-nums text-dimmed" :title="`${formatPercentage(recentRate, 0)} of their last ${form.recent.length} games won`">{{ formatPercentage(recentRate, 0) }}</span>
         </div>
       </template>
-      <template v-else-if="pending">
+      <template v-else-if="formRead?.state === 'pending'">
         <USkeleton class="h-3 w-16" />
         <USkeleton class="h-2.5 w-10" />
         <USkeleton class="h-4 w-20" />
       </template>
-      <span v-else-if="line?.failed" class="text-[11px] text-dimmed">History unavailable</span>
+      <span v-else-if="formRead?.state === 'failed'" class="text-[11px] text-dimmed">History unavailable</span>
     </div>
   </div>
 </template>

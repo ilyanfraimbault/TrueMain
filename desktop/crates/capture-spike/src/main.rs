@@ -329,8 +329,7 @@ async fn run(options: Options) -> Result<(), String> {
             None => None,
         };
         let over = match phase {
-            Some(GameflowPhase::InProgress | GameflowPhase::Reconnect) => false,
-            Some(_) => true,
+            Some(phase) => !phase.is_game_running(),
             None => silent >= GAME_GONE_AFTER,
         };
         if over {

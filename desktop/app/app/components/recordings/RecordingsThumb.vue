@@ -60,12 +60,20 @@ const ago = computed(() => formatRelativeTime(new Date(props.item.atMs).toISOStr
     </span>
 
     <span
-      v-if="!item.videoOnDisk"
+      v-if="item.video.kind === 'youtube'"
       class="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-highlighted"
       title="Its video is no longer on this PC: it plays from YouTube"
     >
       <UIcon name="i-lucide-youtube" class="size-3" />
       On YouTube
+    </span>
+    <span
+      v-else-if="item.video.kind === 'missing'"
+      class="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-muted"
+      title="Its video was deleted from this PC and never published"
+    >
+      <UIcon name="i-lucide-file-x" class="size-3" />
+      Video missing
     </span>
 
     <div class="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[11px] font-medium tabular-nums">

@@ -25,7 +25,10 @@ use lcu::{GameflowPhase, LcuClient};
 use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 
-use super::{cut, emit_library, emit_recap, emit_status, Activity, SharedRecorder, SharedSession};
+use super::{
+    cut, emit_library, emit_recap, emit_status, Activity, Availability, SharedRecorder,
+    SharedSession,
+};
 use crate::record::SharedClient;
 
 /// The capture can fail to start on the loading screen: it is tried again
@@ -51,10 +54,6 @@ const SOURCE: &str = if cfg!(target_os = "macos") {
 } else {
     "window"
 };
-
-fn in_game(phase: GameflowPhase) -> bool {
-    matches!(phase, GameflowPhase::InProgress | GameflowPhase::Reconnect)
-}
 
 /// Where the runner stands once it is done with a game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,7 +99,12 @@ pub async fn run(
             });
         recorder.set_activity(Activity::default());
         emit_status(&app, &recorder);
-        if done == Done::Running && phases.wait_for(|phase| !in_game(*phase)).await.is_err() {
+        if done == Done::Running
+            && phases
+                .wait_for(|phase| !phase.is_game_running())
+                .await
+                .is_err()
+        {
             return;
         }
     }
@@ -130,7 +134,7 @@ async fn record_game(
     if !settings.records(game.queue_id) {
         return Ok(Done::Running);
     }
-    if recorder.status().availability != "ready" {
+    if recorder.status().availability != Availability::Ready {
         emit_status(app, recorder);
         return Err("the app cannot record the screen".into());
     }
@@ -145,23 +149,24 @@ async fn record_game(
     ))));
 
     let dir = start(&session, game, &settings, &root, phases).await?;
-    recorder.set_session(Some(session.clone()));
     crate::telemetry::feature(app, crate::telemetry::Feature::GameRecorded);
     let id = RecordingDir::new(dir.clone()).id();
-    recorder.set_activity(Activity {
-        recording: Some(game.game_id),
-        processing: None,
-        folder: Some(id.clone()),
+    recorder.set_activity(Activity::Recording {
+        game_id: game.game_id,
+        folder: id.clone(),
+        session: session.clone(),
     });
     emit_status(app, recorder);
     emit_library(app);
 
     follow(&session, &live, phases).await;
-    // The game is over: the mark key marks nothing more.
-    recorder.set_session(None);
+    // The game is over: the mark key marks nothing more, and the status says
+    // it is being processed from this very step.
+    recorder.finish_recording();
+    emit_status(app, recorder);
     // From here on a failure is logged, never returned: an error would read as
     // a game still running and skip the next one, which may already have begun.
-    let done = if in_game(*phases.borrow()) {
+    let done = if phases.borrow().is_game_running() {
         Done::Running
     } else {
         Done::Ended
@@ -195,12 +200,6 @@ async fn record_game(
         emit_library(app);
         return Ok(done);
     }
-    recorder.set_activity(Activity {
-        recording: None,
-        processing: Some(game.game_id),
-        folder: Some(id.clone()),
-    });
-    emit_status(app, recorder);
     emit_recap(app, id.clone());
     thumbnail(helper, &dir).await;
     emit_library(app);
@@ -337,7 +336,7 @@ async fn start(
             Ok(other) => return Err(format!("the recording did not start: {other:?}")),
             Err(error) => {
                 tracing::warn!(%error, attempt, "the capture did not start");
-                if attempt >= START_ATTEMPTS || !in_game(*phases.borrow()) {
+                if attempt >= START_ATTEMPTS || !phases.borrow().is_game_running() {
                     return Err(format!("the capture never started: {error}"));
                 }
                 tokio::time::sleep(START_RETRY).await;
@@ -362,7 +361,7 @@ async fn follow(
             _ = tokio::time::sleep(Duration::from_secs(1)) => {}
             _ = phases.changed() => {}
         }
-        if !in_game(*phases.borrow()) {
+        if !phases.borrow().is_game_running() {
             return;
         }
         tick += 1;
@@ -416,7 +415,7 @@ async fn wait_for_history(
     Option<HistoryGame>,
 ) {
     let deadline = tokio::time::Instant::now() + HISTORY_WAIT;
-    while tokio::time::Instant::now() < deadline && !in_game(*phases.borrow()) {
+    while tokio::time::Instant::now() < deadline && !phases.borrow().is_game_running() {
         if let Ok(history) = client.match_history(0, 5).await {
             if let Some(game) = history
                 .games

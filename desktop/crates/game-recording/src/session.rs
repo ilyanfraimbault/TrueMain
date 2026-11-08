@@ -130,7 +130,7 @@ impl<C: Capture> Session<C> {
         default_root: &Path,
         now_ms: i64,
     ) -> Result<Change, SessionError> {
-        let in_game = matches!(phase, GameflowPhase::InProgress | GameflowPhase::Reconnect);
+        let in_game = phase.is_game_running();
         match (&self.state, in_game) {
             (State::Recording(_), true) => Ok(Change::None),
             (State::Recording(_), false) => self.stop(),

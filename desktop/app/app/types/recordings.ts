@@ -47,6 +47,7 @@ export interface RecordingSettingsView {
 }
 
 /**
+ * Mirrors `Availability` in `src-tauri/src/recording/mod.rs`.
  * ready: the helper is there and Screen Recording is allowed.
  * permission: Screen Recording is not allowed for the app (macOS).
  * unsupported: no capture helper on this platform (Linux), or a Windows too
@@ -55,14 +56,19 @@ export interface RecordingSettingsView {
  */
 export type CaptureAvailability = 'ready' | 'permission' | 'unsupported' | 'missing'
 
+/** Mirrors `Activity` in `src-tauri/src/recording/mod.rs`: what the recorder is busy with. */
+export type RecordingActivity =
+  | { kind: 'idle' }
+  /** The game being recorded right now. */
+  | { kind: 'recording', gameId: number }
+  /** A stopped game whose recording is being finalised (highlights not final yet). */
+  | { kind: 'processing', gameId: number }
+
 export interface RecordingStatus {
   availability: CaptureAvailability
   /** The helper's own words when not ready. */
   message: string | null
-  /** The game being recorded right now. */
-  recordingGameId: number | null
-  /** A stopped game whose recording waits for the match history (highlights not final yet). */
-  processingGameId: number | null
+  activity: RecordingActivity
 }
 
 export type MomentKind =
@@ -142,6 +148,24 @@ export interface RecordingWinProbability {
   durationMs: number | null
 }
 
+/**
+ * Mirrors `ClipVideo` in `src-tauri/src/recording/views.rs`: where a clip plays
+ * from — its file, YouTube once the player gave its link (#1815), or both until
+ * the file is deleted to free space (#2005). `missing`: the file is gone and the
+ * clip was never published.
+ */
+export type ClipVideo =
+  | { kind: 'local' }
+  | { kind: 'both', url: string }
+  | { kind: 'youtube', url: string }
+  | { kind: 'missing' }
+
+/** The clip's file is on this PC. */
+export const videoOnDisk = (video: ClipVideo) => video.kind === 'local' || video.kind === 'both'
+
+/** The YouTube video the clip was published as; null when it was not. */
+export const youtubeUrl = (video: ClipVideo) => (video.kind === 'both' || video.kind === 'youtube' ? video.url : null)
+
 /** One clip the player saved: its own file, outliving the full game. */
 export interface Clip {
   id: string
@@ -168,10 +192,7 @@ export interface Clip {
   thumbnailPath: string | null
   /** The moments inside it, relative to the clip's own start. */
   moments: Moment[]
-  /** The YouTube video it was published as, once the player gave its link (#1815). */
-  youtubeUrl: string | null
-  /** False once a published clip's file was deleted to free space: it plays from YouTube (#2005). */
-  videoOnDisk: boolean
+  video: ClipVideo
   /** The plays an automatic clip holds (#1766); empty for a clip the player cut or marked. */
   automatic: AutoClipKind[]
 }

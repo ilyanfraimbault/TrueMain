@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { dayLabel, formatBytes, recordingKda, revealLabel } from '~/utils/recording-library'
-import type { RecordingWinProbability } from '~/types/recordings'
+import { clipDeleteDescription, dayLabel, formatBytes, recordingKda, revealLabel } from '~/utils/recording-library'
+import { type RecordingWinProbability, videoOnDisk } from '~/types/recordings'
 import { formatClock, momentCast } from '~/utils/recording-moments'
 import { getQueueLabel } from '#common/utils/queues'
 
@@ -18,6 +18,8 @@ const { nameOf } = useChampionStatics()
 const id = computed(() => String(route.params.id))
 const clip = computed(() => library.value?.clips.find(entry => entry.id === id.value) ?? null)
 const kda = computed(() => (clip.value ? recordingKda(clip.value) : null))
+const onDisk = computed(() => (clip.value ? videoOnDisk(clip.value.video) : false))
+const published = computed(() => clip.value?.video.kind === 'both')
 const source = computed(() => library.value?.games.find(game => game.id === clip.value?.recordingId) ?? null)
 
 // The full game's scoreboard, while it is still on disk, names the champions in the clip's kills.
@@ -83,7 +85,7 @@ async function remove() {
           <span class="text-dimmed">·</span>
           <span>{{ dayLabel(clip.gameStartedAtMs) }}, at {{ formatClock(clip.startMs) }}</span>
           <span class="text-dimmed">·</span>
-          <span>{{ clip.videoOnDisk ? formatBytes(clip.sizeBytes) : 'On YouTube only' }}</span>
+          <span>{{ onDisk ? formatBytes(clip.sizeBytes) : clip.video.kind === 'youtube' ? 'On YouTube only' : 'Video missing' }}</span>
         </p>
       </div>
 
@@ -98,7 +100,7 @@ async function remove() {
           size="sm"
         />
         <UButton
-          v-if="clip.youtubeUrl && clip.videoOnDisk"
+          v-if="clip.video.kind === 'both'"
           icon="i-lucide-youtube"
           label="Watch on YouTube"
           color="neutral"
@@ -107,7 +109,7 @@ async function remove() {
           @click="openVideo(clip.id)"
         />
         <UButton
-          v-if="clip.youtubeUrl && clip.videoOnDisk"
+          v-if="clip.video.kind === 'both'"
           icon="i-lucide-hard-drive-download"
           color="neutral"
           variant="ghost"
@@ -117,13 +119,13 @@ async function remove() {
           @click="freeing = true"
         />
         <UButton
-          v-if="clip.videoOnDisk"
+          v-if="onDisk"
           icon="i-lucide-youtube"
-          :label="clip.youtubeUrl ? undefined : 'Publish on YouTube'"
-          :aria-label="clip.youtubeUrl ? 'Publish on YouTube' : undefined"
-          :title="clip.youtubeUrl ? 'Publish on YouTube' : undefined"
-          :color="clip.youtubeUrl ? 'neutral' : 'primary'"
-          :variant="clip.youtubeUrl ? 'ghost' : 'soft'"
+          :label="published ? undefined : 'Publish on YouTube'"
+          :aria-label="published ? 'Publish on YouTube' : undefined"
+          :title="published ? 'Publish on YouTube' : undefined"
+          :color="published ? 'neutral' : 'primary'"
+          :variant="published ? 'ghost' : 'soft'"
           size="sm"
           @click="publishing = true"
         />
@@ -137,20 +139,24 @@ async function remove() {
           :title="clip.favorite ? 'Remove from favourites' : 'Add to favourites'"
           @click="updateClip(clip.id, { favorite: !clip.favorite })"
         />
-        <UButton v-if="clip.videoOnDisk" icon="i-lucide-folder-open" color="neutral" variant="ghost" size="sm" :aria-label="revealLabel()" :title="revealLabel()" @click="reveal(clip.videoPath)" />
+        <UButton v-if="onDisk" icon="i-lucide-folder-open" color="neutral" variant="ghost" size="sm" :aria-label="revealLabel()" :title="revealLabel()" @click="reveal(clip.videoPath)" />
         <UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" aria-label="Delete clip" title="Delete clip" @click="confirming = true" />
       </div>
     </header>
 
     <RecapPlayer
-      v-if="clip.videoOnDisk"
+      v-if="onDisk"
       class="mx-auto w-full max-w-[46rem]"
       :src="fileSrc(clip.videoPath)"
       :length-ms="clip.durationMs"
       :moments="clip.moments"
       :cast="cast"
     />
-    <RecordingsYoutubePlayer v-else class="mx-auto w-full max-w-[46rem]" :clip="clip" />
+    <RecordingsYoutubePlayer v-else-if="clip.video.kind === 'youtube'" class="mx-auto w-full max-w-[46rem]" :clip="clip" />
+    <div v-else class="mx-auto flex aspect-video w-full max-w-[46rem] flex-col items-center justify-center gap-2 rounded-lg bg-elevated/60 text-center ring-1 ring-default">
+      <UIcon name="i-lucide-file-x" class="size-6 text-dimmed" />
+      <p class="text-sm text-muted">This clip's video is no longer on this PC, and it was never published.</p>
+    </div>
 
     <RecordingsPublish v-model:open="publishing" :clip="clip" />
     <RecordingsDeleteVideo v-model:open="freeing" :clip="clip" />
@@ -158,7 +164,7 @@ async function remove() {
     <RecordingsConfirm
       v-model:open="confirming"
       title="Delete this clip?"
-      :description="clip.videoOnDisk ? `&quot;${clip.title}&quot; is removed from your disk.` : `&quot;${clip.title}&quot; leaves your recordings; the video stays on YouTube.`"
+      :description="clipDeleteDescription(clip.title, clip.video)"
       confirm-label="Delete clip"
       @confirm="remove"
     />

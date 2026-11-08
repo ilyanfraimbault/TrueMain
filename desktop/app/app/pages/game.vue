@@ -39,6 +39,12 @@ const overlayStatus = computed(() => {
 
 const waiting = computed(() => {
   if (screen.value === 'in-game') {
+    if (loading.value.status === 'rosterFailed') {
+      return {
+        title: 'Loading into the game',
+        body: 'The client did not list this game\'s players, so there is no board for it. The game page opens once the game has loaded.',
+      }
+    }
     return {
       title: 'Loading into the game',
       body: 'The board fills in as soon as the game has loaded.',
@@ -55,7 +61,7 @@ const waiting = computed(() => {
 
 <template>
   <div class="h-full">
-    <GameScreen v-if="screen === 'in-game' && game" :game="game" :synced-at="syncedAt" :lines="loading.players">
+    <GameScreen v-if="screen === 'in-game' && game" :game="game" :synced-at="syncedAt" :lines="loading.players" :loading-status="loading.status">
       <template #actions>
         <UButton icon="i-lucide-layers" color="neutral" variant="ghost" size="sm" to="/overlay" aria-label="Overlay settings" title="Overlay settings" />
       </template>
