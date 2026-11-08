@@ -40,8 +40,7 @@ function clip(id: string, favorite: boolean, overrides: Partial<Clip> = {}): Cli
     videoPath: `/clips/${id}.mp4`,
     thumbnailPath: null,
     moments: [],
-    youtubeUrl: null,
-    videoOnDisk: true,
+    video: { kind: 'local' },
     automatic: [],
     ...overrides,
   }

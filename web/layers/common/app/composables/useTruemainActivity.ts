@@ -2,8 +2,8 @@ import type { TruemainActivityResponse } from '#shared/types/activity'
 
 /**
  * Fetch the activity-grid payload for the given <c>nameTag</c> (#927). Same
- * shape as <c>useTruemainRankHistory</c>: 404 surfaces as <c>notFound</c>
- * instead of throwing, and the request is client-only — the initial run hangs
+ * shape as <c>useTruemainRankHistory</c>: a 404 surfaces as <c>notFound</c>,
+ * any other failure as <c>error</c> (#2476), and the request is client-only — the initial run hangs
  * off <c>onMounted</c> inside <c>useTruemainFetch</c>, which is what makes that
  * true rather than merely intended (#862).
  *
@@ -19,11 +19,9 @@ export function useTruemainActivity(nameTag: MaybeRefOrGetter<string>) {
   const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<TruemainActivityResponse>(nameTag, {
     request: (tag, signal) => apiFetch<TruemainActivityResponse | null>(
       `/truemains/${encodeURIComponent(tag)}/activity`,
-      { ignoreResponseError: true, signal },
+      { signal },
     ),
-    // `ignoreResponseError` turns a 404 into a null body, so the shape check is
-    // the only way to tell "not found" from "no data": a real payload always
-    // carries every window, each with a bucket array.
+    // A real payload always carries every window, each with a bucket array.
     validate: (response): response is TruemainActivityResponse =>
       Boolean(
         response

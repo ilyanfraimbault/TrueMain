@@ -73,7 +73,7 @@ impl AppState {
                 self.phase = phase;
                 // Leaving champ select must clear the draft, or the panel keeps
                 // showing the draft of a game that already started.
-                if phase != GameflowPhase::ChampSelect {
+                if !phase.is_champ_select() {
                     self.draft = None;
                 }
                 changed
@@ -164,7 +164,8 @@ impl AppState {
             return Screen::NoClient;
         }
         match self.phase {
-            GameflowPhase::ChampSelect => Screen::Draft,
+            phase if phase.is_champ_select() => Screen::Draft,
+            // Not `is_game_running`: during a reconnect the game's API is down.
             GameflowPhase::InProgress => Screen::InGame,
             _ => Screen::Dashboard,
         }
