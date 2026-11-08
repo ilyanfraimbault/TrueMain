@@ -5,6 +5,7 @@
 import type { PersonaAdminLink, PersonaLinkInput } from '~~/shared/types/ops'
 import { computed, ref } from 'vue'
 import { LINK_KINDS, linkUrlError } from '~~/shared/utils/known-players'
+import { useArmedConfirm } from '~/composables/useArmedConfirm'
 
 const props = defineProps<{
   links: PersonaAdminLink[]
@@ -16,18 +17,12 @@ const emit = defineEmits<{
   add: [link: PersonaLinkInput]
 }>()
 
-const armed = ref<string | null>(null)
+const { armed, sending, press } = useArmedConfirm({ busy: () => props.busy })
 
 function remove(link: PersonaAdminLink) {
-  if (props.busy) {
-    return
+  if (press(link.id)) {
+    emit('remove', link)
   }
-  if (armed.value !== link.id) {
-    armed.value = link.id
-    return
-  }
-  armed.value = null
-  emit('remove', link)
 }
 
 const kind = ref<string>(LINK_KINDS[0]!)
@@ -62,6 +57,7 @@ function add() {
           :variant="armed === link.id ? 'solid' : 'ghost'"
           :label="armed === link.id ? 'Confirm removal' : undefined"
           :aria-label="`Remove ${link.url}`"
+          :loading="busy && sending === link.id"
           :disabled="busy"
           @click="remove(link)"
         />

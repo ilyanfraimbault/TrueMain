@@ -8,6 +8,8 @@
 // one conflict opens the next. Its most certain top is merged in bulk (#2295).
 import type { PersonaConflict, PersonaConflictDetail, PersonaConflictResolveBody, PersonaConflictStatus } from '~~/shared/types/ops'
 import { useConflictTriage } from '~/composables/useConflictTriage'
+import { useKeyedFetch } from '~/composables/useKeyedFetch'
+import { keyedId } from '~/utils/keyed-fetch'
 import { computed, ref, watch } from 'vue'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { nextAfterResolve } from '~~/shared/utils/conflict-shortcuts'
@@ -52,25 +54,21 @@ const emptyText = computed(() => hasFilters.value
   ? 'No conflict matches these filters.'
   : status.value === 'Open' ? 'No open conflict: every account has one known player.' : 'Nothing resolved yet.')
 
-// The detail panel: both known players in full, then the actions.
+// The detail panel: both known players in full, then the actions. Keyed by the
+// conflict (#2471): keyboard triage opens one after the other, and a slow answer for
+// the previous one never lands under the next.
 const detailOpen = ref(false)
-const detail = ref<PersonaConflictDetail | null>(null)
-const detailError = ref<unknown>(null)
+const { state: detailState, load: loadDetail } = useKeyedFetch<string, PersonaConflictDetail>(id => getPersonaConflict(id))
+const detail = computed(() => detailState.value.s === 'ready' ? detailState.value.value : null)
+const detailError = computed(() => detailState.value.s === 'error' ? detailState.value.error : null)
 const busy = ref(false)
 const toast = useActionToast()
 const actions = ref<{ choose: (key: string) => void, confirm: () => void, armed: string | null } | null>(null)
 
 async function open(conflict: Pick<PersonaConflict, 'id'>) {
   triage.select(conflict)
-  detail.value = null
-  detailError.value = null
   detailOpen.value = true
-  try {
-    detail.value = await getPersonaConflict(conflict.id)
-  }
-  catch (e) {
-    detailError.value = e
-  }
+  await loadDetail(conflict.id)
 }
 
 // The bulk resolution's dialog: the queue's keys stay quiet while it is open.
@@ -94,7 +92,7 @@ const selectedId = computed(() => conflicts.value[triage.selected.value]?.id ?? 
 const route = useRoute()
 const router = useRouter()
 watch(() => route.query.conflict, (id) => {
-  if (typeof id === 'string' && id && detail.value?.conflict.id !== id) {
+  if (typeof id === 'string' && id && keyedId(detailState.value) !== id) {
     open({ id })
   }
 }, { immediate: true })
@@ -254,6 +252,7 @@ defineExpose({
           <USeparator />
           <KnownPlayersConflictActions
             v-if="detail.conflict.status === 'Open'"
+            :key="detail.conflict.id"
             ref="actions"
             :conflict="detail.conflict"
             :busy="busy"

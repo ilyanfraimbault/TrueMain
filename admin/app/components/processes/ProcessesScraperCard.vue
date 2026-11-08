@@ -10,6 +10,7 @@ import { humanizeKey } from '~~/shared/utils/process-summary'
 import { useIntervalFn } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { statusBadgeUi } from '~/utils/process-chain'
+import { panelPhase } from '~/composables/useLastGoodPayload'
 
 const props = defineProps<{
   scraper: ScraperProcess
@@ -20,6 +21,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ openRun: [run: ProcessRun] }>()
 
+// `data` is the last good payload (#2471): a failed refresh keeps the runs drawn, with a note.
+const phase = computed(() => panelPhase({ hasData: props.data != null, pending: props.pending, error: props.error }))
 const runs = computed(() => props.data?.runs ?? [])
 const latest = computed(() => runs.value[0] ?? null)
 const history = computed(() => runs.value.slice(1))
@@ -75,13 +78,16 @@ function runDuration(run: ProcessRun): string {
       </div>
     </template>
 
-    <FetchErrorAlert v-if="error" :error="error" :title="`Failed to load ${scraper.label} runs`" />
+    <FetchErrorAlert v-if="phase === 'failed'" :error="error" :title="`Failed to load ${scraper.label} runs`" />
 
     <div v-else-if="!latest" class="text-sm text-dimmed">
-      {{ pending ? 'Loading…' : 'No run reported yet.' }}
+      {{ phase === 'loading' ? 'Loading…' : 'No run reported yet.' }}
     </div>
 
     <div v-else class="space-y-5">
+      <p v-if="phase === 'stale'" data-stale class="text-sm text-muted">
+        The last refresh failed; showing the runs as they were.
+      </p>
       <dl class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-sm">
         <div>
           <dt class="text-muted text-xs uppercase mb-0.5">

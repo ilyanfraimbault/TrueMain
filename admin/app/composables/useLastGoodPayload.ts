@@ -33,3 +33,25 @@ export function useLastGoodPayload<T>(
     return last && last.key === toValue(key) ? last.value : null
   })
 }
+
+/**
+ * What a panel fed by `useLastGoodPayload` draws (#2471), one value for the four
+ * cases its `data`/`pending`/`error` trio can describe:
+ * - `loading`: nothing to show yet, a request on its way — a skeleton;
+ * - `empty`: the answer came and holds nothing;
+ * - `ready`: data to draw;
+ * - `stale`: data kept from an earlier answer while the latest refresh failed —
+ *   drawn with a note saying so, never blanked by the alert;
+ * - `failed`: the request failed and nothing was ever kept — the alert alone.
+ */
+export type PanelPhase = 'loading' | 'empty' | 'ready' | 'stale' | 'failed'
+
+export function panelPhase(input: { hasData: boolean, pending: boolean, error: unknown }): PanelPhase {
+  if (input.hasData) {
+    return input.error ? 'stale' : 'ready'
+  }
+  if (input.error) {
+    return 'failed'
+  }
+  return input.pending ? 'loading' : 'empty'
+}

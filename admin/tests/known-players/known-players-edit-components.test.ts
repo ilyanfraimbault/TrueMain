@@ -275,6 +275,7 @@ describe('KnownPlayersEditor', () => {
 
     const links = wrapper.findComponent(KnownPlayersLinksPanel)
     links.vm.$emit('remove', detail().links[0])
+    await flushPromises()
     links.vm.$emit('add', { kind: 'twitch', url: 'https://www.twitch.tv/caps' })
     await flushPromises()
     expect(api.removePersonaLink).toHaveBeenCalledWith('p1', 'l1')
@@ -307,6 +308,58 @@ describe('KnownPlayersEditor', () => {
     await flushPromises()
     expect(merged.text()).toContain('Merged into peng')
     expect(merged.find('button[data-rename]').exists()).toBe(false)
+  })
+
+  it('sends every edit for the player whose accounts are on screen after a quick switch (#2471)', async () => {
+    let releaseA!: (value: unknown) => void
+    api.getPersona.mockImplementation((id: string) => id === 'p1'
+      ? new Promise((resolve) => {
+          releaseA = resolve
+        })
+      : Promise.resolve(detail({ id: 'p2', slug: 'peng', displayName: 'Peng', accounts: [{ ...detail().accounts[0]!, id: 'b1', gameName: 'Peng' }] })))
+    api.unlinkPersonaAccount.mockResolvedValue({ id: 'p2', slug: 'peng', accounts: [] })
+    const wrapper = mount(KnownPlayersEditor, { global: editorGlobal, props: { personaId: 'p1' } })
+    await wrapper.setProps({ personaId: 'p2' })
+    await flushPromises()
+    releaseA(detail())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Peng')
+    const accounts = wrapper.findComponent(KnownPlayersAccountsPanel)
+    expect(accounts.props('accounts').map((a: { id: string }) => a.id)).toEqual(['b1'])
+    accounts.vm.$emit('unlink', accounts.props('accounts')[0])
+    await flushPromises()
+    expect(api.unlinkPersonaAccount).toHaveBeenCalledWith('p2', 'b1')
+  })
+
+  it('drops an open rename when the operator jumps to another player', async () => {
+    api.getPersona.mockImplementation(async (id: string) => detail(id === 'p1' ? {} : { id: 'p2', slug: 'peng', displayName: 'Peng' }))
+    const wrapper = mount(KnownPlayersEditor, { global: editorGlobal, props: { personaId: 'p1' } })
+    await flushPromises()
+    await wrapper.find('button[data-rename]').trigger('click')
+    await wrapper.find('input[aria-label="Name"]').setValue('Caps (G2)')
+
+    await wrapper.setProps({ personaId: 'p2' })
+    await flushPromises()
+    expect(wrapper.find('input[aria-label="Name"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Peng')
+    expect(api.renamePersona).not.toHaveBeenCalled()
+
+    await wrapper.setProps({ personaId: 'p1' })
+    await flushPromises()
+    expect(wrapper.find('input[aria-label="Name"]').exists()).toBe(false)
+  })
+
+  it('keeps the player drawn, with a note, when the reload after an edit fails', async () => {
+    api.getPersona.mockResolvedValueOnce(detail()).mockRejectedValue(new Error('down'))
+    api.addPersonaLink.mockResolvedValue({ id: 'p1', slug: 'caps', accounts: [] })
+    const wrapper = mount(KnownPlayersEditor, { global: editorGlobal, props: { personaId: 'p1' } })
+    await flushPromises()
+    wrapper.findComponent(KnownPlayersLinksPanel).vm.$emit('add', { kind: 'twitch', url: 'https://www.twitch.tv/caps' })
+    await flushPromises()
+    expect(wrapper.find('[data-stale]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('from Leaguepedia')
+    expect(wrapper.text()).not.toContain('Failed to load this known player')
   })
 
   it('says when the player cannot be loaded', async () => {

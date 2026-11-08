@@ -2,7 +2,7 @@
 // Removing a known player (#2019), the two ways: a plain removal for a player that
 // should not exist, a takedown for a person who asked not to be listed. Both ask
 // twice; the first click arms, the second sends. Emits; the container calls the API.
-import { ref } from 'vue'
+import { useArmedConfirm } from '~/composables/useArmedConfirm'
 
 const props = defineProps<{
   displayName: string
@@ -28,18 +28,12 @@ const OPTIONS = [
   },
 ] as const
 
-const armed = ref<string | null>(null)
+const { armed, sending, press } = useArmedConfirm({ busy: () => props.busy })
 
 function choose(key: string, takedown: boolean) {
-  if (props.busy) {
-    return
+  if (press(key)) {
+    emit('remove', takedown)
   }
-  if (armed.value !== key) {
-    armed.value = key
-    return
-  }
-  armed.value = null
-  emit('remove', takedown)
 }
 </script>
 
@@ -55,6 +49,7 @@ function choose(key: string, takedown: boolean) {
           :icon="option.icon"
           color="error"
           :variant="armed === option.key ? 'solid' : 'subtle'"
+          :loading="busy && sending === option.key"
           :disabled="busy"
           :label="armed === option.key ? `Confirm: ${option.label}` : option.label"
           class="shrink-0"

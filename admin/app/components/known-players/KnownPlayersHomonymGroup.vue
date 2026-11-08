@@ -7,6 +7,7 @@
 import type { PersonaHomonymDistinctBody, PersonaHomonymGroup, PersonaHomonymMergeBody } from '~~/shared/types/ops'
 import { computed, ref, watch } from 'vue'
 import { markedDistinct } from '~~/shared/utils/persona-homonyms'
+import { useArmedConfirm } from '~/composables/useArmedConfirm'
 
 const props = defineProps<{
   group: PersonaHomonymGroup
@@ -20,25 +21,26 @@ const emit = defineEmits<{
 
 const keepId = ref('')
 const selected = ref<string[]>([])
-const armed = ref(false)
 
 watch(() => props.group, (group) => {
   keepId.value = group.personas[0]?.id ?? ''
   selected.value = group.personas.map(p => p.id)
-  armed.value = false
 }, { immediate: true })
+
+// A confirmation is for one merge: another group, kept player or selection disarms it.
+const confirmation = useArmedConfirm<'merge'>({ busy: () => props.busy, scope: [() => props.group, keepId, selected] })
+const armed = computed(() => confirmation.armed.value === 'merge')
+const sending = computed(() => confirmation.sending.value === 'merge')
 
 const kept = computed(() => props.group.personas.find(p => p.id === keepId.value))
 const mergeIds = computed(() => selected.value.filter(id => id !== keepId.value))
 const markedPairs = computed(() => props.group.distinctPairs.length)
 
 function toggle(id: string) {
-  armed.value = false
   selected.value = selected.value.includes(id) ? selected.value.filter(s => s !== id) : [...selected.value, id]
 }
 
 function keep(id: string) {
-  armed.value = false
   keepId.value = id
   if (!selected.value.includes(id)) {
     selected.value = [...selected.value, id]
@@ -46,17 +48,9 @@ function keep(id: string) {
 }
 
 function merge() {
-  if (props.busy || mergeIds.value.length === 0) {
-    return
+  if (mergeIds.value.length > 0 && confirmation.press('merge')) {
+    emit('merge', { keepId: keepId.value, mergeIds: mergeIds.value })
   }
-
-  if (!armed.value) {
-    armed.value = true
-    return
-  }
-
-  armed.value = false
-  emit('merge', { keepId: keepId.value, mergeIds: mergeIds.value })
 }
 
 function distinct() {
@@ -106,6 +100,7 @@ function note(id: string) {
         icon="i-lucide-merge"
         color="primary"
         :variant="armed ? 'solid' : 'subtle'"
+        :loading="busy && sending"
         :disabled="busy || mergeIds.length === 0"
         :label="armed ? `Confirm: merge ${mergeIds.length} into ${kept?.slug}` : `Merge ${mergeIds.length} into ${kept?.slug}`"
         @click="merge()"

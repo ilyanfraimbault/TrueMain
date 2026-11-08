@@ -221,11 +221,17 @@ async function refreshRuns() {
 
 // --- Slide-overs -------------------------------------------------------------
 // A run (from the chain or the table) and a finished iteration each open their
-// own formatted breakdown rather than the raw JSON.
+// own formatted breakdown rather than the raw JSON. The run is read back from the
+// live feeds (#2471), so a Running one settles in place when the chain refreshes.
+const selected = ref<ProcessRun | null>(null)
 const detailOpen = ref(false)
-const selectedRun = ref<ProcessRun | null>(null)
+const selectedRun = computed(() => liveRun(selected.value, [
+  ...latestIterations.value.map(iteration => iteration.runs),
+  runs.value,
+  ...finishedIterations.value.map(iteration => iteration.runs),
+]))
 function openDetail(run: ProcessRun) {
-  selectedRun.value = run
+  selected.value = run
   detailOpen.value = true
 }
 

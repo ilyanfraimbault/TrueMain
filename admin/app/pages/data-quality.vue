@@ -27,6 +27,7 @@ import type {
   DataQualityIssueType,
   MatchDataQualityDetail,
 } from '~~/shared/types/ops'
+import { useKeyedFetch } from '~/composables/useKeyedFetch'
 
 // --- Filters -----------------------------------------------------------------
 const issue = ref<'all' | DataQualityIssueType>(ALL)
@@ -74,40 +75,40 @@ const {
 const detectors = computed(() => detectorsData.value?.detectors ?? [])
 
 // The per-champion freshness breakdown is the one heavy query, so it loads on an
-// explicit click rather than with the panel.
+// explicit click rather than with the panel. Keyed by a measurement number (#2471):
+// a refresh starts a new measurement, and the answer of the one it replaced —
+// still in flight — is dropped instead of landing over it.
 const freshnessOpen = ref(false)
-const freshness = ref<AggregateFreshnessResponse | null>(null)
-const freshnessPending = ref(false)
-const freshnessError = ref<string | null>(null)
+const measurement = ref(0)
+const { state: freshnessState, load: loadFreshness, reset: resetFreshness } = useKeyedFetch<number, AggregateFreshnessResponse>(
+  () => getAggregateFreshness(),
+)
+const freshness = computed(() => freshnessState.value.s === 'ready' ? freshnessState.value.value : null)
+const freshnessPending = computed(() => freshnessState.value.s === 'loading')
+const freshnessError = computed(() => freshnessState.value.s === 'error'
+  ? 'Failed to load the per-champion freshness breakdown.'
+  : null)
 
-async function openFreshness() {
+function openFreshness() {
   freshnessOpen.value = true
-  if (freshness.value || freshnessPending.value) {
+  const state = freshnessState.value
+  // Measured already, or measuring: the open shows that one.
+  if ((state.s === 'ready' || state.s === 'loading') && state.id === measurement.value) {
     return
   }
-  freshnessPending.value = true
-  freshnessError.value = null
-  try {
-    freshness.value = await getAggregateFreshness()
-  }
-  catch {
-    freshnessError.value = 'Failed to load the per-champion freshness breakdown.'
-  }
-  finally {
-    freshnessPending.value = false
-  }
+  void loadFreshness(measurement.value)
 }
 
 function refreshAll() {
   refresh()
   refreshDetectors()
-  // Drop the cached breakdown so a reopen re-measures instead of showing ages
-  // computed against an older evaluation — but if the slide-over is open right
-  // now, re-measure immediately: clearing alone would leave it rendering an
-  // empty panel until the operator closed and reopened it.
-  freshness.value = null
+  // A new measurement: a reopen re-measures instead of showing ages computed
+  // against an older evaluation — and if the slide-over is open right now, it
+  // re-measures immediately rather than rendering an empty panel.
+  measurement.value++
+  resetFreshness()
   if (freshnessOpen.value) {
-    void openFreshness()
+    openFreshness()
   }
 }
 

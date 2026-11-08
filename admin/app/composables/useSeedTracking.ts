@@ -2,15 +2,17 @@
 // `AccountsSeed.vue`, #1436): POST one Riot ID, then POLL
 // `GET /api/ops/accounts/seed/{id}` every ~2s until a terminal status or a ~30s
 // timeout, so the form can drive a live status stepper.
-import type { SeedAccountBody, SeedRequestReadModel, SeedRequestStatus } from '~~/shared/types/ops'
-import { TERMINAL_SEED_STATUSES } from '~~/shared/types/ops'
+import type { Ref } from 'vue'
+import type { SeedAccountBody, SeedRequestReadModel } from '~~/shared/types/ops'
+import type { SeedTracking } from '~/utils/seed-tracking'
+// Explicit imports rather than Nuxt auto-imports: unit tested outside the Nuxt
+// context (`tests/seed-tracking`).
+import { computed, onBeforeUnmount, shallowRef } from 'vue'
+import { extractFetchError } from '~/utils/fetch-error'
+import { seedStatusRead, trackedRequest } from '~/utils/seed-tracking'
 
 export const SEED_POLL_INTERVAL_MS = 2000
 export const SEED_POLL_TIMEOUT_MS = 30000
-
-function isTerminal(status: SeedRequestStatus): boolean {
-  return TERMINAL_SEED_STATUSES.includes(status)
-}
 
 interface SeedTrackingHooks {
   /** A request was created (or found): the queue's first page now holds it. */
@@ -19,40 +21,40 @@ interface SeedTrackingHooks {
   onSettled: () => void
 }
 
+/**
+ * The single seed as one `SeedTracking` union (#2471). Every submit opens a new
+ * generation and every poll loop belongs to one: a loop whose generation is over —
+ * another submit, even of the same Riot ID (the API answers the same id), or the
+ * component unmounting — stops at its next step instead of running alongside.
+ */
 export function useSeedTracking({ onSubmitted, onSettled }: SeedTrackingHooks) {
-  const submitting = ref(false)
-  // The request currently being tracked (live status surfaces from this).
-  const tracked = ref<SeedRequestReadModel | null>(null)
-  // Set when the submit itself failed (network / 400) before we got an id.
-  const submitError = ref<string | null>(null)
-  // True while the poll loop is still running (non-terminal, pre-timeout).
-  const polling = ref(false)
-  // Flips true if we stop polling on the ~30s safety timeout rather than a
-  // terminal status — the UI then says "still processing" instead of overclaiming.
-  const polledOut = ref(false)
+  const state = shallowRef<SeedTracking>({ s: 'idle' }) as Ref<SeedTracking>
 
+  let generation = 0
   let pollTimer: ReturnType<typeof setTimeout> | null = null
-  let pollDeadline = 0
 
-  function clearPoll() {
+  /** Ends whatever runs now: the pending timer and, through the generation, any read in flight. */
+  function stop(): number {
     if (pollTimer) {
       clearTimeout(pollTimer)
       pollTimer = null
     }
-    polling.value = false
+    return ++generation
   }
 
-  async function pollOnce(id: string) {
+  function schedule(id: string, mine: number, deadline: number) {
+    pollTimer = setTimeout(() => pollOnce(id, mine, deadline), SEED_POLL_INTERVAL_MS)
+  }
+
+  async function pollOnce(id: string, mine: number, deadline: number) {
+    pollTimer = null
     try {
       const next = await getSeedRequest(id)
-      // A newer submit may have replaced the tracked request mid-flight; ignore
-      // stale responses so we never resurrect an old poll's result.
-      if (tracked.value?.id !== id) {
+      if (mine !== generation) {
         return
       }
-      tracked.value = next
-      if (isTerminal(next.status)) {
-        clearPoll()
+      state.value = seedStatusRead(next)
+      if (state.value.s === 'settled') {
         // The terminal request just landed — reflect it in the table too.
         onSettled()
         return
@@ -61,40 +63,32 @@ export function useSeedTracking({ onSubmitted, onSettled }: SeedTrackingHooks) {
     catch {
       // Transient poll error: keep the last known state and retry until the
       // deadline. A persistent failure simply ends at the timeout branch.
+      if (mine !== generation) {
+        return
+      }
     }
 
-    if (Date.now() >= pollDeadline) {
-      polledOut.value = true
-      clearPoll()
+    if (Date.now() >= deadline) {
+      const request = trackedRequest(state.value)
+      if (request) {
+        state.value = { s: 'timedOut', request }
+      }
       return
     }
-    pollTimer = setTimeout(() => pollOnce(id), SEED_POLL_INTERVAL_MS)
-  }
-
-  function startPolling(id: string) {
-    clearPoll()
-    polledOut.value = false
-    // Already terminal (e.g. idempotent hit on an Ingested/Failed request)? Skip.
-    if (tracked.value && isTerminal(tracked.value.status)) {
-      onSettled()
-      return
-    }
-    polling.value = true
-    pollDeadline = Date.now() + SEED_POLL_TIMEOUT_MS
-    pollTimer = setTimeout(() => pollOnce(id), SEED_POLL_INTERVAL_MS)
+    schedule(id, mine, deadline)
   }
 
   async function submit(body: SeedAccountBody) {
-    submitError.value = null
-    tracked.value = null
-    polledOut.value = false
-    clearPoll()
-    submitting.value = true
+    const mine = stop()
+    state.value = { s: 'submitting' }
 
     try {
       const res = await seedAccount(body)
+      if (mine !== generation) {
+        return
+      }
       // Seed the tracked request with what we know now; polling fills the rest.
-      tracked.value = {
+      const request: SeedRequestReadModel = {
         id: res.id,
         gameName: body.gameName,
         tagLine: body.tagLine,
@@ -106,21 +100,33 @@ export function useSeedTracking({ onSubmitted, onSettled }: SeedTrackingHooks) {
         resolvedPuuid: null,
         resolvedRiotAccountId: null,
       }
+      state.value = seedStatusRead(request)
       onSubmitted()
-      startPolling(res.id)
+      // Already terminal (an idempotent hit on an Ingested/Failed request)? No loop.
+      if (state.value.s === 'settled') {
+        onSettled()
+        return
+      }
+      schedule(res.id, mine, Date.now() + SEED_POLL_TIMEOUT_MS)
     }
     catch (err: unknown) {
+      if (mine !== generation) {
+        return
+      }
       // The inline alert is the whole report: a submit that fails leaves the form
       // on screen with its error in place, so a toast saying the same thing was
       // the second telling of a message the operator still has (#1661).
-      submitError.value = extractFetchError(err)
-    }
-    finally {
-      submitting.value = false
+      state.value = { s: 'rejected', error: extractFetchError(err) }
     }
   }
 
-  onBeforeUnmount(clearPoll)
+  onBeforeUnmount(stop)
 
-  return { submitting, tracked, submitError, polling, polledOut, submit }
+  return {
+    state,
+    /** The request on screen, whichever phase it is in. */
+    tracked: computed(() => trackedRequest(state.value)),
+    submitting: computed(() => state.value.s === 'submitting'),
+    submit,
+  }
 }
