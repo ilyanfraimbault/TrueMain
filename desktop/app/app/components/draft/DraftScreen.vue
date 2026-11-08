@@ -15,7 +15,8 @@ const props = withDefaults(defineProps<{
   label?: string
 }>(), { label: 'Champion select' })
 
-const draft = toRef(props, 'draft')
+// The lane we rank for: the client's, else the one chosen or left free by our allies (#2461).
+const { draft, choosable: laneChoosable, choose: chooseLane } = useDraftLane(toRef(props, 'draft'))
 
 // Hover, lock and ban, on the player's click (#1909): one instance for every control under this screen.
 const { turnLabel } = provideChampSelectActions(draft)
@@ -61,7 +62,7 @@ watch(pinned, value => (pinnedLanes.value = value), { deep: true })
 
 // ─── The two teams ──────────────────────────────────────────────────────────
 
-const { byLane, allyRows, enemyRows } = useDraftTeamRows(draft, recommendation, slots)
+const { allyRows, enemyRows } = useDraftTeamRows(draft, recommendation, slots)
 
 // ─── Whose build, and which half of the screen ──────────────────────────────
 
@@ -103,10 +104,10 @@ watch(() => [props.draft.myChampion, props.draft.myChampionLocked].join(':'), ()
   previewed.value = null
 })
 
-/** Bans on our ban turn, picks while ours is open, with a lane to rank for; the build otherwise. */
+/** Bans on our ban turn, picks while ours is open, with a lane to rank for — or one to choose; the build otherwise. */
 const mode = computed<'pick' | 'ban' | 'build'>(() => {
   if (shownView.value || previewed.value !== null || showBuild.value) return 'build'
-  if (!byLane.value) return 'build'
+  if (!draft.value.myPosition && !laneChoosable.value) return 'build'
   if (banTime.value) return 'ban'
   return !props.draft.myChampionLocked ? 'pick' : 'build'
 })
@@ -200,7 +201,9 @@ const suggested = computed(() => (recommendation.value?.candidates ?? []).filter
         :pending="mode === 'ban' ? banPending : ranking"
         :error="mode === 'ban' ? banError : rankError"
         :position="draft.myPosition"
+        :lane-choice="laneChoosable"
         :allies="lockedAllies"
+        @choose-lane="chooseLane"
         @preview="previewed = $event"
       />
 

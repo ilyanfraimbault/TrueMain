@@ -323,7 +323,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   heading, and the dashboard carries no Riot legal line (the app's other pages keep it, `SharedPage`). The goals card (#1913)
   was removed in #2074 at the product owner's request. With no client: a waiting banner over the patch's best picks by lane.
 - **Draft** (`/draft`) — bans and phase clock, both teams as tall pick cards with their tier on their lane, enemy lanes
-  guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). While our pick is open: the ranked picks ("My pool" =
+  guessed and correctable (the lane icon under an enemy is a menu of lanes, or drag one onto another), the lane duel (lane win rate). With no lane from the client (blind pick, a custom game), the picks are ranked for the lane our allies leave free, or the one
+  chosen from the lane picker in the "Your pick" header (#2461). While our pick is open: the ranked picks ("My pool" =
   ten most-mastered champions on the lane, or every champion on the lane), in the endpoint's order — blind safety before
   our lane opponent shows — each card leading with its strongest reason's figure (a delta in points or a rate, never the
   score) and that reason in one line under the name ("Safe blind", "vs Zed (likely)", "With Lulu (hover)"), every reason
