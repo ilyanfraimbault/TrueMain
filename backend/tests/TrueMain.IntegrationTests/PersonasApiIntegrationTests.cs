@@ -331,6 +331,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
             {
                 Slug = "streamer",
                 DisplayName = "The Streamer",
+                PictureUrl = "https://yt3.ggpht.com/streamer",
                 Source = PersonaSource.Manual,
                 Accounts =
                 [
@@ -353,6 +354,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
 
         var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Streamer-EUW/profile");
         profile!.Persona!.Slug.Should().Be("streamer");
+        profile.Persona.PictureUrl.Should().Be("https://yt3.ggpht.com/streamer");
         (await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Nobody-EUW/profile"))!.Persona.Should().BeNull();
     }
 
