@@ -49,12 +49,14 @@ const {
   data: profile,
   isInitialLoading: profileLoading,
   notFound: profileNotFound,
+  error: profileError,
 } = useTruemainProfile(nameTag, { enabled: visible })
 
 const {
   matches,
   isInitialLoading: matchesLoading,
   notFound: matchesNotFound,
+  error: matchesError,
 } = useTruemainMatches(nameTag, 1, { pageSize: props.matchCount, enabled: visible })
 
 const profileHref = computed(() => truemainProfilePath(nameTag.value))
@@ -108,6 +110,8 @@ const staticBundleReady = computed(() =>
       >
         <template #subline>
           <USkeleton v-if="profileLoading" class="h-3 w-28" />
+          <!-- A failed read is not "Unranked" (#2476). -->
+          <span v-else-if="profileError && !profile" class="text-xs text-muted">Rank unavailable</span>
           <span v-else-if="rankedLabel" class="text-xs text-muted tabular-nums">
             {{ rankedLabel }}
             <template v-if="winRateLabel"> · {{ winRateLabel }} WR</template>
@@ -135,6 +139,13 @@ const staticBundleReady = computed(() =>
         <UEmpty
           size="xs"
           description="This player is no longer tracked. Unfollow them to clean up the list."
+        />
+      </template>
+      <!-- Only a 404 means the player is gone; an outage is said as one (#2476). -->
+      <template v-else-if="matchesError && matches.length === 0">
+        <UEmpty
+          size="xs"
+          description="Their latest games could not be loaded. Try again in a moment."
         />
       </template>
       <template v-else-if="matchesLoading || !staticBundleReady">
