@@ -2,6 +2,7 @@
   The one day-grouped match list — the profile's history (site and app), the
   app's dashboard and the player-scoped champion page: `MatchRowSkeleton`s while
   the page or the statics load, `MatchHistoryEmpty` when there is nothing to show,
+  a `FetchErrorAlert` when the page could not be read,
   else the rows under a `MatchDayHeading` per local day, and the pager. Each host
   keeps its own heading and filters around it. A host control on each row (the
   app's "Watch") goes in the `actions` slot, scoped by the row's match.
@@ -34,6 +35,12 @@ const props = defineProps<{
   /** The player's slug; it makes each row an accordion over the game's detail. */
   nameTag?: string | null
   notFound?: boolean
+  /**
+   * The page could not be read (anything but a 404, #2476). With no rows to
+   * keep it takes the list's place; over kept rows it sits above them, so a
+   * failed page turn never reads as an empty history.
+   */
+  error?: unknown
   filtered?: boolean
   own?: boolean
 }>()
@@ -45,7 +52,8 @@ defineSlots<{ actions?: (props: { match: MatchSummaryResponse }) => unknown }>()
 // The empty state needs no static data, so it never waits on it: a failing
 // static read (CDragon lagging a new patch) would otherwise pin the skeletons
 // over a perfectly valid empty result.
-const empty = computed(() => !props.loading && (props.notFound || props.matches.length === 0))
+const failed = computed(() => props.error != null && !props.loading)
+const empty = computed(() => !props.loading && !failed.value && (props.notFound || props.matches.length === 0))
 
 // Checked non-empty rather than non-null: a host that coerces a pending read to
 // `{}` must not get rows drawn with no items on them.
@@ -66,27 +74,30 @@ const days = computed(() => groupMatchesByDay(props.matches))
 
 <template>
   <div class="flex min-w-0 flex-col gap-2">
+    <FetchErrorAlert v-if="failed" :error="error" title="The match history could not be loaded" />
     <MatchHistoryEmpty v-if="empty" :not-found="notFound" :filtered="filtered" :own="own" />
-    <template v-else-if="loading || !statics">
-      <MatchRowSkeleton v-for="index in SKELETON_ROWS" :key="index" />
-    </template>
-    <template v-for="day in days" v-else :key="day.key">
-      <MatchDayHeading v-if="day.label" :label="day.label" />
-      <MatchRow
-        v-for="match in day.matches"
-        :key="match.matchId"
-        :match="match"
-        :champions="statics.champions"
-        :champion-by-id="championById"
-        :items="statics.items"
-        :summoner-spells="statics.summonerSpells"
-        :rune-tree="statics.runeTree"
-        :name-tag="nameTag"
-      >
-        <template v-if="$slots.actions" #actions>
-          <slot name="actions" :match="match" />
-        </template>
-      </MatchRow>
+    <template v-else-if="!failed || matches.length > 0">
+      <template v-if="loading || !statics">
+        <MatchRowSkeleton v-for="index in SKELETON_ROWS" :key="index" />
+      </template>
+      <template v-for="day in days" v-else :key="day.key">
+        <MatchDayHeading v-if="day.label" :label="day.label" />
+        <MatchRow
+          v-for="match in day.matches"
+          :key="match.matchId"
+          :match="match"
+          :champions="statics.champions"
+          :champion-by-id="championById"
+          :items="statics.items"
+          :summoner-spells="statics.summonerSpells"
+          :rune-tree="statics.runeTree"
+          :name-tag="nameTag"
+        >
+          <template v-if="$slots.actions" #actions>
+            <slot name="actions" :match="match" />
+          </template>
+        </MatchRow>
+      </template>
     </template>
 
     <div v-if="!empty && total > pageSize" class="flex justify-center pt-2">

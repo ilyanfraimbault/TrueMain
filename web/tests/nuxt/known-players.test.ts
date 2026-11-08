@@ -199,6 +199,15 @@ describe('useTruemainSearch', () => {
 })
 
 describe('known player page', () => {
+  // What ofetch does with a failed response: it throws an error carrying the
+  // status — unless `ignoreResponseError` asks it to resolve the error body.
+  function failingWith(statusCode: number) {
+    return async (_url: string, options?: { ignoreResponseError?: boolean }) => {
+      if (options?.ignoreResponseError) return { statusCode, message: 'Upstream failure' }
+      throw Object.assign(new Error(`HTTP ${statusCode}`), { statusCode })
+    }
+  }
+
   // Unmounted after each test: a page left mounted would follow the next test's route.
   const mounted: Array<{ unmount: () => void }> = []
   afterEach(() => mounted.splice(0).forEach(wrapper => wrapper.unmount()))
@@ -290,11 +299,22 @@ describe('known player page', () => {
   })
 
   it('says a slug nobody answers to is unknown', async () => {
-    apiFetch.mockResolvedValue(null)
+    apiFetch.mockImplementation(failingWith(404))
 
     const wrapper = await mountPage('/players/nobody')
 
     expect(wrapper.text()).toContain('Unknown player')
+  })
+
+  // #2476: an outage used to resolve to an empty body, read as "unknown" — and
+  // answered to a crawler with the 404 that drops the page from the index.
+  it('says an outage is a failure, not an unknown player', async () => {
+    apiFetch.mockImplementation(failingWith(502))
+
+    const wrapper = await mountPage('/players/outage')
+
+    expect(wrapper.text()).toContain('This player could not be loaded')
+    expect(wrapper.text()).not.toContain('Unknown player')
   })
 
   it('follows a merged player to the kept one', async () => {

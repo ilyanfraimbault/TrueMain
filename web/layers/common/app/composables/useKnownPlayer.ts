@@ -1,6 +1,7 @@
 import type { PersonaResponse } from '#shared/types/players'
 import { parseRouteParam } from '#common/utils/route-params'
 import { mergedPlayerPath } from '#common/utils/player-redirect'
+import { isNotFoundError } from '#common/utils/remote-read'
 
 /**
  * The known player the route names (#2016), read once for both apps' pages. The
@@ -16,12 +17,19 @@ export function useKnownPlayer() {
   const read = useAsyncData<PersonaResponse | null>(
     () => `player-${slug.value}`,
     async (_nuxtApp, { signal }) => {
-      const response = await apiFetch<PersonaResponse | null>(
-        `/players/${encodeURIComponent(slug.value)}`,
-        { ignoreResponseError: true, signal },
-      )
-      // A 404 resolves to an empty body: anything without a name is "unknown".
-      return response && typeof response === 'object' && response.displayName ? response : null
+      try {
+        const response = await apiFetch<PersonaResponse | null>(
+          `/players/${encodeURIComponent(slug.value)}`,
+          { signal },
+        )
+        return response && typeof response === 'object' && response.displayName ? response : null
+      }
+      catch (err) {
+        // Only a 404 is "unknown". An outage stays an error, shown as one — and
+        // never answered to a crawler with the 404 an unknown player gets (#2476).
+        if (isNotFoundError(err)) return null
+        throw err
+      }
     },
     { watch: [slug] },
   )

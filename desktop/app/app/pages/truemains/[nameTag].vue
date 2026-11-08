@@ -17,11 +17,11 @@ const nameTag = computed(() => parseRouteParam(route.params.nameTag))
 const page = ref(1)
 watch(nameTag, () => (page.value = 1))
 
-const { data: profile, isInitialLoading: profileLoading, notFound: profileNotFound } = useTruemainProfile(nameTag)
+const { data: profile, isInitialLoading: profileLoading, notFound: profileNotFound, error: profileError } = useTruemainProfile(nameTag)
 const { data: rankHistory, isInitialLoading: rankHistoryLoading } = useTruemainRankHistory(nameTag)
 const apexCutoffs = useApexCutoffs(() => profile.value?.identity.platformId)
 const { data: activity, isInitialLoading: activityLoading } = useTruemainActivity(nameTag)
-const { matches, total, pageSize, isInitialLoading: matchesLoading, notFound: matchesNotFound } = useTruemainMatches(nameTag, page, { pageSize: 20 })
+const { matches, total, pageSize, isInitialLoading: matchesLoading, notFound: matchesNotFound, error: matchesError } = useTruemainMatches(nameTag, page, { pageSize: 20 })
 
 const championsById = useStaticChampionsById()
 const champions = computed(() => [...championsById.value.values()])
@@ -84,35 +84,44 @@ const identity = computed(() => profile.value?.identity ?? { gameName: truemainS
           :rune-tree="runeTree"
           :name-tag="nameTag"
           :not-found="matchesNotFound"
+          :error="matchesError"
         />
       </template>
 
       <template #aside>
-        <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
-        <ProfileRankedCard
-          v-else
-          :ranked="profile.ranked"
-          :history="rankHistory?.entries ?? []"
-          :history-loading="rankHistoryLoading || apexCutoffs.loading"
-          :cutoffs="apexCutoffs.cutoffs"
+        <!-- A failed profile is said once, here, instead of four skeletons that never end (#2476). -->
+        <FetchErrorAlert
+          v-if="profileError && !profile"
+          :error="profileError"
+          title="This player's profile could not be loaded"
         />
-        <ProfileActivityHeatmap
-          v-if="profile"
-          :data="activity"
-          :loading="activityLoading"
-        />
-        <ProfileDedicationCardSkeleton v-if="profileLoading || !profile" />
-        <ProfileDedicationCard
-          v-else-if="profile.dedication"
-          :dedication="profile.dedication"
-          :champions="champions"
-          :name-tag="nameTag"
-        />
-        <ProfilePositionBreakdownSkeleton v-if="profileLoading || !profile" />
-        <ProfilePositionBreakdown
-          v-else
-          :positions="profile.positions"
-        />
+        <template v-else>
+          <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
+          <ProfileRankedCard
+            v-else
+            :ranked="profile.ranked"
+            :history="rankHistory?.entries ?? []"
+            :history-loading="rankHistoryLoading || apexCutoffs.loading"
+            :cutoffs="apexCutoffs.cutoffs"
+          />
+          <ProfileActivityHeatmap
+            v-if="profile"
+            :data="activity"
+            :loading="activityLoading"
+          />
+          <ProfileDedicationCardSkeleton v-if="profileLoading || !profile" />
+          <ProfileDedicationCard
+            v-else-if="profile.dedication"
+            :dedication="profile.dedication"
+            :champions="champions"
+            :name-tag="nameTag"
+          />
+          <ProfilePositionBreakdownSkeleton v-if="profileLoading || !profile" />
+          <ProfilePositionBreakdown
+            v-else
+            :positions="profile.positions"
+          />
+        </template>
       </template>
     </PagePlayerProfile>
   </div>

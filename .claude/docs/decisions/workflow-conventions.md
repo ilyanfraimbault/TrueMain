@@ -140,3 +140,17 @@ GitHub-hosted runner, against preprod — #1559.
   their changes, which is exactly what an open-source competitor does; an explicit all-rights-reserved notice
   was ruled out because it forbids even study forks and contributions. A license covers the code, not layout
   or interface ideas. — #2070
+
+- **A lifecycle is one explicit state, not a set of flags** (2026-11-08). Anything with more than two states — a
+  fetch, a run, a seed request, a draft turn, a recording — is one discriminated union (TS) or enum (C#, Rust),
+  produced by one pure classifier or one guarded transition, and turned into colours, icons and copy by one table.
+  Call sites switch on that value; they never rebuild the phase from `loading && !error && data`-style
+  combinations or compare a status string by hand. The audit behind it (#2468) found ~60 lifecycles held as
+  independent booleans, nullable fields or loose strings, and the combinations nobody meant to allow were the
+  bugs: a 5xx answered to crawlers as a 404, an admin edit sent for the wrong known player, a seed request stuck
+  in `Resolving` for good, a loading screen that never stops loading. Models to copy:
+  `web/layers/common/app/utils/remote-read.ts` and `truemain-search-state.ts` (web), `PROCESS_STATUS_META` /
+  `DETECTOR_STATUS_META` (admin), `game_recording::session::State` and the serde-tagged `PanelTrigger` mirrored
+  as a TS union (desktop), `AccountExplorerVerdict.ResolveState` and `HealthAlertTransitions.Decide` (backend).
+  A state stored in Postgres is made explicit in code first (a derived enum, a guarded `ExecuteUpdate`), not by a
+  schema change. — #2468, #2476

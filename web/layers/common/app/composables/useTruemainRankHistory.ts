@@ -2,8 +2,8 @@ import type { RankHistoryResponse } from '#shared/types/rank-history'
 
 /**
  * Fetch the rank-history payload for the given <c>nameTag</c>. Mirrors the
- * shape of <c>useTruemainProfile</c> — 404 surfaces as <c>notFound</c>
- * instead of throwing, and the result is fetched client-side so different
+ * shape of <c>useTruemainProfile</c> — a 404 surfaces as <c>notFound</c>, any
+ * other failure as <c>error</c> (#2476), and the result is fetched client-side so different
  * viewers never share an SSR cache entry.
  */
 export function useTruemainRankHistory(
@@ -21,7 +21,6 @@ export function useTruemainRankHistory(
       `/truemains/${encodeURIComponent(tag)}/rank-history`,
       {
         query: { days: daysRef.value },
-        ignoreResponseError: true,
         signal,
       },
     ),

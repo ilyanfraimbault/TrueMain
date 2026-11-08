@@ -6,6 +6,8 @@ export interface MatchDetailState {
   data: Readonly<Ref<MatchDetailResponse | null | undefined>>
   isLoading: Readonly<Ref<boolean>>
   notFound: Readonly<Ref<boolean>>
+  /** A failure other than a 404 (#2476). Optional: a reader that cannot fail leaves it out. */
+  error?: Readonly<Ref<unknown>>
 }
 
 export type MatchDetailSource = (nameTag: () => string, matchId: () => string) => MatchDetailState

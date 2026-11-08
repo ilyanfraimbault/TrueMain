@@ -16,9 +16,9 @@ interface UseTruemainProfileOptions {
 
 /**
  * Single-shot fetch of a truemain profile for the given <c>nameTag</c>.
- * Mirrors the contract of <c>useTruemainMatches</c> — 404 from the API is
- * surfaced as <c>notFound = true</c> so the page can render an empty state
- * instead of an error.
+ * Mirrors the contract of <c>useTruemainMatches</c> — a 404 from the API is
+ * surfaced as <c>notFound = true</c> so the page can render an empty state,
+ * any other failure as <c>error</c> (#2476).
  *
  * Client-only by default — see {@link useTruemainFetch} for the shared
  * lifecycle — or server-rendered with `ssr` (see the option).
@@ -32,13 +32,13 @@ export function useTruemainProfile(
   const data = ref<ProfileResponse | null>(null)
   const apiFetch = useApiFetch()
 
-  const { isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<ProfileResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, reload, ready } = useTruemainFetch<ProfileResponse>(nameTag, {
     enabled: options.enabled,
     request: (tag, signal) => apiFetch<ProfileResponse | null>(
       `/truemains/${encodeURIComponent(tag)}/profile`,
-      { ignoreResponseError: true, signal },
+      { signal },
     ),
-    // Anything missing the identity object we treat as a 404.
+    // A 2xx missing the identity object reads as a 404.
     validate: (response): response is ProfileResponse =>
       Boolean(response && typeof response === 'object' && response.identity),
     onResponse: (response) => { data.value = response },
@@ -47,9 +47,7 @@ export function useTruemainProfile(
 
   async function refresh() {
     data.value = null
-    notFound.value = false
-    isInitialLoading.value = true
-    await execute()
+    await reload()
   }
 
   // Intentionally exposing raw refs (not `readonly()` wrappers) — readonly

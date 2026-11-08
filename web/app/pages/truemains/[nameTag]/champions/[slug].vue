@@ -150,6 +150,7 @@ const {
   pageSize: matchesPageSize,
   isInitialLoading: matchesLoading,
   notFound: matchesNotFound,
+  error: matchesError,
 } = useTruemainMatches(nameTag, matchesPage, { championId, position: matchesPosition })
 
 // An empty slice keeps its filters usable, so the reader can undo the one that
@@ -279,6 +280,7 @@ await Promise.all([championReady, profileReady, rankHistoryReady, indexingReady]
             :page-size="matchesPageSize"
             :loading="matchesLoading"
             :not-found="matchesNotFound"
+            :error="matchesError"
             :champions="staticList"
             :items="itemsMap"
             :summoner-spells="summonersMap"
