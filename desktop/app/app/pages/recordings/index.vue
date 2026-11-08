@@ -76,7 +76,7 @@ const notice = computed(() => {
       <h1 class="text-2xl font-semibold tracking-tight text-highlighted">Recordings</h1>
 
       <div class="ml-auto flex items-center gap-4 text-xs">
-        <span v-if="status?.recordingGameId" class="flex items-center gap-1.5 font-medium text-highlighted">
+        <span v-if="status?.activity.kind === 'recording'" class="flex items-center gap-1.5 font-medium text-highlighted">
           <span class="size-1.5 animate-tm-pulse rounded-full bg-red-500" />
           Recording
         </span>

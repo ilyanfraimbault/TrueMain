@@ -1,4 +1,5 @@
 import type { CaptureAvailability, Clip, GameRecording, RecordingLibrary, RecordingSettings, RecordingSettingsView, RecordingStatus } from '~/types/recordings'
+import { videoOnDisk, youtubeUrl } from '~/types/recordings'
 import type { Chord } from '~/types/overlay'
 import { cutClip, devChordView, devLibrary, devMarkKeyRefusal, devSettings, devStatus } from '~/fixtures/recordings'
 import { devWinProbability } from '~/fixtures/recording-win-probability'
@@ -28,7 +29,7 @@ function open(): DevStore {
   if (mode === 'off') settings.settings.enabled = false
   const availability: CaptureAvailability = mode === 'permission' || mode === 'unsupported' || mode === 'missing' ? mode : 'ready'
   store = { games, clips, settings, status: devStatus(availability) }
-  if (mode === 'empty' || mode === 'off') store.status.processingGameId = null
+  if (mode === 'empty' || mode === 'off') store.status.activity = { kind: 'idle' }
   return store
 }
 
@@ -129,21 +130,22 @@ export async function devRecordingCall(command: string, args: Record<string, unk
       console.info('[dev] would open YouTube\'s upload page')
       return null
     case 'clip_open_youtube':
-      console.info('[dev] would open', clip(current, String(args.id)).youtubeUrl)
+      console.info('[dev] would open', youtubeUrl(clip(current, String(args.id)).video))
       return null
     case 'clip_start_drag':
       console.info('[dev] would drag', clip(current, String(args.id)).videoPath)
       return null
     case 'clip_delete_video': {
       const found = clip(current, String(args.id))
-      if (!found.youtubeUrl) throw new Error('only a clip published on YouTube can leave this PC')
-      found.videoOnDisk = false
+      const url = youtubeUrl(found.video)
+      if (!url) throw new Error('only a clip published on YouTube can leave this PC')
+      found.video = { kind: 'youtube', url }
       found.sizeBytes = 64_000
       return copy(found)
     }
     case 'clip_youtube_embed': {
       // The shell serves this page on the loopback (`embed.rs`); the dev server is already http.
-      const id = new URL(clip(current, String(args.id)).youtubeUrl ?? 'https://x.invalid').searchParams.get('v')
+      const id = new URL(youtubeUrl(clip(current, String(args.id)).video) ?? 'https://x.invalid').searchParams.get('v')
       if (!id) throw new Error('this clip has no YouTube link')
       return `https://www.youtube-nocookie.com/embed/${id}?rel=0`
     }
@@ -152,10 +154,13 @@ export async function devRecordingCall(command: string, args: Record<string, unk
       // its check with YouTube's oEmbed (`check_video`) is the shell's alone.
       const found = clip(current, String(args.id))
       const link = String(args.url).trim()
-      if (!link && !found.videoOnDisk) throw new Error('this clip is only on YouTube now: its link is all that is left of it')
+      const onDisk = videoOnDisk(found.video)
+      if (!link && !onDisk) throw new Error('this clip is only on YouTube now: its link is all that is left of it')
       const id = /^(?:https?:\/\/)?(?:www\.)?(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})(?:[?&#].*)?$/i.exec(link)?.[1]
       if (link && !id) throw new Error('this is not a link to a YouTube video')
-      found.youtubeUrl = id ? `https://www.youtube.com/watch?v=${id}` : null
+      // As the shell's `ClipVideo::new`.
+      const url = id ? `https://www.youtube.com/watch?v=${id}` : null
+      found.video = url ? (onDisk ? { kind: 'both', url } : { kind: 'youtube', url }) : { kind: 'local' }
       return copy(found)
     }
     default:
