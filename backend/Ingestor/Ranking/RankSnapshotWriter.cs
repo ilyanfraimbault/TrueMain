@@ -77,6 +77,15 @@ public sealed class RankSnapshotWriter : IRankSnapshotWriter
         if (input.Wins is { } wins && input.Losses is { } losses)
         {
             account.LadderGames = wins + losses;
+
+            // Games are counted from this reading when the baseline cannot answer (#2447): an
+            // empty one reads as owing nothing, and one above the count (a season reset) hides
+            // every game until the player has replayed the previous season. Only a visit would
+            // repair either, and the claim does not visit an account that owes nothing.
+            if (account.LadderGamesAtLastIngest is not { } baseline || baseline > account.LadderGames)
+            {
+                account.LadderGamesAtLastIngest = account.LadderGames;
+            }
         }
 
         var unchanged = latest is not null
