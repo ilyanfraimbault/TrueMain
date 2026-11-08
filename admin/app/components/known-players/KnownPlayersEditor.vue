@@ -11,7 +11,7 @@ import { accountOutcomeMessage, displayNameError, editErrorMessage } from '~~/sh
 import { knownPlayerPath } from '~~/shared/utils/site-link'
 import { useKeyedFetch } from '~/composables/useKeyedFetch'
 import { panelPhase } from '~/composables/useLastGoodPayload'
-import { keyedId } from '~/utils/keyed-fetch'
+import { keyedId, keyedValue } from '~/utils/keyed-fetch'
 import { modeFor, settleSaving, startSaving, VIEW_MODE } from '~/utils/persona-editor-mode'
 
 const props = defineProps<{ personaId: string }>()
@@ -22,13 +22,7 @@ const emit = defineEmits<{ changed: [], removed: [] }>()
 const { state, reload } = useKeyedFetch<string, PersonaAdminDetail>(id => getPersona(id), { id: () => props.personaId })
 // The player on screen and its detail — only ever the one `personaId` names.
 const shownId = computed(() => keyedId(state.value) === props.personaId ? props.personaId : null)
-const detail = computed(() => {
-  const current = state.value
-  if (shownId.value === null) {
-    return null
-  }
-  return current.s === 'ready' ? current.value : current.s === 'idle' ? null : current.previous
-})
+const detail = computed(() => shownId.value === null ? null : keyedValue(state.value))
 const loadError = computed(() => state.value.s === 'error' ? state.value.error : null)
 // A failed reload after an edit keeps the player drawn with a note (#2471).
 const phase = computed(() => panelPhase({ hasData: detail.value !== null, pending: state.value.s === 'loading', error: loadError.value }))
@@ -108,13 +102,13 @@ function rename() {
   }
   const draft = current.value.draft
   const name = draft.trim()
-  edit('rename', 'Not renamed', personaId => renamePersona(personaId, name), () => {
+  void edit('rename', 'Not renamed', personaId => renamePersona(personaId, name), () => {
     toast.success('Renamed', 'The sources no longer overwrite this name.')
   }, draft)
 }
 
 function addAccount(account: PersonaAccountInput) {
-  edit('addAccount', 'Account not added', async (personaId) => {
+  void edit('addAccount', 'Account not added', async (personaId) => {
     const edited = await addPersonaAccount(personaId, account)
     const message = accountOutcomeMessage(edited.accounts[0]?.status ?? 'invalid')
     toast[message.tone](message.title, message.description)
@@ -122,24 +116,24 @@ function addAccount(account: PersonaAccountInput) {
 }
 
 function unlinkAccount(account: PersonaAdminAccount) {
-  edit('unlinkAccount', 'Account not unlinked', personaId => unlinkPersonaAccount(personaId, account.id), () => {
+  void edit('unlinkAccount', 'Account not unlinked', personaId => unlinkPersonaAccount(personaId, account.id), () => {
     toast.success(`${account.gameName}#${account.tagLine} unlinked`, 'This player\'s sources can no longer link it back.')
   })
 }
 
 function addLink(link: PersonaLinkInput) {
-  edit('addLink', 'Link not added', personaId => addPersonaLink(personaId, link), () => toast.success('Link added'))
+  void edit('addLink', 'Link not added', personaId => addPersonaLink(personaId, link), () => toast.success('Link added'))
 }
 
 function removeLink(link: PersonaAdminLink) {
-  edit('removeLink', 'Link not removed', personaId => removePersonaLink(personaId, link.id), () => {
+  void edit('removeLink', 'Link not removed', personaId => removePersonaLink(personaId, link.id), () => {
     toast.success('Link removed', 'The sources can no longer add it back.')
   })
 }
 
 function remove(takedown: boolean) {
   const name = detail.value?.displayName ?? 'Known player'
-  edit('remove', 'Not removed', personaId => removePersona(personaId, takedown), () => {
+  void edit('remove', 'Not removed', personaId => removePersona(personaId, takedown), () => {
     toast.success(`${name} ${takedown ? 'taken down' : 'removed'}`, takedown
       ? 'The page is gone, and its accounts are barred from every known player.'
       : 'The page is gone, and the sources can no longer recreate it.')
