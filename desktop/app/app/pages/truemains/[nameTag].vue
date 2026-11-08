@@ -29,10 +29,6 @@ const { items, summoners, runeTree } = useStaticData()
 const { aliasOf, patch } = useChampionStatics()
 
 const truemainId = computed(() => profile.value?.dedication?.championId ?? profile.value?.mains[0]?.championId ?? null)
-const truemain = computed(() => {
-  const champion = truemainId.value ? championsById.value.get(truemainId.value) : null
-  return champion ? { name: champion.name, iconUrl: champion.iconUrl } : null
-})
 const splashUrl = computed(() => {
   const alias = truemainId.value ? aliasOf(truemainId.value) : null
   return alias ? splashOfAlias(alias) : null
@@ -55,10 +51,7 @@ const identity = computed(() => profile.value?.identity ?? { gameName: truemainS
       v-else
       :identity="identity"
       :patch="patch || null"
-      :level="profile?.identity.summonerLevel ?? null"
-      :ranked="profile?.ranked ?? null"
       :persona="profile?.persona ?? null"
-      :truemain="truemain"
       :splash-url="splashUrl"
       splash-position="62% 22%"
       :matches="matches"

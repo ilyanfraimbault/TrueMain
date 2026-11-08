@@ -145,6 +145,7 @@ Last verified against `develop` on 2026-09-02.
 - Known players' account conflicts are recorded and settled by the operator (move / keep / detach / merge); exclusions and merged-persona pointers keep the scrapers from undoing it (2026-10-23) — #2253
 - Operators add, edit, unlink and remove known players from the admin; every edit holds against the scrapers, removal keeps the slug, a takedown bars the accounts from every persona (2026-10-24) — #2019
 - A known player's picture is their first channel's (YouTube > Twitch > Kick > SOOP > Chzzk), official APIs for the first two; account rows keep their Riot icon (2026-11-04) — #2446
+- The profile banner's line under the Riot ID is the region flag and the known player (picture + name) only: no rank, level or truemain, the page carries them (2026-11-08) — #2463
 - Two same-name known players claiming one account are merged automatically (into the older); same-name ones without a common account go to a homonyms queue to merge or mark as different people (2026-10-25) — #2271
 - Two known players listing the same social channel are a conflict even without a common account; with the same name too they are merged automatically into the older (2026-10-26) — #2286
 - The open conflict queue is ordered most certain first: shared social channels (Twitch, YouTube, X…) weigh most, shared reference pages less, differing channels count against (2026-10-25) — #2277
@@ -444,6 +445,7 @@ Last verified against `develop` on 2026-09-02.
 - The draft shows each team's damage mix (weighted like `DraftAxisEvaluator`, no figure with two unmeasured picks), a non-scoring chip on a pick that answers a one-sided team, and the boots / first item the draft clearly moves (next-item read at draft time, ≥5 pts and ×1.25, enemy/lane reasons only); runes not yet (2026-10-05) — #1907
 - Champion select is the live draft only; a draft played by hand is a dev tool (`/dev/draft-sim`) feeding the shell the client's payloads (2026-09-28) — #1671
 - An enemy's lane is corrected from its lane icon (a menu of lanes); guessed lanes carry no "?"; build header = icon, name, lane icon (2026-09-29) — #1671
+- With no lane from the client (blind pick, custom game) the draft ranks for the one lane our allies leave free, else for the lane the player picks in the "Your pick" header; never a guess among several (2026-11-08) — #2461
 - No browser chrome in the app: no back/forward arrows, no patch label (2026-09-28) — #1671
 - The window is resizable down to 960 × 640, keeps its size (points) and place (pixels) in the shell's own file, a place on an unplugged monitor reopening centred on the primary; below 1100 px the sidebar is a rail of icons (2026-10-05) — #1914
 - Nothing pops up by itself during champion select or a game: the update toast waits for the phase to end (sidebar only meanwhile); badges read as plain words (2026-10-05) — #1914

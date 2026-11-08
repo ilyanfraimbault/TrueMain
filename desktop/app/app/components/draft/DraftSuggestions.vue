@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DraftSuggestionItem } from '~/types/draft'
+import type { ChampionPosition } from '#common/utils/positions'
 import { comfortOf, comfortText } from '~/utils/draft-comfort'
 import { damageNote } from '~/utils/draft-damage'
 
@@ -19,6 +20,9 @@ import { damageNote } from '~/utils/draft-damage'
  * the lane); off, every champion played on the lane. Bans: the threats to the
  * pick the player declared, else to their pool; never a champion an ally
  * hovers or locks. Either way the order is the endpoint's.
+ *
+ * When the client assigns no lane (blind pick, a custom game), the header
+ * offers the lane to rank for, preset to the one our allies leave free (#2461).
  */
 const props = defineProps<{
   mode: 'pick' | 'ban'
@@ -29,13 +33,15 @@ const props = defineProps<{
   hasPool: boolean
   pending: boolean
   position: string
+  /** The client gave us no lane: the player chooses the one the ranking is for. */
+  laneChoice?: boolean
   error: string | null
   /** Our locked allies, ourselves excluded — what a pick's damage note is read against (#1907). */
   allies: { championId: number, position: string | null }[]
 }>()
 
 const myPool = defineModel<boolean>('myPool', { default: true })
-const emit = defineEmits<{ preview: [championId: number] }>()
+const emit = defineEmits<{ 'preview': [championId: number], 'choose-lane': [lane: string | null] }>()
 
 const { nameOf, champions } = useChampionStatics()
 const { writable, kind, hovered: clientHovered } = useChampSelectActions()
@@ -62,6 +68,9 @@ const comforts = computed(() => {
     return comfort ? [[item.championId, comfortText(nameOf(item.championId), comfort)] as const] : []
   }))
 })
+
+/** The lane the header's picker shows as chosen: none until there is one. */
+const chosenLane = computed(() => (props.position || null) as ChampionPosition | null)
 
 const search = ref('')
 const hovered = ref<number | null>(null)
@@ -112,6 +121,7 @@ const focused = computed(() => hovered.value ?? shown.value[0]?.championId ?? nu
  * that missed (#1783).
  */
 const empty = computed(() => {
+  if (!props.position) return { icon: 'i-lucide-map-pin', text: props.mode === 'ban' ? 'Choose your lane to rank the bans' : 'Choose your lane to rank the picks' }
   if (props.error) return { icon: 'i-lucide-wifi-off', text: props.mode === 'ban' ? 'Could not rank the bans' : 'Could not rank the picks' }
   if (tierListStatus.value === 'error') return { icon: 'i-lucide-wifi-off', text: 'The tier list did not load — retrying' }
   if (tierListStatus.value !== 'ready') return { icon: 'i-lucide-loader-circle', text: 'Loading the tier list…' }
@@ -134,6 +144,13 @@ const heightOf = (index: number) => Math.max(0.78, 1 - index * 0.035)
         <span class="text-xs text-muted">{{ targetLabel }}</span>
       </UTooltip>
       <UIcon v-if="pending" name="i-lucide-loader-circle" class="size-4 text-dimmed" />
+      <UTooltip v-if="laneChoice" text="The client gave you no lane: the ranking is for this one">
+        <RolePicker
+          :position="chosenLane"
+          hide-all
+          @update:position="emit('choose-lane', $event)"
+        />
+      </UTooltip>
 
       <div class="ml-auto flex items-center gap-3">
         <UTooltip v-if="mode === 'pick'" :text="hasPool ? 'Your ten most-played champions on this lane' : 'Needs the League client: your champions come from it'">

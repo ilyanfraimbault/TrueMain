@@ -82,8 +82,6 @@ watch(() => state.value.phase, (next, previous) => {
       <PagePlayerProfile
         :identity="identity"
         :patch="patch || null"
-        :level="state.summonerLevel"
-        :ranked="ranked"
         :splash-url="splashUrl"
         :matches="formMatches"
         :form-reference="formReference"

@@ -55,6 +55,14 @@ shown as a reason; it never enters the score or breaks ties — no composite pla
 — #1906. The reason is a line on the card's hover counted from the last 20 non-remake games of the client's history
 ("Your Ahri: 12 of your last 20 games, 7 wins", `utils/draft-comfort.ts`, 2026-10-21).
 
+**With no lane from the client, the draft ranks for the lane left free, or the one the player picks.** Blind pick
+and custom games assign the player no lane (the bots of a custom lobby keep the one the lobby gave them), and the
+draft used to fall back to the build view with nothing ranked. When the four allies hold four different lanes, the
+fifth is ours; otherwise the "Your pick" header offers the five lanes (`RolePicker`), preset to that free lane when
+there is one, and nothing is ranked until one is chosen — two open lanes are never guessed between. The chosen lane
+then stands in for an assigned one everywhere (candidates, bans, build), through `useDraftLane`. A five-cell side
+only: Arena has no lanes to offer (2026-11-08) — #2461.
+
 **The draft asks for the player's tier and above (2026-10-21).** Both draft requests carry `eloBracket` =
 `<TIER>_PLUS` from the player's Solo/Duo standing as this machine last saw it (the rank history the overlay's pace
 panel reads), bare `CHALLENGER` at the top, and nothing — every bracket — when no tier is known. Not the tier alone:
