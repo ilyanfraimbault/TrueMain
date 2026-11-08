@@ -69,7 +69,7 @@ public sealed class ChampionGameCountRefreshProcess(
     {
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
-        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
+        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
         if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < MinRunInterval)
         {
             logger.LogInformation(

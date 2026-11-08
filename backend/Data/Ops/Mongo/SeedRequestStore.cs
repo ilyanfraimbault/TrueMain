@@ -157,29 +157,48 @@ internal sealed class SeedRequestStore(MongoLogContext context) : ISeedRequestSt
 
         // Atomic claim: flip Pending → Resolving in one guarded update so two
         // concurrent runs can't both pick the same request.
-        var result = await context.SeedRequests.UpdateOneAsync(
-            Builders<SeedRequestDocument>.Filter.Eq(doc => doc.Id, id)
-            & Builders<SeedRequestDocument>.Filter.Eq(doc => doc.Status, SeedRequestStatus.Pending),
+        return await TransitionAsync(
+            id,
+            SeedRequestStatus.Resolving,
             Builders<SeedRequestDocument>.Update.Set(doc => doc.Status, SeedRequestStatus.Resolving),
-            cancellationToken: ct);
-
-        return result.ModifiedCount > 0;
+            ct);
     }
 
     public async Task<bool> ResetResolvingToPendingAsync(Guid id, CancellationToken ct)
     {
         ThrowIfInactive();
 
-        var result = await context.SeedRequests.UpdateOneAsync(
-            Builders<SeedRequestDocument>.Filter.Eq(doc => doc.Id, id)
-            & Builders<SeedRequestDocument>.Filter.Eq(doc => doc.Status, SeedRequestStatus.Resolving),
+        return await TransitionAsync(
+            id,
+            SeedRequestStatus.Pending,
+            Builders<SeedRequestDocument>.Update.Set(doc => doc.Status, SeedRequestStatus.Pending),
+            ct);
+    }
+
+    public async Task<long> ReturnOrphanedClaimsAsync(CancellationToken ct)
+    {
+        if (!context.IsActive)
+        {
+            // A boot step: nothing to give back when there is no queue, and failing the
+            // ingestor's startup over it would be worse than the stranded request it fixes.
+            return 0;
+        }
+
+        // Every Resolving request is a claim. The ingestor lane that owns ManualSeed is
+        // single-instance, so at its boot none of them can belong to a live run: each was
+        // stranded by a predecessor killed between its claim and its terminal write, and
+        // until given back it is invisible to GetPendingAsync and keeps answering the
+        // create endpoint's idempotency check — that Riot ID could never be seeded again.
+        var result = await context.SeedRequests.UpdateManyAsync(
+            Builders<SeedRequestDocument>.Filter.In(
+                doc => doc.Status, SeedRequestTransitions.SourcesOf(SeedRequestStatus.Pending)),
             Builders<SeedRequestDocument>.Update.Set(doc => doc.Status, SeedRequestStatus.Pending),
             cancellationToken: ct);
 
-        return result.ModifiedCount > 0;
+        return result.ModifiedCount;
     }
 
-    public async Task MarkIngestedAsync(
+    public async Task<bool> MarkIngestedAsync(
         Guid id,
         string resolvedPuuid,
         Guid? resolvedRiotAccountId,
@@ -188,28 +207,30 @@ internal sealed class SeedRequestStore(MongoLogContext context) : ISeedRequestSt
     {
         ThrowIfInactive();
 
-        await context.SeedRequests.UpdateOneAsync(
-            Builders<SeedRequestDocument>.Filter.Eq(doc => doc.Id, id),
+        return await TransitionAsync(
+            id,
+            SeedRequestStatus.Ingested,
             Builders<SeedRequestDocument>.Update
                 .Set(doc => doc.Status, SeedRequestStatus.Ingested)
                 .Set(doc => doc.Error, null)
                 .Set(doc => doc.ResolvedPuuid, resolvedPuuid)
                 .Set(doc => doc.ResolvedRiotAccountId, resolvedRiotAccountId)
                 .Set(doc => doc.ProcessedAtUtc, processedAtUtc),
-            cancellationToken: ct);
+            ct);
     }
 
-    public async Task MarkFailedAsync(Guid id, string? error, DateTime processedAtUtc, CancellationToken ct)
+    public async Task<bool> MarkFailedAsync(Guid id, string? error, DateTime processedAtUtc, CancellationToken ct)
     {
         ThrowIfInactive();
 
-        await context.SeedRequests.UpdateOneAsync(
-            Builders<SeedRequestDocument>.Filter.Eq(doc => doc.Id, id),
+        return await TransitionAsync(
+            id,
+            SeedRequestStatus.Failed,
             Builders<SeedRequestDocument>.Update
                 .Set(doc => doc.Status, SeedRequestStatus.Failed)
                 .Set(doc => doc.Error, error)
                 .Set(doc => doc.ProcessedAtUtc, processedAtUtc),
-            cancellationToken: ct);
+            ct);
     }
 
     public async Task<SeedRequestDocument?> GetLatestResolvedForAccountAsync(
@@ -287,6 +308,27 @@ internal sealed class SeedRequestStore(MongoLogContext context) : ISeedRequestSt
     /// </summary>
     private static BsonRegularExpression Contains(string fragment)
         => new(Regex.Escape(fragment), "i");
+
+    /// <summary>
+    /// One guarded write: applies <paramref name="update"/> only while the request is in a
+    /// status <see cref="SeedRequestTransitions"/> allows to move to <paramref name="to"/>, so
+    /// the check and the write are one atomic operation (#2474). False when the request is in
+    /// any other status, or gone.
+    /// </summary>
+    private async Task<bool> TransitionAsync(
+        Guid id,
+        SeedRequestStatus to,
+        UpdateDefinition<SeedRequestDocument> update,
+        CancellationToken ct)
+    {
+        var builder = Builders<SeedRequestDocument>.Filter;
+        var result = await context.SeedRequests.UpdateOneAsync(
+            builder.Eq(doc => doc.Id, id) & builder.In(doc => doc.Status, SeedRequestTransitions.SourcesOf(to)),
+            update,
+            cancellationToken: ct);
+
+        return result.ModifiedCount > 0;
+    }
 
     private void ThrowIfInactive()
     {

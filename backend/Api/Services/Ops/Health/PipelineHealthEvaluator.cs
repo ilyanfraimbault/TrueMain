@@ -55,7 +55,7 @@ internal static class PipelineHealthEvaluator
         }
 
         var broken = processes
-            .Where(process => process.Status is nameof(ProcessRunStatus.Failed) or nameof(ProcessRunStatus.Abandoned))
+            .Where(process => Enum.TryParse<ProcessRunStatus>(process.Status, out var status) && status.CountsAsFailure())
             .ToList();
         var missing = processes.Where(process => process.Status == MissingStatus).ToList();
 
@@ -353,7 +353,11 @@ internal static class PipelineHealthEvaluator
             DetailPath = detailPath
         };
 
-    private static DetectorStatus FromWireName(string status)
+    /// <summary>
+    /// Reads a signal's wire status back into <see cref="DetectorStatus"/>, the one place a status
+    /// string becomes the enum again; anything unrecognised reads as Unknown, never a pass.
+    /// </summary>
+    internal static DetectorStatus FromWireName(string status)
         => status switch
         {
             "green" => DetectorStatus.Green,

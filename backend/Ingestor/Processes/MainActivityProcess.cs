@@ -50,7 +50,7 @@ public sealed class MainActivityProcess(
         // account is always due and only this interval bounds the lane time spent (#1474).
         if (options.MinRunInterval > TimeSpan.Zero)
         {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
             if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
             {
                 logger.LogInformation(

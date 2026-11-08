@@ -91,7 +91,7 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProce
                     StartedAtUtc = header.StartedAtUtc,
                     LastActivityAtUtc = runs.Count == 0
                         ? header.StartedAtUtc
-                        : runs.Max(run => run.FinishedAtUtc),
+                        : runs.Max(LastActivityOf),
                     // Every run of a pass carries the same mode, so the first non-null one
                     // answers for the iteration; null only when the whole pass predates
                     // #1362's stamping.
@@ -112,6 +112,15 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProce
             PageSize = effectivePageSize
         };
     }
+
+    /// <summary>
+    /// When a run last showed a sign of life. A Running document's <c>FinishedAtUtc</c> is a
+    /// placeholder equal to its start (#2474), so an in-flight run answers with its heartbeat.
+    /// </summary>
+    private static DateTime LastActivityOf(ProcessRunDocument run)
+        => run.Status == ProcessRunStatus.Running
+            ? run.LastHeartbeatAtUtc ?? run.StartedAtUtc
+            : run.FinishedAtUtc;
 
     private static string[]? JobModesForLane(string? lane) => lane?.Trim().ToLowerInvariant() switch
     {

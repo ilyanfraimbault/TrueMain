@@ -19,6 +19,15 @@ Consequences that matter later:
 - The ManualSeed claim (`Pending→Resolving`) is a single guarded Mongo update — same no-TOCTOU semantics the
   SQL `ExecuteUpdate` gave. The Riot-ID idempotency check uses a strength-2 collation (case-insensitive,
   accent-sensitive) instead of escaped ILIKE.
+- Seed requests and process runs each have one transition table, and every store write is filtered on the
+  source status it allows (#2474): `SeedRequestTransitions` (Pending→Resolving, Resolving→{Pending, Ingested,
+  Failed}; the terminal writes only leave Resolving), `ProcessRunStatusExtensions` (only Running moves, and
+  only to a terminal status — a late finalize never turns Abandoned into Success). The lane that runs
+  ManualSeed returns every `Resolving` request to `Pending` at boot, like the run and match-claim
+  reconciles: it is single-instance, so a claim at boot is a dead predecessor's. A failure after the SQL
+  writes committed gives the claim back instead of marking the request `Failed`. The stale→Abandoned rule
+  (`ProcessRunStaleness`) lives in Data and every store count judges the effective status, so a dead host's
+  Running row counts toward the failure streak that opens the per-process alert. Mongo-only, no schema change.
 - Run summaries are stored as **raw JSON text** (`summaryJson`), not nested BSON, so what the admin renders
   is byte-identical to what the recorder serialized — no BSON→JSON number reshaping.
 - Documents store Guids and enum names as plain strings, deliberately: shell-readable, and the one-shot

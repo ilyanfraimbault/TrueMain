@@ -71,7 +71,7 @@ public sealed class MainActivityCadenceTests
             session.RiotAccounts.Returns(RiotAccounts);
             _sessionFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(session));
 
-            _processRunStore.GetLastCompletedRunStartAsync("MainActivity", Arg.Any<CancellationToken>())
+            _processRunStore.GetLastCompletedRunStartAsync("MainActivity", Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<DateTime?>(lastCompletedRunUtc));
         }
 

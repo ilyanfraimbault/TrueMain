@@ -72,7 +72,7 @@ public sealed class DiscoveryCadenceTests
         public Harness(DateTime lastCompletedRunUtc)
         {
             var session = Substitute.For<IDataSession>();
-            _processRunStore.GetLastCompletedRunStartAsync("Discovery", Arg.Any<CancellationToken>())
+            _processRunStore.GetLastCompletedRunStartAsync("Discovery", Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<DateTime?>(lastCompletedRunUtc));
             _sessionFactory.CreateAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(session));
 
