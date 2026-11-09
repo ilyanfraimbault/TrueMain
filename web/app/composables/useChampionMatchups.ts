@@ -1,5 +1,5 @@
 import type { ChampionMatchups } from '~~/shared/types/champions'
-import type { PositionFilter } from '#common/utils/positions'
+import type { PositionFilter } from '#shared/utils/positions'
 import { fetchErrorStatus } from '#common/utils/errors'
 
 export interface UseChampionMatchupsOptions {

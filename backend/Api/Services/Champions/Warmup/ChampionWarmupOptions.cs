@@ -1,9 +1,14 @@
+using System.ComponentModel.DataAnnotations;
+using TrueMain.Configuration;
+
 namespace TrueMain.Services.Champions.Warmup;
 
 /// <summary>The champion cache warm-up (#2425), bound from <c>ChampionWarmup:*</c>.</summary>
-public sealed class ChampionWarmupOptions
+public sealed class ChampionWarmupOptions : IApiOptions, IValidatableObject
 {
     public const string SectionName = "ChampionWarmup";
+
+    static string IApiOptions.Section => SectionName;
 
     /// <summary>
     /// Off by default, so a local API and the test hosts behave as they always did: the read
@@ -47,4 +52,22 @@ public sealed class ChampionWarmupOptions
 
     /// <summary>How long an entry computed by a pass may live: past the next pass, always.</summary>
     internal TimeSpan WarmedEntryLifetime => TimeSpan.FromMinutes(MaxPassAgeMinutes + 30);
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        if (Concurrency <= 0)
+        {
+            yield return new ValidationResult("ChampionWarmup:Concurrency must be greater than 0.");
+        }
+
+        if (StampPollSeconds <= 0)
+        {
+            yield return new ValidationResult("ChampionWarmup:StampPollSeconds must be greater than 0.");
+        }
+
+        if (PatchDepth <= 0)
+        {
+            yield return new ValidationResult("ChampionWarmup:PatchDepth must be greater than 0.");
+        }
+    }
 }

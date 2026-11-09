@@ -4,7 +4,7 @@ import type { ChampionOverviewRow } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { winRateTone } from '#common/utils/rate-tone'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 // Homepage teaser of the champion tier list: the top rows of the active
 // patch, tier first — a presence ranking (pick and ban rate lead), so it is

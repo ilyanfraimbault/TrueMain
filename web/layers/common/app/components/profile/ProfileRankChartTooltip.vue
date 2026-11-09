@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { RankHistoryEntry } from '#shared/types/rank-history'
 import { rankChartDateLabel } from '#common/utils/rank-chart'
-import { formatLeaguePoints } from '#common/utils/tiers'
+import { formatLeaguePoints } from '#shared/utils/ranks'
 
 // The LP curve's hover card: the snapshot's crest, LP and day.
 defineProps<{ entry: RankHistoryEntry }>()

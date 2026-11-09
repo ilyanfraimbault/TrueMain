@@ -26,7 +26,7 @@ LIMIT_TS=300
 # Not covered, on purpose:
 #   backend/**/Migrations, backend/**/CompiledModels  generated
 #   backend/tests, web/tests, admin/tests             a long test file is far cheaper to read
-#   web/server/utils/dev-api-mock.ts                  dev-only fixture, no production reader
+#   web/server/dev/                                   dev-only mount and fixtures, never built
 #   web/shared/contract/api.ts                        generated from the API's OpenAPI document
 list_sources() {
   # Only search roots that exist: the test suite runs the same logic against scratch trees that
@@ -46,7 +46,7 @@ list_sources() {
 
   existing web/app web/layers/common/app web/shared web/server admin/app admin/shared admin/server desktop/app/app | while read -r root; do
     find "$root" -name '*.ts' -print
-  done | { grep -v -e '^web/server/utils/dev-api-mock\.ts$' -e '^web/shared/contract/api\.ts$' || true; } | sed "s/$/\t$LIMIT_TS/"
+  done | { grep -v -e '^web/server/dev/' -e '^web/shared/contract/api\.ts$' || true; } | sed "s/$/\t$LIMIT_TS/"
 }
 
 # "path<TAB>lines<TAB>limit" for every file over its limit, sorted by path.

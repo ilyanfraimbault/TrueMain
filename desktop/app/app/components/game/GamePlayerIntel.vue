@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 import { formatKdaRatio } from '#shared/utils/kda'
-import { isChampionPosition, positionLabel } from '#common/utils/positions'
+import { isChampionPosition, positionLabel } from '#shared/utils/positions'
 import type { LoadingPlayer, PlayerForm, Read } from '~/types/loading'
 import type { RankedQueue } from '~/types/record'
-import { formatLeaguePoints, formatRank, tierColor } from '#common/utils/tiers'
+import { formatLeaguePoints, formatRank } from '#shared/utils/ranks'
+import { tierColor } from '#common/utils/tiers'
 import {
   GOOD_KDA,
   championRecord,

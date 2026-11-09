@@ -3,6 +3,7 @@ using Core.Options;
 using Data;
 using Data.Entities;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
@@ -48,15 +49,15 @@ public sealed class PipelineHealthQueryService(
 
     private static readonly string[] ProcessNames =
     [
-        "Discovery",
-        "Scoring",
-        "MatchIngestion",
-        "MainAnalysis",
-        "MatchParticipantEloBracketEnrichment",
-        "ChampionPatternAggregation",
-        "ChampionMatchupLeadAggregation",
-        "AccountRefresh",
-        "MatchDataRetention"
+        PipelineCatalog.Discovery.Name,
+        PipelineCatalog.Scoring.Name,
+        PipelineCatalog.MatchIngestion.Name,
+        PipelineCatalog.MainAnalysis.Name,
+        PipelineCatalog.EloBracketEnrichment.Name,
+        PipelineCatalog.PatternAggregation.Name,
+        PipelineCatalog.MatchupAggregation.Name,
+        PipelineCatalog.AccountRefresh.Name,
+        PipelineCatalog.MatchDataRetention.Name
     ];
 
     public async Task<PipelineHealthReadModel> GetAsync(CancellationToken ct)
@@ -291,15 +292,15 @@ public sealed class PipelineHealthQueryService(
         // The newest *successful* finish of each side, not the newest run: a failed
         // MatchIngestion says nothing about how far MainAnalysis trails the data it has.
         var successes = await processRunStore.GetLatestPerProcessAsync(
-            ["MatchIngestion", "MainAnalysis"], onlySuccesses: true, ct);
+            [PipelineCatalog.MatchIngestion.Name, PipelineCatalog.MainAnalysis.Name], onlySuccesses: true, ct);
 
         var latestMatchIngestionSuccess = successes
-            .Where(run => run.ProcessName == "MatchIngestion")
+            .Where(run => run.ProcessName == PipelineCatalog.MatchIngestion.Name)
             .Select(run => (DateTime?)run.FinishedAtUtc)
             .FirstOrDefault();
 
         var latestMainAnalysisSuccess = successes
-            .Where(run => run.ProcessName == "MainAnalysis")
+            .Where(run => run.ProcessName == PipelineCatalog.MainAnalysis.Name)
             .Select(run => (DateTime?)run.FinishedAtUtc)
             .FirstOrDefault();
 

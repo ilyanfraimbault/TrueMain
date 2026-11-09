@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CompositionLane } from '#shared/types/composition'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
-import { POSITION_OPTIONS, type ChampionPosition } from '#common/utils/positions'
+import { POSITION_OPTIONS, type ChampionPosition } from '#shared/utils/positions'
 
 /**
  * The matchup page's draft, laid out like the desktop app's champion select

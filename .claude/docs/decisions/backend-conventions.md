@@ -215,6 +215,29 @@ produce.
 non-trivial SQL that needs its own reasoning and its own review; folded into a 200-file structural
 move, neither the move nor the splits would have been reviewable.
 
+## Api registration is owned by the feature: `Program.cs` only composes (2026-11-08)
+
+**Decision.** `backend/Api/Program.cs` composes one `AddTrueMain<Area>()` per area (`Champions`,
+`Truemains`, `Personas`, `Ops`, …) plus the middleware pipeline, and nothing else. A query service is
+registered in its area's extension, next to its folder. An options class declares its section
+(`IApiOptions.Section`), its startup rules (data annotations and `IValidatableObject`) and, when the
+admin configuration page shows it, its `ConfigurationPage` entry. Every feature registers the options it
+reads with `AddApiOptions<T>()`, which binds a section once however many features declare it. The
+configuration page lists the sections the features registered, ordered by title.
+
+**Why.** Before (#2489), Program.cs held 55 inline registrations and 12 inline validation blocks beside
+17 feature extensions, and 46 of the 46 commits that touched it since the #1520 layout split were
+feature commits: a new endpoint was controller + service + read model + a Program.cs line. A section
+shown on the configuration page was also listed by hand in a third place,
+`ApiEffectiveConfigurationCatalog`. The settled layout put the code of a feature in one folder; this puts
+its registration there too.
+
+**Not covered.** Data's own registrations (`AddTrueMainData`, `AddMongoLogging`, …) are composed by
+`AddTrueMainStores`. The `MainAnalysis` section, which the Api binds from Core, has its own
+`AddMainAnalysisOptions` until it gets a single owner across the hosts (#2481, F1).
+
+Source: #2489, #2481.
+
 ## A child table with a natural key uses it as its primary key — no surrogate `Guid` beside it (2026-09-25)
 
 **When every row of a table is identified by columns it already carries — `(MatchId, ParticipantId,
