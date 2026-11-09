@@ -949,7 +949,7 @@ build costs runner minutes, not wall time, since it runs beside CI.
   under the repo (`sonar.scanner.scanAll`), which is how the TypeScript and Vue
   code is read without a second scanner. Generated code (EF migrations, the
   compiled model, `.nuxt`), tests, the dev API mock (`web/server/dev`), the
-  `/dev/*` playground pages (stripped from every build) and `.claude/` are
+  `/dev/*` playground pages and their components (stripped from every build) and `.claude/` are
   excluded: none of them ships, and analysed, they read as uncovered new code
   and fail the gate (#2068).
 - `Download the lcov reports` downloads by pattern, and `download-artifact`
