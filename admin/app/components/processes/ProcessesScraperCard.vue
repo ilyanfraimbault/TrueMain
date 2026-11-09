@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One ops script on the Scrapers tab (#2119): its latest run — status, timing, host, the
 // phase in flight with its progress, every phase's counters — then its recent history.
-import type { ProcessRun, ProcessRunsResponse } from '~~/shared/types/ops'
+import type { ProcessRunReadModel, ProcessRunsReadModel } from '#site-shared/contract/api'
 import type { ScraperProcess } from '~~/shared/utils/scraper-runs'
 import { formatDateTime, formatElapsed, formatTimeAgo } from '~~/shared/utils/format'
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
@@ -14,12 +14,12 @@ import { panelPhase } from '~/composables/useLastGoodPayload'
 
 const props = defineProps<{
   scraper: ScraperProcess
-  data: ProcessRunsResponse | null | undefined
+  data: ProcessRunsReadModel | null | undefined
   pending: boolean
   error: unknown
 }>()
 
-const emit = defineEmits<{ openRun: [run: ProcessRun] }>()
+const emit = defineEmits<{ openRun: [run: ProcessRunReadModel] }>()
 
 // `data` is the last good payload (#2471): a failed refresh keeps the runs drawn, with a note.
 const phase = computed(() => panelPhase({ hasData: props.data != null, pending: props.pending, error: props.error }))
@@ -47,7 +47,7 @@ useIntervalFn(() => {
   now.value = Date.now()
 }, 1000)
 
-function runDuration(run: ProcessRun): string {
+function runDuration(run: ProcessRunReadModel): string {
   if (run.status !== 'Running') {
     return formatElapsed(run.durationMs)
   }

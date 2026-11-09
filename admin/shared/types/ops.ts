@@ -8,7 +8,6 @@
 export * from './ops/common'
 export * from './ops/stats'
 export * from './ops/storage'
-export * from './ops/processes'
 export * from './ops/crashes'
 export * from './ops/seeds'
 export * from './ops/candidates'

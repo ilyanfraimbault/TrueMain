@@ -12,16 +12,31 @@ import type {
   OverviewStats,
   PatchCoverageResponse,
 } from '~~/shared/types/ops'
+import type { GetPath, GetQuery, GetResponse } from '#site-shared/contract/routes'
 
 // The ops-API fetch wrapper, plus the stats and database reads. The other areas
 // live next to it, one file each: `useOpsPipeline.ts` (process runs, logs, crashes,
 // Riot usage, health, configuration), `useOpsDataQuality.ts` and `useOpsAccounts.ts`
 // (seed requests, candidates, account explorer).
 
+/** An ops route as the browser asks for it, under `/api/ops` (backend `/ops/...`). */
+export type OpsPath = GetPath extends infer P ? P extends `/ops${infer Rest}` ? Rest : never : never
+
+/** What a `GET` on the ops route `P` answers with. */
+export type OpsResponse<P extends OpsPath> = GetResponse<`/ops${P}`>
+
+/** The query a `GET` on the ops route `P` accepts. */
+export type OpsQueryOf<P extends OpsPath> = GetQuery<`/ops${P}`>
+
+type LooseQuery = Record<string, string | number | boolean | undefined>
+
 /**
  * Thin wrapper around `useFetch('/api/ops' + path)` — the browser-facing,
  * session-authenticated proxy to the backend ops API. Returns the `useFetch`
  * shape (`data`, `pending`, `error`, `refresh`, `status`) plus `refreshing`.
+ *
+ * The path is checked against the API's contract (`#site-shared/contract`), which
+ * also types the query and the payload.
  *
  * Stale-while-revalidate across navigations (#2306, `utils/ops-cache.ts`): a
  * panel returning to a key fetched in the last few minutes starts from the stored
@@ -39,10 +54,19 @@ import type {
  * SEO-relevant. That is an application-level decision, so no per-request
  * `server` option is needed here.
  */
-export function useOps<T>(
-  path: string,
-  query?: MaybeRefOrGetter<Record<string, string | number | boolean | undefined>>,
-) {
+export function useOps<P extends OpsPath>(
+  path: P,
+  query?: MaybeRefOrGetter<OpsQueryOf<P>>,
+): OpsFetch<OpsResponse<P>>
+/** A read not yet moved onto the contract: the caller names its payload. */
+export function useOps<T>(path: string, query?: MaybeRefOrGetter<LooseQuery>): OpsFetch<T>
+export function useOps(path: string, query?: MaybeRefOrGetter<LooseQuery>) {
+  return opsFetch<unknown>(path, query)
+}
+
+type OpsFetch<T> = ReturnType<typeof opsFetch<T>>
+
+function opsFetch<T>(path: string, query?: MaybeRefOrGetter<LooseQuery>) {
   const queryParams = query
     ? computed(() => cleanQuery(toValue(query)))
     : undefined

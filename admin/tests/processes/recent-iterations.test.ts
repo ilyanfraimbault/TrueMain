@@ -1,4 +1,4 @@
-import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel } from '#site-shared/contract/api'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import ProcessesIterationRow from '~~/app/components/processes/ProcessesIterationRow.vue'
@@ -38,7 +38,7 @@ const global = {
   },
 }
 
-function run(processName: string, startedAtUtc: string, durationMs: number, overrides: Partial<ProcessRun> = {}): ProcessRun {
+function run(processName: string, startedAtUtc: string, durationMs: number, overrides: Partial<ProcessRunReadModel> = {}): ProcessRunReadModel {
   return {
     id: `${processName}-${startedAtUtc}`,
     processName,
@@ -57,7 +57,7 @@ function run(processName: string, startedAtUtc: string, durationMs: number, over
 
 // A fetch pass shaped like the preprod ones: two cadence skips, a 30 s harvest, a
 // 90 s ingestion that recorded counters, and a refresh that failed.
-const fetchPass: ProcessIteration = {
+const fetchPass: ProcessIterationReadModel = {
   iterationId: 'fetch-1',
   jobMode: 'FetchLane',
   startedAtUtc: '2026-10-18T21:10:00.000Z',
@@ -72,7 +72,7 @@ const fetchPass: ProcessIteration = {
   ],
 }
 
-function mountRow(iteration: ProcessIteration = fetchPass, open = false) {
+function mountRow(iteration: ProcessIterationReadModel = fetchPass, open = false) {
   return mount(ProcessesIterationRow, { props: { iteration, open }, global })
 }
 
@@ -165,11 +165,11 @@ describe('ProcessesIterationSteps', () => {
     await items.find(item => item.text().includes('Pace Sampling'))!.trigger('click')
 
     expect(wrapper.emitted('openRun')).toHaveLength(1)
-    expect((wrapper.emitted('openRun')![0]![0] as ProcessRun).processName).toBe('Harvest')
+    expect((wrapper.emitted('openRun')![0]![0] as ProcessRunReadModel).processName).toBe('Harvest')
   })
 
   it('splits a Full pass into one timeline per lane', () => {
-    const full: ProcessIteration = {
+    const full: ProcessIterationReadModel = {
       ...fetchPass,
       jobMode: 'Full',
       runs: [
