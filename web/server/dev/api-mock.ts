@@ -1287,7 +1287,7 @@ function players(): MockPlayer[] {
 }
 
 /** Parse + clamp 1-indexed pagination params, mirroring the backend's clamping. */
-export function pageParams(
+function pageParams(
   query: Record<string, unknown>,
   fallbackSize: number,
   maxSize: number,

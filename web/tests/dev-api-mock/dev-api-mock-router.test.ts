@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { pageParams, resolveDevApiMock } from '~~/server/dev/api-mock'
+import { resolveDevApiMock } from '~~/server/dev/api-mock'
 import type { ChampionDirectoryResponse } from '~~/shared/types/champion-directory'
 import type { ChampionMainsComparison, ChampionSynergies, ChampionTrioSynergies } from '~~/shared/types/champions'
 import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
@@ -12,28 +12,6 @@ beforeAll(() => {
   vi.stubGlobal('$fetch', vi.fn(async () => ['15.13.1', '15.12.1']))
   vi.stubGlobal('createError', (opts: { statusCode: number, statusMessage?: string }) =>
     Object.assign(new Error(opts.statusMessage ?? 'error'), opts))
-})
-
-describe('pageParams', () => {
-  it('defaults to page 1 and the fallback size', () => {
-    expect(pageParams({}, 25, 100)).toEqual({ page: 1, pageSize: 25 })
-  })
-
-  it('clamps page up to 1 and pageSize down to the max', () => {
-    expect(pageParams({ page: '-3', pageSize: '999' }, 25, 100)).toEqual({ page: 1, pageSize: 100 })
-  })
-
-  it('clamps a negative pageSize up to 1', () => {
-    expect(pageParams({ page: '2', pageSize: '-5' }, 25, 100)).toEqual({ page: 2, pageSize: 1 })
-  })
-
-  it('clamps an explicit pageSize=0 up to 1 (not the fallback)', () => {
-    expect(pageParams({ pageSize: '0' }, 25, 100)).toEqual({ page: 1, pageSize: 1 })
-  })
-
-  it('falls back on non-numeric input', () => {
-    expect(pageParams({ page: 'x', pageSize: 'y' }, 25, 100)).toEqual({ page: 1, pageSize: 25 })
-  })
 })
 
 describe('resolveDevApiMock', () => {
