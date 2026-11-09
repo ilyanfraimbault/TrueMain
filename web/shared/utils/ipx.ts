@@ -47,3 +47,38 @@ export function ipxRequestPath(eventPath: string): string {
     ? eventPath.slice(IPX_ROUTE_BASE.length)
     : eventPath
 }
+
+export interface IpxShape {
+  width: number
+  height?: number
+  format: 'webp'
+}
+
+/**
+ * The shapes the site fetches images in (#1000): one fixed fetch per kind,
+ * whatever size it is displayed at, so one asset is one cache entry. The
+ * components build their URLs from these through `useImage()`
+ * (`app/composables/useCanonicalIcon.ts`); the warm-up and the disk cache's
+ * filter (`server/utils/warmup-catalog.ts`) through {@link ipxModifiers}.
+ */
+export const IPX_SHAPES = {
+  /** Every icon: Data Dragon ships items at 64 × 64, and larger sources downscale cleanly. */
+  icon: { width: 64, height: 64, format: 'webp' },
+  /** A banner's splash art: the hero is at most ~1280 px wide. */
+  splash: { width: 1280, format: 'webp' },
+  /** A champion's loading-screen art, at Data Dragon's own 308 px, never enlarged. */
+  loadingArt: { width: 308, format: 'webp' },
+} as const satisfies Record<string, IpxShape>
+
+/**
+ * The modifiers segment of a shape's `/_ipx/…` URL, as @nuxt/image's IPX
+ * provider writes it: the modifiers in order, a width and a height folded into
+ * a trailing `s_WxH`. `tests/nuxt/canonical-image-shapes.test.ts` holds the two
+ * writers to the same output.
+ */
+export function ipxModifiers(shape: IpxShape): string {
+  const { width, height, ...rest } = shape
+  const sized = height === undefined ? { width, ...rest } : { ...rest, resize: `${width}x${height}` }
+  const keys: Record<string, string> = { width: 'w', format: 'f', resize: 's' }
+  return Object.entries(sized).map(([key, value]) => `${keys[key]}_${value}`).join('&')
+}
