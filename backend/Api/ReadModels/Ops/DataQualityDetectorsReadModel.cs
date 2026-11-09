@@ -38,7 +38,7 @@ public sealed record DataQualityDetectorReadModel
     /// <c>green</c> | <c>amber</c> | <c>red</c> | <c>unknown</c>. Unknown means the
     /// detector could not compute its answer — it is never used for "measured and fine".
     /// </summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 
     /// <summary>
     /// The card's headline number, or null when unknown. What it counts is stated by
@@ -94,7 +94,7 @@ public sealed record DataQualityDetectorRowReadModel
     public string Label { get; init; } = string.Empty;
 
     /// <summary><c>green</c> | <c>amber</c> | <c>red</c> | <c>unknown</c> for this row alone.</summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 
     /// <summary>The row's primary number, or null when it could not be measured.</summary>
     public double? Value { get; init; }
@@ -118,7 +118,7 @@ public sealed record DataQualityDetectorRowReadModel
     /// judged one and carries <see cref="Status"/>.
     /// </para>
     /// </summary>
-    public string? ValueStatus { get; init; }
+    public DetectorStatus? ValueStatus { get; init; }
 
     /// <summary>Why this row reads the way it does, or what it is measuring.</summary>
     public string? Note { get; init; }
@@ -199,5 +199,5 @@ public sealed record ChampionFreshnessRowReadModel
     public long ScopeRows { get; init; }
 
     /// <summary><c>green</c> | <c>amber</c> | <c>red</c> for this champion's age.</summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 }

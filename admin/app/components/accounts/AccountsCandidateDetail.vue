@@ -3,12 +3,12 @@
 // pipeline stage, timestamps, ingested match count and the linked manual seed
 // request. Split out of `AccountsPipeline.vue` (#1436); the tab owns the
 // deep-linked fetch (`?candidate=`).
-import type { CandidateDetail, MainCandidateStatus } from '~~/shared/types/ops'
+import type { CandidateDetailReadModel, MainCandidateStatus } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { truemainPath } from '~~/shared/utils/site-link'
 
 const props = defineProps<{
-  detail: CandidateDetail | null
+  detail: CandidateDetailReadModel | null
   pending: boolean
   error: string | null
   errorTraceId: string | undefined

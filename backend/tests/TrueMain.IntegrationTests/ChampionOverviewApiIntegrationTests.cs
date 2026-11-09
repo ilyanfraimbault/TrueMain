@@ -93,7 +93,7 @@ public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions/overview");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var overview = await response.Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+        var overview = await response.Content.ReadFromJsonAsync<ChampionOverviewReadModel>(ApiJson.Options);
         overview.Should().NotBeNull();
 
         overview!.GamesAnalyzed.Should().Be(40 + 3 + 15,
@@ -149,15 +149,15 @@ public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
         });
 
         var defaultResponse = await client.GetAsync("/champions/overview");
-        var defaultOverview = await defaultResponse.Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+        var defaultOverview = await defaultResponse.Content.ReadFromJsonAsync<ChampionOverviewReadModel>(ApiJson.Options);
         defaultOverview!.TopRows.Should().HaveCount(8, "the default limit is 8");
 
         var limitedResponse = await client.GetAsync("/champions/overview?limit=3");
-        var limitedOverview = await limitedResponse.Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+        var limitedOverview = await limitedResponse.Content.ReadFromJsonAsync<ChampionOverviewReadModel>(ApiJson.Options);
         limitedOverview!.TopRows.Should().HaveCount(3);
 
         var clampedResponse = await client.GetAsync("/champions/overview?limit=999");
-        var clampedOverview = await clampedResponse.Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+        var clampedOverview = await clampedResponse.Content.ReadFromJsonAsync<ChampionOverviewReadModel>(ApiJson.Options);
         clampedOverview!.TopRows.Should().HaveCount(10, "only 10 rows were seeded, well under the 20-row clamp ceiling");
     }
 
@@ -180,7 +180,7 @@ public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions/overview");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var overview = await response.Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+        var overview = await response.Content.ReadFromJsonAsync<ChampionOverviewReadModel>(ApiJson.Options);
         overview.Should().NotBeNull();
 
         overview!.PatchVersion.Should().Be("16.15",
@@ -245,7 +245,7 @@ public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
         });
 
         var overview = await (await client.GetAsync("/champions/overview"))
-            .Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+            .Content.ReadFromJsonAsync<ChampionOverviewReadModel>(ApiJson.Options);
 
         overview!.PatchVersion.Should().Be("16.14", "neither 16.16 nor 16.15 can fill a directory");
         overview.GamesAnalyzed.Should().Be(1 + 2 + (6 * 40) + (3 * 50),
@@ -267,7 +267,7 @@ public sealed class ChampionOverviewApiIntegrationTests : IAsyncLifetime
         });
 
         var overview = await (await client.GetAsync("/champions/overview"))
-            .Content.ReadFromJsonAsync<ChampionOverviewReadModel>();
+            .Content.ReadFromJsonAsync<ChampionOverviewReadModel>(ApiJson.Options);
 
         overview!.PatchVersion.Should().Be("16.16");
         overview.TopRows.Should().BeEmpty("no 16.16 line clears the floor — the state the bar exists to avoid");

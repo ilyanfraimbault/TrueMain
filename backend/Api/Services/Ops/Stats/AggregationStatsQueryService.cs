@@ -203,7 +203,7 @@ public sealed class AggregationStatsQueryService(
 
         return new AggregationRunReadModel
         {
-            Status = latest.Status.ToString().ToLowerInvariant(),
+            Status = latest.Status,
             LastStartedAtUtc = latest.StartedAtUtc,
             LastFinishedAtUtc = latest.FinishedAtUtc,
             LastSuccessAtUtc = latestSuccess?.FinishedAtUtc,

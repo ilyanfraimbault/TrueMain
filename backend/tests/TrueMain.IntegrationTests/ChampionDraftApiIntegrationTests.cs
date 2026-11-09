@@ -488,14 +488,14 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
     {
         var response = await client.PostAsJsonAsync("/champions/draft", request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<DraftRecommendationResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<DraftRecommendationResponse>(ApiJson.Options))!;
     }
 
     private static async Task<DraftBanResponse> PostBansAsync(HttpClient client, object request)
     {
         var response = await client.PostAsJsonAsync("/champions/draft/bans", request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<DraftBanResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<DraftBanResponse>(ApiJson.Options))!;
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-import type { RouteLatency, RouteLatencyPoint } from '~~/shared/types/ops'
+import type { RouteLatencyPointReadModel, RouteLatencyReadModel } from '#site-shared/contract/api'
 
 // Pure helpers behind the Processes → Performance tab (#2307): how a duration reads, which
 // routes are slow, and the sparkline geometry. Kept out of the components so they are pinned
@@ -17,12 +17,12 @@ export function formatLatency(ms: number | null | undefined): string {
 }
 
 /** A route is slow when its p95 is above the payload's threshold. */
-export function isSlowRoute(route: Pick<RouteLatency, 'p95Ms'>, thresholdMs: number): boolean {
+export function isSlowRoute(route: Pick<RouteLatencyReadModel, 'p95Ms'>, thresholdMs: number): boolean {
   return route.p95Ms > thresholdMs
 }
 
 /** How many routes stand above the threshold. */
-export function countSlowRoutes(routes: readonly Pick<RouteLatency, 'p95Ms'>[], thresholdMs: number): number {
+export function countSlowRoutes(routes: readonly Pick<RouteLatencyReadModel, 'p95Ms'>[], thresholdMs: number): number {
   return routes.filter(route => isSlowRoute(route, thresholdMs)).length
 }
 
@@ -44,7 +44,7 @@ export interface Sparkline {
  * nears a second stays low and the threshold line is drawn wherever it fits.
  */
 export function sparkline(
-  series: readonly RouteLatencyPoint[],
+  series: readonly RouteLatencyPointReadModel[],
   width: number,
   height: number,
   thresholdMs: number,

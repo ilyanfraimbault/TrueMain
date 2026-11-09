@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // Overview card: main candidates by status, from the `candidatesByStatus` block of
 // `GET /api/ops/stats/overview` (fetched by the page).
-import type { OverviewStats } from '~~/shared/types/ops'
+import type { OverviewReadModel } from '#site-shared/contract/api'
 import { formatNumber } from '~~/shared/utils/format'
 
 const props = defineProps<{
-  stats: OverviewStats | null | undefined
+  stats: OverviewReadModel | null | undefined
   pending: boolean
 }>()
 

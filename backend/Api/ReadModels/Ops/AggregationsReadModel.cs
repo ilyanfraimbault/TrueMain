@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Data.Entities;
 
 namespace TrueMain.ReadModels.Ops;
 
@@ -75,7 +76,7 @@ public sealed record AggregationTableCountReadModel
 /// </summary>
 public sealed record AggregationRunReadModel
 {
-    public string Status { get; init; } = string.Empty;
+    public ProcessRunStatus Status { get; init; }
 
     public DateTime? LastStartedAtUtc { get; init; }
 

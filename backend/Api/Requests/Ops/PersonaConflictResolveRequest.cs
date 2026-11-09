@@ -1,3 +1,5 @@
+using TrueMain.ReadModels.Ops;
+
 namespace TrueMain.Requests.Ops;
 
 /// <summary>
@@ -7,8 +9,8 @@ namespace TrueMain.Requests.Ops;
 /// </summary>
 public sealed record PersonaConflictResolveRequest
 {
-    public string? Action { get; init; }
+    public PersonaConflictAction? Action { get; init; }
 
     /// <summary>For <c>merge</c> only: <c>claimant</c> or <c>owner</c>, the persona that stays.</summary>
-    public string? Keep { get; init; }
+    public PersonaConflictSide? Keep { get; init; }
 }

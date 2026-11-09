@@ -29,7 +29,7 @@ public sealed class ItemClassesApiIntegrationTests(PostgresFixture fixture)
         var response = await client.GetAsync("/items/classes?patch=16.21.1");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = (await response.Content.ReadFromJsonAsync<ItemClassesResponse>())!;
+        var body = (await response.Content.ReadFromJsonAsync<ItemClassesResponse>(ApiJson.Options))!;
         body.Patch.Should().Be("16.21");
         body.Items.Select(item => item.ItemId).Should().Equal(3031, 3190);
         body.Items[1].Classes.Should().Equal("Support", "Tank");

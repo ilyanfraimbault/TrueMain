@@ -1,9 +1,10 @@
 // Crash-report presentation shared by the Crashes tab of `/logs` (`CrashesPanel.vue`)
 // and its detail slide-over (`CrashDetail.vue`), split out in #1436.
-import type { BadgeColor, CrashReport, CrashSource } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/types/ops'
+import type { CrashReportReadModel } from '#site-shared/contract/api'
 import { formatElapsed, humanizeBytes } from '~~/shared/utils/format'
 
-export function crashSourceColor(s: CrashSource): BadgeColor {
+export function crashSourceColor(s: string): BadgeColor {
   switch (s) {
     case 'UncleanShutdown':
     case 'HostRun':
@@ -16,7 +17,7 @@ export function crashSourceColor(s: CrashSource): BadgeColor {
   }
 }
 
-export function crashSourceIcon(s: CrashSource): string {
+export function crashSourceIcon(s: string): string {
   switch (s) {
     case 'UncleanShutdown':
       return 'i-lucide-skull'
@@ -31,7 +32,7 @@ export function crashSourceIcon(s: CrashSource): string {
   }
 }
 
-export function crashSourceLabel(s: CrashSource): string {
+export function crashSourceLabel(s: string): string {
   switch (s) {
     case 'UncleanShutdown':
       return 'Unclean shutdown'
@@ -52,7 +53,7 @@ export function shortExceptionType(full: string | null): string | null {
 }
 
 /** A human-readable, copy-pasteable rendering of the whole report. */
-export function crashToText(c: CrashReport): string {
+export function crashToText(c: CrashReportReadModel): string {
   const lines: string[] = []
   lines.push(`Crash report — ${c.processName} — ${crashSourceLabel(c.source)}`)
   if (c.explanation) {

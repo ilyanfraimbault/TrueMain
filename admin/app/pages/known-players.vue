@@ -4,7 +4,7 @@
 // add and edit, unlink, removal); which accounts do two known players claim (the
 // conflict queue, #2253); and which known players share a name with no account in
 // common (the homonyms queue, #2271). `?status=open|resolved|homonyms` deep-links them.
-import type { PersonaConflictStatus } from '~~/shared/types/ops'
+import type { PersonaConflictStatus } from '#site-shared/contract/api'
 
 type Tab = 'Players' | 'Homonyms' | PersonaConflictStatus
 

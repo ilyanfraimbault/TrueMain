@@ -1,4 +1,4 @@
-import type { SeedRequestReadModel, SeedRequestStatus } from '~~/shared/types/ops'
+import type { SeedRequestReadModel, SeedRequestStatus } from '#site-shared/contract/api'
 import { TERMINAL_SEED_STATUSES } from '~~/shared/types/ops'
 
 /**

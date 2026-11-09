@@ -5,7 +5,6 @@ using Data;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
-using TrueMain.Services.Ops.DataQuality;
 
 namespace TrueMain.Services.Ops.Coverage;
 
@@ -115,8 +114,8 @@ public sealed class PatchCoverageQueryService(
                 QueueId = queueId,
                 MinSampleGames = floor,
                 FloorNote = PatchCoverageRows.FloorNote(floor),
-                Verdict = "unknown",
-                Status = DetectorStatus.Unknown.ToWireName(),
+                Verdict = PatchVerdict.Unknown,
+                Status = DetectorStatus.Unknown,
                 Headline = "No match and no aggregate row carries a usable patch, so there is nothing to judge.",
                 SourceNote = PatchCoverageRows.SourceNote,
                 EvaluatedAtUtc = now
@@ -148,8 +147,8 @@ public sealed class PatchCoverageQueryService(
                 MinSampleGames = floor,
                 FloorNote = PatchCoverageRows.FloorNote(floor),
                 CurrentPatch = currentPatch,
-                Verdict = "unknown",
-                Status = DetectorStatus.Unknown.ToWireName(),
+                Verdict = PatchVerdict.Unknown,
+                Status = DetectorStatus.Unknown,
                 Headline = "Patch coverage could not be measured, so no patch has a verdict.",
                 UnknownReason = ingestion.Error ?? coverage.Error,
                 SourceNote = PatchCoverageRows.SourceNote,
@@ -203,8 +202,8 @@ public sealed class PatchCoverageQueryService(
             MinSampleGames = floor,
             FloorNote = PatchCoverageRows.FloorNote(floor),
             CurrentPatch = currentPatch,
-            Verdict = current?.Verdict ?? "unknown",
-            Status = current?.Status ?? DetectorStatus.Unknown.ToWireName(),
+            Verdict = current?.Verdict ?? PatchVerdict.Unknown,
+            Status = current?.Status ?? DetectorStatus.Unknown,
             Headline = PatchCoverageRows.BuildHeadline(current, newestIngested),
             Patches = rows,
             ParticipantsNote = PatchCoverageRows.ParticipantsNote(expectedParticipants),

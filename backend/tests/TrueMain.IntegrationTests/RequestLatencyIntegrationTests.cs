@@ -99,7 +99,7 @@ public sealed class RequestLatencyIntegrationTests(PostgresFixture fixture, Mong
             [Rollup(new DateTime(recent.Year, recent.Month, recent.Day, recent.Hour, recent.Minute, 0, DateTimeKind.Utc), "/ops/stats/overview", [6_000, 7_000])],
             CancellationToken.None);
 
-        var payload = await client.GetFromJsonAsync<RequestLatencyReadModel>("/ops/request-latency?window=7d");
+        var payload = await client.GetFromJsonAsync<RequestLatencyReadModel>("/ops/request-latency?window=7d", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.Window.Should().Be("7d");
@@ -124,7 +124,7 @@ public sealed class RequestLatencyIntegrationTests(PostgresFixture fixture, Mong
         await using var factory = new ApiWebApplicationFactory(fixture, mongo);
         using var client = CreateClient(factory);
 
-        var payload = await client.GetFromJsonAsync<RequestLatencyReadModel>("/ops/request-latency");
+        var payload = await client.GetFromJsonAsync<RequestLatencyReadModel>("/ops/request-latency", ApiJson.Options);
 
         payload!.Window.Should().Be("24h");
         payload.BinHours.Should().Be(1);

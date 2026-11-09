@@ -78,7 +78,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         // 404 here would make the profile say "no such player" about a player it is
         // already rendering; an unranked account with no captures is a legitimate
         // empty curve.
-        var payload = await response.Content.ReadFromJsonAsync<RankHistoryReadModel>();
+        var payload = await response.Content.ReadFromJsonAsync<RankHistoryReadModel>(ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.Entries.Should().BeEmpty();
     }
@@ -113,7 +113,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         document.RootElement.GetProperty("entries")[0].EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["capturedAtUtc", "tier", "division", "leaguePoints"]);
 
-        var payload = await response.Content.ReadFromJsonAsync<RankHistoryReadModel>();
+        var payload = await response.Content.ReadFromJsonAsync<RankHistoryReadModel>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         // Oldest-first: a chart plotted straight from this array must run left to right

@@ -63,7 +63,7 @@ public sealed class NavSummaryQueryService(
             OpenConflicts = counts.OpenConflicts,
             HomonymGroups = counts.HomonymGroups,
             CountedAtUtc = counts.CountedAtUtc,
-            HealthStatus = health?.Status ?? "unknown",
+            HealthStatus = health?.Status ?? DetectorStatus.Unknown,
             HealthEvaluatedAtUtc = health?.EvaluatedAtUtc,
         };
     }

@@ -98,7 +98,7 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
                 return new PersonaConflictBulkCandidateReadModel
                 {
                     Conflict = c,
-                    Keep = keepClaimant ? "claimant" : "owner",
+                    Keep = keepClaimant ? PersonaConflictSide.Claimant : PersonaConflictSide.Owner,
                     KeptSlug = keepClaimant ? c.Claimant.Slug : c.Owner.Slug,
                     MergedSlug = keepClaimant ? c.Owner.Slug : c.Claimant.Slug,
                 };
@@ -209,8 +209,8 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
         query.Select(c => new PersonaConflictReadModel
         {
             Id = c.Id,
-            Status = c.Status.ToString(),
-            Resolution = c.Resolution == null ? null : c.Resolution.ToString(),
+            Status = c.Status,
+            Resolution = c.Resolution,
             Source = c.Source.ToString(),
             FirstSeenAtUtc = c.FirstSeenAtUtc,
             LastSeenAtUtc = c.LastSeenAtUtc,

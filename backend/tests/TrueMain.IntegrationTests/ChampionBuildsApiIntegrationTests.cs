@@ -52,7 +52,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
             "firstItemId", "primaryKeystoneId", "games", "pickRate", "winRate",
             "core", "variations", "buildTree", "runePages");
 
-        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>(ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.ChampionId.Should().Be(157);
         payload.Patch.Should().Be("16.5");
@@ -124,7 +124,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
         });
 
         // No eloBracket query → the synthetic ALL union across every tier.
-        var payload = await client.GetFromJsonAsync<ChampionResponse>("/champions/777");
+        var payload = await client.GetFromJsonAsync<ChampionResponse>("/champions/777", ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.EloBracket.Should().Be(EloBracket.All);
         payload.Patch.Should().Be("16.5");
@@ -237,7 +237,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
             BaseAddress = new Uri("https://localhost")
         });
 
-        var latest = await client.GetFromJsonAsync<ChampionResponse>("/champions/777");
+        var latest = await client.GetFromJsonAsync<ChampionResponse>("/champions/777", ApiJson.Options);
         latest!.Patch.Should().Be("16.5", "the newest patch with builds left is served, not a purged one");
         latest.TotalGames.Should().Be(100);
 
@@ -258,7 +258,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
 
         // 16.6 holds 30 games, under both MinDefaultPatchGames (500) and half of 16.5's
         // 600: the page opens on 16.5, the patch that can fill it (#2249).
-        var byDefault = await client.GetFromJsonAsync<ChampionResponse>("/champions/779?position=BOTTOM");
+        var byDefault = await client.GetFromJsonAsync<ChampionResponse>("/champions/779?position=BOTTOM", ApiJson.Options);
         byDefault!.Patch.Should().Be("16.5");
         byDefault.TotalGames.Should().Be(600);
 
@@ -283,7 +283,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
         // Default: the main's 40 games alone. The non-main account's 10 are in the
         // same slice and must not be counted — that default is what keeps every
         // pre-#1346 caller returning the numbers it always did.
-        var truemains = await client.GetFromJsonAsync<ChampionResponse>("/champions/778");
+        var truemains = await client.GetFromJsonAsync<ChampionResponse>("/champions/778", ApiJson.Options);
         truemains.Should().NotBeNull();
         truemains!.TotalGames.Should().Be(40);
 

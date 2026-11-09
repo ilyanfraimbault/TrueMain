@@ -5,10 +5,10 @@
 // up here without a frontend change. An instrument absent from the payload recorded
 // nothing in the window; with no rollup retained at all, nothing was ever measured and
 // the card says so instead of reading as a quiet window (#924).
-import type { IngestorInstrument, IngestorMetrics, IngestorMeterSeries } from '~~/shared/types/ops'
+import type { IngestorInstrumentReadModel, IngestorMeterSeriesReadModel, IngestorMetricsReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 
-const props = defineProps<{ metrics: IngestorMetrics }>()
+const props = defineProps<{ metrics: IngestorMetricsReadModel }>()
 
 // The window started before the first rollup: only part of it was measured.
 const measuredSince = computed(() => {
@@ -27,7 +27,7 @@ function amount(value: number, unit: string | null): string {
   return label === 'ms' ? `${formatNumber(rounded)} ms` : formatNumber(rounded)
 }
 
-function headline(instrument: IngestorInstrument): string {
+function headline(instrument: IngestorInstrumentReadModel): string {
   if (instrument.kind === 'histogram') {
     const mean = instrument.count > 0 ? instrument.sum / instrument.count : 0
     return `${formatNumber(instrument.count)} recorded · mean ${amount(mean, instrument.unit)} · max ${amount(instrument.max, instrument.unit)}`
@@ -36,7 +36,7 @@ function headline(instrument: IngestorInstrument): string {
   return `${formatNumber(instrument.sum)}${label ? ` ${label}${instrument.sum === 1 ? '' : 's'}` : ''}`
 }
 
-function seriesLabel(series: IngestorMeterSeries): string {
+function seriesLabel(series: IngestorMeterSeriesReadModel): string {
   const entries = Object.entries(series.tags).sort(([a], [b]) => a.localeCompare(b))
   return entries.length === 0 ? '(no tags)' : entries.map(([key, value]) => `${key}=${value}`).join(' · ')
 }

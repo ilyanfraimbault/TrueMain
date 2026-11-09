@@ -55,7 +55,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
             $"/champions/{Champion}/matchups?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         matchups.Should().NotBeNull();
         matchups!.ChampionId.Should().Be(Champion);
         matchups.Position.Should().Be(Position);
@@ -89,7 +89,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
             $"/champions/{Champion}/matchups?position={Position}&patch=16.4");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         matchups.Should().NotBeNull();
         matchups!.Patch.Should().Be("16.4");
 
@@ -138,7 +138,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
             $"/champions/{Champion}/matchups?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         matchups.Should().NotBeNull();
 
         // Only one Yone-vs-Talon game is seeded — below the default
@@ -163,7 +163,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
             $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         matchups.Should().NotBeNull();
         var talon = matchups!.Matchups.Should().ContainSingle().Subject;
         talon.OpponentChampionId.Should().Be(OtherOpponent);
@@ -438,7 +438,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
             $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var matchups = await response.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         matchups.Should().NotBeNull();
 
         var zed = matchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
@@ -450,7 +450,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         var globalResponse = await client.GetAsync(
             $"/champions/{Champion}/matchups?position={Position}");
         globalResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var global = await globalResponse.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var global = await globalResponse.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         var globalZed = global!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
         globalZed.Games.Should().Be(16, "both tracked accounts count globally; the anonymous games never do");
     }
@@ -468,7 +468,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         var playerResponse = await client.GetAsync(
             $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
         playerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var player = await playerResponse.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var player = await playerResponse.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         player!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent)
             .Which.Games.Should().Be(5);
         player.Matchups.Should().ContainSingle(m => m.OpponentChampionId == OtherOpponent)
@@ -477,7 +477,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         // ...while the global pool (this lone account) keeps its floor and drops both.
         var globalResponse = await client.GetAsync(
             $"/champions/{Champion}/matchups?position={Position}");
-        var global = await globalResponse.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var global = await globalResponse.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         global!.Matchups.Should().BeEmpty("the global MinMatchupGames floor of 10 still applies");
     }
 
@@ -534,7 +534,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         var player = await client.GetAsync(
             $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
         player.StatusCode.Should().Be(HttpStatusCode.OK);
-        var playerMatchups = await player.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var playerMatchups = await player.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         var talon = playerMatchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == OtherOpponent).Subject;
         talon.Games.Should().Be(1, "the opponent lookup stays scoped to this player's games");
 
@@ -542,7 +542,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         // and still drops the anonymous game.
         var global = await client.GetAsync(
             $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
-        var globalMatchups = await global.Content.ReadFromJsonAsync<ChampionMatchupsResponse>();
+        var globalMatchups = await global.Content.ReadFromJsonAsync<ChampionMatchupsResponse>(ApiJson.Options);
         var globalTalon = globalMatchups!.Matchups.Should().ContainSingle().Subject;
         globalTalon.Games.Should().Be(3, "both tracked accounts count globally; the anonymous game never does");
     }

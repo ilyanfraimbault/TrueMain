@@ -94,7 +94,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         });
 
         batch.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = (await batch.Content.ReadFromJsonAsync<PersonaBatchResponse>())!.Personas.Single();
+        var result = (await batch.Content.ReadFromJsonAsync<PersonaBatchResponse>(ApiJson.Options))!.Personas.Single();
         result.Created.Should().BeTrue();
         result.Error.Should().BeNull();
         result.Accounts.Select(a => a.Status).Should().Equal("linked", "seeded", "invalid", "untracked", "invalid");
@@ -105,7 +105,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         seeded.Should().ContainSingle(request => request.GameName == "IrelSmurf" && request.PlatformId == "EUW1");
 
         using var anonymous = CreateClient(factory, authed: false);
-        var page = await anonymous.GetFromJsonAsync<PersonaReadModel>("/players/irelking");
+        var page = await anonymous.GetFromJsonAsync<PersonaReadModel>("/players/irelking", ApiJson.Options);
         page!.DisplayName.Should().Be("Irelking");
         page.Links.Select(l => (l.Kind, l.Url)).Should().Equal(
             ("twitch", "https://www.twitch.tv/irelking"),
@@ -156,7 +156,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory, authed: false);
 
-        var page = await client.GetFromJsonAsync<PersonaReadModel>("/players/someone");
+        var page = await client.GetFromJsonAsync<PersonaReadModel>("/players/someone", ApiJson.Options);
         page!.Accounts.Select(a => a.GameName).Should().Equal("Current", "Dormant", "Never");
         page.Accounts[0].LastPlayedAtUtc.Should().BeCloseTo(now.AddDays(-1), TimeSpan.FromSeconds(1));
         page.Accounts[1].LastPlayedAtUtc.Should().BeCloseTo(now.AddDays(-60), TimeSpan.FromSeconds(1));
@@ -235,7 +235,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var results = (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>())!.Personas;
+        var results = (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>(ApiJson.Options))!.Personas;
         results.Select(r => r.Error is null).Should().Equal(false, true, false);
 
         var oversized = await client.PostAsJsonAsync("/ops/personas/batch", new
@@ -348,14 +348,14 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory, authed: false);
 
-        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         leaderboard!.Rows.Select(r => r.Persona?.Slug).Should().Equal("streamer", null);
         leaderboard.Rows[0].Persona!.DisplayName.Should().Be("The Streamer");
 
-        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Streamer-EUW/profile");
+        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Streamer-EUW/profile", ApiJson.Options);
         profile!.Persona!.Slug.Should().Be("streamer");
         profile.Persona.PictureUrl.Should().Be("https://yt3.ggpht.com/streamer");
-        (await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Nobody-EUW/profile"))!.Persona.Should().BeNull();
+        (await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Nobody-EUW/profile", ApiJson.Options))!.Persona.Should().BeNull();
     }
 
     [Fact]
@@ -392,7 +392,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory, authed: false);
 
         // The person is found by their name although none of their Riot IDs contains it — the point.
-        var search = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=irel");
+        var search = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=irel", ApiJson.Options);
         // "Irelia Fan" matches too, but none of her accounts is tracked: her page would be empty.
         var irelking = search!.Players.Should().ContainSingle().Subject;
         irelking.Persona.Slug.Should().Be("irelking");
@@ -401,10 +401,10 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
         irelking.Ranked!.Tier.Should().Be("CHALLENGER");
         (await client.GetAsync("/players/irelia-fan")).StatusCode.Should().Be(HttpStatusCode.NotFound);
 
-        (await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=irel%23KR1"))!.Players
+        (await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=irel%23KR1", ApiJson.Options))!.Players
             .Should().BeEmpty("a Name#TAG asks for one account, not a person");
 
-        var directory = await client.GetFromJsonAsync<PersonaDirectoryResponse>("/players");
+        var directory = await client.GetFromJsonAsync<PersonaDirectoryResponse>("/players", ApiJson.Options);
         directory!.Players.Select(p => p.Slug).Should().Equal(["irelking"], "a page of untracked Riot IDs is not advertised");
     }
 
@@ -425,7 +425,7 @@ public sealed class PersonasApiIntegrationTests : IAsyncLifetime
             },
         });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>())!.Personas.Single();
+        return (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>(ApiJson.Options))!.Personas.Single();
     }
 
     private static RiotAccount Account(string puuid, string gameName, string tagLine, string platformId)

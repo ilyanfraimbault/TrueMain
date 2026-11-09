@@ -137,7 +137,7 @@ public sealed class DataQualityDetectorsQueryService(
             {
                 Key = key,
                 Title = title,
-                Status = DetectorStatus.Unknown.ToWireName(),
+                Status = DetectorStatus.Unknown,
                 CountLabel = string.Empty,
                 Headline = "This detector could not be measured.",
                 UnknownReason = ex.Message,

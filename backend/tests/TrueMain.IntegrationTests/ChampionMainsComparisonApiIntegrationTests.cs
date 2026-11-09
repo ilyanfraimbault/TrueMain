@@ -54,7 +54,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
             $"/champions/{Champion}/mains-comparison?account={Uri.EscapeDataString("Nobody#KR1")}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var comparison = await response.Content.ReadFromJsonAsync<ChampionMainsComparisonResponse>();
+        var comparison = await response.Content.ReadFromJsonAsync<ChampionMainsComparisonResponse>(ApiJson.Options);
         comparison.Should().NotBeNull();
         comparison!.Status.Should().Be(ChampionComparisonStatus.UnknownAccount);
         comparison.Player.Should().BeNull();

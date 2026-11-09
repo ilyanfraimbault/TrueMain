@@ -76,7 +76,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
             .Should().BeEquivalentTo(
                 ["key", "name", "value", "valueLabel", "origin", "source", "unit", "notice"]);
 
-        var payload = await response.Content.ReadFromJsonAsync<ConfigurationTestContract>();
+        var payload = await response.Content.ReadFromJsonAsync<ConfigurationTestContract>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         // Nothing has published, so the Api's live snapshot is the whole page. A missing
@@ -107,7 +107,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
         json.Should().NotContain("ApiKey");
         json.Should().NotContain(OpsApiKey);
 
-        var payload = await client.GetFromJsonAsync<ConfigurationTestContract>("/ops/configuration");
+        var payload = await client.GetFromJsonAsync<ConfigurationTestContract>("/ops/configuration", ApiJson.Options);
         var mongoSection = payload!.Processes
             .Single(process => process.ProcessName == "Api")
             .Sections.Single(section => section.Name == "MongoLogging");
@@ -124,7 +124,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
     {
         await using var unset = CreateFactory();
         using var unsetClient = CreateClient(unset);
-        var unsetPayload = await unsetClient.GetFromJsonAsync<ConfigurationTestContract>("/ops/configuration");
+        var unsetPayload = await unsetClient.GetFromJsonAsync<ConfigurationTestContract>("/ops/configuration", ApiJson.Options);
         var unsetCapacity = ValueOf(unsetPayload!, "StorageHistory", "DiskCapacityBytes");
 
         // Unset: the page must say what that costs elsewhere rather than print a bare 0.
@@ -160,7 +160,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var payload = await client.GetFromJsonAsync<ConfigurationTestContract>("/ops/configuration");
+        var payload = await client.GetFromJsonAsync<ConfigurationTestContract>("/ops/configuration", ApiJson.Options);
 
         // Sorted by process name, so the page's column order does not depend on Mongo's.
         payload!.Processes.Select(process => process.ProcessName).Should().Equal("Api", "Ingestor");
@@ -188,7 +188,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var payload = await client.GetFromJsonAsync<ConfigurationTestContract>("/ops/configuration");
+        var payload = await client.GetFromJsonAsync<ConfigurationTestContract>("/ops/configuration", ApiJson.Options);
 
         var api = payload!.Processes.Should().ContainSingle().Subject;
         api.ProcessName.Should().Be("Api");

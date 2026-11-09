@@ -23,7 +23,7 @@ public sealed record PersonaConflictBulkCandidateReadModel
     public PersonaConflictReadModel Conflict { get; init; } = new();
 
     /// <summary><c>claimant</c> or <c>owner</c>: the side that stays.</summary>
-    public string Keep { get; init; } = string.Empty;
+    public PersonaConflictSide Keep { get; init; }
 
     public string KeptSlug { get; init; } = string.Empty;
 
@@ -51,9 +51,9 @@ public sealed record PersonaConflictBulkOutcomeReadModel
 {
     public Guid Id { get; init; }
 
-    public string Status { get; init; } = string.Empty;
+    public PersonaConflictBulkStatus Status { get; init; }
 
-    public string? Reason { get; init; }
+    public PersonaConflictBulkSkipReason? Reason { get; init; }
 
     /// <summary>The single resolution's answer, for a resolved one.</summary>
     public PersonaConflictResolvedResponse? Resolution { get; init; }

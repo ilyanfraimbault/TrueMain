@@ -67,7 +67,7 @@ public sealed class DeploymentsApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory(version: "2.0.0");
         using var client = CreateClient(factory);
 
-        var payload = await client.GetFromJsonAsync<DeploymentsTestContract>("/ops/deployments");
+        var payload = await client.GetFromJsonAsync<DeploymentsTestContract>("/ops/deployments", ApiJson.Options);
 
         payload!.Deployments.Select(deploy => deploy.Version).Should().Equal("1.9.0", "2.0.0");
         var current = payload.Deployments[^1];
@@ -90,7 +90,7 @@ public sealed class DeploymentsApiIntegrationTests : IAsyncLifetime
 
         await using var factory = CreateFactory(version: "2.0.0");
         using var client = CreateClient(factory);
-        var payload = await client.GetFromJsonAsync<DeploymentsTestContract>("/ops/deployments");
+        var payload = await client.GetFromJsonAsync<DeploymentsTestContract>("/ops/deployments", ApiJson.Options);
 
         payload!.Deployments.Should().ContainSingle().Which.Version.Should().Be("2.0.0");
     }

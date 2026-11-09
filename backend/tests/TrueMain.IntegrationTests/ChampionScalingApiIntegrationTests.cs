@@ -47,7 +47,7 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/champions/{Champion}/scaling?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var scaling = await response.Content.ReadFromJsonAsync<ChampionScalingResponse>();
+        var scaling = await response.Content.ReadFromJsonAsync<ChampionScalingResponse>(ApiJson.Options);
         scaling.Should().NotBeNull();
         scaling!.ChampionId.Should().Be(Champion);
         scaling.Position.Should().Be(Position);
@@ -79,7 +79,7 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/champions/{Champion}/scaling?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var scaling = await response.Content.ReadFromJsonAsync<ChampionScalingResponse>();
+        var scaling = await response.Content.ReadFromJsonAsync<ChampionScalingResponse>(ApiJson.Options);
         scaling!.Buckets.Should().ContainSingle(b => b.Bucket == 0);
         scaling.ScalingIndex.Should().BeNull("a single qualifying bucket can't express a trend");
     }
@@ -95,13 +95,13 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
 
         var onPatch = await client.GetAsync($"/champions/{Champion}/scaling?position={Position}&patch=16.4");
         onPatch.StatusCode.Should().Be(HttpStatusCode.OK);
-        var matched = await onPatch.Content.ReadFromJsonAsync<ChampionScalingResponse>();
+        var matched = await onPatch.Content.ReadFromJsonAsync<ChampionScalingResponse>(ApiJson.Options);
         matched!.Patch.Should().Be("16.4");
         matched.Buckets.Should().ContainSingle(b => b.Bucket == 0);
 
         var offPatch = await client.GetAsync($"/champions/{Champion}/scaling?position={Position}&patch=16.5");
         offPatch.StatusCode.Should().Be(HttpStatusCode.OK);
-        var missed = await offPatch.Content.ReadFromJsonAsync<ChampionScalingResponse>();
+        var missed = await offPatch.Content.ReadFromJsonAsync<ChampionScalingResponse>(ApiJson.Options);
         missed!.Buckets.Should().BeEmpty("no games were seeded on 16.5");
         missed.ScalingIndex.Should().BeNull();
     }
@@ -115,7 +115,7 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/champions/{Champion}/scaling?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var scaling = await response.Content.ReadFromJsonAsync<ChampionScalingResponse>();
+        var scaling = await response.Content.ReadFromJsonAsync<ChampionScalingResponse>(ApiJson.Options);
         scaling!.Buckets.Should().BeEmpty();
         scaling.ScalingIndex.Should().BeNull();
     }

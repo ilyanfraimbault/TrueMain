@@ -62,7 +62,7 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
                 "failureCountInWindow", "runCountInWindow", "failureRateInWindow"
             ]);
 
-        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         // No `since`: the runs list has NO default time lower bound, so every
@@ -169,7 +169,7 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/process-runs");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         // The in-flight run is the newest and leads the list with status Running.
@@ -185,7 +185,7 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
 
         // The Running run is filterable like any other status.
         var runningResponse = await client.GetAsync("/ops/process-runs?status=Running");
-        var runningPayload = await runningResponse.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        var runningPayload = await runningResponse.Content.ReadFromJsonAsync<ProcessRunsTestContract>(ApiJson.Options);
         runningPayload!.Runs.Should().ContainSingle();
         runningPayload.Runs[0].Status.Should().Be("Running");
     }
@@ -213,7 +213,7 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/process-runs?limit=2");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         payload!.Runs.Should().HaveCount(2);
@@ -370,7 +370,7 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync(url);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>();
+        var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>(ApiJson.Options);
         payload.Should().NotBeNull();
         return payload!;
     }

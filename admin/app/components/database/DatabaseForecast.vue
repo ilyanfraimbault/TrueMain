@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // Database panel: the disk forecast (#925), the reason the panel keeps history at
 // all. Reads the page's `GET /api/ops/db/history` payload.
-import type { DbStorageHistory } from '~~/shared/types/ops'
+import type { DbStorageHistoryReadModel } from '#site-shared/contract/api'
 import { formatDate, humanizeBytes } from '~~/shared/utils/format'
 
 const props = defineProps<{
-  history: DbStorageHistory | null | undefined
+  history: DbStorageHistoryReadModel | null | undefined
   pending: boolean
 }>()
 

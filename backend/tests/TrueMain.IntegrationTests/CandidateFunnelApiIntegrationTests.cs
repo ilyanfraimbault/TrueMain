@@ -117,7 +117,7 @@ public sealed class CandidateFunnelApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/candidates/funnel?granularity=day&windowDays=7");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<CandidateFunnelReadModel>();
+        var payload = await response.Content.ReadFromJsonAsync<CandidateFunnelReadModel>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         var bucket = payload!.Buckets.Single(b => b.Bucket == today.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"));

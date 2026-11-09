@@ -1,18 +1,7 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type {
-  AggregationsResponse,
-  ChampionStatsFilters,
-  ChampionStatsRow,
-  DbStorageHistory,
-  DbTableRow,
-  IngestionTimeGranularity,
-  MatchesIngested,
-  MatchTimeBucket,
-  MatchTimeGranularity,
-  OverviewStats,
-  PatchCoverageResponse,
-} from '~~/shared/types/ops'
-import type { GetPath, GetQuery, GetResponse } from '#site-shared/contract/routes'
+import type { IngestionTimeGranularity, MatchTimeGranularity } from '~~/shared/types/ops'
+import type { BodyOf, GetPath, GetQuery, GetResponse, Method, PathOf, PathParamsOf, QueryOf, ResponseOf } from '#site-shared/contract/routes'
+import { fillPath } from '#site-shared/contract/routes'
 
 // The ops-API fetch wrapper, plus the stats and database reads. The other areas
 // live next to it, one file each: `useOpsPipeline.ts` (process runs, logs, crashes,
@@ -54,17 +43,38 @@ type LooseQuery = Record<string, string | number | boolean | undefined>
  * SEO-relevant. That is an application-level decision, so no per-request
  * `server` option is needed here.
  */
-export function useOps<P extends OpsPath>(
-  path: P,
-  query?: MaybeRefOrGetter<OpsQueryOf<P>>,
-): OpsFetch<OpsResponse<P>>
-/** A read not yet moved onto the contract: the caller names its payload. */
-export function useOps<T>(path: string, query?: MaybeRefOrGetter<LooseQuery>): OpsFetch<T>
-export function useOps(path: string, query?: MaybeRefOrGetter<LooseQuery>) {
-  return opsFetch<unknown>(path, query)
+export function useOps<P extends OpsPath>(path: P, query?: MaybeRefOrGetter<OpsQueryOf<P>>) {
+  return opsFetch<OpsResponse<P>>(path, query)
 }
 
-type OpsFetch<T> = ReturnType<typeof opsFetch<T>>
+/** An ops route served on method `M`, as the browser asks for it under `/api/ops`. */
+export type OpsRoute<M extends Method> = PathOf<M> extends infer P ? P extends `/ops${infer Rest}` ? Rest : never : never
+
+type Backend<P extends string, M extends Method> = Extract<`/ops${P}`, PathOf<M>>
+
+/** What a one-off ops call takes: the route's `{name}` values, its query and its body, all from the contract. */
+export interface OpsCallOptions<P extends OpsRoute<M>, M extends Method> {
+  path?: PathParamsOf<Backend<P, M>, M>
+  query?: QueryOf<Backend<P, M>, M>
+  body?: BodyOf<Backend<P, M>, M>
+}
+
+/**
+ * A one-off ops request (`$fetch`): a write, or a read the caller fires imperatively (a
+ * slide-over's detail, a poll) rather than watching a key. Throws a `FetchError` on any
+ * non-2xx, which the caller catches.
+ */
+export function opsCall<M extends Method, const P extends OpsRoute<M>>(
+  method: M,
+  path: P,
+  options: OpsCallOptions<P, M> = {},
+): Promise<ResponseOf<Backend<P, M>, M>> {
+  return $fetch(`/api/ops${fillPath(path, options.path as Record<string, string | number> | undefined)}`, {
+    method: method.toUpperCase() as Uppercase<M>,
+    query: options.query as Record<string, unknown> | undefined,
+    body: options.body as Record<string, unknown> | undefined,
+  }) as Promise<ResponseOf<Backend<P, M>, M>>
+}
 
 function opsFetch<T>(path: string, query?: MaybeRefOrGetter<LooseQuery>) {
   const queryParams = query
@@ -98,7 +108,7 @@ function opsFetch<T>(path: string, query?: MaybeRefOrGetter<LooseQuery>) {
 
 /** `GET /api/ops/stats/overview` — site-wide totals for the Overview panel. */
 export function useOverviewStats() {
-  return useOps<OverviewStats>('/stats/overview')
+  return useOps('/stats/overview')
 }
 
 /**
@@ -107,11 +117,11 @@ export function useOverviewStats() {
  * change.
  */
 export function useChampionStats(
-  filters?: MaybeRefOrGetter<ChampionStatsFilters>,
+  filters?: MaybeRefOrGetter<OpsQueryOf<'/stats/champions'>>,
 ) {
-  return useOps<ChampionStatsRow[]>(
+  return useOps(
     '/stats/champions',
-    filters ? () => ({ ...toValue(filters) }) : undefined,
+    filters,
   )
 }
 
@@ -123,7 +133,7 @@ export function useChampionStats(
 export function useMatchesOverTime(
   granularity: MaybeRefOrGetter<MatchTimeGranularity>,
 ) {
-  return useOps<MatchTimeBucket[]>(
+  return useOps(
     '/stats/matches-over-time',
     () => ({ granularity: toValue(granularity) }),
   )
@@ -138,7 +148,7 @@ export function useMatchesIngested(
   granularity: MaybeRefOrGetter<IngestionTimeGranularity>,
   windowDays: MaybeRefOrGetter<number>,
 ) {
-  return useOps<MatchesIngested>(
+  return useOps(
     '/stats/matches-ingested',
     () => ({ granularity: toValue(granularity), windowDays: toValue(windowDays) }),
   )
@@ -146,7 +156,7 @@ export function useMatchesIngested(
 
 /** `GET /api/ops/db/tables` — table sizes/row estimates, sorted by total bytes. */
 export function useDbTables() {
-  return useOps<DbTableRow[]>('/db/tables')
+  return useOps('/db/tables')
 }
 
 /**
@@ -155,7 +165,7 @@ export function useDbTables() {
  * refetches, matching the riot-usage panel's shape.
  */
 export function useDbStorageHistory(windowDays: MaybeRefOrGetter<number>) {
-  return useOps<DbStorageHistory>('/db/history', () => ({ windowDays: toValue(windowDays) }))
+  return useOps('/db/history', () => ({ windowDays: toValue(windowDays) }))
 }
 
 /**
@@ -164,7 +174,7 @@ export function useDbStorageHistory(windowDays: MaybeRefOrGetter<number>) {
  * that should read zero when the pipeline is caught up.
  */
 export function useAggregations() {
-  return useOps<AggregationsResponse>('/stats/aggregations')
+  return useOps('/stats/aggregations')
 }
 
 /**
@@ -178,5 +188,5 @@ export function useAggregations() {
  * as a card on `/aggregation`.
  */
 export function usePatchCoverage() {
-  return useOps<PatchCoverageResponse>('/patch-coverage')
+  return useOps('/patch-coverage')
 }

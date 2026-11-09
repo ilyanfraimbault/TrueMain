@@ -58,7 +58,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Devoted-EUW1/profile");
+        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Devoted-EUW1/profile", ApiJson.Options);
 
         profile.Should().NotBeNull();
         profile!.Dedication.Should().NotBeNull();
@@ -105,7 +105,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Fresh-EUW1/profile");
+        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/Fresh-EUW1/profile", ApiJson.Options);
 
         profile!.Dedication.Should().NotBeNull();
         // Null mastery columns must come through as null ("not read yet"), not as
@@ -144,11 +144,11 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var byRank = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var byRank = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         byRank!.Rows.Select(r => r.Identity.GameName)
             .Should().ContainInOrder("ApexDabbler", "LowerOneTrick");
 
-        var byDedication = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?sort=dedication");
+        var byDedication = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?sort=dedication", ApiJson.Options);
         byDedication!.Total.Should().Be(2);
         byDedication.Rows.Select(r => r.Identity.GameName)
             .Should().ContainInOrder("LowerOneTrick", "ApexDabbler");
@@ -186,12 +186,12 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var unfiltered = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var unfiltered = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         unfiltered!.Rows.Single().Dedication!.ChampionId.Should().Be(157);
 
         // Filtering to Ahri must re-point the score at Ahri: "most dedicated Ahri
         // players" cannot rank on an unrelated top main.
-        var filtered = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?championId=103&sort=dedication");
+        var filtered = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?championId=103&sort=dedication", ApiJson.Options);
         var dedication = filtered!.Rows.Single().Dedication;
         dedication!.ChampionId.Should().Be(103);
         dedication.PlayRate.Should().BeApproximately(0.3d, 1e-9);
@@ -229,9 +229,9 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var byRank = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE");
-        var byDedication = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE&sort=dedication");
-        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/TwoLanes-EUW1/profile");
+        var byRank = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE", ApiJson.Options);
+        var byDedication = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE&sort=dedication", ApiJson.Options);
+        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/TwoLanes-EUW1/profile", ApiJson.Options);
 
         // The lane filter still gates membership: the account is visible because
         // one of its mains is played in MIDDLE.
@@ -346,7 +346,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/truemains?sort=whatever");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var body = await response.Content.ReadFromJsonAsync<LeaderboardResponse>();
+        var body = await response.Content.ReadFromJsonAsync<LeaderboardResponse>(ApiJson.Options);
         body!.Rows.Select(r => r.Identity.GameName)
             .Should().ContainInOrder("TopRank", "BottomRank");
     }

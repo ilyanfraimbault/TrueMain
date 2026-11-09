@@ -164,7 +164,7 @@ public sealed class ChampionDamageProfilesApiIntegrationTests : IAsyncLifetime
         });
         var response = await client.GetAsync("/champions/damage-profiles");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<ChampionDamageProfilesResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<ChampionDamageProfilesResponse>(ApiJson.Options))!;
     }
 
     private async Task SeedAsync()

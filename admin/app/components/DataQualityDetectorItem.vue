@@ -11,13 +11,13 @@
 // Deliberately generic, as before: the backend words every detector, so adding
 // the next one stays a backend-only change and this component never branches on
 // `key`.
-import type { DataQualityDetector, DataQualityDetectorRow, DataQualityThreshold, DetectorStatus } from '~~/shared/types/ops'
+import type { DataQualityDetectorReadModel, DataQualityDetectorRowReadModel, DataQualityThresholdReadModel, DetectorStatus } from '#site-shared/contract/api'
 // One dot, one colour, one word — the status vocabulary is shared with the health
 // cockpit's tiles (#1031) so the two panels cannot drift apart on what amber means.
 import { detectorStatusMeta, detectorValueClass } from '~~/shared/utils/detector-status'
 
 const props = defineProps<{
-  detector: DataQualityDetector
+  detector: DataQualityDetectorReadModel
   /** Rendered on the expand when the detector offers a heavier breakdown. */
   drillDownLabel?: string
 }>()
@@ -38,7 +38,7 @@ const visibleRows = computed(() => (expanded.value ? props.detector.rows : notab
 // card is amber on its *trend* while printing its share (#1656). So the number
 // carries its own verdict and the row's is shown as a dot next to the label,
 // instead of colouring a reading that is fine.
-function rowValueClass(row: DataQualityDetectorRow): string {
+function rowValueClass(row: DataQualityDetectorRowReadModel): string {
   return detectorValueClass(row.valueStatus ?? row.status)
 }
 
@@ -46,7 +46,7 @@ function rowDotClass(status: DetectorStatus): string {
   return detectorStatusMeta(status).dot
 }
 
-function formatLevel(value: number, unit: DataQualityThreshold['unit']): string {
+function formatLevel(value: number, unit: DataQualityThresholdReadModel['unit']): string {
   // A ratio is a share of a baseline (0.4 = "40% of the median patch"), so print
   // it as one — a bare "0.4" next to counts and hours reads as a count.
   if (unit === 'ratio' || unit === 'percent') {
@@ -63,7 +63,7 @@ function formatLevel(value: number, unit: DataQualityThreshold['unit']): string 
  * where the colour described a constant from the config file instead of the
  * state of the database.
  */
-function describeThreshold(threshold: DataQualityThreshold): string {
+function describeThreshold(threshold: DataQualityThresholdReadModel): string {
   const side = threshold.direction === 'below' ? 'below' : 'above'
   const levels: string[] = []
   if (threshold.amber !== null) {

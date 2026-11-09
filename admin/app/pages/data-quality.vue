@@ -22,11 +22,7 @@
 //
 // The page owns every fetch and the filters: the verdict reads both halves, and
 // the navbar button refreshes them together.
-import type {
-  AggregateFreshnessResponse,
-  DataQualityIssueType,
-  MatchDataQualityDetail,
-} from '~~/shared/types/ops'
+import type { AggregateFreshnessReadModel, DataQualityIssueType, MatchDataQualityDetailReadModel } from '#site-shared/contract/api'
 import { useKeyedFetch } from '~/composables/useKeyedFetch'
 
 // --- Filters -----------------------------------------------------------------
@@ -80,7 +76,7 @@ const detectors = computed(() => detectorsData.value?.detectors ?? [])
 // still in flight — is dropped instead of landing over it.
 const freshnessOpen = ref(false)
 const measurement = ref(0)
-const { state: freshnessState, load: loadFreshness, reset: resetFreshness } = useKeyedFetch<number, AggregateFreshnessResponse>(
+const { state: freshnessState, load: loadFreshness, reset: resetFreshness } = useKeyedFetch<number, AggregateFreshnessReadModel>(
   () => getAggregateFreshness(),
 )
 const freshness = computed(() => freshnessState.value.s === 'ready' ? freshnessState.value.value : null)
@@ -124,7 +120,7 @@ const {
   detailErrorTraceId,
   detailId,
   openDetail,
-} = useDeepLinkedDetail<MatchDataQualityDetail>({
+} = useDeepLinkedDetail<MatchDataQualityDetailReadModel>({
   queryKey: 'match',
   fetch: getMatchDataQuality,
   notFoundMessage: id => `No match found with id "${id}".`,

@@ -1,4 +1,5 @@
-import type { BadgeColor, DetectorStatus } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/types/ops'
+import type { DetectorStatus } from '#site-shared/contract/api'
 
 /**
  * The one green/amber/red/unknown vocabulary, shared by the data-quality panel's

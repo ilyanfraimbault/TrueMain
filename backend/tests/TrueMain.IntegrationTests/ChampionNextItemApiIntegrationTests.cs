@@ -240,7 +240,7 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
         var response = await client.PostAsJsonAsync($"/champions/{Champion}/next-item", body);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<ChampionNextItemResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<ChampionNextItemResponse>(ApiJson.Options))!;
     }
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory)

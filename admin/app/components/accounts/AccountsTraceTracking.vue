@@ -2,12 +2,12 @@
 // Tracking & ingestion card of the Trace tab: ingest-population membership, the
 // lease, and the three "games" populations — never shown as one number. Split out
 // of `AccountsTrace.vue` (#1436).
-import type { AccountExplorerMatchesIngested, AccountExplorerTracking } from '~~/shared/types/ops'
+import type { AccountExplorerMatchesIngestedReadModel, AccountExplorerTrackingReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 
 const props = defineProps<{
-  tracking: AccountExplorerTracking
-  matches: AccountExplorerMatchesIngested
+  tracking: AccountExplorerTrackingReadModel
+  matches: AccountExplorerMatchesIngestedReadModel
 }>()
 
 const claimAgeLabel = computed(() => {

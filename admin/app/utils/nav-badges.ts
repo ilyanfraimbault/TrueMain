@@ -1,5 +1,5 @@
 import type { BadgeProps, NavigationMenuItem } from '@nuxt/ui'
-import type { NavSummary } from '~~/shared/types/ops'
+import type { NavSummaryReadModel } from '#site-shared/contract/api'
 // Explicit import rather than the `~~` auto-import: this module is unit tested
 // outside the Nuxt context (`tests/utils/nav-badges.test.ts`).
 import { detectorStatusMeta } from '~~/shared/utils/detector-status'
@@ -18,7 +18,7 @@ export type NavBadge = BadgeProps & { 'aria-label': string, 'title': string }
  * only when it was measured: with no recent evaluation held, the server says
  * `unknown` without having evaluated anything, and that is not a reading.
  */
-export function navBadges(summary: NavSummary | null | undefined): Record<string, NavBadge> {
+export function navBadges(summary: NavSummaryReadModel | null | undefined): Record<string, NavBadge> {
   const badges: Record<string, NavBadge> = {}
   if (!summary) {
     return badges

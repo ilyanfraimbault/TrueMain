@@ -2,7 +2,8 @@
 // The desktop app (#1805): installers downloaded from the site, and what the
 // installed apps did — counted by each app under an anonymous id and sent to the
 // API, one document per install and day. Read-only.
-import type { DesktopKeyUsage, DesktopShareRow } from '~~/shared/types/desktop'
+import type { DesktopShareRow } from '~~/shared/types/desktop'
+import type { DesktopKeyUsage } from '#site-shared/contract/api'
 import { formatDate, formatNumber } from '~~/shared/utils/format'
 
 const WINDOW_ITEMS = [

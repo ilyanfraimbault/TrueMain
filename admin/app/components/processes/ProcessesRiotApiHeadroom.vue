@@ -4,11 +4,11 @@
 // RiotApiUsageQueryService. Per routing host since #1894: Riot meters each host on its
 // own, so every host is measured against the limit it advertised and the tightest one
 // caps the headline figure; no row adds two hosts' calls. Split out of ProcessesRiotApi.vue.
-import type { RiotApiHeadroom, RiotRouteHeadroom } from '~~/shared/types/ops'
+import type { RiotApiHeadroomReadModel, RiotRouteHeadroomReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import { formatNumber } from '~~/shared/utils/format'
 
-const props = defineProps<{ headroom: RiotApiHeadroom | null }>()
+const props = defineProps<{ headroom: RiotApiHeadroomReadModel | null }>()
 
 function formatCallsPerDay(value: number | null): string {
   return value === null ? '—' : `${formatNumber(Math.round(value))}/day`
@@ -33,7 +33,7 @@ function formatWindowSeconds(seconds: number): string {
   }
   return seconds % 60 === 0 ? `${seconds / 60}m` : `${seconds}s`
 }
-function limitLabel(route: RiotRouteHeadroom): string {
+function limitLabel(route: RiotRouteHeadroomReadModel): string {
   const binding = route.bindingLimit
   if (!binding) {
     return 'no limit header'

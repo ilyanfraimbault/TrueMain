@@ -42,7 +42,7 @@ public sealed class SeedRequestApiIntegrationTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-        var accepted = await response.Content.ReadFromJsonAsync<SeedAcceptedContract>();
+        var accepted = await response.Content.ReadFromJsonAsync<SeedAcceptedContract>(ApiJson.Options);
         accepted.Should().NotBeNull();
         accepted!.Id.Should().NotBe(Guid.Empty);
         accepted.Status.Should().Be("Pending");
@@ -72,8 +72,8 @@ public sealed class SeedRequestApiIntegrationTests : IAsyncLifetime
             "/ops/accounts/seed",
             new { gameName = "  phantasm  ", tagLine = "#euw1", platformId = "EUW1" });
 
-        var firstBody = await first.Content.ReadFromJsonAsync<SeedAcceptedContract>();
-        var secondBody = await second.Content.ReadFromJsonAsync<SeedAcceptedContract>();
+        var firstBody = await first.Content.ReadFromJsonAsync<SeedAcceptedContract>(ApiJson.Options);
+        var secondBody = await second.Content.ReadFromJsonAsync<SeedAcceptedContract>(ApiJson.Options);
 
         second.StatusCode.Should().Be(HttpStatusCode.Accepted);
         secondBody!.Id.Should().Be(firstBody!.Id, "an unprocessed duplicate returns the existing request");
@@ -169,7 +169,7 @@ public sealed class SeedRequestApiIntegrationTests : IAsyncLifetime
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateClient(factory);
 
-        var all = await client.GetFromJsonAsync<SeedRequestPageContract>("/ops/accounts/seed");
+        var all = await client.GetFromJsonAsync<SeedRequestPageContract>("/ops/accounts/seed", ApiJson.Options);
         all.Should().NotBeNull();
         all!.Requests.Should().HaveCount(3);
         all.Total.Should().Be(3);

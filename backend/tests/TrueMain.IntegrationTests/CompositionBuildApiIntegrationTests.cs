@@ -61,7 +61,7 @@ public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
             });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>();
+        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>(ApiJson.Options);
         result.Should().NotBeNull();
         result!.ChampionId.Should().Be(Champion);
         result.Position.Should().Be(Position);
@@ -112,7 +112,7 @@ public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
             });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>();
+        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>(ApiJson.Options);
         result!.MatchupFound.Should().BeTrue();
         result.Confidence.CandidatePoolSize.Should().Be(1, "the other players' games never enter the pool");
         result.Build.GamesConsidered.Should().Be(1);
@@ -165,7 +165,7 @@ public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
             });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var result = await response.Content.ReadFromJsonAsync<CompositionBuildGamesResponse>();
+        var result = await response.Content.ReadFromJsonAsync<CompositionBuildGamesResponse>(ApiJson.Options);
         result.Should().NotBeNull();
         result!.Total.Should().Be(2, "the non-matchup game never entered the selection");
         result.Page.Should().Be(1);
@@ -214,7 +214,7 @@ public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
             new { position = Position });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>();
+        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>(ApiJson.Options);
         result!.Confidence.SampleSize.Should().Be(0);
         result.Confidence.CandidatePoolSize.Should().Be(0);
         result.Confidence.MaxPossibleScore.Should().Be(0, "no composition slot was provided");
@@ -237,7 +237,7 @@ public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
             new { position = Position, allies = (object?)null, enemies = (object?)null });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>();
+        var result = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>(ApiJson.Options);
         result!.Confidence.MaxPossibleScore.Should().Be(0);
     }
 
@@ -346,7 +346,7 @@ public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
             });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<CompositionBuildResponse>(ApiJson.Options);
         var lane = payload!.Lane;
 
         lane.MeasuredGames.Should().Be(3, "all three games have both 15-minute readings");
@@ -375,7 +375,7 @@ public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
             {
                 position = Position,
                 enemies = new[] { new { championId = RoleOpponent, position = Position } },
-            })).Content.ReadFromJsonAsync<CompositionBuildResponse>();
+            })).Content.ReadFromJsonAsync<CompositionBuildResponse>(ApiJson.Options);
 
         payload!.Build.GamesConsidered.Should().Be(1, "the game itself is still sampled");
         payload.Lane.MeasuredGames.Should().Be(0);

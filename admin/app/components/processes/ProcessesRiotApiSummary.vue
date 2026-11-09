@@ -2,10 +2,10 @@
 // Summary tiles of the Processes page's Riot API tab. Takes the whole payload and
 // nothing optional: the parent only mounts it once a reading exists, so no tile
 // ever falls back to a zero standing in for "not measured" (#1426).
-import type { RiotApiUsage } from '~~/shared/types/ops'
+import type { RiotApiUsageReadModel } from '#site-shared/contract/api'
 import { formatElapsed, formatNumber, formatPercent } from '~~/shared/utils/format'
 
-const props = defineProps<{ usage: RiotApiUsage }>()
+const props = defineProps<{ usage: RiotApiUsageReadModel }>()
 
 const errorRatePct = computed(() => formatPercent(props.usage.errorRate, 1))
 </script>

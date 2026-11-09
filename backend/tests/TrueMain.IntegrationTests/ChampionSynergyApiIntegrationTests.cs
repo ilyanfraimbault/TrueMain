@@ -56,7 +56,7 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/champions/{Champion}/synergies?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var synergies = await response.Content.ReadFromJsonAsync<ChampionSynergiesResponse>();
+        var synergies = await response.Content.ReadFromJsonAsync<ChampionSynergiesResponse>(ApiJson.Options);
         synergies.Should().NotBeNull();
         synergies!.ChampionId.Should().Be(Champion);
         synergies.Position.Should().Be(Position);

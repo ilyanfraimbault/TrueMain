@@ -8,8 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
-using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
+using TrueMain.Services.Ops.Database;
 
 namespace TrueMain.Services.Ops.Health;
 
@@ -136,8 +136,7 @@ public sealed class PipelineHealthQueryService(
             {
                 processes.Add(new ProcessHealthReadModel
                 {
-                    ProcessName = processName,
-                    Status = PipelineHealthEvaluator.MissingStatus
+                    ProcessName = processName
                 });
                 continue;
             }
@@ -164,7 +163,7 @@ public sealed class PipelineHealthQueryService(
             processes.Add(new ProcessHealthReadModel
             {
                 ProcessName = run.ProcessName,
-                Status = effectiveStatus.ToString(),
+                Status = effectiveStatus,
                 LastStartedAtUtc = run.StartedAtUtc,
                 LastFinishedAtUtc = run.FinishedAtUtc,
                 LastSuccessAtUtc = rollup?.LastSuccessAtUtc,
@@ -409,7 +408,7 @@ public sealed class PipelineHealthQueryService(
         {
             Key = key,
             Title = title,
-            Status = "unknown",
+            Status = DetectorStatus.Unknown,
             Headline = "This signal could not be measured.",
             UnknownReason = reason,
             DetailPath = detailPath

@@ -65,12 +65,12 @@ internal sealed class OrphanParticipantsDetector(
             rows.Add(new DataQualityDetectorRowReadModel
             {
                 Label = sample.PlatformId,
-                Status = DataQualityDetectorEvaluator.Worst([levelStatus, riseStatus]).ToWireName(),
+                Status = DataQualityDetectorEvaluator.Worst([levelStatus, riseStatus]),
                 Value = reading.Percent,
                 ValueLabel = FormatPercent(reading.Percent),
                 // The printed number is the level, so it carries the level's verdict:
                 // a row amber on its trend used to colour the number that was fine.
-                ValueStatus = levelStatus.ToWireName(),
+                ValueStatus = levelStatus,
                 Note = FormatOrphanTrend(reading, sample)
             });
         }
@@ -98,7 +98,7 @@ internal sealed class OrphanParticipantsDetector(
         rows.Add(new DataQualityDetectorRowReadModel
         {
             Label = "Harvest (last success)",
-            Status = harvestStatus.ToWireName(),
+            Status = harvestStatus,
             Value = harvestAge,
             ValueLabel = DataQualityDetectorEvaluator.FormatAge(harvestAge),
             Note = harvestLast is null
@@ -110,7 +110,7 @@ internal sealed class OrphanParticipantsDetector(
         {
             Key = "orphanParticipants",
             Title = "Orphan participants & harvest",
-            Status = DataQualityDetectorEvaluator.Worst(rows.Select(DetectorCards.ParseStatus)).ToWireName(),
+            Status = DataQualityDetectorEvaluator.Worst(rows.Select(row => row.Status)),
             Count = orphanRows,
             CountLabel = "untracked participants in the sample",
             Headline = BuildOrphanHeadline(rows),
@@ -182,7 +182,7 @@ internal sealed class OrphanParticipantsDetector(
 
     private static string BuildOrphanHeadline(IEnumerable<DataQualityDetectorRowReadModel> rows)
     {
-        var worst = DataQualityDetectorEvaluator.Worst(rows.Select(DetectorCards.ParseStatus));
+        var worst = DataQualityDetectorEvaluator.Worst(rows.Select(row => row.Status));
 
         return worst switch
         {

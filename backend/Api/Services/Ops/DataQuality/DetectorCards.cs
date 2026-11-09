@@ -40,7 +40,7 @@ internal static class DetectorCards
             .Select(platform => new DataQualityDetectorRowReadModel
             {
                 Label = platform,
-                Status = DetectorStatus.Unknown.ToWireName(),
+                Status = DetectorStatus.Unknown,
                 Note = note
             });
     }
@@ -61,11 +61,4 @@ internal static class DetectorCards
         Direction = direction
     };
 
-    public static DetectorStatus ParseStatus(DataQualityDetectorRowReadModel row) => row.Status switch
-    {
-        "green" => DetectorStatus.Green,
-        "amber" => DetectorStatus.Amber,
-        "red" => DetectorStatus.Red,
-        _ => DetectorStatus.Unknown
-    };
 }
