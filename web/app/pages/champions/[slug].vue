@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FavoriteChampionInput } from '#common/utils/favorites'
-import { POSITION_BY_VALUE, isChampionPosition } from '#common/utils/positions'
+import { POSITION_BY_VALUE, isChampionPosition } from '#shared/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { championDisplayName } from '#shared/utils/champion-name'
 

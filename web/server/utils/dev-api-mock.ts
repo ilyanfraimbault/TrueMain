@@ -63,6 +63,9 @@ import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
 import type { RankHistoryResponse } from '~~/shared/types/rank-history'
 import type { ApexCutoffsResponse } from '~~/shared/types/apex-cutoffs'
 import type { SearchPlayer, SearchResponse } from '~~/shared/types/search'
+import { isRiotIdOrSlug } from '~~/shared/utils/riot-id'
+import { REGIONS } from '~~/shared/utils/region'
+import { POSITIONS } from '~~/shared/utils/positions'
 
 // ─── Deterministic PRNG ──────────────────────────────────────────────────────
 // mulberry32 — every payload derives from stable seeds so repeated fetches
@@ -1104,7 +1107,6 @@ function mockPlayerPerformance(
 
 const NAME_PREFIXES = ['Kass', 'Vex', 'Luna', 'Drak', 'Zephyr', 'Nox', 'Aurel', 'Milo', 'Rift', 'Umbra', 'Iron', 'Swift', 'Crimson', 'Echo', 'Frost', 'Blaze', 'Storm', 'Nyx', 'Silver', 'Wisp']
 const NAME_SUFFIXES = ['smith', 'walker', 'blade', 'main', 'senpai', 'fox', 'wolf', 'heart', 'strike', 'mind']
-const REGION_PLATFORMS: Record<RegionSlug, string> = { europe: 'EUW1', americas: 'NA1', korea: 'KR' }
 
 interface MockPlayer {
   row: LeaderboardRowResponse
@@ -1236,7 +1238,7 @@ function buildPlayers(): MockPlayer[] {
         identity: {
           gameName,
           tagLine,
-          platformId: REGION_PLATFORMS[region],
+          platformId: REGIONS[region].platforms[0]!,
           profileIconId: 4000 + Math.floor(rng() * 1500),
           summonerLevel: 250 + Math.floor(rng() * 600),
         },
@@ -1665,7 +1667,7 @@ function mockMatchSummary(player: MockPlayer, index: number): MatchSummaryRespon
       teamId: slot < 5 ? selfTeam : selfTeam === 100 ? 200 : 100,
       // Slots 0-4 / 5-9 are each a full team in role order, so slot % 5
       // yields a valid one-of-each position assignment per side.
-      position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[slot % 5]!,
+      position: POSITIONS[slot % 5]!,
       gameName: slot === 0 ? player.row.identity.gameName : other.row.identity.gameName,
       tagLine: slot === 0 ? player.row.identity.tagLine : other.row.identity.tagLine,
     }
@@ -1694,7 +1696,7 @@ function mockMatchSummary(player: MockPlayer, index: number): MatchSummaryRespon
       trinketItemId: 3364,
       roleBoundItemId: 0,
       teamId: selfTeam,
-      position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[index % 5]!,
+      position: POSITIONS[index % 5]!,
       win,
       lpDelta: win ? 14 + Math.floor(rng() * 12) : -(12 + Math.floor(rng() * 12)),
       // Correlated with the accolade below rather than independent, so the
@@ -1948,29 +1950,6 @@ export function devApiMockForcedFailure(
  * Nitro 500.
  */
 /**
- * Whether a Riot ID is well-formed, mirroring `NameTagParser.TryParseRiotId`:
- * the typed `Name#TAG` form or the `Name-TAG` slug, both halves non-empty, at
- * most 64 characters. Deliberately *not* the app's stricter `parseRiotId`
- * (which requires the `#`) — the API accepts the slug form, and a mock that
- * rejected it would invent a divergence rather than remove one.
- */
-function wellFormedRiotId(riotId: string): boolean {
-  const trimmed = riotId.trim()
-  if (!trimmed || riotId.length > 64) return false
-
-  const hash = trimmed.indexOf('#')
-  if (hash < 0) {
-    // Slug fallback: split on the last '-', so game names may contain hyphens.
-    const dash = trimmed.lastIndexOf('-')
-    return dash > 0 && dash < trimmed.length - 1
-  }
-
-  const gameName = trimmed.slice(0, hash).trim()
-  const tagLine = trimmed.slice(hash + 1).trim()
-  return Boolean(gameName) && Boolean(tagLine) && !tagLine.includes('#')
-}
-
-/**
  * Reserved Riot IDs that stage the mains-comparison `INSUFFICIENT_SAMPLE`
  * states (#868), keyed by lowercased tag line: type `Thin#PLAYER`,
  * `Thin#MAINS` or `Thin#BOTH` in the panel to put the account side, the mains
@@ -2021,10 +2000,10 @@ async function mockMainsComparison(
   const s = seedsById.get(id)
   if (!s) return null
 
-  if (!account || !wellFormedRiotId(account)) {
+  if (!account || !isRiotIdOrSlug(account)) {
     throw createError({ statusCode: 400, statusMessage: 'account must be a Riot ID of the form Name#TAG (dev mock)' })
   }
-  if (main && !wellFormedRiotId(main)) {
+  if (main && !isRiotIdOrSlug(main)) {
     throw createError({ statusCode: 400, statusMessage: 'main must be a Riot ID of the form Name#TAG (dev mock)' })
   }
 
@@ -2331,7 +2310,7 @@ async function mockCompositionBuildGames(id: number, body: unknown, query: Recor
       return {
         championId: slot === 0 ? s.id : pool[(index * 7 + slot * 13) % pool.length]!.id,
         teamId: slot < 5 ? selfTeam : selfTeam === 100 ? 200 : 100,
-        position: (['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const)[slot % 5]!,
+        position: POSITIONS[slot % 5]!,
         gameName: slot === 0 ? pilot.row.identity.gameName : other.row.identity.gameName,
         tagLine: slot === 0 ? pilot.row.identity.tagLine : other.row.identity.tagLine,
       }

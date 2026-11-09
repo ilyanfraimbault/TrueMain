@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { parseTruemainNameTag, riotIdLabel, truemainNameTag, truemainProfilePath, truemainSlugLabel } from '~~/shared/utils/truemain-path'
+import { riotIdLabel, truemainNameTag, truemainProfilePath, truemainSlugLabel } from '~~/shared/utils/truemain-path'
+import { parseRiotIdSlug } from '~~/shared/utils/riot-id'
 import { truemainChampionPath } from '~~/shared/utils/champion-slug'
 import { favoriteNameTag } from '#common/utils/favorites'
 
@@ -34,24 +35,9 @@ describe('truemainProfilePath', () => {
   })
 })
 
-describe('parseTruemainNameTag', () => {
-  it('splits on the last hyphen so a game name may contain one', () => {
-    expect(parseTruemainNameTag('Faker-KR1')).toEqual({ gameName: 'Faker', tagLine: 'KR1' })
-    expect(parseTruemainNameTag('Jean-Luc-EUW')).toEqual({ gameName: 'Jean-Luc', tagLine: 'EUW' })
-  })
-
-  it('rejects what NameTagParser.TryParse rejects', () => {
-    expect(parseTruemainNameTag('')).toBeNull()
-    expect(parseTruemainNameTag('   ')).toBeNull()
-    expect(parseTruemainNameTag('Faker')).toBeNull()
-    expect(parseTruemainNameTag('-KR1')).toBeNull()
-    expect(parseTruemainNameTag('Faker-')).toBeNull()
-    expect(parseTruemainNameTag('  -KR1')).toBeNull()
-    expect(parseTruemainNameTag('Faker- ')).toBeNull()
-  })
-
-  it('round-trips truemainNameTag', () => {
-    expect(parseTruemainNameTag(truemainNameTag('Hide on bush', 'KR1')))
+describe('truemainNameTag', () => {
+  it('round-trips through the slug parser', () => {
+    expect(parseRiotIdSlug(truemainNameTag('Hide on bush', 'KR1')))
       .toEqual({ gameName: 'Hide on bush', tagLine: 'KR1' })
   })
 })
