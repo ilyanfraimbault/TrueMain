@@ -4382,6 +4382,46 @@
         }
       }
     },
+    "/ops/pipeline": {
+      "get": {
+        "tags": [
+          "OpsProcesses"
+        ],
+        "summary": "The pipeline the ingestor runs: its steps in order, with their lane, label and\ndescription, and the lanes that partition them.",
+        "responses": {
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineCatalogReadModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ops/request-latency": {
       "get": {
         "tags": [
@@ -17419,6 +17459,29 @@
           }
         }
       },
+      "PipelineCatalogReadModel": {
+        "required": [
+          "steps",
+          "lanes"
+        ],
+        "type": "object",
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineStepReadModel"
+            },
+            "description": "Every step, in the order a full pass runs them."
+          },
+          "lanes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineLaneReadModel"
+            }
+          }
+        },
+        "description": "The ingestion pipeline as the admin draws it: every step in execution order, and the two\nlanes that partition it. Served from `Data.Pipeline.PipelineCatalog`, the list the\ningestor itself runs."
+      },
       "PipelineGapReadModel": {
         "required": [
           "matchIngestionToMainAnalysisMinutes",
@@ -17534,6 +17597,72 @@
           }
         },
         "description": "One cockpit signal reduced to a verdict, a sentence, and where to go for the detail."
+      },
+      "PipelineLaneReadModel": {
+        "required": [
+          "id",
+          "label",
+          "description",
+          "jobModes",
+          "steps"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "`fetch` or `aggregate`, as the `lane` filter of the iterations feed accepts."
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "jobModes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The `Job:Mode` values whose passes run this lane."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Its step names, in pipeline order."
+          }
+        }
+      },
+      "PipelineStepReadModel": {
+        "required": [
+          "name",
+          "jobMode",
+          "lane",
+          "label",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The `processName` its runs are recorded under."
+          },
+          "jobMode": {
+            "type": "string",
+            "description": "The `Job:Mode` that runs this step alone."
+          },
+          "lane": {
+            "type": "string",
+            "description": "The string PipelineLaneReadModel.Id of its lane."
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
       },
       "PlatformBalanceReadModel": {
         "required": [

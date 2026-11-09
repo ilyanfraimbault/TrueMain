@@ -4429,6 +4429,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/pipeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The pipeline the ingestor runs: its steps in order, with their lane, label and
+         *     description, and the lanes that partition them.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PipelineCatalogReadModel"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/request-latency": {
         parameters: {
             query?: never;
@@ -12389,6 +12446,16 @@ export interface components {
             removed: boolean;
             accounts: components["schemas"]["PersonaAccountUpsertResult"][];
         };
+        /**
+         * @description The ingestion pipeline as the admin draws it: every step in execution order, and the two
+         *     lanes that partition it. Served from `Data.Pipeline.PipelineCatalog`, the list the
+         *     ingestor itself runs.
+         */
+        PipelineCatalogReadModel: {
+            /** @description Every step, in the order a full pass runs them. */
+            steps: components["schemas"]["PipelineStepReadModel"][];
+            lanes: components["schemas"]["PipelineLaneReadModel"][];
+        };
         PipelineGapReadModel: {
             /** Format: double */
             matchIngestionToMainAnalysisMinutes: null | number;
@@ -12469,6 +12536,26 @@ export interface components {
              *     `/data-quality`, `/database`). Every tile is a link.
              */
             detailPath: string;
+        };
+        PipelineLaneReadModel: {
+            /** @description `fetch` or `aggregate`, as the `lane` filter of the iterations feed accepts. */
+            id: string;
+            label: string;
+            description: string;
+            /** @description The `Job:Mode` values whose passes run this lane. */
+            jobModes: string[];
+            /** @description Its step names, in pipeline order. */
+            steps: string[];
+        };
+        PipelineStepReadModel: {
+            /** @description The `processName` its runs are recorded under. */
+            name: string;
+            /** @description The `Job:Mode` that runs this step alone. */
+            jobMode: string;
+            /** @description The string PipelineLaneReadModel.Id of its lane. */
+            lane: string;
+            label: string;
+            description: string;
         };
         PlatformBalanceReadModel: {
             platformId: string;
@@ -14056,9 +14143,12 @@ export type PersonasPageReadModel = components['schemas']['PersonasPageReadModel
 export type PersonaTagReadModel = components['schemas']['PersonaTagReadModel'];
 export type PersonaUpsertEntry = components['schemas']['PersonaUpsertEntry'];
 export type PersonaUpsertResult = components['schemas']['PersonaUpsertResult'];
+export type PipelineCatalogReadModel = components['schemas']['PipelineCatalogReadModel'];
 export type PipelineGapReadModel = components['schemas']['PipelineGapReadModel'];
 export type PipelineHealthReadModel = components['schemas']['PipelineHealthReadModel'];
 export type PipelineHealthSignalReadModel = components['schemas']['PipelineHealthSignalReadModel'];
+export type PipelineLaneReadModel = components['schemas']['PipelineLaneReadModel'];
+export type PipelineStepReadModel = components['schemas']['PipelineStepReadModel'];
 export type PlatformBalanceReadModel = components['schemas']['PlatformBalanceReadModel'];
 export type PlatformDailyMatchesReadModel = components['schemas']['PlatformDailyMatchesReadModel'];
 export type PlatformRawDataFreshnessReadModel = components['schemas']['PlatformRawDataFreshnessReadModel'];
