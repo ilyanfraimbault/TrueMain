@@ -1,4 +1,5 @@
-import { IPX_ROUTE_BASE } from '~~/shared/utils/ipx'
+import { IPX_ROUTE_BASE, IPX_SHAPES, ipxModifiers } from '~~/shared/utils/ipx'
+import { SITE_PAGES } from '~~/shared/utils/site-pages'
 import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 import { DEFAULT_ELO_BRACKET } from '~~/shared/utils/elo-brackets'
 
@@ -7,8 +8,8 @@ import { DEFAULT_ELO_BRACKET } from '~~/shared/utils/elo-brackets'
  * page view sends, so they are the entries a visitor reads.
  */
 
-/** The rendered pages other than a champion's. */
-export const WARM_PAGES = ['/', '/champions', '/champions/tierlist', '/truemains', '/builder', '/matchup', '/download', '/about']
+/** The rendered pages other than a champion's: the catalogue's warm pages. */
+export const WARM_PAGES = SITE_PAGES.filter(page => page.warm).map(page => page.path)
 
 /** Renders of each page before the first one a visitor sees: V8 only optimises what has run. */
 export const WARM_RENDERS = 3
@@ -42,9 +43,9 @@ export function patchedStaticReads(version: string): string[] {
   ])
 }
 
-const ICON_MODIFIERS = 'f_webp&s_64x64'
-const SPLASH_MODIFIERS = 'w_1280&f_webp'
-const LOADING_ART_MODIFIERS = 'w_308&f_webp'
+const ICON_MODIFIERS = ipxModifiers(IPX_SHAPES.icon)
+const SPLASH_MODIFIERS = ipxModifiers(IPX_SHAPES.splash)
+const LOADING_ART_MODIFIERS = ipxModifiers(IPX_SHAPES.loadingArt)
 const RANK_CREST_MODIFIERS = /^s_\d{1,3}x\d{1,3}$/
 
 const POSITION_ICONS = ['fill', 'top', 'jungle', 'middle', 'bottom', 'utility']
