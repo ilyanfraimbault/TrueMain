@@ -1,5 +1,3 @@
-import type { axisFormatter } from 'vue-chrts/types'
-
 // XML-escaping for chart axis tick labels (issue #842).
 //
 // `@unovis/ts` — the engine behind `nuxt-charts`/`vue-chrts` — renders axis
@@ -51,13 +49,13 @@ export function escapeChartTickText(text: string): string {
  * stays absent — unovis then stringifies the raw tick value, which is numeric
  * or a `Date` and never needs escaping.
  */
-export function escapeTickFormatter(
-  formatter: axisFormatter | undefined,
-): axisFormatter | undefined {
+export function escapeTickFormatter<F extends (tick: never, i?: number, ticks?: never[]) => string>(
+  formatter: F | undefined,
+): F | undefined {
   if (!formatter) return undefined
-  // The two arms of `axisFormatter` differ only in their tick type (number vs
-  // Date); both return a string, so one pass-through wrapper covers both.
-  const format = formatter as (tick: never, i?: number, ticks?: never[]) => string
+  // A chart's tick type (number or Date) passes through untouched; only the
+  // returned string is escaped. Generic over the formatter rather than naming
+  // the chart library's type, so the admin can read this file without it.
   return ((tick: never, i?: number, ticks?: never[]) =>
-    escapeChartTickText(format(tick, i, ticks))) as axisFormatter
+    escapeChartTickText(formatter(tick, i, ticks))) as F
 }
