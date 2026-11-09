@@ -5,7 +5,7 @@
 import type { ProcessIterationReadModel } from '#site-shared/contract/api'
 import type { ChainLink } from '~~/shared/utils/pipeline-lanes'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
-import { processStatusColor, RUN_TALLIES } from '~~/shared/utils/pipeline-health'
+import { processStatusColor, runTally } from '~~/shared/utils/pipeline-health'
 import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
 import { hasSummary } from '~~/shared/utils/process-summary'
 
@@ -50,12 +50,7 @@ const entries = computed<IterationEntry[]>(() =>
 // #1513) is a row here instead of a sixth copy. `Success` shows even at zero — "0 ok" is
 // the point when a pass went wrong — while the rest appear only when they happened.
 
-const tally = computed(() => {
-  const runs = props.iteration?.runs ?? []
-  return RUN_TALLIES
-    .map(entry => ({ ...entry, color: processStatusColor(entry.status), count: runs.filter(run => run.status === entry.status).length }))
-    .filter(entry => entry.always || entry.count > 0)
-})
+const tally = computed(() => runTally((props.iteration?.runs ?? []).map(run => run.status)))
 </script>
 
 <template>

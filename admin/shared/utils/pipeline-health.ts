@@ -71,6 +71,16 @@ export const RUN_TALLIES: readonly { status: ProcessRunStatus, label: string, ve
 ]
 
 /**
+ * A pass's outcome tallies, one per entry of {@link RUN_TALLIES}: `Success` always (a pass
+ * with "0 ok" went wrong, and that is the point), the others only when they happened.
+ */
+export function runTally(statuses: readonly ProcessRunStatus[]) {
+  return RUN_TALLIES
+    .map(entry => ({ ...entry, color: processStatusColor(entry.status), count: statuses.filter(status => status === entry.status).length }))
+    .filter(entry => entry.always || entry.count > 0)
+}
+
+/**
  * Meta for a run status, falling back to `Missing` for anything unrecognised — a status
  * the backend adds later must read as "no verdict", never as a success or a failure.
  */
