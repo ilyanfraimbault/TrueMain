@@ -12,7 +12,7 @@
  * It is no longer the *page* default — see `DEFAULT_ELO_BRACKET`.
  */
 
-import { ELO_TIERS, formatTierName, isEloTier, type EloTier } from './ranks'
+import { formatTierName, isEloTier, type EloTier } from './ranks'
 
 export const ELO_BRACKET_ALL = 'ALL'
 export const ELO_PLUS_SUFFIX = '_PLUS'
