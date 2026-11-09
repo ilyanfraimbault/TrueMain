@@ -1,11 +1,10 @@
 /**
- * The pages the usage counts name (#1805), by the route they are on. The
- * shell counts them (`src-tauri/src/telemetry.rs`) and the API keeps only the
- * keys its catalog lists (`DesktopTelemetryCatalog.cs`): a page added here is
- * added there too, or it is never counted. The overlay panels and the `/dev`
- * tools are not pages a player opens, so they have no key.
+ * The pages the usage counts name (#1805), by the route they are on. The API
+ * keeps only the keys its catalog lists (`DesktopTelemetryCatalog.cs`), which
+ * `tests/telemetry.test.ts` checks. The overlay panels and the `/dev` tools are
+ * not pages a player opens, so they have no key.
  */
-const PAGE_KEYS: Record<string, string> = {
+export const PAGE_KEYS: Readonly<Record<string, string>> = {
   'index': 'dashboard',
   'champions': 'champions',
   'champions-id': 'champion',
