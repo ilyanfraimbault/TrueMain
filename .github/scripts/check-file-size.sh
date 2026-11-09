@@ -27,6 +27,7 @@ LIMIT_TS=300
 #   backend/**/Migrations, backend/**/CompiledModels  generated
 #   backend/tests, web/tests, admin/tests             a long test file is far cheaper to read
 #   web/server/utils/dev-api-mock.ts                  dev-only fixture, no production reader
+#   **/generated/*                                    generated
 list_sources() {
   # Only search roots that exist: the test suite runs the same logic against scratch trees that
   # carry a subset of them.
@@ -44,7 +45,7 @@ list_sources() {
   done
 
   existing web/app web/layers/common/app web/shared web/server admin/app admin/shared admin/server desktop/app/app | while read -r root; do
-    find "$root" -name '*.ts' -print
+    find "$root" -name '*.ts' -not -path '*/generated/*' -print
   done | { grep -v '^web/server/utils/dev-api-mock\.ts$' || true; } | sed "s/$/\t$LIMIT_TS/"
 }
 

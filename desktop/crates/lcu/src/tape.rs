@@ -38,7 +38,7 @@ use crate::error::{Error, Result};
 use crate::events::LcuEvent;
 
 /// One line of a tape: what was read, and how long after the session started.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Entry {
     /// Milliseconds since the session was attached. The first reading is at 0.
     pub at_ms: u64,
@@ -48,7 +48,7 @@ pub struct Entry {
 
 /// What a line holds. `kind` is the discriminant, so a tape stays readable and
 /// hand-editable — building a scenario by hand is a supported use.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Reading {
     /// `/lol-summoner/v1/current-summoner`, read once at attach.

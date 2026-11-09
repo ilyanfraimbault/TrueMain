@@ -46,7 +46,9 @@ const EDGE_MARGIN: f64 = 16.0;
 const TOP_MARGIN: f64 = 56.0;
 
 /// One panel of the overlay, each in its own window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, specta::Type,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum OverlayPanel {
     /// The next item to buy, and the gold it still needs.
@@ -139,7 +141,7 @@ impl OverlayPanel {
 
 /// What brings a panel on screen during a game, on top of its own moment
 /// (the next item's `OverlayShow`) and the global hide shortcut.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PanelTrigger {
     /// For the whole game.
@@ -195,7 +197,7 @@ impl PanelFlags {
 }
 
 /// When the next item shows during a game.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum OverlayShow {
     /// For the whole game.
@@ -205,7 +207,7 @@ pub enum OverlayShow {
 }
 
 /// A place on the screen a panel snaps to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum OverlayAnchor {
     TopLeft,
@@ -230,14 +232,14 @@ impl OverlayAnchor {
 /// the right (bottom) one. So it lands in the same place at any resolution,
 /// and a panel against an edge stays against it whatever size it takes —
 /// its centre would drift off the edge when it grows or shrinks.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 pub struct OverlayPoint {
     pub x: f64,
     pub y: f64,
 }
 
 /// One panel's own settings.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PanelSettings {
     pub enabled: bool,
@@ -248,7 +250,7 @@ pub struct PanelSettings {
     pub trigger: PanelTrigger,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OverlaySettings {
     /// The whole overlay. On by default: it is the app's in-game half, it

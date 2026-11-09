@@ -1,13 +1,17 @@
 import type {
-  Clip,
-  GameRecording,
   RecordingLibrary,
   RecordingSettings,
   RecordingSettingsView,
   RecordingStatus,
-  RecordingWinProbability,
 } from '~/types/recordings'
-import type { Chord, TriggerCheck } from '~/types/overlay'
+import type { Chord } from '~/types/overlay'
+import { RECORDING_SCHEME } from '~/generated/shell'
+import type { ShellAnswer, ShellCommand, ShellCommands } from '~/utils/shell'
+
+/** The shell's recording commands (`src-tauri/src/recording`). */
+export type RecordingCommand = Extract<ShellCommand,
+  | `recording${string}` | `clip${string}`
+  | 'setRecordingSettings' | 'requestCapturePermission' | 'revealRecordingFile' | 'openYoutubeUpload'>
 
 /**
  * Ask the shell to run one recording command (#1744). In `npm run dev` outside
@@ -15,14 +19,11 @@ import type { Chord, TriggerCheck } from '~/types/overlay'
  * an in-memory library so the pages can be exercised; in a production build
  * outside Tauri there is nothing to ask.
  */
-export async function recordingCall<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  if (insideTauri()) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    return await invoke<T>(command, args)
-  }
+export async function recordingCall<K extends RecordingCommand>(command: K, ...args: Parameters<ShellCommands[K]>): Promise<ShellAnswer<K>> {
+  if (insideTauri()) return await (shell[command] as (...args: unknown[]) => Promise<ShellAnswer<K>>)(...args)
   if (import.meta.dev) {
     const { devRecordingCall } = await import('~/utils/recordings-dev')
-    return await devRecordingCall(command, args) as T
+    return await devRecordingCall(command, ...args)
   }
   throw new Error('Recording is only available in the desktop app.')
 }
@@ -39,9 +40,8 @@ let settingsRequest = 0
  * recording settings and the capture status, as the shell reports them.
  *
  * Held for the session. The first caller (`app.vue`, which lives as long as
- * the window) subscribes to the shell's events: `recording://library` reads the
- * library again, `recording://status` replaces the status, and
- * `recording://recap` opens the recap of the game that just stopped recording
+ * the window) subscribes to the shell's events: a library change reads the
+ * library again, a status replaces the status, and a recap event opens the recap of the game that just stopped recording
  * — only from the dashboard or the game page, the pages the game's own
  * navigation would have taken the player to, never over a page they opened by
  * hand (the game page's rule, `decisions/desktop.md`).
@@ -58,7 +58,7 @@ export function useRecordings() {
 
   async function refreshLibrary() {
     try {
-      library.value = await recordingCall<RecordingLibrary>('recording_library')
+      library.value = await recordingCall('recordingLibrary')
     }
     catch {
       // The status read says why (or that this shell has no recording at all).
@@ -66,7 +66,7 @@ export function useRecordings() {
   }
 
   async function refreshStatus() {
-    status.value = await recordingCall<RecordingStatus>('recording_status')
+    status.value = await recordingCall('recordingStatus')
   }
 
   /** Read everything once. A shell without the recording commands leaves the status `null`. */
@@ -75,8 +75,8 @@ export function useRecordings() {
     loadState.value = 'pending'
     try {
       const [view, current] = await Promise.all([
-        recordingCall<RecordingSettingsView>('recording_settings'),
-        recordingCall<RecordingStatus>('recording_status'),
+        recordingCall('recordingSettings'),
+        recordingCall('recordingStatus'),
       ])
       settings.value = view
       status.value = current
@@ -101,7 +101,7 @@ export function useRecordings() {
   async function subscribe() {
     if (!insideTauri()) {
       if (import.meta.dev) {
-        // No shell to send `recording://recap`: the console stands in for it.
+        // No shell to send the recap event: the console stands in for it.
         (window as unknown as Record<string, unknown>).__devRecordingRecap = (id: string) => {
           void refreshLibrary()
           openRecap(id)
@@ -117,11 +117,10 @@ export function useRecordings() {
 
     // Subscribed once, from app.vue, for the app's lifetime: there is no
     // scope to tie them to after the awaits above, and nothing to unsubscribe.
-    const { listen } = await import('@tauri-apps/api/event')
     await Promise.all([
-      listen<RecordingStatus>('recording://status', event => (status.value = event.payload)),
-      listen<null>('recording://library', () => void refreshLibrary()),
-      listen<{ id: string }>('recording://recap', (event) => {
+      shellEvents.recordingStatus.listen(event => (status.value = event.payload)),
+      shellEvents.recordingLibrary.listen(() => void refreshLibrary()),
+      shellEvents.recordingRecap.listen((event) => {
         void refreshLibrary()
         openRecap(event.payload.id)
       }),
@@ -138,7 +137,7 @@ export function useRecordings() {
    */
   function fileSrc(path: string | null): string | null {
     if (!path) return null
-    if (fileApiReady.value && convertFileSrc) return convertFileSrc(path, 'recording')
+    if (fileApiReady.value && convertFileSrc) return convertFileSrc(path, RECORDING_SCHEME)
     if (import.meta.dev && !insideTauri()) return `/__dev/recording-file?path=${encodeURIComponent(path)}`
     return null
   }
@@ -147,9 +146,9 @@ export function useRecordings() {
    * Run a command that changes the library, then read the library again.
    * `undefined` is a failure, already shown in a toast as the shell words it.
    */
-  async function mutate<T>(command: string, args: Record<string, unknown>, failure: string): Promise<T | undefined> {
+  async function mutate<T>(write: () => Promise<T>, failure: string): Promise<T | undefined> {
     try {
-      const answer = await recordingCall<T>(command, args)
+      const answer = await write()
       await refreshLibrary()
       return answer
     }
@@ -159,26 +158,26 @@ export function useRecordings() {
     }
   }
 
-  const getRecording = (id: string) => recordingCall<GameRecording>('recording_get', { id })
+  const getRecording = (id: string) => recordingCall('recordingGet', id)
   /** The recap's curve data; `null` when the game has none (or it does not read — the recap stands without it). */
   const getWinProbability = (id: string) =>
-    recordingCall<RecordingWinProbability | null>('recording_win_probability', { id }).catch(() => null)
+    recordingCall('recordingWinProbability', id).catch(() => null)
   const setKept = (id: string, kept: boolean) =>
-    mutate<GameRecording>('recording_set_kept', { id, kept }, kept ? 'The game could not be kept' : 'The game could not be released')
+    mutate(() => recordingCall('recordingSetKept', id, kept), kept ? 'The game could not be kept' : 'The game could not be released')
   const deleteRecording = async (id: string) =>
-    (await mutate<null>('recording_delete', { id }, 'The game could not be deleted')) !== undefined
+    (await mutate(() => recordingCall('recordingDelete', id), 'The game could not be deleted')) !== undefined
   /** `replaces`: a saved clip of the same game this cut adjusts, deleted once the new one is written. */
   const saveClip = (recordingId: string, startMs: number, endMs: number, title: string, replaces?: string) =>
-    mutate<Clip>('clip_save', { recordingId, startMs, endMs, title, replaces: replaces ?? null }, 'The clip could not be saved')
-  const checkMarkKey = (chord: Chord) => recordingCall<TriggerCheck>('recording_check_mark_key', { chord })
+    mutate(() => recordingCall('clipSave', recordingId, startMs, endMs, title, replaces ?? null), 'The clip could not be saved')
+  const checkMarkKey = (chord: Chord) => recordingCall('recordingCheckMarkKey', chord)
   const updateClip = (id: string, change: { title?: string, favorite?: boolean }) =>
-    mutate<Clip>('clip_update', { id, ...change }, 'The clip could not be updated')
+    mutate(() => recordingCall('clipUpdate', id, change.title ?? null, change.favorite ?? null), 'The clip could not be updated')
   const deleteClip = async (id: string) =>
-    (await mutate<null>('clip_delete', { id }, 'The clip could not be deleted')) !== undefined
+    (await mutate(() => recordingCall('clipDelete', id), 'The clip could not be deleted')) !== undefined
 
   async function reveal(path: string) {
     try {
-      await recordingCall<null>('reveal_recording_file', { path })
+      await recordingCall('revealRecordingFile', path)
     }
     catch (error) {
       toast.add({ title: 'The file could not be shown', description: String(error), color: 'error', icon: 'i-lucide-circle-alert' })
@@ -195,13 +194,13 @@ export function useRecordings() {
     const request = ++settingsRequest
     settingsWrites = settingsWrites.then(async () => {
       try {
-        const answer = await recordingCall<RecordingSettingsView>('set_recording_settings', { settings: next })
+        const answer = await recordingCall('setRecordingSettings', next)
         if (request === settingsRequest) settings.value = answer
         await Promise.all([refreshLibrary(), refreshStatus()])
       }
       catch (error) {
         toast.add({ title: 'The settings could not be saved', description: String(error), color: 'error', icon: 'i-lucide-circle-alert' })
-        if (request === settingsRequest) settings.value = await recordingCall<RecordingSettingsView>('recording_settings').catch(() => settings.value)
+        if (request === settingsRequest) settings.value = await recordingCall('recordingSettings').catch(() => settings.value)
       }
     })
     return settingsWrites
@@ -209,7 +208,7 @@ export function useRecordings() {
 
   async function requestPermission() {
     try {
-      status.value = await recordingCall<RecordingStatus>('request_capture_permission')
+      status.value = await recordingCall('requestCapturePermission')
     }
     catch (error) {
       toast.add({ title: 'Screen Recording could not be requested', description: String(error), color: 'error', icon: 'i-lucide-circle-alert' })

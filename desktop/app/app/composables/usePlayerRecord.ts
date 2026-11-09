@@ -1,6 +1,7 @@
 import type { RankHistoryEntry } from '#shared/types/rank-history'
 import type { PlayerGame, PlayerRecord } from '~/types/record'
 import { readRankHistory, recordRankSnapshot } from '~/utils/lp-history'
+import { shell } from '~/utils/shell'
 
 /** A record younger than this is shown as is when the dashboard opens again. */
 const FRESH_FOR_MS = 120_000
@@ -41,8 +42,7 @@ export function usePlayerRecord() {
 
   async function read(): Promise<PlayerRecord | null> {
     if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await trackLoad(invoke<PlayerRecord>('player_record'))
+      return await trackLoad(shell.playerRecord())
     }
     if (import.meta.dev) return useDevScenarios().record.value
     return null
@@ -122,8 +122,7 @@ export function usePlayerRecord() {
 
   async function readOlder(begin: number): Promise<PlayerGame[]> {
     if (!insideTauri()) return []
-    const { invoke } = await import('@tauri-apps/api/core')
-    return await trackLoad(invoke<PlayerGame[]>('player_history', { begin }))
+    return await trackLoad(shell.playerHistory(begin))
   }
 
   const current = computed(() => (owner.value === state.value.riotId ? record.value : null))

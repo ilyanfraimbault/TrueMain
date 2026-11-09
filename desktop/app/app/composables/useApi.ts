@@ -7,6 +7,7 @@
  * server proxies `/api` to the site's public entry point instead (nuxt.config).
  */
 import { answerStaticEndpoint } from '~/utils/static-endpoints'
+import { apiAnswer, shell } from '~/utils/shell'
 
 type QueryValue = string | number | boolean | null | undefined
 /** A list repeats its key, one pair per entry (`?player=a&player=b`). */
@@ -53,8 +54,7 @@ function tracked<T>(work: Promise<T>, options: ReadOptions): Promise<T> {
 export function apiGet<T>(path: string, query: Query = {}, options: ReadOptions = {}): Promise<T> {
   return tracked((async () => {
     if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<T>('api_get', { path, query: pairs(query) })
+      return await apiAnswer<T>(shell.apiGet(path, pairs(query)))
     }
     return await $fetch<T>(`/api${path}`, { query: fetchQuery(query), signal: options.signal })
   })(), options)
@@ -67,8 +67,7 @@ export function apiGet<T>(path: string, query: Query = {}, options: ReadOptions 
 export function apiPost<T>(path: string, body: unknown, query: Query = {}, options: ReadOptions = {}): Promise<T> {
   return tracked((async () => {
     if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<T>('api_post', { path, query: pairs(query), request: body })
+      return await apiAnswer<T>(shell.apiPost(path, pairs(query), body))
     }
     return await $fetch<T>(`/api${path}`, { method: 'POST', body: body as Record<string, unknown>, query: fetchQuery(query), signal: options.signal })
   })(), options)
@@ -81,8 +80,7 @@ export function apiPost<T>(path: string, body: unknown, query: Query = {}, optio
  */
 export async function openOnSite(path: string) {
   if (insideTauri()) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('open_on_site', { path })
+    await shell.openOnSite(path)
     return
   }
   window.open(`${import.meta.env.TRUEMAIN_SITE_URL}${path}`, '_blank', 'noopener')

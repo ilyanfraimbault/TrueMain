@@ -6,6 +6,7 @@ import type {
   CompositionBuildResponse,
   CompositionLane,
 } from '~/types/build'
+import { apiAnswer, shell } from '~/utils/shell'
 
 /** Whose build to show: a champion on its lane, and the draft around it from its side. */
 export interface BuildSubject {
@@ -79,8 +80,7 @@ export function useDraftBuild(subject: Ref<BuildSubject | null>) {
 
   async function post(champion: number, body: CompositionBuildRequest, signal: AbortSignal) {
     if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<CompositionBuildResponse>('composition_build', { championId: champion, request: body })
+      return await apiAnswer<CompositionBuildResponse>(shell.compositionBuild(champion, body))
     }
     // `npm run dev` in a browser: the dev server proxies `/api` (nuxt.config).
     return await $fetch<CompositionBuildResponse>(`/api/champions/${champion}/composition-build`, {
@@ -92,11 +92,7 @@ export function useDraftBuild(subject: Ref<BuildSubject | null>) {
 
   async function standard(champion: number, position: string, signal: AbortSignal): Promise<DraftBuild | null> {
     const answer = insideTauri()
-      ? await (await import('@tauri-apps/api/core')).invoke<ChampionBuildResponse>('champion_build', {
-          championId: champion,
-          position,
-          opponentChampionId: null,
-        })
+      ? await apiAnswer<ChampionBuildResponse>(shell.championBuild(champion, position, null))
       : await $fetch<ChampionBuildResponse>(`/api/champions/${champion}`, { query: { position }, signal })
     const first = answer.builds[0]
     if (!first) return null

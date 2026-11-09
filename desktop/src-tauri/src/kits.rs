@@ -12,12 +12,14 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use shell_state::kits::KitStore;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 const FILE: &str = "kits.json";
 
 /// What every window hears when the kits change.
-const CHANGED_EVENT: &str = "kits://changed";
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "kits://changed")]
+pub struct KitsChanged(pub KitStore);
 
 pub struct Kits {
     path: PathBuf,
@@ -40,6 +42,7 @@ impl Kits {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn kits_get(kits: State<'_, Kits>) -> KitStore {
     kits.store.lock().expect("kits poisoned").clone()
 }
@@ -47,12 +50,13 @@ pub fn kits_get(kits: State<'_, Kits>) -> KitStore {
 /// Replace the store. Read as leniently as the file — a kit that breaks a
 /// rule is dropped alone — and the answer is what was kept.
 #[tauri::command]
+#[specta::specta]
 pub fn kits_set(
     app: AppHandle,
     kits: State<'_, Kits>,
-    store: serde_json::Value,
+    store: crate::contract::Loose<KitStore>,
 ) -> Result<KitStore, String> {
-    let store = KitStore::from_json(&store.to_string());
+    let store = KitStore::from_json(&store.json());
     // Held across the write, so two windows saving at once leave the file and
     // the memory on the same store.
     let mut kept = kits.store.lock().expect("kits poisoned");
@@ -62,6 +66,6 @@ pub fn kits_set(
     })?;
     *kept = store.clone();
     drop(kept);
-    let _ = app.emit(CHANGED_EVENT, &store);
+    crate::contract::emit(&app, KitsChanged(store.clone()));
     Ok(store)
 }

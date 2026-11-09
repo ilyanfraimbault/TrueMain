@@ -19,7 +19,7 @@ use crate::marks::Mark;
 /// together are one moment.
 const GRUBS_WINDOW_MS: i64 = 60_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ObjectiveKind {
     Dragon,
@@ -33,7 +33,7 @@ pub enum ObjectiveKind {
 }
 
 /// An elemental drake's element, from the timeline's `monsterSubType`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum DragonKind {
     Infernal,
@@ -72,7 +72,7 @@ impl DragonKind {
 }
 
 /// An objective taken, in game time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Objective {
     pub kind: ObjectiveKind,
@@ -154,7 +154,7 @@ pub fn objectives(timeline: &GameTimeline, my_team: i64) -> Vec<Objective> {
     objectives
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum MomentKind {
     Kill,
@@ -176,7 +176,7 @@ pub enum MomentKind {
 /// it (1 to 10, the game's timeline numbering); the recap draws their
 /// champions from the recording's scoreboard. Moments kept by an older build,
 /// and those read from the live feed, have none.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Moment {
     pub kind: MomentKind,

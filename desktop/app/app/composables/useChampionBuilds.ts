@@ -1,4 +1,5 @@
 import type { ChampionBuildResponse } from '~/types/build'
+import { apiAnswer, shell } from '~/utils/shell'
 
 /**
  * A champion's builds on one lane — the site's champion page endpoint, one
@@ -18,8 +19,7 @@ export function useChampionBuilds(championId: Ref<number | null>, position: Ref<
 
   async function fetchBuilds(champion: number, lane: string): Promise<ChampionBuildResponse> {
     if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<ChampionBuildResponse>('champion_build', { championId: champion, position: lane, opponentChampionId: null })
+      return await apiAnswer<ChampionBuildResponse>(shell.championBuild(champion, lane, null))
     }
     return await $fetch<ChampionBuildResponse>(`/api/champions/${champion}`, { query: { position: lane } })
   }

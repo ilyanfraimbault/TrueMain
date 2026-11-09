@@ -111,7 +111,7 @@ impl Feature {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 struct Settings {
     install_id: String,
@@ -153,7 +153,7 @@ impl Counters {
 }
 
 /// One batch, as `POST /desktop/telemetry` reads it.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 struct Batch<'a> {
     install_id: &'a str,
@@ -360,6 +360,7 @@ pub fn send_at_exit(app: &AppHandle) {
 
 /// Count a page the webview opened. The webview names it by its key.
 #[tauri::command]
+#[specta::specta]
 pub fn telemetry_page(telemetry: tauri::State<'_, SharedTelemetry>, page: String) {
     telemetry.page(&page);
 }

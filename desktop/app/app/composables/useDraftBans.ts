@@ -1,5 +1,6 @@
 import type { DraftBans } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
+import { apiAnswer, shell } from '~/utils/shell'
 
 /** Bans and hovers landing together collapse into one request. */
 const DEBOUNCE_MS = 120
@@ -33,8 +34,7 @@ export function useDraftBans(
 
   async function ask(request: object): Promise<DraftBans> {
     if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<DraftBans>('draft_bans', { request })
+      return await apiAnswer<DraftBans>(shell.draftBans(request))
     }
     // `npm run dev` in a browser: the dev server proxies `/api` (nuxt.config).
     return await $fetch<DraftBans>('/api/champions/draft/bans', { method: 'POST', body: request })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { KitRunePage } from '#shared/types/kit'
+import type { KitRunePage } from '~/types/kit'
 
 /**
  * The rune import button (#1678): a small icon in the corner of the runes,

@@ -32,7 +32,7 @@ use capture_helper::HelperCapture;
 use game_recording::{AutoClipKind, ClipStore, MarkLength, RecordingSettings, Session, Store};
 use lcu::GameflowPhase;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 
 pub use commands::*;
@@ -40,11 +40,19 @@ pub use publish::*;
 pub use views::RecordingStatusView;
 
 /// The recording state changed: started, stopped, finalised.
-pub const STATUS_EVENT: &str = "recording://status";
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "recording://status")]
+pub struct RecordingStatusChanged(pub RecordingStatusView);
 /// Something in the library changed: read it again.
-pub const LIBRARY_EVENT: &str = "recording://library";
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "recording://library")]
+pub struct LibraryChanged;
 /// The game just played stopped recording: open its recap.
-pub const RECAP_EVENT: &str = "recording://recap";
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "recording://recap")]
+pub struct RecapReady {
+    pub id: String,
+}
 
 /// Use this helper binary instead of the bundled one.
 const HELPER_VAR: &str = "TRUEMAIN_CAPTURE_HELPER";
@@ -61,7 +69,7 @@ pub(crate) type SharedSession = Arc<Mutex<Session<HelperCapture>>>;
 /// Flash keys, the status the sidebar shows and the library alike, so none of
 /// them can say a game records while another says it is over. Mirrored as
 /// `RecordingActivity` in `desktop/app/app/types/recordings.ts`.
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Activity {
     #[default]
@@ -139,7 +147,7 @@ impl std::fmt::Debug for Activity {
 }
 
 /// Whether the app can record. Mirrored as `CaptureAvailability`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Availability {
     /// The helper is there and Screen Recording is allowed.
@@ -381,20 +389,15 @@ pub fn start(app: &AppHandle, recorder: SharedRecorder, phases: watch::Receiver<
 }
 
 pub(crate) fn emit_status(app: &AppHandle, recorder: &Recorder) {
-    let _ = app.emit(STATUS_EVENT, recorder.status());
+    crate::contract::emit(app, RecordingStatusChanged(recorder.status()));
 }
 
 pub(crate) fn emit_library(app: &AppHandle) {
-    let _ = app.emit(LIBRARY_EVENT, ());
-}
-
-#[derive(Clone, Serialize)]
-struct Recap {
-    id: String,
+    crate::contract::emit(app, LibraryChanged);
 }
 
 pub(crate) fn emit_recap(app: &AppHandle, id: String) {
-    let _ = app.emit(RECAP_EVENT, Recap { id });
+    crate::contract::emit(app, RecapReady { id });
 }
 
 /// Where the helper is: an override, the one bundled beside the app's binary

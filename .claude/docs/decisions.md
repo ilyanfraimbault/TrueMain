@@ -514,6 +514,7 @@ Last verified against `develop` on 2026-09-02.
 - The dashboard's form tiles carry the median of the player's own Solo/Duo tier (not the tier above) on their main role, in muted text with the tier's emblem; under the floor or without a standing, none; dashboard only (2026-10-20) — #2076
 - Game recording is frozen; kept only if ≥ 25% of installs that play with the app open record a game within 30 days, read after the next production release (2026-11-01) — #2364
 - A known player opens in the app; the shell opens their channels through a host list (Twitch, YouTube, X), the one exception to the webview naming only a path on its site (2026-11-04) — #2441
+- The shell ↔ webview contract (commands, events, payload types, refusal codes) is generated from Rust by specta into `app/generated/shell.ts`, a stale file failing a Rust test (2026-11-09) — #2494
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 

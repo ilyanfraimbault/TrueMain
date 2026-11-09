@@ -16,7 +16,7 @@ macro_rules! key_codes {
         /// A physical key, named after the web's `KeyboardEvent.code`, so the
         /// app records it as is and the binding holds on any layout: `KeyQ` is
         /// the key left of W on QWERTY and left of Z on AZERTY alike.
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, specta::Type)]
         pub enum KeyCode {
             $($code,)*
         }
@@ -128,7 +128,9 @@ key_codes! {
 }
 
 /// A combination of keys: the modifiers and TAB held, and at most one key.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type,
+)]
 #[serde(rename_all = "camelCase")]
 pub struct Chord {
     #[serde(default)]

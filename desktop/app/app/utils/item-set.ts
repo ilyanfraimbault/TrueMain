@@ -1,5 +1,5 @@
 import type { ChampionItemContextItem } from '#shared/types/item-context'
-import type { Kit } from '#shared/types/kit'
+import type { Kit } from '~/types/kit'
 import type { BuildCoreView, BuildTreeNode } from '~/types/build'
 import { kitPaths } from '~/utils/kit-tree'
 
