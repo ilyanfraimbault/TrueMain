@@ -46,9 +46,9 @@ export function useChampion(
     ['champion', 'global', championIdRef.value, patch, position, eloBracket, opponent, truemainsOnly ? 'truemains' : 'everyone'].join('-')
   const keyOf = (f: Filters['value']) => {
     const current = scopeRef.value
-    return current.kind === 'player'
-      ? playerKey(current.nameTag, f.patch ?? '', f.position ?? '')
-      : globalKey(f.patch ?? '', f.position ?? '', f.eloBracket ?? '', f.opponentChampionId ? String(f.opponentChampionId) : '', f.truemainsOnly)
+    if (current.kind === 'player') return playerKey(current.nameTag, f.patch ?? '', f.position ?? '')
+    const opponent = f.opponentChampionId ? String(f.opponentChampionId) : ''
+    return globalKey(f.patch ?? '', f.position ?? '', f.eloBracket ?? '', opponent, f.truemainsOnly)
   }
   const fallbackKeyOf = (f: Filters['value']) => f.opponentChampionId
     ? globalKey('', f.position ?? '', f.eloBracket ?? '', String(f.opponentChampionId), f.truemainsOnly)
