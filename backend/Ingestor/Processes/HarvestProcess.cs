@@ -1,5 +1,6 @@
 using Data.Logging;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -18,6 +19,7 @@ namespace Ingestor.Processes;
 /// ManualSeed and before Scoring, so harvested candidates compete in the same
 /// per-platform top-N and flow through the same MatchIngestion -> MainAnalysis pass.
 /// </summary>
+[PipelineStep(JobMode.HarvestOnly)]
 public sealed class HarvestProcess(
     ILogger<HarvestProcess> logger,
     IDataSessionFactory sessionFactory,
@@ -29,8 +31,6 @@ public sealed class HarvestProcess(
     IOptions<MatchIngestionOptions> matchIngestionOptions,
     IOptions<IntakeOptions> intakeOptions) : IIngestorProcess
 {
-    public string Name => "Harvest";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var configured = harvestOptions.Value;
@@ -53,7 +53,7 @@ public sealed class HarvestProcess(
         // speed (#2261).
         if (configured.MinRunInterval > TimeSpan.Zero)
         {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.Harvest.Name, nowUtc, ct);
             if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < configured.MinRunInterval)
             {
                 logger.LogInformation(

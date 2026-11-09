@@ -1,4 +1,5 @@
 using Data.Entities;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Coverage;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
+[PipelineStep(JobMode.ScoringOnly)]
 public sealed class ScoringProcess(
     ILogger<ScoringProcess> logger,
     IDataSessionFactory sessionFactory,
@@ -24,9 +26,6 @@ public sealed class ScoringProcess(
     private const double FallbackRecencyWeight = 0.65;
     private const double FallbackRankWeight = 0.20;
     private const double FallbackPointsWeight = 0.15;
-
-    public string Name => "Scoring";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var scoring = scoringOptions.Value;

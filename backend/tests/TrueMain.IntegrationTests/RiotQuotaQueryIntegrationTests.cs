@@ -3,6 +3,7 @@ using Data.Entities;
 using Data.Logging.Mongo;
 using Data.Metrics.Mongo;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 
 namespace TrueMain.IntegrationTests;
 
