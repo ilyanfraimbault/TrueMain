@@ -4,7 +4,7 @@
   lets images through from raw.communitydragon.org).
 -->
 <script setup lang="ts">
-import { formatTierName } from '#common/utils/tiers'
+import { formatTierName } from '#shared/utils/ranks'
 
 const props = defineProps<{
   tier: string | null | undefined

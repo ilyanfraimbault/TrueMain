@@ -1,5 +1,5 @@
 import type { ChampionMainsComparison } from '~~/shared/types/champions'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import { fetchErrorStatus } from '#common/utils/errors'
 
 export interface UseChampionMainsComparisonOptions {

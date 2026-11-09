@@ -37,7 +37,8 @@ Object.assign(globalThis, {
     return value
   },
   defineEventHandler: <T>(handler: T) => handler,
-  getRouterParam: (event: { params: Record<string, string> }, name: string) => event.params[name],
+  getRouterParam: (event: { params: Record<string, string> }, name: string, options?: { decode?: boolean }) =>
+    options?.decode ? decodeURIComponent(event.params[name]!) : event.params[name],
   getQuery: (event: { query: Record<string, string> }) => event.query,
   getRequestHeader: (_event: unknown, name: string) => visitorHeaders[name],
   createError: (input: { statusCode: number, statusMessage: string }) => Object.assign(new Error(input.statusMessage), input),
@@ -74,6 +75,12 @@ describe('share-card routes', () => {
 
     expect(calls.length).toBeGreaterThan(0)
     expect(calls.every(call => call.headers?.['x-forwarded-for'] === '203.0.113.7')).toBe(true)
+  })
+
+  it('encode the Riot ID once, as the route received it', async () => {
+    await truemainCard({ params: { nameTag: 'Hide%20on%20bush-KR1' }, query: {} })
+
+    expect(callsTo('/api/truemains/Hide%20on%20bush-KR1/profile')).toHaveLength(1)
   })
 
   it('cache an absence', async () => {

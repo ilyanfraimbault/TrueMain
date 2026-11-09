@@ -1,5 +1,6 @@
 import type { RankHistoryEntry } from '#shared/types/rank-history'
 import type { PlayerGame, RankedQueue } from '~/types/record'
+import { RANKED_SOLO_QUEUE_ID } from '#shared/utils/queues'
 
 /**
  * The player's Solo/Duo standing over time, as this app saw it.
@@ -11,7 +12,6 @@ import type { PlayerGame, RankedQueue } from '~/types/record'
  * each game's LP gain or loss, are measured from it and never estimated.
  */
 
-const SOLO_QUEUE = 420
 const KEEP_DAYS = 90
 const KEEP_ENTRIES = 400
 const DAY_MS = 86_400_000
@@ -66,10 +66,10 @@ export function recordRankSnapshot(riotId: string, solo: RankedQueue | null, now
  * match rows follow.
  */
 export function lpDeltaOf(game: PlayerGame, games: PlayerGame[], history: RankHistoryEntry[]): number | null {
-  if (game.queueId !== SOLO_QUEUE || game.remake) return null
+  if (game.queueId !== RANKED_SOLO_QUEUE_ID || game.remake) return null
   const start = game.playedAt
   const end = start + game.durationSeconds * 1000
-  const solo = games.filter(other => other.queueId === SOLO_QUEUE && other.gameId !== game.gameId)
+  const solo = games.filter(other => other.queueId === RANKED_SOLO_QUEUE_ID && other.gameId !== game.gameId)
   const nextStart = solo
     .filter(other => other.playedAt > start)
     .reduce((earliest, other) => Math.min(earliest, other.playedAt), Number.POSITIVE_INFINITY)

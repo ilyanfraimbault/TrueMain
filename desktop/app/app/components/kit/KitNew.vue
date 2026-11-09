@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Kit } from '#shared/types/kit'
-import type { ChampionPosition } from '#common/utils/positions'
-import { positionLabel } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 import { freeName, kitFromBuild } from '~/utils/kit'
 import { defaultRunePage } from '~/utils/kit-runes'
 
