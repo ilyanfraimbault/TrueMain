@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { GameRecording } from '~/types/recordings'
 import { dayLabel, formatBytes, itemTitle, gameItem, recordingKda, revealLabel } from '~/utils/recording-library'
-import { getQueueLabel } from '#common/utils/queues'
+import { getQueueLabel } from '#shared/utils/queues'
 
 /**
  * The recap's header: the game (champion, result, K/D/A, queue, when) and the

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Kit } from '#shared/types/kit'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { kitPaths } from '~/utils/kit-tree'
 
 /**

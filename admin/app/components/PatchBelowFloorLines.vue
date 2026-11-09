@@ -20,7 +20,7 @@
 // "146 lines below the floor" reads as a bug, and "no champion is short of games on its
 // own lane" is the answer.
 import type { PatchCoverageRow } from '~~/shared/types/ops'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#site-shared/utils/positions'
 import { formatNumber } from '~~/shared/utils/format'
 
 const { patch, floor } = defineProps<{

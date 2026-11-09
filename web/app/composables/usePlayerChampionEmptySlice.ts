@@ -1,4 +1,4 @@
-import { ALL_POSITIONS, POSITION_BY_VALUE } from '#common/utils/positions'
+import { ALL_POSITIONS, POSITION_BY_VALUE } from '#shared/utils/positions'
 
 type ChampionFilterState = ReturnType<typeof useChampionFilters>
 

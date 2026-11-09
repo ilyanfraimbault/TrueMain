@@ -1,28 +1,33 @@
 import type { RegionSlug } from '../types/leaderboard'
 
-// Maps a Riot platform id (e.g. `EUW1`, `KR`) to the region slug the UI
-// exposes as a flag. Mirrors the backend's RegionFilterParser.RouteToSlug:
-// Korea is its own slug even though Riot groups KR+JP1 under Asia, and the
-// JP/SEA shards have no pill in V1 — those return null so the flag component
-// falls back to its neutral globe glyph.
-const PLATFORM_TO_REGION: Record<string, RegionSlug> = {
-  EUW1: 'europe',
-  EUN1: 'europe',
-  RU: 'europe',
-  TR1: 'europe',
-
-  NA1: 'americas',
-  BR1: 'americas',
-  LA1: 'americas',
-  LA2: 'americas',
-  OC1: 'americas',
-
-  KR: 'korea',
+/**
+ * The regions the UI offers, one entry each: the label a pill or a flag reads,
+ * and the Riot platforms the region groups. Mirrors the backend's
+ * `RegionFilterParser.RouteToSlug`: Korea is its own region even though Riot
+ * groups KR and JP1 under Asia, and the JP/SEA shards have no region yet, so
+ * they map to none and the flag falls back to its neutral globe. The first
+ * platform is the region's own (the one a new account there lands on).
+ *
+ * A new region is an entry here, its slug in `REGION_SLUGS` and its flag in the
+ * layer's `region` icon collection (`i-region-{slug}`).
+ */
+export const REGIONS: Record<RegionSlug, { label: string, platforms: readonly string[] }> = {
+  europe: { label: 'Europe', platforms: ['EUW1', 'EUN1', 'RU', 'TR1'] },
+  americas: { label: 'Americas', platforms: ['NA1', 'BR1', 'LA1', 'LA2', 'OC1'] },
+  korea: { label: 'Korea', platforms: ['KR'] },
 }
 
+const PLATFORM_TO_REGION: ReadonlyMap<string, RegionSlug> = new Map(
+  (Object.entries(REGIONS) as [RegionSlug, typeof REGIONS[RegionSlug]][])
+    .flatMap(([slug, region]) => region.platforms.map(platform => [platform, slug] as const)),
+)
+
 export function platformIdToRegion(platformId: string | null | undefined): RegionSlug | null {
-  if (!platformId) {
-    return null
-  }
-  return PLATFORM_TO_REGION[platformId.toUpperCase()] ?? null
+  if (!platformId) return null
+  return PLATFORM_TO_REGION.get(platformId.toUpperCase()) ?? null
+}
+
+/** The region's flag icon, from the layer's `region` collection. */
+export function regionIcon(region: RegionSlug): string {
+  return `i-region-${region}`
 }
