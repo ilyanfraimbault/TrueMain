@@ -149,7 +149,7 @@ export default defineNuxtConfig({
   // wrappers (e.g. `components/charts/LineChart.vue` → `<ChartsLineChart>`)
   // can use the upstream chart in their template without colliding with
   // their own auto-resolved name.
-  nuxtChartsLegacy: {
+  nuxtCharts: {
     prefix: 'Nc',
   },
   app: {
