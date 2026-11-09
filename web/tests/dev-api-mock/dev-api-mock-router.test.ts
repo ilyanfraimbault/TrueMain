@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { pageParams, resolveDevApiMock, tierFor } from '~~/server/utils/dev-api-mock'
+import { pageParams, resolveDevApiMock } from '~~/server/dev/api-mock'
 import type { ChampionDirectoryResponse } from '~~/shared/types/champion-directory'
 import type { ChampionMainsComparison, ChampionSynergies, ChampionTrioSynergies } from '~~/shared/types/champions'
 import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
@@ -12,16 +12,6 @@ beforeAll(() => {
   vi.stubGlobal('$fetch', vi.fn(async () => ['15.13.1', '15.12.1']))
   vi.stubGlobal('createError', (opts: { statusCode: number, statusMessage?: string }) =>
     Object.assign(new Error(opts.statusMessage ?? 'error'), opts))
-})
-
-describe('tierFor', () => {
-  it('buckets by win-rate percentile, S at the top through D at the bottom', () => {
-    expect(tierFor(0, 100)).toBe('S')
-    expect(tierFor(20, 100)).toBe('A')
-    expect(tierFor(50, 100)).toBe('B')
-    expect(tierFor(80, 100)).toBe('C')
-    expect(tierFor(99, 100)).toBe('D')
-  })
 })
 
 describe('pageParams', () => {

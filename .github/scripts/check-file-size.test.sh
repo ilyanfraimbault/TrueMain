@@ -105,7 +105,7 @@ expect "the compiled model is not covered" 0 "File sizes OK"
 make_file "backend/Api/obj/Debug/Huge.cs" 2000
 expect "build output is not covered" 0 "File sizes OK"
 
-make_file "web/server/utils/dev-api-mock.ts" 2000
+make_file "web/server/dev/api-mock.ts" 2000
 expect "the dev API mock is not covered" 0 "File sizes OK"
 
 # --update writes the current offenders, so the next check passes.

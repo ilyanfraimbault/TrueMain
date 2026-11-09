@@ -356,6 +356,13 @@ export default defineNuxtConfig({
       },
     },
   },
+  // Development-only: the backend mock's one mount (`server/dev/api-mock-handler.ts`,
+  // opted into with NUXT_DEV_MOCK_API=1), so no fixture is ever part of a build.
+  $development: {
+    nitro: {
+      handlers: [{ route: '/api', middleware: true, handler: '~~/server/dev/api-mock-handler.ts' }],
+    },
+  },
   // Production-only overrides. `$production` applies on `nuxt build` and is
   // skipped under `nuxt dev`, so the dev playground stays available locally.
   $production: {
