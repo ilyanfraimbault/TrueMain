@@ -1,14 +1,10 @@
-// Dev-only mock of the whole backend read API, opted into with
-// `NUXT_DEV_MOCK_API=1`. The catch-all proxy (`server/api/[...path].ts`)
-// consults `resolveDevApiMock` before proxying, inside an `import.meta.dev`
-// guard, so none of this ships in a production build and a dev run *without*
-// the env flag still proxies to a real local backend.
-//
-// Same philosophy as `sheiden-1234-fixture.ts` (which keeps precedence for
-// `/truemains/Sheiden-1234/*` via its explicit route files): deterministic,
-// typed against the shared read models, and realistic enough to eyeball every
-// page — champion list + detail (builds, runes, matchups, charts), truemains
-// leaderboard, player profiles and match history — without a live backend.
+// Dev-only mock of the backend read API, opted into with `NUXT_DEV_MOCK_API=1`
+// and mounted by `server/dev/api-mock-handler.ts`, which only `nuxt dev`
+// registers. Deterministic, typed against the shared read models, and realistic
+// enough to eyeball every page — champion list + detail (builds, runes, matchups,
+// charts), truemains leaderboard, player profiles and match history — without a
+// live backend. Its values are fixtures, not the backend's formulas: nothing
+// here has to change when a backend rule does.
 // All ids (champions, items, runes, summoner spells) are real Riot ids so the
 // DDragon/CDragon-backed `/api/static/*` endpoints resolve genuine icons.
 
@@ -309,22 +305,9 @@ for (const s of CHAMPION_SEEDS) if (!seedsById.has(s.id)) seedsById.set(s.id, s)
 // into a few hundred to a few thousand games per row.
 const POOL_GAMES = 42_000
 
-export function tierFor(rankIndex: number, total: number): string {
-  const pct = rankIndex / total
-  if (pct < 0.12) return 'S'
-  if (pct < 0.35) return 'A'
-  if (pct < 0.62) return 'B'
-  if (pct < 0.86) return 'C'
-  return 'D'
-}
-
-// Presence-first blend (#971): pick rate and ban rate outweigh win rate.
-// Mirrors ChampionTierCalculator's weights closely enough for a plausible
-// preview fixture — it doesn't need bit-for-bit parity with the backend's
-// percentile-rank + bayesian-shrinkage implementation.
-const MOCK_PICK_WEIGHT = 0.45
-const MOCK_BAN_WEIGHT = 0.30
-const MOCK_WIN_WEIGHT = 0.25
+// A fixture ranking, not the backend's tier formula: within each lane the
+// most picked champions sit highest, in five equal tiers.
+const MOCK_TIERS = ['S', 'A', 'B', 'C', 'D'] as const
 
 async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
   const patch = await latestShortPatch()
@@ -336,33 +319,14 @@ async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
     rowsByPosition.set(s.position, bucket)
   }
 
-  // Percentile-rank each metric within its own lane (not patch-wide), the
-  // same normalization the backend uses to avoid a lane-size bias (UTILITY
-  // has far fewer champions than MIDDLE, so raw pick rates aren't comparable
-  // across lanes).
   const banRateById = new Map(CHAMPION_SEEDS.map(s => [s.id, Math.min(0.85, s.pr * 2.5)]))
   const scoreById = new Map<number, number>()
   const tierById = new Map<number, string>()
   for (const rows of rowsByPosition.values()) {
-    const percentileRank = (value: (s: ChampionSeed) => number) => {
-      const sorted = [...rows].sort((a, b) => value(a) - value(b))
-      const denom = Math.max(1, sorted.length - 1)
-      return new Map(sorted.map((s, i) => [s.id, i / denom]))
-    }
-    const pickPct = percentileRank(s => s.pr)
-    const banPct = percentileRank(s => banRateById.get(s.id) ?? 0)
-    const winPct = percentileRank(s => s.wr)
-
-    const scored = rows.map(s => ({
-      seed: s,
-      score: (pickPct.get(s.id) ?? 0) * MOCK_PICK_WEIGHT
-        + (banPct.get(s.id) ?? 0) * MOCK_BAN_WEIGHT
-        + (winPct.get(s.id) ?? 0) * MOCK_WIN_WEIGHT,
-    })).sort((a, b) => b.score - a.score)
-
-    scored.forEach(({ seed, score }, i) => {
-      scoreById.set(seed.id, score)
-      tierById.set(seed.id, tierFor(i, scored.length))
+    const ranked = [...rows].sort((a, b) => b.pr - a.pr)
+    ranked.forEach((seed, i) => {
+      scoreById.set(seed.id, 1 - i / Math.max(1, ranked.length - 1))
+      tierById.set(seed.id, MOCK_TIERS[Math.min(MOCK_TIERS.length - 1, Math.floor((i / ranked.length) * MOCK_TIERS.length))]!)
     })
   }
 
@@ -660,8 +624,8 @@ function makeBuild(s: ChampionSeed, variant: 0 | 1, totalGames: number): Champio
   }
 }
 
-// Share of all-rank games each tier holds, ascending — mirrors the backend
-// EloBracket ladder for the dev mock (issue #526). A bare tier reads its own
+// Share of all-rank games each tier holds, ascending — fixture shares for the
+// dev mock's rank select (issue #526). A bare tier reads its own
 // share; a `<TIER>_PLUS` filter sums that tier and every tier above it; `ALL`
 // (or any unrecognised value) is the full pool. Weights sum to 1.
 const ELO_TIER_WEIGHTS: Array<{ tier: string, weight: number }> = [
@@ -841,55 +805,35 @@ async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
 }
 
 /**
- * Fills in the two fields the panel *ranks* on, which the rows above cannot know
- * on their own: `playRate` needs the field's total, and the Wilson bounds need to
- * agree with the real ones or the mock would order the best/worst lists
- * differently from production — the one property of this panel worth eyeballing
- * without a backend. Mirrors `RateMath.WilsonInterval`.
+ * Fills in the two fields the panel ranks on: `playRate` needs the field's total,
+ * and the bounds a margin that narrows as the sample grows, so the best/worst
+ * lists favour a well-sampled matchup over a lucky small one, as the real ones do.
  */
 function withMatchupShares(
   rows: Omit<ChampionMatchupEntry, 'playRate' | 'winRateLowerBound' | 'winRateUpperBound'>[],
 ): ChampionMatchupEntry[] {
   const total = rows.reduce((sum, row) => sum + row.games, 0)
-  const z = 1.959963984540054
   return rows.map((row) => {
-    const n = row.games
-    const p = n === 0 ? 0 : row.wins / n
-    const denominator = 1 + (z * z) / n
-    const centre = (p + (z * z) / (2 * n)) / denominator
-    const margin = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / denominator
+    const winRate = row.games === 0 ? 0 : row.wins / row.games
+    const margin = 1 / Math.sqrt(Math.max(1, row.games))
     return {
       ...row,
-      playRate: total === 0 ? 0 : round3(n / total),
-      winRateLowerBound: round3(Math.max(0, centre - margin)),
-      winRateUpperBound: round3(Math.min(1, centre + margin)),
+      playRate: total === 0 ? 0 : round3(row.games / total),
+      winRateLowerBound: round3(Math.max(0, winRate - margin)),
+      winRateUpperBound: round3(Math.min(1, winRate + margin)),
     }
   })
 }
 
-// Synergy mocks (#922). The panel's whole point is that the ranking value is
-// observed *minus* expected, so the mock builds the numbers in that direction:
-// draw a synergy, derive the expected rate from the marginals the same way the
-// backend does, and add them. Ranking the mocked list by raw win rate would
-// therefore give a visibly different order — which is what makes the mock
-// useful for eyeballing the panel.
+// Synergy mocks (#922). The panel ranks on observed *minus* expected, so the
+// mock builds the numbers in that direction: an expected rate blended from the
+// marginals, plus a drawn synergy. Ranking by raw win rate then gives a visibly
+// different order, which is what makes the mock useful for eyeballing the panel.
 const SYNERGY_COHORT_WIN_RATE = 0.52
 
-function logit(rate: number): number {
-  const clamped = Math.min(0.999, Math.max(0.001, rate))
-  return Math.log(clamped / (1 - clamped))
-}
-
-function sigmoid(logOdds: number): number {
-  return 1 / (1 + Math.exp(-logOdds))
-}
-
 function expectedWinRate(selfWinRate: number, allyWinRates: number[]): number {
-  const cohortLogOdds = logit(SYNERGY_COHORT_WIN_RATE)
-  return sigmoid(allyWinRates.reduce(
-    (acc, ally) => acc + logit(ally) - cohortLogOdds,
-    logit(selfWinRate),
-  ))
+  const rates = [selfWinRate, ...allyWinRates]
+  return rates.reduce((sum, rate) => sum + rate, 0) / rates.length
 }
 
 // Deterministic slivers that stage the panel's two threshold-driven empty
@@ -922,10 +866,7 @@ async function mockSynergies(
 
   const rng = mulberry32(s.id * 977)
   const championGames = Math.round(600 + rng() * 2400)
-  // Mirrors the backend's max(MinSynergyGames, MinSynergyPlayRate × championGames):
-  // with a mocked champion between 600 and 3 000 games the share floor is 6 to 30,
-  // so which of the two binds varies by champion — the point of the pair.
-  const minGames = Math.max(20, Math.ceil(0.01 * championGames))
+  const minGames = 20
 
   const thin = isThinSynergyChampion(s.id)
 
@@ -1118,16 +1059,10 @@ interface MockPlayer {
 const DAY_MS = 24 * 60 * 60 * 1000
 const PLAYER_COUNT = 120
 
-// Mirrors backend/Core/Truemains/DedicationScore.cs. Duplicated here (like the
-// pagination clamping and the OTP threshold above) because the mock has to
-// produce a payload the real backend could have produced — see
-// docs/dedication-score.md for the formula and the constants.
-const DEDICATION_COMMITMENT_WEIGHT = 0.55
-const DEDICATION_MASTERY_WEIGHT = 0.30
-const DEDICATION_MASTERY_RANK_WEIGHT = 0.15
-const DEDICATION_COMMITMENT_FLOOR = 0.12
-const DEDICATION_MASTERY_FLOOR_POINTS = 50_000
-const DEDICATION_MASTERY_TARGET_POINTS = 3_000_000
+// The score card's three parts as fixtures: each part's share grows with its
+// input, out of fixture maxima. Not the backend's DedicationScore formula — the
+// card only needs a plausible breakdown that sums to the score.
+const DEDICATION_PART_MAX = { playRate: 55, mastery: 30, masteryRank: 15 } as const
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value))
@@ -1143,18 +1078,17 @@ function mockDedication(
   masteryRank: number,
   daysSinceLastPlayed: number,
 ): TruemainDedication {
-  const commitment = clamp01((playRate - DEDICATION_COMMITMENT_FLOOR) / (1 - DEDICATION_COMMITMENT_FLOOR))
-  const mastery = masteryPoints <= DEDICATION_MASTERY_FLOOR_POINTS
-    ? 0
-    : clamp01(Math.log(masteryPoints / DEDICATION_MASTERY_FLOOR_POINTS)
-      / Math.log(DEDICATION_MASTERY_TARGET_POINTS / DEDICATION_MASTERY_FLOOR_POINTS))
-  const rank = masteryRank >= 1 ? 1 / masteryRank : 0
-  const parts = [
-    { key: 'playRate' as const, points: 100 * DEDICATION_COMMITMENT_WEIGHT * commitment, maxPoints: 100 * DEDICATION_COMMITMENT_WEIGHT },
-    { key: 'mastery' as const, points: 100 * DEDICATION_MASTERY_WEIGHT * mastery, maxPoints: 100 * DEDICATION_MASTERY_WEIGHT },
-    { key: 'masteryRank' as const, points: 100 * DEDICATION_MASTERY_RANK_WEIGHT * rank, maxPoints: 100 * DEDICATION_MASTERY_RANK_WEIGHT },
-  ]
-  const score = clamp01(parts.reduce((sum, part) => sum + part.points, 0) / 100) * 100
+  const shares = {
+    playRate: clamp01(playRate),
+    mastery: clamp01(masteryPoints / 3_000_000),
+    masteryRank: masteryRank >= 1 ? 1 / masteryRank : 0,
+  }
+  const parts = (Object.keys(DEDICATION_PART_MAX) as (keyof typeof DEDICATION_PART_MAX)[]).map(key => ({
+    key,
+    points: round3(DEDICATION_PART_MAX[key] * shares[key]),
+    maxPoints: DEDICATION_PART_MAX[key],
+  }))
+  const score = parts.reduce((sum, part) => sum + part.points, 0)
 
   return {
     score: Math.round(score * 10) / 10,
@@ -1166,7 +1100,7 @@ function mockDedication(
     masteryPoints,
     masteryRank,
     daysSinceLastPlayed,
-    parts: parts.map(part => ({ ...part, points: round3(part.points) })),
+    parts,
   }
 }
 
@@ -1453,7 +1387,7 @@ function mockProfile(player: MockPlayer): ProfileResponse {
       losses: stats.losses,
       winRate: stats.winRate,
     },
-    mains: row.topChampions.map(c => ({
+    mains: row.topChampions.map((c, index, all) => ({
       championId: c.championId,
       games: c.games,
       // The window the count is a share of, derived from the same play rate the
@@ -1462,11 +1396,10 @@ function mockProfile(player: MockPlayer): ProfileResponse {
       playRate: c.playRate,
       primaryPosition: seedsById.get(c.championId)?.position ?? '',
       isOtp: c.isOtp,
-      // The mock always describes a freshly-measured account: the retired-sample
-      // state (#1216) is exercised on /dev/profile instead, where it can be
-      // pinned rather than derived.
-      isSampleRetired: false,
-      measuredAtUtc: new Date().toISOString(),
+      // An account with three mains or more keeps its last one aged out of
+      // retention, so the retired-sample state (#1216) is reachable (Noxsmith-1441).
+      isSampleRetired: all.length >= 3 && index === all.length - 1,
+      measuredAtUtc: new Date(Date.now() - (all.length >= 3 && index === all.length - 1 ? 40 * DAY_MS : 0)).toISOString(),
     })),
     // Same payload the leaderboard row carries, so the profile card and the
     // leaderboard column agree — exactly as they do against the real backend.
@@ -1496,6 +1429,13 @@ function mockApexCutoffs(query: Record<string, unknown>): ApexCutoffsResponse {
   return { entries }
 }
 
+/** The fixture's flat Grandmaster / Challenger lines, in LP above the Master floor. */
+function apexTierForLp(lp: number): { tier: string, division: string } {
+  if (lp >= 900) return { tier: 'CHALLENGER', division: 'I' }
+  if (lp >= 500) return { tier: 'GRANDMASTER', division: 'I' }
+  return { tier: 'MASTER', division: 'I' }
+}
+
 function mockRankHistory(player: MockPlayer): RankHistoryResponse {
   const endLp = player.row.ranked?.leaguePoints ?? 0
   const apex = player.row.ranked?.tier !== 'DIAMOND'
@@ -1508,7 +1448,6 @@ function mockRankHistory(player: MockPlayer): RankHistoryResponse {
     const eased = progress * progress * (3 - 2 * progress)
     const startLp = apex ? Math.max(0, endLp - 320) : 20
     const lp = Math.max(0, Math.round(startLp + (endLp - startLp) * eased + Math.sin(day / 4.1) * 14 + (rng() - 0.5) * 8))
-    // Same apex cutoffs as the Sheiden fixture so both dev datasets agree.
     const tier = apex ? apexTierForLp(lp).tier : 'DIAMOND'
     return {
       capturedAtUtc: new Date(now - day * DAY_MS).toISOString(),
@@ -2007,7 +1946,6 @@ async function mockMainsComparison(
     throw createError({ statusCode: 400, statusMessage: 'main must be a Riot ID of the form Name#TAG (dev mock)' })
   }
 
-  // Mirrors ChampionsList:MinComparisonGames, whose default is 5.
   const minGames = 5
   const base = {
     championId: id,
