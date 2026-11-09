@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatPercentage } from '#shared/utils/ddragon'
-import { positionIndex } from '#common/utils/positions'
+import { positionIndex } from '#shared/utils/positions'
 import type { GameTeam } from '~/types/game'
 import type { LoadingPlayer, PlayerForm } from '~/types/loading'
 import type { LaneEdge } from '~/utils/lane-edge'

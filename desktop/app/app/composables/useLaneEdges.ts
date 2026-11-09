@@ -1,7 +1,7 @@
 import { readValue, type LoadingPlayer } from '~/types/loading'
 import type { LaneEdge, MatchupRecord } from '~/utils/lane-edge'
 import { laneEdge } from '~/utils/lane-edge'
-import { POSITIONS } from '#common/utils/positions'
+import { POSITIONS } from '#shared/utils/positions'
 
 interface MatchupsAnswer {
   matchups: { opponentChampionId: number, games: number, wins: number }[]
