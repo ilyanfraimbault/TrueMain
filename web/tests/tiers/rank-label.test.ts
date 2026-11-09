@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatLeaguePoints, formatRank, formatTierName } from '#common/utils/tiers'
+import { formatLeaguePoints, formatRank, formatTierName } from '~~/shared/utils/ranks'
 
 /**
  * Every rank label on the site and in the app goes through these three, so a

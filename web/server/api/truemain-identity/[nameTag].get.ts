@@ -1,6 +1,7 @@
 import type { ProfileResponse } from '~~/shared/types/profile'
 import type { TruemainIdentity } from '~~/shared/types/truemain-identity'
 import { truemainNameTag } from '~~/shared/utils/truemain-path'
+import { RIOT_ID_MAX_LENGTH } from '~~/shared/utils/riot-id'
 import { readOrAbsent, visitorAddress } from '~~/server/utils/upstream'
 
 /**
@@ -36,10 +37,6 @@ import { readOrAbsent, visitorAddress } from '~~/server/utils/upstream'
  */
 const IDENTITY_CACHE_SECONDS = 10 * 60
 
-// Same bound as the OG card's route, for the same reason: this route is public,
-// and each distinct slug is a cache entry plus a backend call.
-const MAX_NAME_TAG_LENGTH = 80
-
 type IdentityLookup = { found: true, identity: TruemainIdentity } | { found: false }
 
 const lookupTruemainIdentity = defineCachedFunction<IdentityLookup, [string, string?]>(
@@ -60,7 +57,9 @@ const lookupTruemainIdentity = defineCachedFunction<IdentityLookup, [string, str
 
 export default defineEventHandler(async (event): Promise<TruemainIdentity> => {
   const nameTag = getRouterParam(event, 'nameTag', { decode: true })?.trim() ?? ''
-  if (!nameTag || nameTag.length > MAX_NAME_TAG_LENGTH) {
+  // Public route: each distinct slug is a cache entry plus a backend call, and
+  // the API refuses anything longer (an untagged account is a bare game name).
+  if (!nameTag || nameTag.length > RIOT_ID_MAX_LENGTH) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid nameTag' })
   }
 

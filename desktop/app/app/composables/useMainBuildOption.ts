@@ -1,6 +1,6 @@
 import type { ProfileIdentity } from '#shared/types/profile'
 import type { BuildOption, CompositionBuildRequest } from '~/types/build'
-import { positionLabel } from '#common/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 
 /**
  * A true main's own build on the champion, for `BuildView`: the main clicked in

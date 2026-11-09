@@ -1,7 +1,7 @@
 import type { InjectionKey, Ref } from 'vue'
 import type { Choices, Refusal } from '~/generated/shell'
 import type { DraftState, TeamSlot } from '~/types/lcu'
-import { positionLabel } from '#common/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 import { shell } from '~/utils/shell'
 
 /** The two writes the app makes to champion select — on a click, never on its own. */

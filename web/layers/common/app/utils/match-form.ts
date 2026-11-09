@@ -3,8 +3,8 @@ import { formatPercentage } from '#shared/utils/ddragon'
 import { formatPointDelta } from '#shared/utils/deltas'
 import { formatKdaRatio, kdaRatio } from '#shared/utils/kda'
 import { formatCount } from '#shared/utils/counts'
-import { positionLabel } from '#common/utils/positions'
-import { formatTierName } from '#common/utils/tiers'
+import { positionLabel } from '#shared/utils/positions'
+import { formatTierName } from '#shared/utils/ranks'
 
 /** How many of the newest games a form tile weighs against the whole sample. */
 export const RECENT_GAMES = 5

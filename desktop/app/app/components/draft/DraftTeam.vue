@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { getPositionIconUrl } from '#shared/utils/ddragon'
-import { POSITIONS, positionLabel } from '#common/utils/positions'
+import { POSITIONS, positionLabel } from '#shared/utils/positions'
 import type { DropdownMenuItem } from '@nuxt/ui'
 import type { Lane, TeamRow } from '~/types/draft'
 

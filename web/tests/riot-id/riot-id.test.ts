@@ -1,18 +1,27 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   RIOT_ID_MAX_LENGTH,
   formatRiotId,
   isRiotIdOrSlug,
+  isValidRiotId,
   parseRiotId,
   parseRiotIdOrSlug,
+  parseRiotIdSlug,
   riotIdError,
   splitRiotId,
 } from '~~/shared/utils/riot-id'
 
-// The point of this suite is the CONTRACT, not the implementation: every case
-// below is one the backend's NameTagParser answers the same way, so a drift in
-// either direction shows up here rather than as a 400 the operator has to
-// interpret.
+// Every case below is one the backend's NameTagParser answers the same way, so a
+// drift in either direction shows up here rather than as a 400.
+describe('RIOT_ID_MAX_LENGTH', () => {
+  it('is the backend\'s NameTagParser.MaxRiotIdLength', () => {
+    const parser = readFileSync(join(process.cwd(), '../backend/Api/Services/Truemains/Identity/NameTagParser.cs'), 'utf8')
+    expect(parser).toMatch(new RegExp(`MaxRiotIdLength = ${RIOT_ID_MAX_LENGTH};`))
+  })
+})
+
 describe('parseRiotId', () => {
   it('splits the typed form on the first hash and trims both halves', () => {
     expect(parseRiotId('  Phantasm # EUW1 ')).toEqual({ gameName: 'Phantasm', tagLine: 'EUW1' })
@@ -47,6 +56,25 @@ describe('parseRiotId', () => {
     expect(parseRiotId(null)).toBeNull()
     expect(parseRiotId(undefined)).toBeNull()
     expect(parseRiotId('   ')).toBeNull()
+  })
+
+  it('requires the hash: the slug form is a different parser', () => {
+    expect(parseRiotId('Phantasm-EUW1')).toBeNull()
+    expect(isValidRiotId('Phantasm-EUW1')).toBe(false)
+    expect(isValidRiotId('Phantasm#EUW1')).toBe(true)
+  })
+})
+
+describe('parseRiotIdSlug', () => {
+  it('splits on the last hyphen, so a game name keeps its own (#948)', () => {
+    expect(parseRiotIdSlug('Faker-KR1')).toEqual({ gameName: 'Faker', tagLine: 'KR1' })
+    expect(parseRiotIdSlug('Jean-Luc-EUW')).toEqual({ gameName: 'Jean-Luc', tagLine: 'EUW' })
+  })
+
+  it('rejects a slug with a missing or blank half', () => {
+    for (const slug of ['', '   ', 'Faker', '-KR1', 'Faker-', '  -KR1', 'Faker- ']) {
+      expect(parseRiotIdSlug(slug)).toBeNull()
+    }
   })
 })
 

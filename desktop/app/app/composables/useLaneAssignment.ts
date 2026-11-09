@@ -1,5 +1,5 @@
 import type { EnemyLane, Lane } from '~/types/draft'
-import { POSITIONS } from '#common/utils/positions'
+import { POSITIONS } from '#shared/utils/positions'
 
 /** One lane row, as the panel renders it. */
 export interface LaneSlot {

@@ -3,7 +3,7 @@
 // without the Nuxt runtime.
 import type { PersonaAdminAccount, PersonaExclusionReason, PersonaListRow, PersonaListView } from '~~/shared/types/ops'
 import { TRACKED_REGIONS } from '~~/shared/utils/regions'
-import { riotIdError, splitRiotId } from '~~/shared/utils/riot-id'
+import { riotIdError, splitRiotId } from '#site-shared/utils/riot-id'
 
 /** Mirrors `PersonaConfiguration.SlugMaxLength` / `DisplayNameMaxLength` on the backend. */
 export const SLUG_MAX_LENGTH = 64

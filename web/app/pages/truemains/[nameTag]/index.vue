@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import { parseRouteParam } from '#common/utils/route-params'
 import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
 import { platformIdToRegion } from '~~/shared/utils/region'
