@@ -1,9 +1,9 @@
-using Data.Statics;
 using Data;
 using Data.Configuration;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
 using Data.Repositories;
+using Data.Statics;
 using Ingestor;
 using Ingestor.BuildFacts;
 using Ingestor.Configuration;
@@ -134,9 +134,6 @@ builder.Services.AddSingleton<IProcessRunRecorder, ProcessRunRecorder>();
 // Same shape as IIterationContext, but carries the running process's name for
 // RiotApiMetricsHandler to attribute Riot API consumption per caller (#1035).
 builder.Services.AddSingleton<ICallerContext, CallerContext>();
-// Each process is keyed by the JobMode it implements; the Worker resolves the
-// one it needs per step. Kept in an extension method so the unit tests can
-// assert the real production wiring covers every JobMode.
 builder.Services.AddIngestorProcesses();
 
 builder.Services.AddTrueMainData(builder.Configuration);
@@ -166,7 +163,7 @@ builder.Services.AddEffectiveConfigurationPublisher(IngestorEffectiveConfigurati
 // Appends this boot's version to the boot log the admin deploy markers read (#2297), keyed by
 // the job mode because the fetch and aggregate lanes are two containers of one image.
 builder.Services.AddProcessBootRecorder(
-    services => services.GetRequiredService<IOptions<JobOptions>>().Value.Mode);
+    services => JobModeParser.Parse(services.GetRequiredService<IOptions<JobOptions>>().Value.Mode).ToString());
 // Metrics pipeline: AddMetrics registers the IMeterFactory that IngestorMetrics builds
 // the "TrueMain.Ingestor" meter from, so the meter's lifetime is the host's instead of a
 // process-wide static. It is idempotent (TryAdd), so calling it explicitly here is safe

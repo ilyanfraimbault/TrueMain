@@ -2,6 +2,7 @@ using Core.Options;
 using Data;
 using Data.BuildFacts;
 using Data.Entities;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Intake;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
+[PipelineStep(JobMode.MatchDataRetentionOnly)]
 public sealed class MatchDataRetentionProcess(
     ILogger<MatchDataRetentionProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
@@ -23,8 +25,6 @@ public sealed class MatchDataRetentionProcess(
     IOptions<IntakeOptions> intakeOptions,
     IItemMetadataProvider itemMetadataProvider) : IIngestorProcess
 {
-    public string Name => "MatchDataRetention";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         // Prune stale never-promoted candidates first (#487) — independent of match
