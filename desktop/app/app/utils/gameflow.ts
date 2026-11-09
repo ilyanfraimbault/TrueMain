@@ -1,21 +1,11 @@
 import type { GameflowPhase } from '~/types/lcu'
+import { PHASE_GROUPS } from '~/generated/shell'
 
-/**
- * The groupings of the client's phases, mirrored from `GameflowPhase` in
- * `crates/lcu/src/model.rs` (#2472): the one place the app names a set of
- * phases, so no two screens disagree on, say, a reconnect.
- */
+/** The sets of client phases the shell names (`GameflowPhase::is_*`). */
+const within = (group: readonly GameflowPhase[]) => (phase: GameflowPhase) => group.includes(phase)
 
-/** The champion select. */
-export const isChampSelect = (phase: GameflowPhase) => phase === 'ChampSelect'
-
-/**
- * A game is on: being played, or crashed and offered to rejoin. Only
- * `InProgress` has the game's own API up — the Game screen opens on that
- * phase alone (`useLcuState`'s `screen`).
- */
-export const isGameRunning = (phase: GameflowPhase) => phase === 'InProgress' || phase === 'Reconnect'
-
+export const isChampSelect = within(PHASE_GROUPS.champSelect)
+/** A game is on: being played, or crashed and offered to rejoin. */
+export const isGameRunning = within(PHASE_GROUPS.gameRunning)
 /** The game is over and the client is on its stats or the end-of-game screen. */
-export const isPostGame = (phase: GameflowPhase) =>
-  phase === 'WaitingForStats' || phase === 'PreEndOfGame' || phase === 'EndOfGame'
+export const isPostGame = within(PHASE_GROUPS.postGame)

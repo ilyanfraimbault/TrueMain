@@ -85,7 +85,7 @@ pub async fn run(
     };
     loop {
         if phases
-            .wait_for(|phase| *phase == GameflowPhase::InProgress)
+            .wait_for(|phase| phase.is_game_api_up())
             .await
             .is_err()
         {

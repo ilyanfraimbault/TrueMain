@@ -13,12 +13,7 @@ export const commands = {
 	 *  already published; without this it would sit on a default state until the
 	 *  player's next action changed something.
 	 */
-	currentState: () => __TAURI_INVOKE<AppState>("current_state"),
-	/**
-	 *  Which screen the current state calls for. Derived in Rust so the rule has
-	 *  exactly one implementation.
-	 */
-	currentScreen: () => __TAURI_INVOKE<Screen>("current_screen"),
+	currentState: () => __TAURI_INVOKE<AppView>("current_state"),
 	/**
 	 *  The game as the frontend should have it, read on mount — the updates it
 	 *  then follows carry the revisions after this one.
@@ -258,9 +253,23 @@ export const events = {
 };
 
 /* Constants */
-export const EMPTY_STATE = {"championPool":[],"connected":false,"draft":null,"phase":"None","profileIconId":null,"riotId":null,"summonerLevel":null} as const;
+export const DEFAULT_HUD = {"globalScale":0.0,"mirrored":false,"own":false} as const;
+
+export const DEFAULT_OVERLAY_SETTINGS = {"enabled":true,"itemValue":{"anchor":"center-right","custom":null,"enabled":true,"trigger":{"chord":{"alt":false,"ctrl":false,"key":null,"meta":false,"shift":false,"tab":true},"kind":"whileHeld"}},"laneGold":{"anchor":"top-center","custom":null,"enabled":true,"trigger":{"chord":{"alt":false,"ctrl":false,"key":null,"meta":false,"shift":false,"tab":true},"kind":"whileHeld"}},"nextItem":{"anchor":"top-right","custom":null,"enabled":true,"trigger":{"kind":"always"}},"objectives":{"anchor":"top-center","custom":null,"enabled":true,"trigger":{"kind":"always"}},"opacity":0.95,"scale":1.0,"scoreboardNudge":0.0,"show":"always","stats":{"anchor":"center-left","custom":null,"enabled":true,"trigger":{"kind":"always"}},"winProbability":{"anchor":"top-left","custom":null,"enabled":true,"trigger":{"kind":"always"}}} as const;
+
+export const EMPTY_STATE = {"championPool":[],"connected":false,"draft":null,"phase":"None","profileIconId":null,"riotId":null,"screen":"no-client","summonerLevel":null} as const;
+
+export const GOLD_STEP = 50 as const;
 
 export const IDLE_LOADING = {"platformId":"","players":[],"status":"idle"} as const;
+
+export const OVERLAY_GEOMETRY = {"edgeMargin":16.0,"scoreboard":{"boardWidthAtZero":996.5,"hudGrowth":0.52,"reference":{"height":1080.0,"width":1920.0},"rowPitchAtZero":66.4,"rows":5,"rowsBottomBelowMiddle":152.8},"topMargin":56.0} as const;
+
+export const OVERLAY_LIMITS = {"opacity":{"max":1.0,"min":0.5},"scale":{"max":1.4,"min":0.8},"scoreboardNudge":60.0} as const;
+
+export const OVERLAY_PANEL_TABLE = {"item-value":{"field":"itemValue","name":"Item value","onScoreboard":false},"lane-gold":{"field":"laneGold","name":"Lane gold","onScoreboard":true},"next-item":{"field":"nextItem","name":"Build path","onScoreboard":false},"objectives":{"field":"objectives","name":"Objectives","onScoreboard":false},"stats":{"field":"stats","name":"Your pace","onScoreboard":false},"win-probability":{"field":"winProbability","name":"Win probability","onScoreboard":false}} as const;
+
+export const PHASE_GROUPS = {"champSelect":["ChampSelect"],"gameApiUp":["InProgress"],"gameRunning":["InProgress","Reconnect"],"postGame":["WaitingForStats","PreEndOfGame","EndOfGame"]} as const;
 
 export const RECORDING_SCHEME = "recording" as const;
 
@@ -346,6 +355,23 @@ export type AppState = {
 	/**  Present only in champ select. */
 	draft: DraftState | null,
 };
+
+
+/**
+ *  The state as the webview receives it: the state and the screen it calls for,
+ *  so the navigation rule is applied here only.
+ */
+export type AppViewInput = {
+	screen: Screen,
+} & AppStateInput;
+
+/**
+ *  The state as the webview receives it: the state and the screen it calls for,
+ *  so the navigation rule is applied here only.
+ */
+export type AppView = {
+	screen: Screen,
+} & AppState;
 
 /**  What the player chooses to clip automatically. */
 export type AutoClipKind = 
@@ -740,6 +766,19 @@ export type DraftStateInput = {
 	/**  Our first action still to come, and how many turns away it is. */
 	myNextAction?: DraftActionInput | null,
 	turnsUntilMyAction?: number | null,
+	/**
+	 *  What a click on a champion writes right now: our open pick or ban, or
+	 *  our future pick in the planning phase — the rule the shell's writes
+	 *  follow (`ChampSelectSession::plan_hover`).
+	 */
+	click?: ActionKind | null,
+	/**
+	 *  The champion the client shows on the pick a click writes to: the one
+	 *  "Lock in" commits.
+	 */
+	hoveredPick?: number | null,
+	/**  "Lock in" can commit `hovered_pick`: our pick is open and carries it. */
+	canLock?: boolean,
 };
 
 /**
@@ -777,6 +816,19 @@ export type DraftState = {
 	/**  Our first action still to come, and how many turns away it is. */
 	myNextAction: DraftAction | null,
 	turnsUntilMyAction: number | null,
+	/**
+	 *  What a click on a champion writes right now: our open pick or ban, or
+	 *  our future pick in the planning phase — the rule the shell's writes
+	 *  follow (`ChampSelectSession::plan_hover`).
+	 */
+	click: ActionKind | null,
+	/**
+	 *  The champion the client shows on the pick a click writes to: the one
+	 *  "Lock in" commits.
+	 */
+	hoveredPick: number | null,
+	/**  "Lock in" can commit `hovered_pick`: our pick is open and carries it. */
+	canLock: boolean,
 };
 
 /**  An elemental drake's element, from the timeline's `monsterSubType`. */
@@ -2304,10 +2356,10 @@ export type Spawn = {
 
 
 /**  The app's state changed. */
-export type StateChangedInput = AppStateInput;
+export type StateChangedInput = AppViewInput;
 
 /**  The app's state changed. */
-export type StateChanged = AppState;
+export type StateChanged = AppView;
 
 export type Team = 
 /**  Blue side. */

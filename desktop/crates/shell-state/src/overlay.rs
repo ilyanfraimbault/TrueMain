@@ -40,10 +40,10 @@ pub const MIN_OPACITY: f64 = 0.5;
 pub const MAX_OPACITY: f64 = 1.0;
 
 /// Distance from the screen's side edges, in points.
-const EDGE_MARGIN: f64 = 16.0;
+pub const EDGE_MARGIN: f64 = 16.0;
 /// Distance from the screen's top edge: below where the game prints its
 /// announcements and, top right, its own score strip.
-const TOP_MARGIN: f64 = 56.0;
+pub const TOP_MARGIN: f64 = 56.0;
 
 /// One panel of the overlay, each in its own window.
 #[derive(
@@ -105,7 +105,7 @@ impl OverlayPanel {
     }
 
     /// The panel's field in the settings file.
-    fn field(self) -> &'static str {
+    pub fn field(self) -> &'static str {
         match self {
             OverlayPanel::NextItem => "nextItem",
             OverlayPanel::WinProbability => "winProbability",

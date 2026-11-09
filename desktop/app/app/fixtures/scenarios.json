@@ -4,6 +4,7 @@
     "label": "No client",
     "state": {
       "connected": false,
+      "screen": "no-client",
       "phase": "None",
       "riotId": null,
       "profileIconId": null,
@@ -17,6 +18,7 @@
     "label": "Lobby",
     "state": {
       "connected": true,
+      "screen": "dashboard",
       "phase": "Lobby",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -106,6 +108,7 @@
     "label": "Lobby — new account",
     "state": {
       "connected": true,
+      "screen": "dashboard",
       "phase": "Lobby",
       "riotId": "Newcomer#FRESH",
       "profileIconId": 588,
@@ -120,6 +123,7 @@
     "label": "Draft — nothing picked",
     "state": {
       "connected": true,
+      "screen": "draft",
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -177,7 +181,10 @@
         "timerPhase": "BAN_PICK",
         "myAction": null,
         "myNextAction": { "id": 16, "kind": "pick", "championId": null, "inProgress": false, "completed": false },
-        "turnsUntilMyAction": 2
+        "turnsUntilMyAction": 2,
+        "click": null,
+        "hoveredPick": null,
+        "canLock": false
       }
     }
   },
@@ -186,6 +193,7 @@
     "label": "Draft — our ban, an ally hovering",
     "state": {
       "connected": true,
+      "screen": "draft",
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -243,7 +251,10 @@
         "timerPhase": "BAN_PICK",
         "myAction": { "id": 3, "kind": "ban", "championId": null, "inProgress": true, "completed": false },
         "myNextAction": { "id": 16, "kind": "pick", "championId": null, "inProgress": false, "completed": false },
-        "turnsUntilMyAction": 3
+        "turnsUntilMyAction": 3,
+        "click": "ban",
+        "hoveredPick": null,
+        "canLock": false
       }
     }
   },
@@ -252,6 +263,7 @@
     "label": "Draft — hovering, one enemy in",
     "state": {
       "connected": true,
+      "screen": "draft",
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -313,7 +325,10 @@
         "timerPhase": "BAN_PICK",
         "myAction": { "id": 16, "kind": "pick", "championId": 103, "inProgress": true, "completed": false },
         "myNextAction": null,
-        "turnsUntilMyAction": null
+        "turnsUntilMyAction": null,
+        "click": "pick",
+        "hoveredPick": 103,
+        "canLock": true
       }
     },
     "recommendation": {
@@ -338,6 +353,7 @@
     "label": "Draft — locked, three enemies in",
     "state": {
       "connected": true,
+      "screen": "draft",
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -402,7 +418,10 @@
         "timerPhase": "BAN_PICK",
         "myAction": null,
         "myNextAction": null,
-        "turnsUntilMyAction": null
+        "turnsUntilMyAction": null,
+        "click": null,
+        "hoveredPick": null,
+        "canLock": false
       }
     },
     "recommendation": {
@@ -439,6 +458,7 @@
     "label": "Draft — both teams full",
     "state": {
       "connected": true,
+      "screen": "draft",
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -507,7 +527,10 @@
         "timerPhase": "FINALIZATION",
         "myAction": null,
         "myNextAction": null,
-        "turnsUntilMyAction": null
+        "turnsUntilMyAction": null,
+        "click": null,
+        "hoveredPick": null,
+        "canLock": false
       }
     },
     "recommendation": {
@@ -556,6 +579,7 @@
     "label": "Draft — no lane assigned (blind or custom)",
     "state": {
       "connected": true,
+      "screen": "draft",
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -616,7 +640,10 @@
         "timerPhase": "BAN_PICK",
         "myAction": null,
         "myNextAction": null,
-        "turnsUntilMyAction": null
+        "turnsUntilMyAction": null,
+        "click": null,
+        "hoveredPick": null,
+        "canLock": false
       }
     }
   },
@@ -625,6 +652,7 @@
     "label": "Draft — custom game, our pick open, no lane for us (the bots carry theirs)",
     "state": {
       "connected": true,
+      "screen": "draft",
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -685,7 +713,10 @@
           "completed": false
         },
         "myNextAction": null,
-        "turnsUntilMyAction": null
+        "turnsUntilMyAction": null,
+        "click": "pick",
+        "hoveredPick": null,
+        "canLock": false
       }
     }
   },
@@ -694,6 +725,7 @@
     "label": "Draft — one enemy, ambiguous for the guesser",
     "state": {
       "connected": true,
+      "screen": "draft",
       "phase": "ChampSelect",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -755,7 +787,10 @@
         "timerPhase": "BAN_PICK",
         "myAction": null,
         "myNextAction": null,
-        "turnsUntilMyAction": null
+        "turnsUntilMyAction": null,
+        "click": null,
+        "hoveredPick": null,
+        "canLock": false
       }
     },
     "recommendation": {
@@ -780,6 +815,7 @@
     "label": "In game · loading",
     "state": {
       "connected": true,
+      "screen": "in-game",
       "phase": "InProgress",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -870,6 +906,7 @@
     "nextItem": {"championId": 103, "position": "MIDDLE", "patch": "16.20", "build": {"parentItemId": 0, "onTree": true, "branchGames": 0, "patchWindow": 1, "candidates": [{"itemId": 6655, "share": 0.6, "baseShare": 0.6, "games": 0, "wins": 0, "reasons": [], "route": [{"itemId": 3802, "cost": 1200, "rank": 1, "share": null, "measured": true, "components": [{"itemId": 1052, "cost": 400, "rank": 1, "share": null, "measured": true, "components": []}, {"itemId": 1027, "cost": 300, "rank": 2, "share": null, "measured": true, "components": []}, {"itemId": 2022, "cost": 250, "rank": 3, "share": null, "measured": true, "components": []}]}, {"itemId": 3145, "cost": 1100, "rank": 2, "share": null, "measured": true, "components": [{"itemId": 1052, "cost": 400, "rank": 1, "share": null, "measured": true, "components": []}, {"itemId": 1052, "cost": 400, "rank": 2, "share": null, "measured": true, "components": []}]}], "routeGames": 0}, {"itemId": 3118, "share": 0.25, "baseShare": 0.25, "games": 0, "wins": 0, "reasons": [], "route": [{"itemId": 3802, "cost": 1200, "rank": 1, "share": null, "measured": true, "components": [{"itemId": 1052, "cost": 400, "rank": 1, "share": null, "measured": true, "components": []}, {"itemId": 1027, "cost": 300, "rank": 2, "share": null, "measured": true, "components": []}, {"itemId": 2022, "cost": 250, "rank": 3, "share": null, "measured": true, "components": []}]}, {"itemId": 1026, "cost": 850, "rank": 2, "share": null, "measured": true, "components": []}], "routeGames": 0}, {"itemId": 4645, "share": 0.15, "baseShare": 0.15, "games": 0, "wins": 0, "reasons": [], "route": [{"itemId": 3145, "cost": 1100, "rank": 1, "share": null, "measured": true, "components": [{"itemId": 1052, "cost": 400, "rank": 1, "share": null, "measured": true, "components": []}, {"itemId": 1052, "cost": 400, "rank": 2, "share": null, "measured": true, "components": []}]}, {"itemId": 1058, "cost": 1200, "rank": 2, "share": null, "measured": true, "components": []}], "routeGames": 0}]}, "boots": {"parentItemId": 0, "onTree": true, "branchGames": 0, "patchWindow": 1, "candidates": [{"itemId": 3020, "share": 0.8, "baseShare": 0.8, "games": 0, "wins": 0, "reasons": [], "route": [{"itemId": 1001, "cost": 300, "rank": 1, "share": null, "measured": true, "components": []}], "routeGames": 0}, {"itemId": 3158, "share": 0.2, "baseShare": 0.2, "games": 0, "wins": 0, "reasons": [], "route": [{"itemId": 1001, "cost": 300, "rank": 1, "share": null, "measured": true, "components": []}], "routeGames": 0}]}, "order": [{"itemId": 6655, "isBoots": false, "state": "Next"}, {"itemId": 3020, "isBoots": true, "state": "Upcoming"}, {"itemId": 4645, "isBoots": false, "state": "Upcoming"}, {"itemId": 3089, "isBoots": false, "state": "Upcoming"}, {"itemId": 3135, "isBoots": false, "state": "Upcoming"}, {"itemId": 3157, "isBoots": false, "state": "Upcoming"}], "situation": {}},
     "state": {
       "connected": true,
+      "screen": "in-game",
       "phase": "InProgress",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,
@@ -896,6 +933,7 @@
     "nextItem": {"championId": 103, "position": "MIDDLE", "patch": "16.20", "build": {"parentItemId": 3089, "onTree": true, "branchGames": 0, "patchWindow": 1, "candidates": [{"itemId": 3157, "share": 0.55, "baseShare": 0.55, "games": 0, "wins": 0, "reasons": [], "route": [{"itemId": 2420, "cost": 1600, "rank": 1, "share": null, "measured": true, "components": [{"itemId": 1052, "cost": 400, "rank": 1, "share": null, "measured": true, "components": []}, {"itemId": 1029, "cost": 300, "rank": 2, "share": null, "measured": true, "components": []}, {"itemId": 1052, "cost": 400, "rank": 3, "share": null, "measured": true, "components": []}]}, {"itemId": 1058, "cost": 1200, "rank": 2, "share": null, "measured": true, "components": []}], "routeGames": 0}, {"itemId": 3135, "share": 0.3, "baseShare": 0.3, "games": 0, "wins": 0, "reasons": [], "route": [{"itemId": 4630, "cost": 1100, "rank": 1, "share": null, "measured": true, "components": [{"itemId": 1052, "cost": 400, "rank": 1, "share": null, "measured": true, "components": []}]}, {"itemId": 1026, "cost": 850, "rank": 2, "share": null, "measured": true, "components": []}], "routeGames": 0}, {"itemId": 3102, "share": 0.15, "baseShare": 0.15, "games": 0, "wins": 0, "reasons": [], "route": [{"itemId": 1058, "cost": 1200, "rank": 1, "share": null, "measured": true, "components": []}, {"itemId": 3108, "cost": 850, "rank": 2, "share": null, "measured": true, "components": [{"itemId": 1052, "cost": 400, "rank": 1, "share": null, "measured": true, "components": []}, {"itemId": 2022, "cost": 250, "rank": 2, "share": null, "measured": true, "components": []}]}], "routeGames": 0}]}, "boots": null, "order": [{"itemId": 6655, "isBoots": false, "state": "Completed"}, {"itemId": 3020, "isBoots": true, "state": "Completed"}, {"itemId": 4645, "isBoots": false, "state": "Completed"}, {"itemId": 3089, "isBoots": false, "state": "Completed"}, {"itemId": 3157, "isBoots": false, "state": "Next"}, {"itemId": 3135, "isBoots": false, "state": "Upcoming"}], "situation": {}},
     "state": {
       "connected": true,
+      "screen": "in-game",
       "phase": "InProgress",
       "riotId": "Synthetic#TAPE",
       "profileIconId": 29,

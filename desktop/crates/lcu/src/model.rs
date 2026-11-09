@@ -28,6 +28,20 @@ pub enum GameflowPhase {
 }
 
 impl GameflowPhase {
+    pub const ALL: [Self; 11] = [
+        Self::None,
+        Self::Lobby,
+        Self::Matchmaking,
+        Self::ReadyCheck,
+        Self::ChampSelect,
+        Self::InProgress,
+        Self::Reconnect,
+        Self::WaitingForStats,
+        Self::PreEndOfGame,
+        Self::EndOfGame,
+        Self::Unknown,
+    ];
+
     /// The client sends a bare JSON string, e.g. `"ChampSelect"`.
     pub fn from_client_value(raw: &str) -> Self {
         match raw.trim_matches('"') {
@@ -46,7 +60,7 @@ impl GameflowPhase {
     }
 
     /// The groupings below are the only place a set of phases is named
-    /// (#2472); `desktop/app/app/utils/gameflow.ts` mirrors them.
+    /// (#2472); the webview reads them from the shell (`PHASE_GROUPS`).
     ///
     /// The champion select.
     pub fn is_champ_select(self) -> bool {
@@ -59,6 +73,13 @@ impl GameflowPhase {
     /// Game screen opens on that phase alone (`AppState::screen`).
     pub fn is_game_running(self) -> bool {
         matches!(self, Self::InProgress | Self::Reconnect)
+    }
+
+    /// The game is being played and its own API (port 2999) answers: the Game
+    /// screen, the game feed, the loading screen's reads and the recorder's
+    /// start wait for this, not for a reconnect.
+    pub fn is_game_api_up(self) -> bool {
+        self == Self::InProgress
     }
 
     /// The game is over and the client is on its stats or the end-of-game
@@ -320,6 +341,18 @@ pub struct DraftState {
     /// Our first action still to come, and how many turns away it is.
     pub my_next_action: Option<DraftAction>,
     pub turns_until_my_action: Option<i64>,
+    /// What a click on a champion writes right now: our open pick or ban, or
+    /// our future pick in the planning phase — the rule the shell's writes
+    /// follow (`ChampSelectSession::plan_hover`).
+    #[serde(default)]
+    pub click: Option<crate::ActionKind>,
+    /// The champion the client shows on the pick a click writes to: the one
+    /// "Lock in" commits.
+    #[serde(default)]
+    pub hovered_pick: Option<i64>,
+    /// "Lock in" can commit `hovered_pick`: our pick is open and carries it.
+    #[serde(default)]
+    pub can_lock: bool,
 }
 
 /// One cell of our side of champion select.
@@ -380,6 +413,7 @@ impl ChampSelectSession {
     pub fn draft_state(&self) -> DraftState {
         let me = self.local_player();
         let turn = self.turn();
+        let controls = self.controls();
 
         let ally_champions = self
             .my_team
@@ -421,6 +455,9 @@ impl ChampSelectSession {
             my_action: turn.current,
             my_next_action: turn.next,
             turns_until_my_action: turn.turns_until_next,
+            click: controls.click,
+            hovered_pick: controls.hovered_pick,
+            can_lock: controls.can_lock,
         }
     }
 }
@@ -471,19 +508,7 @@ mod tests {
     #[test]
     fn each_phase_falls_in_at_most_one_grouping() {
         use GameflowPhase::*;
-        let all = [
-            None,
-            Lobby,
-            Matchmaking,
-            ReadyCheck,
-            ChampSelect,
-            InProgress,
-            Reconnect,
-            WaitingForStats,
-            PreEndOfGame,
-            EndOfGame,
-            Unknown,
-        ];
+        let all = GameflowPhase::ALL;
         let running: Vec<_> = all.into_iter().filter(|p| p.is_game_running()).collect();
         let post: Vec<_> = all.into_iter().filter(|p| p.is_post_game()).collect();
         let select: Vec<_> = all.into_iter().filter(|p| p.is_champ_select()).collect();

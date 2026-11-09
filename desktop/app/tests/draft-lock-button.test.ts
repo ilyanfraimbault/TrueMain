@@ -102,6 +102,9 @@ describe('provideChampSelectActions', () => {
       myAction: { id: 1, kind: 'pick', championId: 105, inProgress: true, completed: false },
       myNextAction: null,
       turnsUntilMyAction: null,
+      click: 'pick',
+      hoveredPick: 105,
+      canLock: true,
     }
   }
 
