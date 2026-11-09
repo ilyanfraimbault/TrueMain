@@ -1,4 +1,6 @@
+using System.ComponentModel.DataAnnotations;
 using Core.Lol.Lane;
+using TrueMain.Configuration;
 
 namespace TrueMain.Options;
 
@@ -6,9 +8,11 @@ namespace TrueMain.Options;
 /// Tuning knobs for the composition-based match search (#563). The similarity
 /// weights are a starting point — tune on real examples before freezing them.
 /// </summary>
-public sealed class CompositionSearchOptions
+public sealed class CompositionSearchOptions : IApiOptions, IValidatableObject
 {
     public const string SectionName = "CompositionSearch";
+
+    static string IApiOptions.Section => SectionName;
 
     /// <summary>
     /// Weight granted when the candidate game has the requested role opponent —
@@ -108,4 +112,45 @@ public sealed class CompositionSearchOptions
     /// <c>1 + boost</c> while a slotless request leaves every game at 1.
     /// </summary>
     public double SimilarityWeightBoost { get; set; } = 3d;
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        if (RoleOpponentWeight < 0 || EnemyWeight < 0 || AllyWeight < 0)
+        {
+            yield return new ValidationResult("CompositionSearch weights must be >= 0.");
+        }
+
+        if (TopK <= 0)
+        {
+            yield return new ValidationResult("CompositionSearch:TopK must be > 0.");
+        }
+
+        if (CandidatePoolCap < TopK)
+        {
+            yield return new ValidationResult("CompositionSearch:CandidatePoolCap must be >= TopK.");
+        }
+
+        if (WinWeight < 1d)
+        {
+            yield return new ValidationResult("CompositionSearch:WinWeight must be >= 1.");
+        }
+
+        // Vote multipliers: zero would silence a whole tier of games rather than down-weight it, and a
+        // current patch worth less than an older one would invert the recency the recommendation is built on.
+        if (CurrentPatchWeight <= 0d || PreviousPatchWeight <= 0d || CurrentPatchWeight < PreviousPatchWeight)
+        {
+            yield return new ValidationResult("CompositionSearch:CurrentPatchWeight must be > 0 and >= PreviousPatchWeight (which must be > 0).");
+        }
+
+        if (MainGameWeight <= 0d || NonMainGameWeight <= 0d || MainGameWeight < NonMainGameWeight)
+        {
+            yield return new ValidationResult("CompositionSearch:MainGameWeight must be > 0 and >= NonMainGameWeight (which must be > 0).");
+        }
+
+        // A negative threshold would make every lane "won" and its mirror "lost" at once.
+        if (LaneGoldLeadThreshold < 0)
+        {
+            yield return new ValidationResult("CompositionSearch:LaneGoldLeadThreshold must be >= 0.");
+        }
+    }
 }

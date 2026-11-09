@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Configuration;
+using TrueMain.Options;
 using TrueMain.Services.Ops.Alerting;
 
 namespace TrueMain.Services.Ops.Health;
@@ -19,6 +21,9 @@ public static class OpsHealthServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTrueMainOpsHealth(this IServiceCollection services)
     {
+        services.AddMainAnalysisOptions();
+        services.AddApiOptions<PipelineHealthOptions>();
+        services.AddApiOptions<StorageHistoryOptions>();
         services.AddScoped<PipelineHealthQueryService>();
         services.AddScoped<IPipelineHealthQueryService>(provider => new CachedPipelineHealthQueryService(
             provider.GetRequiredService<PipelineHealthQueryService>(),

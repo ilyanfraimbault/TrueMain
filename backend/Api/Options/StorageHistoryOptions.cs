@@ -1,3 +1,7 @@
+using System.ComponentModel.DataAnnotations;
+using Data.Configuration;
+using TrueMain.Configuration;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -5,9 +9,31 @@ namespace TrueMain.Options;
 /// ones, but they bind the same way — from <c>StorageHistory:*</c> — so the disk
 /// capacity can be corrected after a volume resize without a redeploy.
 /// </summary>
-public sealed class StorageHistoryOptions
+public sealed class StorageHistoryOptions : IApiOptions, IValidatableObject
 {
     public const string SectionName = "StorageHistory";
+
+    static string IApiOptions.Section => SectionName;
+
+    /// <summary>Its entry on the admin configuration page.</summary>
+    public static EffectiveConfigurationSectionDescriptor ConfigurationPage { get; } = new()
+    {
+        SectionName = SectionName,
+        OptionsType = typeof(StorageHistoryOptions),
+        Title = "Storage history",
+        Description =
+            "Knobs for the /database storage-growth panel: the volume's real capacity, the "
+            + "fill levels the forecast projects a crossing date for, and how much history "
+            + "it fits against.",
+        Notices =
+        [
+            new EffectiveConfigurationNotice(
+                nameof(DiskCapacityBytes),
+                UnsetCondition.ZeroOrNegative,
+                "The /database disk-capacity forecast renders its absent state: growth and "
+                + "the daily rate still chart, but no threshold-crossing date is projected (#925).")
+        ]
+    };
 
     /// <summary>
     /// Size of the volume Postgres lives on. There is no portable way to ask the
@@ -41,4 +67,27 @@ public sealed class StorageHistoryOptions
     /// because ~60 lines on one chart is not a chart.
     /// </summary>
     public int TopTables { get; set; } = 10;
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        if (DiskCapacityBytes < 0)
+        {
+            yield return new ValidationResult("StorageHistory:DiskCapacityBytes must be >= 0.");
+        }
+
+        if (DefaultWindowDays <= 0)
+        {
+            yield return new ValidationResult("StorageHistory:DefaultWindowDays must be greater than 0.");
+        }
+
+        if (TopTables <= 0)
+        {
+            yield return new ValidationResult("StorageHistory:TopTables must be greater than 0.");
+        }
+
+        if (!ThresholdPercents.All(percent => percent is > 0 and <= 100))
+        {
+            yield return new ValidationResult("StorageHistory:ThresholdPercents must each be in (0, 100].");
+        }
+    }
 }

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Configuration;
+using TrueMain.Options;
 
 namespace TrueMain.Services.Ops.Coverage;
 
@@ -11,6 +13,10 @@ public static class PatchCoverageServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTrueMainPatchCoverage(this IServiceCollection services)
     {
+        services.AddMainAnalysisOptions();
+        services.AddApiOptions<ChampionsListOptions>();
+        services.AddApiOptions<DataQualityDetectorOptions>();
+        services.AddApiOptions<PatchCoverageOptions>();
         services.AddScoped<PatchCoverageQueryService>();
         services.AddScoped<IPatchCoverageQueryService>(provider => new CachedPatchCoverageQueryService(
             provider.GetRequiredService<PatchCoverageQueryService>(),

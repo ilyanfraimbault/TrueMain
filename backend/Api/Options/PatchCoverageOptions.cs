@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using TrueMain.Configuration;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -13,10 +16,12 @@ namespace TrueMain.Options;
 /// confidently report on a bar nobody enforces.
 /// </para>
 /// </summary>
-public sealed class PatchCoverageOptions
+public sealed class PatchCoverageOptions : IApiOptions, IValidatableObject
 {
     /// <summary>Configuration section name.</summary>
     public const string SectionName = "PatchCoverage";
+
+    static string IApiOptions.Section => SectionName;
 
     /// <summary>
     /// How many patches the view covers, newest first — the current one plus the few
@@ -56,4 +61,27 @@ public sealed class PatchCoverageOptions
     /// verdict is still an answer rather than a shrug.
     /// </summary>
     public long ServableLinesMinimum { get; set; } = 100;
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        if (PatchCount <= 0)
+        {
+            yield return new ValidationResult("PatchCoverage:PatchCount must be greater than 0.");
+        }
+
+        if (ThinLineLimit <= 0)
+        {
+            yield return new ValidationResult("PatchCoverage:ThinLineLimit must be greater than 0.");
+        }
+
+        if (ServableLinesRatio is <= 0 or > 1)
+        {
+            yield return new ValidationResult("PatchCoverage:ServableLinesRatio must be in (0, 1].");
+        }
+
+        if (ServableLinesMinimum < 0)
+        {
+            yield return new ValidationResult("PatchCoverage:ServableLinesMinimum must be >= 0.");
+        }
+    }
 }

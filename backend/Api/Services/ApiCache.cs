@@ -6,8 +6,8 @@ namespace TrueMain.Services;
 /// The single way an API read writes to the shared response cache.
 /// </summary>
 /// <remarks>
-/// The shared <c>IMemoryCache</c> runs with a <c>SizeLimit</c> (see
-/// <c>Program.cs</c>, 1024 units). A <c>Set</c> whose entry carries no
+/// The shared <c>IMemoryCache</c> runs with a <c>SizeLimit</c>
+/// (<see cref="ApiCacheServiceCollectionExtensions.SizeLimit"/>). A <c>Set</c> whose entry carries no
 /// <c>Size</c> is <em>silently dropped</em>: no exception, no log, just a value
 /// that never caches and a permanent miss storm. Nothing in the type system
 /// enforces it, so this helper is what makes forgetting impossible — every
@@ -44,4 +44,18 @@ internal static class ApiCache
         cache.Set(key, value, Entry(ttl, size));
         return value;
     }
+}
+
+public static class ApiCacheServiceCollectionExtensions
+{
+    /// <summary>
+    /// Bounds the shared cache so a crafted fan-out of distinct request shapes cannot grow it
+    /// without limit. Entries are counted, not weighed: the growth axis is key cardinality. A warm
+    /// pass alone fills several thousand entries, twice over while it replaces the version readers
+    /// are on (#2425), so the bound sits well above that or the warm-up evicts what it warmed.
+    /// </summary>
+    public const long SizeLimit = 32768;
+
+    public static IServiceCollection AddTrueMainApiCache(this IServiceCollection services)
+        => services.AddMemoryCache(options => options.SizeLimit = SizeLimit);
 }

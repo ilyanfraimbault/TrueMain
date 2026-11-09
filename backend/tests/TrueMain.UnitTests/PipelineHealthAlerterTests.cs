@@ -202,8 +202,7 @@ public sealed class PipelineHealthAlerterTests
     [Fact]
     public void TheConfigurationPage_ShowsWhetherAlertingIsOn_NeverTheWebhook()
     {
-        var section = ApiEffectiveConfigurationCatalog.Instance.Sections
-            .Single(descriptor => descriptor.SectionName == AlertingOptions.SectionName);
+        var section = AlertingOptions.ConfigurationPage;
 
         EffectiveConfigurationRedaction.IsSecretName(nameof(AlertingOptions.DiscordWebhookUrl)).Should().BeTrue();
         section.IncludeProperties.Should().Contain(nameof(AlertingOptions.Enabled))

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TrueMain.Configuration;
 
 namespace TrueMain.Options;
 
@@ -7,9 +8,11 @@ namespace TrueMain.Options;
 /// product knobs the user wants to tweak without a redeploy, so they bind
 /// from <c>TruemainsLeaderboard:*</c> in configuration.
 /// </summary>
-public sealed class TruemainsLeaderboardOptions
+public sealed class TruemainsLeaderboardOptions : IApiOptions
 {
     public const string SectionName = "TruemainsLeaderboard";
+
+    static string IApiOptions.Section => SectionName;
 
     /// <summary>
     /// Minimum number of valid-position ranked-solo games in its main-analysis
@@ -21,7 +24,7 @@ public sealed class TruemainsLeaderboardOptions
     /// excluded, so this floor is intentionally measured on positioned games
     /// the analysis actually considered, not every ranked row on file.
     /// TotalMatches saturates at <c>MainAnalysis.MatchesToConsider</c>, so the
-    /// value is cross-validated on start against that option (see Program.cs):
+    /// value is cross-validated on start against that option (<c>AddTrueMainTruemains</c>):
     /// above the cap it fails fast at boot instead of silently emptying the
     /// leaderboard (the <c>TotalMatches</c> predicate could never be satisfied).
     /// Because main analysis only sets <c>IsMain = true</c> when

@@ -1,3 +1,7 @@
+using System.ComponentModel.DataAnnotations;
+using Data.Configuration;
+using TrueMain.Configuration;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -21,10 +25,23 @@ namespace TrueMain.Options;
 /// without a second flag per detector.
 /// </para>
 /// </summary>
-public sealed class DataQualityDetectorOptions
+public sealed class DataQualityDetectorOptions : IApiOptions, IValidatableObject
 {
     /// <summary>Configuration section name.</summary>
     public const string SectionName = "DataQualityDetectors";
+
+    static string IApiOptions.Section => SectionName;
+
+    /// <summary>Its entry on the admin configuration page.</summary>
+    public static EffectiveConfigurationSectionDescriptor ConfigurationPage { get; } = new()
+    {
+        SectionName = SectionName,
+        OptionsType = typeof(DataQualityDetectorOptions),
+        Title = "Data-quality detectors",
+        Description =
+            "Every green/amber/red line drawn on the /data-quality panel: staleness, "
+            + "orphan-ratio and queue-depth thresholds, grouped by the detector they gate."
+    };
 
     // ---- duplicate dimension rows (#911's class) -----------------------------
 
@@ -216,4 +233,34 @@ public sealed class DataQualityDetectorOptions
     /// this many patches on top of those two before the check can fire.
     /// </summary>
     public int PatchVolumeMinPatches { get; set; } = 3;
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        // Only the sizes are validated. The thresholds are deliberately unconstrained: 0 disables a
+        // level, and an operator silencing a card by pushing one very high is using the knob as intended.
+        if (OrphanSampleMatchesPerPlatform < 2)
+        {
+            yield return new ValidationResult("DataQualityDetectors:OrphanSampleMatchesPerPlatform must be >= 2 (it is split into two windows).");
+        }
+
+        if (FreshnessChampionLimit <= 0)
+        {
+            yield return new ValidationResult("DataQualityDetectors:FreshnessChampionLimit must be greater than 0.");
+        }
+
+        if (FreshnessPatchCount <= 0)
+        {
+            yield return new ValidationResult("DataQualityDetectors:FreshnessPatchCount must be greater than 0.");
+        }
+
+        if (PatchVolumeAnomalyRatio is <= 0 or >= 1)
+        {
+            yield return new ValidationResult("DataQualityDetectors:PatchVolumeAnomalyRatio must be in (0, 1).");
+        }
+
+        if (PatchVolumeMinPatches <= 0)
+        {
+            yield return new ValidationResult("DataQualityDetectors:PatchVolumeMinPatches must be greater than 0.");
+        }
+    }
 }

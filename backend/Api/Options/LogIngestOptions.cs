@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using TrueMain.Configuration;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -17,13 +20,24 @@ namespace TrueMain.Options;
 /// feature. When it is set, it must be long enough to be a secret.
 /// </para>
 /// </remarks>
-public sealed class LogIngestOptions
+public sealed class LogIngestOptions : IApiOptions, IValidatableObject
 {
     public const string SectionName = "LogIngest";
+
+    static string IApiOptions.Section => SectionName;
 
     public const int MinimumKeyLength = 32;
 
     public string? ApiKey { get; set; }
 
     public bool IsEnabled => !string.IsNullOrWhiteSpace(ApiKey);
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        if (IsEnabled && ApiKey!.Length < MinimumKeyLength)
+        {
+            yield return new ValidationResult($"LogIngest:ApiKey must be at least {MinimumKeyLength} characters when set; "
+                + "leave it empty to turn log ingestion off.");
+        }
+    }
 }
