@@ -38,11 +38,12 @@ internal sealed record HealthAlertMessage(
 
         var failing = changes.Count(change => change.Kind == HealthAlertChangeKind.Failing);
         var kind = failing > 0 ? HealthAlertChangeKind.Failing : HealthAlertChangeKind.Recovered;
-        var title = kind == HealthAlertChangeKind.Failing
-            ? string.Create(CultureInfo.InvariantCulture, $"Pipeline health: {Count(failing)} failing")
-            : health.Status == DetectorStatus.Red
-                ? string.Create(CultureInfo.InvariantCulture, $"Pipeline health: {Count(changes.Count)} recovered")
-                : "Pipeline health recovered";
+        var title = (kind, health.Status) switch
+        {
+            (HealthAlertChangeKind.Failing, _) => string.Create(CultureInfo.InvariantCulture, $"Pipeline health: {Count(failing)} failing"),
+            (_, DetectorStatus.Red) => string.Create(CultureInfo.InvariantCulture, $"Pipeline health: {Count(changes.Count)} recovered"),
+            _ => "Pipeline health recovered",
+        };
 
         if (!string.IsNullOrWhiteSpace(options.EnvironmentLabel))
         {
