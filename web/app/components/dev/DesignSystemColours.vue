@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { THEME_HEX } from '~~/shared/utils/theme-tokens'
+import { THEME_HEX, type ThemeColor } from '~~/shared/utils/theme-tokens'
+
+// A swatch's caption: the token its class paints with, from the generated tokens.
+const hexOf = (cls: string) => THEME_HEX[cls.replace(/^(bg|text)-/, '') as ThemeColor]
 
 // Design-system playground (`pages/dev/design-system.vue`): the colour ramps, the data
 // axis and the two text-only vocabularies (stats, rune trees).
@@ -9,35 +12,35 @@ import { THEME_HEX } from '~~/shared/utils/theme-tokens'
 // `bg-ink-${shade}` would render as an unstyled swatch — the exact failure this
 // page exists to catch.
 const INK_RAMP = [
-  { name: '50', class: 'bg-ink-50', hex: THEME_HEX['ink-50'] },
-  { name: '100', class: 'bg-ink-100', hex: THEME_HEX['ink-100'] },
-  { name: '200', class: 'bg-ink-200', hex: THEME_HEX['ink-200'] },
-  { name: '300', class: 'bg-ink-300', hex: THEME_HEX['ink-300'] },
-  { name: '400', class: 'bg-ink-400', hex: THEME_HEX['ink-400'] },
-  { name: '500', class: 'bg-ink-500', hex: THEME_HEX['ink-500'] },
-  { name: '600', class: 'bg-ink-600', hex: THEME_HEX['ink-600'] },
-  { name: '700', class: 'bg-ink-700', hex: THEME_HEX['ink-700'] },
-  { name: '800', class: 'bg-ink-800', hex: THEME_HEX['ink-800'] },
-  { name: '900', class: 'bg-ink-900', hex: THEME_HEX['ink-900'] },
-  { name: '950', class: 'bg-ink-950', hex: THEME_HEX['ink-950'] },
+  { name: '50', class: 'bg-ink-50' },
+  { name: '100', class: 'bg-ink-100' },
+  { name: '200', class: 'bg-ink-200' },
+  { name: '300', class: 'bg-ink-300' },
+  { name: '400', class: 'bg-ink-400' },
+  { name: '500', class: 'bg-ink-500' },
+  { name: '600', class: 'bg-ink-600' },
+  { name: '700', class: 'bg-ink-700' },
+  { name: '800', class: 'bg-ink-800' },
+  { name: '900', class: 'bg-ink-900' },
+  { name: '950', class: 'bg-ink-950' },
 ]
 
 const ROSEGOLD_RAMP = [
-  { name: '200', class: 'bg-rosegold-200', hex: THEME_HEX['rosegold-200'] },
-  { name: '300', class: 'bg-rosegold-300', hex: THEME_HEX['rosegold-300'] },
-  { name: '400', class: 'bg-rosegold-400', hex: THEME_HEX['rosegold-400'] },
-  { name: '500', class: 'bg-rosegold-500', hex: THEME_HEX['rosegold-500'] },
-  { name: '600', class: 'bg-rosegold-600', hex: THEME_HEX['rosegold-600'] },
-  { name: '700', class: 'bg-rosegold-700', hex: THEME_HEX['rosegold-700'] },
+  { name: '200', class: 'bg-rosegold-200' },
+  { name: '300', class: 'bg-rosegold-300' },
+  { name: '400', class: 'bg-rosegold-400' },
+  { name: '500', class: 'bg-rosegold-500' },
+  { name: '600', class: 'bg-rosegold-600' },
+  { name: '700', class: 'bg-rosegold-700' },
 ]
 
 // The captions' hexes come from the generated tokens, the swatches from the CSS vars.
 const DATA_AXIS = [
-  { name: 'data-good', class: 'bg-data-good', hex: THEME_HEX['data-good'], use: 'Above average, win — rosegold-400' },
-  { name: 'data-good-dim', class: 'bg-data-good-dim', hex: THEME_HEX['data-good-dim'], use: 'Large fills on the good side' },
-  { name: 'data-mid', class: 'bg-data-mid', hex: THEME_HEX['data-mid'], use: 'Average, no signal — ink-400' },
-  { name: 'data-bad-dim', class: 'bg-data-bad-dim', hex: THEME_HEX['data-bad-dim'], use: 'Large fills below average' },
-  { name: 'data-bad', class: 'bg-data-bad', hex: THEME_HEX['data-bad'], use: 'Below average, loss — ink-500' },
+  { name: 'data-good', class: 'bg-data-good', use: 'Above average, win — rosegold-400' },
+  { name: 'data-good-dim', class: 'bg-data-good-dim', use: 'Large fills on the good side' },
+  { name: 'data-mid', class: 'bg-data-mid', use: 'Average, no signal — ink-400' },
+  { name: 'data-bad-dim', class: 'bg-data-bad-dim', use: 'Large fills below average' },
+  { name: 'data-bad', class: 'bg-data-bad', use: 'Below average, loss — ink-500' },
 ]
 
 // The top of the data axis, kept out of `DATA_AXIS` because it is the one step
@@ -45,7 +48,7 @@ const DATA_AXIS = [
 // swatch here would invite the first `bg-gold` on a measurement.
 const DATA_STANDOUT = {
   name: 'gold',
-  class: 'text-gold', hex: THEME_HEX['gold'],
+  class: 'text-gold',
   use: 'Standout — a Perfect KDA, a 75+ performance score. The same token the MVP crown wears.',
 }
 
@@ -53,11 +56,11 @@ const DATA_STANDOUT = {
 // which is the only way they are ever allowed to appear. A swatch here would
 // invite the first `bg-rune-domination` in the app.
 const RUNE_TONES = [
-  { name: 'rune-precision', class: 'text-rune-precision', hex: THEME_HEX['rune-precision'], tree: 'Precision' },
-  { name: 'rune-domination', class: 'text-rune-domination', hex: THEME_HEX['rune-domination'], tree: 'Domination' },
-  { name: 'rune-sorcery', class: 'text-rune-sorcery', hex: THEME_HEX['rune-sorcery'], tree: 'Sorcery' },
-  { name: 'rune-resolve', class: 'text-rune-resolve', hex: THEME_HEX['rune-resolve'], tree: 'Resolve' },
-  { name: 'rune-inspiration', class: 'text-rune-inspiration', hex: THEME_HEX['rune-inspiration'], tree: 'Inspiration' },
+  { name: 'rune-precision', class: 'text-rune-precision', tree: 'Precision' },
+  { name: 'rune-domination', class: 'text-rune-domination', tree: 'Domination' },
+  { name: 'rune-sorcery', class: 'text-rune-sorcery', tree: 'Sorcery' },
+  { name: 'rune-resolve', class: 'text-rune-resolve', tree: 'Resolve' },
+  { name: 'rune-inspiration', class: 'text-rune-inspiration', tree: 'Inspiration' },
 ]
 
 // Riot's in-client vocabulary for stats, damage types and keywords, rendered by
@@ -69,55 +72,55 @@ const STAT_FAMILIES = [
   {
     family: 'Defensive / sustain',
     tones: [
-      { name: 'stat-health', class: 'text-stat-health', hex: THEME_HEX['stat-health'], use: 'Flat HP / HP regen' },
-      { name: 'stat-armor', class: 'text-stat-armor', hex: THEME_HEX['stat-armor'], use: 'Armor' },
-      { name: 'stat-mr', class: 'text-stat-mr', hex: THEME_HEX['stat-mr'], use: 'Magic resist' },
-      { name: 'stat-tenacity', class: 'text-stat-tenacity', hex: THEME_HEX['stat-tenacity'], use: 'Tenacity / slow resist' },
-      { name: 'stat-hsp', class: 'text-stat-hsp', hex: THEME_HEX['stat-hsp'], use: 'Heal & shield power' },
-      { name: 'stat-heal-reduction', class: 'text-stat-heal-reduction', hex: THEME_HEX['stat-heal-reduction'], use: 'Grievous wounds' },
+      { name: 'stat-health', class: 'text-stat-health', use: 'Flat HP / HP regen' },
+      { name: 'stat-armor', class: 'text-stat-armor', use: 'Armor' },
+      { name: 'stat-mr', class: 'text-stat-mr', use: 'Magic resist' },
+      { name: 'stat-tenacity', class: 'text-stat-tenacity', use: 'Tenacity / slow resist' },
+      { name: 'stat-hsp', class: 'text-stat-hsp', use: 'Heal & shield power' },
+      { name: 'stat-heal-reduction', class: 'text-stat-heal-reduction', use: 'Grievous wounds' },
     ],
   },
   {
     family: 'Resources / utility',
     tones: [
-      { name: 'stat-mana', class: 'text-stat-mana', hex: THEME_HEX['stat-mana'], use: 'Mana / mana regen' },
-      { name: 'stat-haste', class: 'text-stat-haste', hex: THEME_HEX['stat-haste'], use: 'Ability haste' },
-      { name: 'stat-speed', class: 'text-stat-speed', hex: THEME_HEX['stat-speed'], use: 'Move speed / on-hit' },
+      { name: 'stat-mana', class: 'text-stat-mana', use: 'Mana / mana regen' },
+      { name: 'stat-haste', class: 'text-stat-haste', use: 'Ability haste' },
+      { name: 'stat-speed', class: 'text-stat-speed', use: 'Move speed / on-hit' },
     ],
   },
   {
     family: 'Offensive — physical',
     tones: [
-      { name: 'stat-ad', class: 'text-stat-ad', hex: THEME_HEX['stat-ad'], use: 'Attack damage' },
-      { name: 'stat-lethality', class: 'text-stat-lethality', hex: THEME_HEX['stat-lethality'], use: 'Lethality / armor pen' },
-      { name: 'stat-crit', class: 'text-stat-crit', hex: THEME_HEX['stat-crit'], use: 'Crit chance / crit damage' },
-      { name: 'stat-as', class: 'text-stat-as', hex: THEME_HEX['stat-as'], use: 'Attack speed' },
-      { name: 'stat-vamp', class: 'text-stat-vamp', hex: THEME_HEX['stat-vamp'], use: 'Lifesteal / omnivamp' },
+      { name: 'stat-ad', class: 'text-stat-ad', use: 'Attack damage' },
+      { name: 'stat-lethality', class: 'text-stat-lethality', use: 'Lethality / armor pen' },
+      { name: 'stat-crit', class: 'text-stat-crit', use: 'Crit chance / crit damage' },
+      { name: 'stat-as', class: 'text-stat-as', use: 'Attack speed' },
+      { name: 'stat-vamp', class: 'text-stat-vamp', use: 'Lifesteal / omnivamp' },
     ],
   },
   {
     family: 'Offensive — magical',
     tones: [
-      { name: 'stat-ap', class: 'text-stat-ap', hex: THEME_HEX['stat-ap'], use: 'Ability power' },
-      { name: 'stat-magicpen', class: 'text-stat-magicpen', hex: THEME_HEX['stat-magicpen'], use: 'Magic penetration' },
+      { name: 'stat-ap', class: 'text-stat-ap', use: 'Ability power' },
+      { name: 'stat-magicpen', class: 'text-stat-magicpen', use: 'Magic penetration' },
     ],
   },
   {
     family: 'Damage types',
     tones: [
-      { name: 'stat-true', class: 'text-stat-true', hex: THEME_HEX['stat-true'], use: 'True damage' },
-      { name: 'stat-adaptive', class: 'text-stat-adaptive', hex: THEME_HEX['stat-adaptive'], use: 'Adaptive damage (verified)' },
+      { name: 'stat-true', class: 'text-stat-true', use: 'True damage' },
+      { name: 'stat-adaptive', class: 'text-stat-adaptive', use: 'Adaptive damage (verified)' },
     ],
   },
   {
     family: 'Misc / structural',
     tones: [
-      { name: 'stat-status', class: 'text-stat-status', hex: THEME_HEX['stat-status'], use: 'CC keywords — Stun, Airborne' },
-      { name: 'stat-stealth', class: 'text-stat-stealth', hex: THEME_HEX['stat-stealth'], use: 'Stealth keywords' },
-      { name: 'stat-shield', class: 'text-stat-shield', hex: THEME_HEX['stat-shield'], use: 'Shield value' },
-      { name: 'stat-gold', class: 'text-stat-gold', hex: THEME_HEX['stat-gold'], use: 'Gold per X seconds' },
-      { name: 'stat-passive', class: 'text-stat-passive', hex: THEME_HEX['stat-passive'], use: 'Item passive label' },
-      { name: 'stat-active', class: 'text-stat-active', hex: THEME_HEX['stat-active'], use: 'Item active label' },
+      { name: 'stat-status', class: 'text-stat-status', use: 'CC keywords — Stun, Airborne' },
+      { name: 'stat-stealth', class: 'text-stat-stealth', use: 'Stealth keywords' },
+      { name: 'stat-shield', class: 'text-stat-shield', use: 'Shield value' },
+      { name: 'stat-gold', class: 'text-stat-gold', use: 'Gold per X seconds' },
+      { name: 'stat-passive', class: 'text-stat-passive', use: 'Item passive label' },
+      { name: 'stat-active', class: 'text-stat-active', use: 'Item active label' },
     ],
   },
 ]
@@ -142,7 +145,7 @@ const STAT_FAMILIES = [
             :class="stop.class"
           />
           <span class="stat-label">{{ stop.name }}</span>
-          <span class="font-mono text-[10px] text-dimmed">{{ stop.hex }}</span>
+          <span class="font-mono text-[10px] text-dimmed">{{ hexOf(stop.class) }}</span>
         </div>
       </div>
     </SectionCard>
@@ -163,7 +166,7 @@ const STAT_FAMILIES = [
             :class="stop.class"
           />
           <span class="stat-label">{{ stop.name }}</span>
-          <span class="font-mono text-[10px] text-dimmed">{{ stop.hex }}</span>
+          <span class="font-mono text-[10px] text-dimmed">{{ hexOf(stop.class) }}</span>
         </div>
       </div>
     </SectionCard>
@@ -210,7 +213,7 @@ const STAT_FAMILIES = [
           </div>
           <span class="stat-label">{{ DATA_STANDOUT.name }}</span>
           <span class="text-xs text-muted">{{ DATA_STANDOUT.use }}</span>
-          <span class="font-mono text-[10px] text-dimmed">{{ DATA_STANDOUT.hex }}</span>
+          <span class="font-mono text-[10px] text-dimmed">{{ hexOf(DATA_STANDOUT.class) }}</span>
         </div>
       </div>
     </SectionCard>
@@ -239,7 +242,7 @@ const STAT_FAMILIES = [
                 :class="tone.class"
               >{{ tone.use }}</span>
               <span class="stat-label">{{ tone.name }}</span>
-              <span class="font-mono text-[10px] text-dimmed">{{ tone.hex }}</span>
+              <span class="font-mono text-[10px] text-dimmed">{{ hexOf(tone.class) }}</span>
             </div>
           </div>
         </div>
@@ -263,7 +266,7 @@ const STAT_FAMILIES = [
             :class="tone.class"
           >{{ tone.tree }}</span>
           <span class="stat-label">{{ tone.name }}</span>
-          <span class="text-xs text-muted">{{ tone.hex }}</span>
+          <span class="text-xs text-muted">{{ hexOf(tone.class) }}</span>
         </div>
       </div>
     </SectionCard>

@@ -26,17 +26,26 @@ export type ThemeColor = keyof typeof THEME_HEX
 `
 }
 
+/**
+ * Writes the tokens file, or with `check` reports whether the committed one is
+ * stale. `files` reads and writes by path, so the test can run it in memory.
+ */
+export function syncThemeTokens({ check, files, themeCss, tokensTs }) {
+  const rendered = renderThemeTokens(files.read(themeCss))
+  if (check) return files.read(tokensTs) === rendered
+  files.write(tokensTs, rendered)
+  return true
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const THEME_CSS = fileURLToPath(new URL('../layers/common/app/assets/css/theme.css', import.meta.url))
-  const TOKENS_TS = fileURLToPath(new URL('../shared/utils/theme-tokens.ts', import.meta.url))
-  const rendered = renderThemeTokens(readFileSync(THEME_CSS, 'utf8'))
-  if (process.argv.includes('--check')) {
-    if (readFileSync(TOKENS_TS, 'utf8') !== rendered) {
-      console.error('shared/utils/theme-tokens.ts is stale: run `npm run tokens`.')
-      process.exit(1)
-    }
-  }
-  else {
-    writeFileSync(TOKENS_TS, rendered)
+  const ok = syncThemeTokens({
+    check: process.argv.includes('--check'),
+    files: { read: path => readFileSync(path, 'utf8'), write: writeFileSync },
+    themeCss: fileURLToPath(new URL('../layers/common/app/assets/css/theme.css', import.meta.url)),
+    tokensTs: fileURLToPath(new URL('../shared/utils/theme-tokens.ts', import.meta.url)),
+  })
+  if (!ok) {
+    console.error('shared/utils/theme-tokens.ts is stale: run `npm run tokens`.')
+    process.exit(1)
   }
 }
