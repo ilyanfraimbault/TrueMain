@@ -1,5 +1,5 @@
 import type { EffectiveConfigurationValueReadModel } from '#site-shared/contract/api'
-import type { EffectiveConfigurationOrigin } from '~~/shared/types/ops'
+import type { EffectiveConfigurationOrigin } from '~~/shared/types/ops/configuration'
 
 interface OriginMeta {
   label: string

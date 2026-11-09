@@ -6,7 +6,7 @@
 // snapshot, and the log lines captured just before it); the whole report is
 // copyable as text, and a checkbox selection can be copied as JSON.
 import type { TableColumn } from '@nuxt/ui'
-import type { CrashSource } from '~~/shared/types/ops'
+import type { CrashSource } from '~~/shared/types/ops/crashes'
 import type { CrashReportReadModel } from '#site-shared/contract/api'
 import { formatDateTime } from '~~/shared/utils/format'
 

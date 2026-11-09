@@ -2,16 +2,12 @@
 // panel that shows one. Colors trace New → Validated and Pending →
 // Ingested/Failed, and stay close to the Overview candidate-pipeline palette —
 // so a status never looks like two different things on two pages.
-import type { BadgeColor } from '~~/shared/types/ops'
 import type { MainCandidateStatus, SeedRequestStatus } from '#site-shared/contract/api'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
+import { mainCandidateStatusValues, seedRequestStatusValues } from '#site-shared/contract/api'
 
-export const CANDIDATE_STATUSES: MainCandidateStatus[] = [
-  'New',
-  'Scored',
-  'Queued',
-  'Processing',
-  'Validated',
-]
+/** The candidate statuses in pipeline order, New → Validated, as the API declares them. */
+export const CANDIDATE_STATUSES = mainCandidateStatusValues
 
 export const CANDIDATE_STATUS_COLOR: Record<MainCandidateStatus, BadgeColor> = {
   New: 'neutral',
@@ -37,7 +33,8 @@ export function candidateStatusIcon(status: MainCandidateStatus): string {
   return CANDIDATE_STATUS_ICON[status] ?? 'i-lucide-circle'
 }
 
-export const SEED_STATUSES: SeedRequestStatus[] = ['Pending', 'Resolving', 'Ingested', 'Failed']
+/** The seed-request statuses in lifecycle order, as the API declares them. */
+export const SEED_STATUSES = seedRequestStatusValues
 
 export const SEED_STATUS_COLOR: Record<SeedRequestStatus, BadgeColor> = {
   Pending: 'neutral',

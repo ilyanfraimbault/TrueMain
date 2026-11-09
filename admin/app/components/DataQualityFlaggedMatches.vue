@@ -6,9 +6,7 @@
 // table shows at a time. The page owns the filters (its overview fetch and the
 // verdict read them) and the match slide-over this section asks it to open.
 import type { OpsQueryOf } from '~/composables/useOps'
-import type {
-  BadgeColor,
-} from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
 import type { DataQualityIssueGroupReadModel, DataQualityIssueType } from '#site-shared/contract/api'
 
 const props = defineProps<{

@@ -7205,13 +7205,18 @@ export interface components {
             pendingEloBracketParticipants: number;
         };
         /**
+         * @description The aggregate families the Aggregation panel reports, one per producing process.
+         * @enum {unknown}
+         */
+        AggregationFamilyKey: "builds" | "matchups" | "synergies" | "mains";
+        /**
          * @description One aggregation family (builds patterns, matchups, synergies, mains):
          *     the tables it owns with their planner row estimates, its champion coverage,
          *     and the latest run of the process producing it.
          */
         AggregationFamilyReadModel: {
-            /** @description Stable identifier for the frontend ("builds", "matchups", ...). */
-            key: string;
+            /** @description Which family this is. */
+            key: components["schemas"]["AggregationFamilyKey"];
             /** @description The recorded ingestor process producing this family. */
             processName: string;
             tables: components["schemas"]["AggregationTableCountReadModel"][];
@@ -13996,6 +14001,7 @@ export type AccountTrackingArm = components['schemas']['AccountTrackingArm'];
 export type ActivityMode = components['schemas']['ActivityMode'];
 export type AggregateFreshnessReadModel = components['schemas']['AggregateFreshnessReadModel'];
 export type AggregationBacklogReadModel = components['schemas']['AggregationBacklogReadModel'];
+export type AggregationFamilyKey = components['schemas']['AggregationFamilyKey'];
 export type AggregationFamilyReadModel = components['schemas']['AggregationFamilyReadModel'];
 export type AggregationRunReadModel = components['schemas']['AggregationRunReadModel'];
 export type AggregationsReadModel = components['schemas']['AggregationsReadModel'];
@@ -14317,6 +14323,7 @@ type ReadonlyArray<T> = [
 ] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
 export const accountPipelineStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AccountPipelineState"]> = ["NeverDiscovered", "SeedRequestedOnly", "Invalidated", "Tracked", "Retired", "NotAMain", "CandidateOnly", "Discovered"];
 export const activityModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ActivityMode"]> = ["month", "patch", "week", "day"];
+export const aggregationFamilyKeyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AggregationFamilyKey"]> = ["builds", "matchups", "synergies", "mains"];
 export const championComparisonStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChampionComparisonStatus"]> = ["OK", "UNKNOWN_ACCOUNT", "UNKNOWN_TARGET", "INSUFFICIENT_SAMPLE"];
 export const dataQualityIssueTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DataQualityIssueType"]> = ["missingTimeline", "wrongParticipantCount", "missingTeamPosition", "zeroDuration", "duplicateChampion"];
 export const dedicationPartValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DedicationPart"]> = ["playRate", "mastery", "masteryRank"];

@@ -16,13 +16,7 @@ const candidateBuckets = computed(() => {
   if (!c) {
     return []
   }
-  return [
-    { label: 'New', count: c.New, color: 'neutral' as const },
-    { label: 'Scored', count: c.Scored, color: 'info' as const },
-    { label: 'Queued', count: c.Queued, color: 'warning' as const },
-    { label: 'Processing', count: c.Processing, color: 'warning' as const },
-    { label: 'Validated', count: c.Validated, color: 'success' as const },
-  ]
+  return CANDIDATE_STATUSES.map(status => ({ label: status, count: c[status], color: candidateStatusColor(status) }))
 })
 
 const candidatesTotal = computed(() =>

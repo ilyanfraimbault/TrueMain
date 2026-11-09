@@ -1,5 +1,5 @@
 import type { ProcessRunStatus } from '#site-shared/contract/api'
-import type { BadgeColor } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
 import { formatElapsed } from '~~/shared/utils/format'
 
 /**
@@ -54,6 +54,21 @@ export const PROCESS_STATUS_META: Record<ProcessHealthStatus, ProcessStatusMeta>
   Cancelled: { color: 'neutral', icon: 'i-lucide-power-off' },
   Missing: { color: 'neutral', icon: 'i-lucide-circle-dashed' },
 }
+
+/**
+ * The settled outcomes an iteration counts, in the order its tallies read: `Success` first
+ * and always shown (a zero is the point when a pass went wrong), the others only when they
+ * happened. `label` is the badge's word, `verb` the sentence a hover reads; colour and icon
+ * come from {@link PROCESS_STATUS_META}. A status added later is a row here, not a copy in
+ * each panel.
+ */
+export const RUN_TALLIES: readonly { status: ProcessRunStatus, label: string, verb: string, always?: boolean }[] = [
+  { status: 'Success', label: 'ok', verb: 'succeeded', always: true },
+  { status: 'Skipped', label: 'skipped', verb: 'skipped, not due yet' },
+  { status: 'Failed', label: 'failed', verb: 'failed' },
+  { status: 'Abandoned', label: 'abandoned', verb: 'abandoned (the host died mid-run)' },
+  { status: 'Cancelled', label: 'cancelled', verb: 'cancelled by a shutdown' },
+]
 
 /**
  * Meta for a run status, falling back to `Missing` for anything unrecognised — a status

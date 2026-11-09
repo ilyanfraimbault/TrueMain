@@ -4,7 +4,7 @@
 // figure, #2303), champion coverage, the latest recorded run (with its summary),
 // and the ingestion backlogs that should sit at zero when the pipeline is
 // caught up.
-import type { AggregationFamilyReadModel, AggregationRunReadModel } from '#site-shared/contract/api'
+import type { AggregationFamilyKey, AggregationFamilyReadModel, AggregationRunReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatElapsed, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 import { processStatusColor } from '~~/shared/utils/pipeline-health'
 
@@ -13,7 +13,7 @@ const { data, pending, refreshing, error, refresh } = useAggregations()
 const families = computed<AggregationFamilyReadModel[]>(() => data.value?.families ?? [])
 const backlog = computed(() => data.value?.backlog ?? null)
 
-const FAMILY_META: Record<string, { title: string, icon: string, hint: string }> = {
+const FAMILY_META: Record<AggregationFamilyKey, { title: string, icon: string, hint: string }> = {
   builds: {
     title: 'Builds (patterns)',
     icon: 'i-lucide-hammer',
@@ -35,7 +35,7 @@ const FAMILY_META: Record<string, { title: string, icon: string, hint: string }>
     hint: 'Per-account champion play rates, main/OTP classification.',
   },
 }
-function familyMeta(key: string) {
+function familyMeta(key: AggregationFamilyKey) {
   return FAMILY_META[key] ?? { title: key, icon: 'i-lucide-combine', hint: '' }
 }
 

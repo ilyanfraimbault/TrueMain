@@ -1,7 +1,7 @@
 // Parsing and presentation for the "Add in bulk" form of the Accounts hub's
 // "Add mains" tab (split out of `AccountsSeed.vue`, #1436). Pure — the run state
 // lives in `useBulkSeed`.
-import type { BadgeColor } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
 import type { SeedRequestStatus } from '#site-shared/contract/api'
 import type { TrackedRegion } from '~~/shared/utils/regions'
 import { parseTrackedRegion } from '~~/shared/utils/regions'

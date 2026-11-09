@@ -6,7 +6,7 @@
 // seeing distinctly from the total volume rather than buried in "errors". Grouped
 // and never stacked — `Retries` is documented as a SUBSET of `Calls`, so a stack
 // would draw a total that counts every 429 twice.
-import type { RiotUsageWindow } from '~~/shared/types/ops'
+import type { RiotUsageWindow } from '~~/shared/types/ops/riot-usage'
 import type { RiotApiUsageBucketReadModel } from '#site-shared/contract/api'
 
 const props = defineProps<{

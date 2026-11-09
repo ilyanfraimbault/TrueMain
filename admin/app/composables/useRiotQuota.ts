@@ -1,5 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type { RiotUsageWindow } from '~~/shared/types/ops'
+import type { RiotUsageWindow } from '~~/shared/types/ops/riot-usage'
 
 /**
  * `GET /api/ops/riot-quota` (#1458) — quota utilisation per routing host and lane duty
