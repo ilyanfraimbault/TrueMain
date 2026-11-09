@@ -11529,6 +11529,7 @@
       "DesktopKeyUsage": {
         "required": [
           "key",
+          "label",
           "count",
           "installs"
         ],
@@ -11536,6 +11537,10 @@
         "properties": {
           "key": {
             "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "What the admin page calls it, from the catalog."
           },
           "count": {
             "type": "integer",

@@ -9623,6 +9623,8 @@ export interface components {
         /** @description One page or feature: how often it was used in the window, and by how many installs. */
         DesktopKeyUsage: {
             key: string;
+            /** @description What the admin page calls it, from the catalog. */
+            label: string;
             /** Format: int64 */
             count: number;
             /** Format: int32 */
