@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { THEME_HEX } from '~~/shared/utils/theme-tokens'
+
 // Design-system playground (`pages/dev/design-system.vue`): the colour ramps, the data
 // axis and the two text-only vocabularies (stats, rune trees).
 
@@ -7,37 +9,35 @@
 // `bg-ink-${shade}` would render as an unstyled swatch — the exact failure this
 // page exists to catch.
 const INK_RAMP = [
-  { name: '50', class: 'bg-ink-50', hex: '#f7f7f8' },
-  { name: '100', class: 'bg-ink-100', hex: '#eeeef0' },
-  { name: '200', class: 'bg-ink-200', hex: '#d9d9dd' },
-  { name: '300', class: 'bg-ink-300', hex: '#b7b7be' },
-  { name: '400', class: 'bg-ink-400', hex: '#8b8b95' },
-  { name: '500', class: 'bg-ink-500', hex: '#6a6a74' },
-  { name: '600', class: 'bg-ink-600', hex: '#4e4e57' },
-  { name: '700', class: 'bg-ink-700', hex: '#3a3a42' },
-  { name: '800', class: 'bg-ink-800', hex: '#26262c' },
-  { name: '900', class: 'bg-ink-900', hex: '#17171b' },
-  { name: '950', class: 'bg-ink-950', hex: '#0b0b0d' },
+  { name: '50', class: 'bg-ink-50', hex: THEME_HEX['ink-50'] },
+  { name: '100', class: 'bg-ink-100', hex: THEME_HEX['ink-100'] },
+  { name: '200', class: 'bg-ink-200', hex: THEME_HEX['ink-200'] },
+  { name: '300', class: 'bg-ink-300', hex: THEME_HEX['ink-300'] },
+  { name: '400', class: 'bg-ink-400', hex: THEME_HEX['ink-400'] },
+  { name: '500', class: 'bg-ink-500', hex: THEME_HEX['ink-500'] },
+  { name: '600', class: 'bg-ink-600', hex: THEME_HEX['ink-600'] },
+  { name: '700', class: 'bg-ink-700', hex: THEME_HEX['ink-700'] },
+  { name: '800', class: 'bg-ink-800', hex: THEME_HEX['ink-800'] },
+  { name: '900', class: 'bg-ink-900', hex: THEME_HEX['ink-900'] },
+  { name: '950', class: 'bg-ink-950', hex: THEME_HEX['ink-950'] },
 ]
 
 const ROSEGOLD_RAMP = [
-  { name: '200', class: 'bg-rosegold-200', hex: '#f6cfc7' },
-  { name: '300', class: 'bg-rosegold-300', hex: '#eeaea3' },
-  { name: '400', class: 'bg-rosegold-400', hex: '#e58f83' },
-  { name: '500', class: 'bg-rosegold-500', hex: '#d9736c' },
-  { name: '600', class: 'bg-rosegold-600', hex: '#c25a58' },
-  { name: '700', class: 'bg-rosegold-700', hex: '#a1454a' },
+  { name: '200', class: 'bg-rosegold-200', hex: THEME_HEX['rosegold-200'] },
+  { name: '300', class: 'bg-rosegold-300', hex: THEME_HEX['rosegold-300'] },
+  { name: '400', class: 'bg-rosegold-400', hex: THEME_HEX['rosegold-400'] },
+  { name: '500', class: 'bg-rosegold-500', hex: THEME_HEX['rosegold-500'] },
+  { name: '600', class: 'bg-rosegold-600', hex: THEME_HEX['rosegold-600'] },
+  { name: '700', class: 'bg-rosegold-700', hex: THEME_HEX['rosegold-700'] },
 ]
 
-// Hexes are restated here for the caption only — the swatch itself paints from
-// the CSS var, so a stale hex shows up as a caption that disagrees with the
-// colour beside it. Keep them in step with `--color-data-*` in theme.css.
+// The captions' hexes come from the generated tokens, the swatches from the CSS vars.
 const DATA_AXIS = [
-  { name: 'data-good', class: 'bg-data-good', hex: '#e58f83', use: 'Above average, win — rosegold-400' },
-  { name: 'data-good-dim', class: 'bg-data-good-dim', hex: '#b88d8c', use: 'Large fills on the good side' },
-  { name: 'data-mid', class: 'bg-data-mid', hex: '#8b8b95', use: 'Average, no signal — ink-400' },
-  { name: 'data-bad-dim', class: 'bg-data-bad-dim', hex: '#7b7b85', use: 'Large fills below average' },
-  { name: 'data-bad', class: 'bg-data-bad', hex: '#6a6a74', use: 'Below average, loss — ink-500' },
+  { name: 'data-good', class: 'bg-data-good', hex: THEME_HEX['data-good'], use: 'Above average, win — rosegold-400' },
+  { name: 'data-good-dim', class: 'bg-data-good-dim', hex: THEME_HEX['data-good-dim'], use: 'Large fills on the good side' },
+  { name: 'data-mid', class: 'bg-data-mid', hex: THEME_HEX['data-mid'], use: 'Average, no signal — ink-400' },
+  { name: 'data-bad-dim', class: 'bg-data-bad-dim', hex: THEME_HEX['data-bad-dim'], use: 'Large fills below average' },
+  { name: 'data-bad', class: 'bg-data-bad', hex: THEME_HEX['data-bad'], use: 'Below average, loss — ink-500' },
 ]
 
 // The top of the data axis, kept out of `DATA_AXIS` because it is the one step
@@ -45,8 +45,7 @@ const DATA_AXIS = [
 // swatch here would invite the first `bg-gold` on a measurement.
 const DATA_STANDOUT = {
   name: 'gold',
-  class: 'text-gold',
-  hex: '#d9b676',
+  class: 'text-gold', hex: THEME_HEX['gold'],
   use: 'Standout — a Perfect KDA, a 75+ performance score. The same token the MVP crown wears.',
 }
 
@@ -54,11 +53,11 @@ const DATA_STANDOUT = {
 // which is the only way they are ever allowed to appear. A swatch here would
 // invite the first `bg-rune-domination` in the app.
 const RUNE_TONES = [
-  { name: 'rune-precision', class: 'text-rune-precision', hex: '#c8aa6e', tree: 'Precision' },
-  { name: 'rune-domination', class: 'text-rune-domination', hex: '#d0424b', tree: 'Domination' },
-  { name: 'rune-sorcery', class: 'text-rune-sorcery', hex: '#7a9df0', tree: 'Sorcery' },
-  { name: 'rune-resolve', class: 'text-rune-resolve', hex: '#61b96b', tree: 'Resolve' },
-  { name: 'rune-inspiration', class: 'text-rune-inspiration', hex: '#49aab9', tree: 'Inspiration' },
+  { name: 'rune-precision', class: 'text-rune-precision', hex: THEME_HEX['rune-precision'], tree: 'Precision' },
+  { name: 'rune-domination', class: 'text-rune-domination', hex: THEME_HEX['rune-domination'], tree: 'Domination' },
+  { name: 'rune-sorcery', class: 'text-rune-sorcery', hex: THEME_HEX['rune-sorcery'], tree: 'Sorcery' },
+  { name: 'rune-resolve', class: 'text-rune-resolve', hex: THEME_HEX['rune-resolve'], tree: 'Resolve' },
+  { name: 'rune-inspiration', class: 'text-rune-inspiration', hex: THEME_HEX['rune-inspiration'], tree: 'Inspiration' },
 ]
 
 // Riot's in-client vocabulary for stats, damage types and keywords, rendered by
@@ -70,55 +69,55 @@ const STAT_FAMILIES = [
   {
     family: 'Defensive / sustain',
     tones: [
-      { name: 'stat-health', class: 'text-stat-health', hex: '#24a564', use: 'Flat HP / HP regen' },
-      { name: 'stat-armor', class: 'text-stat-armor', hex: '#f3c057', use: 'Armor' },
-      { name: 'stat-mr', class: 'text-stat-mr', hex: '#54e6ff', use: 'Magic resist' },
-      { name: 'stat-tenacity', class: 'text-stat-tenacity', hex: '#8c72ff', use: 'Tenacity / slow resist' },
-      { name: 'stat-hsp', class: 'text-stat-hsp', hex: '#6be695', use: 'Heal & shield power' },
-      { name: 'stat-heal-reduction', class: 'text-stat-heal-reduction', hex: '#8d5874', use: 'Grievous wounds' },
+      { name: 'stat-health', class: 'text-stat-health', hex: THEME_HEX['stat-health'], use: 'Flat HP / HP regen' },
+      { name: 'stat-armor', class: 'text-stat-armor', hex: THEME_HEX['stat-armor'], use: 'Armor' },
+      { name: 'stat-mr', class: 'text-stat-mr', hex: THEME_HEX['stat-mr'], use: 'Magic resist' },
+      { name: 'stat-tenacity', class: 'text-stat-tenacity', hex: THEME_HEX['stat-tenacity'], use: 'Tenacity / slow resist' },
+      { name: 'stat-hsp', class: 'text-stat-hsp', hex: THEME_HEX['stat-hsp'], use: 'Heal & shield power' },
+      { name: 'stat-heal-reduction', class: 'text-stat-heal-reduction', hex: THEME_HEX['stat-heal-reduction'], use: 'Grievous wounds' },
     ],
   },
   {
     family: 'Resources / utility',
     tones: [
-      { name: 'stat-mana', class: 'text-stat-mana', hex: '#00a6ed', use: 'Mana / mana regen' },
-      { name: 'stat-haste', class: 'text-stat-haste', hex: '#ede2cf', use: 'Ability haste' },
-      { name: 'stat-speed', class: 'text-stat-speed', hex: '#ffffff', use: 'Move speed / on-hit' },
+      { name: 'stat-mana', class: 'text-stat-mana', hex: THEME_HEX['stat-mana'], use: 'Mana / mana regen' },
+      { name: 'stat-haste', class: 'text-stat-haste', hex: THEME_HEX['stat-haste'], use: 'Ability haste' },
+      { name: 'stat-speed', class: 'text-stat-speed', hex: THEME_HEX['stat-speed'], use: 'Move speed / on-hit' },
     ],
   },
   {
     family: 'Offensive — physical',
     tones: [
-      { name: 'stat-ad', class: 'text-stat-ad', hex: '#f19425', use: 'Attack damage' },
-      { name: 'stat-lethality', class: 'text-stat-lethality', hex: '#f65e57', use: 'Lethality / armor pen' },
-      { name: 'stat-crit', class: 'text-stat-crit', hex: '#ee2a00', use: 'Crit chance / crit damage' },
-      { name: 'stat-as', class: 'text-stat-as', hex: '#ffe991', use: 'Attack speed' },
-      { name: 'stat-vamp', class: 'text-stat-vamp', hex: '#d70045', use: 'Lifesteal / omnivamp' },
+      { name: 'stat-ad', class: 'text-stat-ad', hex: THEME_HEX['stat-ad'], use: 'Attack damage' },
+      { name: 'stat-lethality', class: 'text-stat-lethality', hex: THEME_HEX['stat-lethality'], use: 'Lethality / armor pen' },
+      { name: 'stat-crit', class: 'text-stat-crit', hex: THEME_HEX['stat-crit'], use: 'Crit chance / crit damage' },
+      { name: 'stat-as', class: 'text-stat-as', hex: THEME_HEX['stat-as'], use: 'Attack speed' },
+      { name: 'stat-vamp', class: 'text-stat-vamp', hex: THEME_HEX['stat-vamp'], use: 'Lifesteal / omnivamp' },
     ],
   },
   {
     family: 'Offensive — magical',
     tones: [
-      { name: 'stat-ap', class: 'text-stat-ap', hex: '#7e78ff', use: 'Ability power' },
-      { name: 'stat-magicpen', class: 'text-stat-magicpen', hex: '#cc6efc', use: 'Magic penetration' },
+      { name: 'stat-ap', class: 'text-stat-ap', hex: THEME_HEX['stat-ap'], use: 'Ability power' },
+      { name: 'stat-magicpen', class: 'text-stat-magicpen', hex: THEME_HEX['stat-magicpen'], use: 'Magic penetration' },
     ],
   },
   {
     family: 'Damage types',
     tones: [
-      { name: 'stat-true', class: 'text-stat-true', hex: '#f5f5f5', use: 'True damage' },
-      { name: 'stat-adaptive', class: 'text-stat-adaptive', hex: '#48c4b7', use: 'Adaptive damage (verified)' },
+      { name: 'stat-true', class: 'text-stat-true', hex: THEME_HEX['stat-true'], use: 'True damage' },
+      { name: 'stat-adaptive', class: 'text-stat-adaptive', hex: THEME_HEX['stat-adaptive'], use: 'Adaptive damage (verified)' },
     ],
   },
   {
     family: 'Misc / structural',
     tones: [
-      { name: 'stat-status', class: 'text-stat-status', hex: '#9366a9', use: 'CC keywords — Stun, Airborne' },
-      { name: 'stat-stealth', class: 'text-stat-stealth', hex: '#b472a6', use: 'Stealth keywords' },
-      { name: 'stat-shield', class: 'text-stat-shield', hex: '#e0c56e', use: 'Shield value' },
-      { name: 'stat-gold', class: 'text-stat-gold', hex: '#c8aa6e', use: 'Gold per X seconds' },
-      { name: 'stat-passive', class: 'text-stat-passive', hex: '#ffffff', use: 'Item passive label' },
-      { name: 'stat-active', class: 'text-stat-active', hex: '#f3c057', use: 'Item active label' },
+      { name: 'stat-status', class: 'text-stat-status', hex: THEME_HEX['stat-status'], use: 'CC keywords — Stun, Airborne' },
+      { name: 'stat-stealth', class: 'text-stat-stealth', hex: THEME_HEX['stat-stealth'], use: 'Stealth keywords' },
+      { name: 'stat-shield', class: 'text-stat-shield', hex: THEME_HEX['stat-shield'], use: 'Shield value' },
+      { name: 'stat-gold', class: 'text-stat-gold', hex: THEME_HEX['stat-gold'], use: 'Gold per X seconds' },
+      { name: 'stat-passive', class: 'text-stat-passive', hex: THEME_HEX['stat-passive'], use: 'Item passive label' },
+      { name: 'stat-active', class: 'text-stat-active', hex: THEME_HEX['stat-active'], use: 'Item active label' },
     ],
   },
 ]

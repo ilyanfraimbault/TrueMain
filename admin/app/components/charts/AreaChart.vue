@@ -28,7 +28,7 @@ import { CurveType } from 'vue-chrts'
 // mounted directly by the unit tests, which run outside Nuxt and resolve
 // neither auto-imported utils nor auto-registered components.
 import { CHART_AXIS_TEXT_COLOR, CHART_GUIDE_COLOR, CHART_PRIMARY, defaultSeriesColor } from '~/utils/chart-palette'
-import { escapeTickFormatter } from '~/utils/chart-text'
+import { escapeTickFormatter } from '#site-shared/utils/chart-text'
 import type { ChartMarker } from '~/utils/deploy-markers'
 import ChartTooltip from './ChartTooltip.vue'
 import DeployMarkers from './DeployMarkers.vue'

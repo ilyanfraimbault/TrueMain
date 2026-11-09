@@ -16,8 +16,9 @@ import type { axisFormatter } from 'vue-chrts/types'
 // so the chart keeps working, but Firefox logs an `XML Parsing Error` for every
 // failed parse.
 //
-// TrueMain hits this on every champion detail page: the scaling buckets are
-// labelled `<20m`, `20-25m`, … (`ChampionScalingQueryService.BucketLabels`).
+// The site hits this on every champion page (the scaling buckets are labelled
+// `<20m`, `20-25m`, …) and the admin on every bar chart labelled from data
+// ("Nunu & Willump"). Both read this one copy.
 //
 // Verified still present in every published `@unovis/ts` — 1.6.5 (ours), 1.6.7
 // (latest) and the 1.7.0 pre-releases — and `vue-chrts@2.2.0` still depends on
