@@ -948,9 +948,10 @@ build costs runner minutes, not wall time, since it runs beside CI.
   where Dependabot's NuGet watch sees it, also analyses every non-MSBuild file
   under the repo (`sonar.scanner.scanAll`), which is how the TypeScript and Vue
   code is read without a second scanner. Generated code (EF migrations, the
-  compiled model, `.nuxt`), tests, the dev API mock and `.claude/` are
-  excluded: the agent's skills under `.claude/skills` never ship, and analysed,
-  they read as uncovered new code and fail the gate (#2068).
+  compiled model, `.nuxt`), tests, the dev API mock (`web/server/dev`), the
+  `/dev/*` playground pages (stripped from every build) and `.claude/` are
+  excluded: none of them ships, and analysed, they read as uncovered new code
+  and fail the gate (#2068).
 - `Download the lcov reports` downloads by pattern, and `download-artifact`
   puts a lone match straight into `path` instead of a directory named after
   it: a PR touching one frontend (the usual case since #2218) left its report

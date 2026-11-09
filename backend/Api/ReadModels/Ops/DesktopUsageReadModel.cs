@@ -114,6 +114,9 @@ public sealed record DesktopKeyUsage
 {
     public string Key { get; init; } = string.Empty;
 
+    /// <summary>What the admin page calls it, from the catalog.</summary>
+    public string Label { get; init; } = string.Empty;
+
     public long Count { get; init; }
 
     public int Installs { get; init; }

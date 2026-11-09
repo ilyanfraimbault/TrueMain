@@ -182,3 +182,21 @@ and is taken as a game, as it always was.
 participant saying so is enough) because it describes the game, not a player. The rest of #1364 — the
 `challenges` object, `match_teams` — moved to #1955 until a feature consumes it; its timeline part was dropped
 (#1813 removes the snapshot table).
+
+## The pipeline is one catalog in `Data`, read by the ingestor, the Api and the admin (2026-11-08)
+
+**Decision (#2488, epic #2481):** every ingestor step is one `PipelineProcess` entry in
+`Data/Pipeline/PipelineCatalog.cs` — its `JobMode`, the name its runs are persisted under, its lane, label,
+description, the steps it must run after, whether it is a per-match fold, and its Riot reservation. `Full` is
+the list's order and every lane, composite mode and maintenance pass is filtered from it.
+
+**Why:** adding a process used to touch ~13 places — `JobMode`, three hand-ordered copies of the pipeline in
+`JobModeSequence`, the DI list, a `Name` literal per process, seven Api ops services, the limiter's reservation
+keys and three admin tables — and the copies had already drifted (`RunePageDeduplication` outlived its process
+in the admin by weeks). The process class now only carries `[PipelineStep(JobMode)]`; registration fails at boot
+when a step has no process or two. `Data` owns it because both hosts read it and `Data` is what they share.
+
+**What stays where:** the persisted `Name` never follows a code rename (it keys the run history); the Api's
+judgement lists (which processes the health panel watches) stay in the Api but name entries of the catalog, so
+a rename no longer compiles into an empty panel. The Api serves the catalog at `GET /ops/pipeline`; the admin's
+copies (`pipeline-chain.ts`, `pipeline-lanes.ts`) switch to it once the generated contract lands.

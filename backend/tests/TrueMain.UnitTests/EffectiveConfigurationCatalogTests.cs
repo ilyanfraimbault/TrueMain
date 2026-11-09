@@ -25,7 +25,7 @@ public sealed class EffectiveConfigurationCatalogTests
     public static IEnumerable<object[]> Catalogs()
     {
         yield return [IngestorEffectiveConfigurationCatalog.Instance];
-        yield return [ApiEffectiveConfigurationCatalog.Instance];
+        yield return [ApiCatalog()];
     }
 
     [Theory]
@@ -86,4 +86,29 @@ public sealed class EffectiveConfigurationCatalogTests
         optionsType
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(property => property.CanRead && property.GetIndexParameters().Length == 0);
+
+    /// <summary>
+    /// Every section the Api can show: the ones its options classes declare, and the shared ones
+    /// it lists for the Data layer's sections.
+    /// </summary>
+    private static EffectiveConfigurationCatalog ApiCatalog()
+    {
+        var pageOf = typeof(EffectiveConfigurationCatalogTests).GetMethod(nameof(PageOf), BindingFlags.NonPublic | BindingFlags.Static)!;
+        var declared = typeof(IApiOptions).Assembly.GetTypes()
+            .Where(type => type.IsClass && type.IsAssignableTo(typeof(IApiOptions)))
+            .Select(type => (EffectiveConfigurationSectionDescriptor?)pageOf.MakeGenericMethod(type).Invoke(null, null))
+            .OfType<EffectiveConfigurationSectionDescriptor>();
+        return new EffectiveConfigurationCatalog(
+            "Api",
+            [
+                .. declared,
+                SharedEffectiveConfigurationSections.MainAnalysis,
+                SharedEffectiveConfigurationSections.Database,
+                SharedEffectiveConfigurationSections.MongoLogging
+            ]);
+    }
+
+    private static EffectiveConfigurationSectionDescriptor? PageOf<TOptions>()
+        where TOptions : class, IApiOptions
+        => TOptions.ConfigurationPage;
 }
