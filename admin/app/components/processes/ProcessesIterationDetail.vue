@@ -2,7 +2,8 @@
 // Iteration detail slide-over of the Processes page: a formatted per-process
 // breakdown of one finished pass (outcome, duration, summary fields, error)
 // instead of raw JSON. Split out of `pages/processes.vue` (#1436).
-import type { BadgeColor, ProcessIteration, ProcessRunStatus } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 import type { ChainLink } from '~~/shared/utils/pipeline-lanes'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
 import { processStatusColor } from '~~/shared/utils/pipeline-health'
@@ -10,7 +11,7 @@ import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
 import { hasSummary } from '~~/shared/utils/process-summary'
 
 const props = defineProps<{
-  iteration: ProcessIteration | null
+  iteration: ProcessIterationReadModel | null
 }>()
 
 const open = defineModel<boolean>('open', { required: true })

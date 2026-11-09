@@ -10,7 +10,7 @@
 // Two tabs since #1410, deep-linkable via `?view=runs|riot-api`: the Riot API
 // usage panel moved here from a page of its own, because how the pipeline spends
 // its call budget is a signal about these same runs, not a separate destination.
-import type { ProcessIteration, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
 // The chain is grouped by lane, not flat: since #1362 an iteration belongs to one
 // lane, and drawing the canonical 20 steps every time painted the other lane's
@@ -164,7 +164,7 @@ const {
   error: iterationsError,
 } = useProcessIterations(iterationsFilters)
 
-const finishedIterations = computed<ProcessIteration[]>(() => iterationsData.value?.iterations ?? [])
+const finishedIterations = computed<ProcessIterationReadModel[]>(() => iterationsData.value?.iterations ?? [])
 const iterationsTotal = computed(() => iterationsData.value?.total ?? 0)
 const iterationsServerPage = computed(() => iterationsData.value?.page ?? iterationsPage.value)
 
@@ -188,7 +188,7 @@ const {
   page: 1,
   pageSize: LATEST_ITERATION_PROBE,
 })
-const latestIterations = computed<ProcessIteration[]>(
+const latestIterations = computed<ProcessIterationReadModel[]>(
   () => latestIterationData.value?.iterations ?? [],
 )
 
@@ -223,21 +223,21 @@ async function refreshRuns() {
 // A run (from the chain or the table) and a finished iteration each open their
 // own formatted breakdown rather than the raw JSON. The run is read back from the
 // live feeds (#2471), so a Running one settles in place when the chain refreshes.
-const selected = ref<ProcessRun | null>(null)
+const selected = ref<ProcessRunReadModel | null>(null)
 const detailOpen = ref(false)
 const selectedRun = computed(() => liveRun(selected.value, [
   ...latestIterations.value.map(iteration => iteration.runs),
   runs.value,
   ...finishedIterations.value.map(iteration => iteration.runs),
 ]))
-function openDetail(run: ProcessRun) {
+function openDetail(run: ProcessRunReadModel) {
   selected.value = run
   detailOpen.value = true
 }
 
 const iterationDetailOpen = ref(false)
-const selectedIteration = ref<ProcessIteration | null>(null)
-function openIterationDetail(iteration: ProcessIteration) {
+const selectedIteration = ref<ProcessIterationReadModel | null>(null)
+function openIterationDetail(iteration: ProcessIterationReadModel) {
   selectedIteration.value = iteration
   iterationDetailOpen.value = true
 }

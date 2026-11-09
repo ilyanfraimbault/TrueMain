@@ -1,4 +1,4 @@
-import type { ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
 import { PIPELINE_LANES } from '~~/shared/types/pipeline-chain'
 
@@ -23,7 +23,7 @@ export type ChainOutcome = ProcessRunStatus | 'notRun'
 export interface ChainLink {
   processName: string
   outcome: ChainOutcome
-  run: ProcessRun | null
+  run: ProcessRunReadModel | null
 }
 
 /** A lane's steps within one iteration, plus what the lane as a whole did. */
@@ -91,7 +91,7 @@ export function laneForProcess(processName: string): PipelineLaneId | null {
  * than being dropped: an ingestor step added without its entry here must still
  * be visible, under its raw name, the way the flat chain used to append it.
  */
-export function buildLaneBranches(runs: readonly ProcessRun[]): LaneBranch[] {
+export function buildLaneBranches(runs: readonly ProcessRunReadModel[]): LaneBranch[] {
   // Latest run wins for a process that ran twice in the pass (a retry), matching
   // what the flat chain did.
   const byName = new Map(runs.map(run => [run.processName, run]))
@@ -160,7 +160,7 @@ export function buildLaneBranches(runs: readonly ProcessRun[]): LaneBranch[] {
  * one process, and a pass with no recorded mode (written before the ingestor
  * stamped it) is left to the lane rendering rather than guessed at.
  */
-function singleProcessModeOf(runs: readonly ProcessRun[]): string | null {
+function singleProcessModeOf(runs: readonly ProcessRunReadModel[]): string | null {
   if (runs.length === 0) {
     return null
   }
@@ -186,7 +186,7 @@ const WORKER_STEP = 'MatchIngestion'
  * far more frequent, would push the maintenance pass out of the live tree. So a batch gets
  * its own `workers` branch.
  */
-function fetchWorkersBranches(runs: readonly ProcessRun[]): LaneBranch[] | null {
+function fetchWorkersBranches(runs: readonly ProcessRunReadModel[]): LaneBranch[] | null {
   if (runs.length === 0 || runs.find(run => run.jobMode)?.jobMode !== 'FetchWorkers') {
     return null
   }
@@ -216,7 +216,7 @@ function toBranch(
   description: string,
   links: ChainLink[],
 ): LaneBranch {
-  const runs = links.map(link => link.run).filter((run): run is ProcessRun => run !== null)
+  const runs = links.map(link => link.run).filter((run): run is ProcessRunReadModel => run !== null)
 
   const startedAtUtc = runs.length === 0
     ? null
@@ -268,7 +268,7 @@ export interface CurrentLane {
  * it stays on screen, marked not-run, instead of vanishing.
  */
 export function pickCurrentLanes(
-  iterations: readonly { runs: ProcessRun[] }[],
+  iterations: readonly { runs: ProcessRunReadModel[] }[],
 ): CurrentLane[] {
   const byLane = new Map<string, CurrentLane>(
     buildLaneBranches([]).map(branch => [branch.id, { branch, isRunning: false }]),

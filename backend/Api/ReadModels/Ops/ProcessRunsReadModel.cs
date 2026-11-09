@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Data.Entities;
 
 namespace TrueMain.ReadModels.Ops;
 
@@ -24,8 +25,7 @@ public sealed record ProcessRunsReadModel
 }
 
 /// <summary>
-/// A single recorded process run. <see cref="Status"/> is the
-/// <c>ProcessRunStatus</c> name ("Success"/"Failed"/"Running"/"Abandoned"/"Skipped"/"Cancelled"); a
+/// A single recorded process run. A
 /// stale-heartbeat <c>Running</c> row is reported as "Abandoned" here even though
 /// its stored status is still <c>Running</c>. <see cref="Error"/> is the stored
 /// failure text (may be null) and <see cref="Summary"/> is the run's JSONB payload
@@ -43,7 +43,7 @@ public sealed record ProcessRunReadModel
 
     public int DurationMs { get; init; }
 
-    public string Status { get; init; } = string.Empty;
+    public ProcessRunStatus Status { get; init; }
 
     public string? Error { get; init; }
 
@@ -121,7 +121,7 @@ public sealed record ProcessRunRollupReadModel
 {
     public string ProcessName { get; init; } = string.Empty;
 
-    public string LastStatus { get; init; } = string.Empty;
+    public ProcessRunStatus LastStatus { get; init; }
 
     public DateTime LastRunAtUtc { get; init; }
 

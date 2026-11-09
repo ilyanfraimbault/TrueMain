@@ -1,4 +1,4 @@
-import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel } from '#site-shared/contract/api'
 import { describe, expect, it } from 'vitest'
 import {
   iterationKind,
@@ -8,7 +8,7 @@ import {
 
 // The compact iteration rows read their badge, bar and counts off these helpers.
 
-function run(processName: string, overrides: Partial<ProcessRun> = {}): ProcessRun {
+function run(processName: string, overrides: Partial<ProcessRunReadModel> = {}): ProcessRunReadModel {
   return {
     id: `${processName}-${overrides.startedAtUtc ?? 'x'}`,
     processName,
@@ -30,8 +30,8 @@ function iteration(
   jobMode: string | null,
   startedAtUtc: string,
   lastActivityAtUtc: string,
-  runs: ProcessRun[] = [],
-): ProcessIteration {
+  runs: ProcessRunReadModel[] = [],
+): ProcessIterationReadModel {
   return { iterationId: id, jobMode, startedAtUtc, lastActivityAtUtc, isRunning: false, runs }
 }
 

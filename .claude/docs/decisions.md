@@ -288,6 +288,7 @@ Last verified against `develop` on 2026-09-02.
 - Threading + Roslynator analyzers run on every project: async-correctness rules are errors, JTF-only and false-positive rules are off, Roslynator style stays IDE hints (2026-10-05) — #294
 - `riot_accounts` carries no concurrency token; a process's own timestamp is stamped set-based (2026-11-04) — #2046, #231, #2448
 - Benchmark counters are upserted once per transaction, in conflict-key order (2026-11-04) — #2448
+- The API's TypeScript types are generated from its committed OpenAPI document; enums travel by name (2026-11-08) — #2493
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 

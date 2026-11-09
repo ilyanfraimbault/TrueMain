@@ -4,7 +4,7 @@
 // reason it skipped or did nothing, else its first counters). Opened from a row of the
 // recent-iterations list; an entry that ran opens its run detail.
 import type { TimelineItem } from '@nuxt/ui'
-import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel } from '#site-shared/contract/api'
 import type { ChainLink, ChainOutcome } from '~~/shared/utils/pipeline-lanes'
 // Explicit imports so the component tests can mount it without Nuxt's auto-imports.
 import { computed } from 'vue'
@@ -14,14 +14,14 @@ import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
 import { summaryRecap } from '~~/shared/utils/process-summary'
 
 const props = defineProps<{
-  iteration: ProcessIteration
+  iteration: ProcessIterationReadModel
 }>()
 
 const emit = defineEmits<{
-  openRun: [run: ProcessRun]
+  openRun: [run: ProcessRunReadModel]
 }>()
 
-type StepItem = TimelineItem & { run: ProcessRun | null, meta: string }
+type StepItem = TimelineItem & { run: ProcessRunReadModel | null, meta: string }
 
 // The indicator carries the outcome, so a column of steps reads at a glance; a step
 // that did no work stays visibly quieter than one that did.

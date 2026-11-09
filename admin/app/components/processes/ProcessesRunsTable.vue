@@ -4,14 +4,14 @@
 // slide-over. Split out of `pages/processes.vue` (#1436); the page owns the
 // filters, the fetch and the page number.
 import type { TableColumn } from '@nuxt/ui'
-import type { ProcessRun } from '~~/shared/types/ops'
+import type { ProcessRunReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
 import { flaggedCounters } from '~~/shared/utils/process-baseline'
 import { humanizeKey } from '~~/shared/utils/process-summary'
 
 defineProps<{
-  runs: ProcessRun[]
+  runs: ProcessRunReadModel[]
   total: number
   pending: boolean
   /** The page the server actually served (its clamp wins over the model). */
@@ -25,10 +25,10 @@ defineProps<{
 const page = defineModel<number>('page', { required: true })
 
 defineEmits<{
-  openRun: [run: ProcessRun]
+  openRun: [run: ProcessRunReadModel]
 }>()
 
-const columns: TableColumn<ProcessRun>[] = [
+const columns: TableColumn<ProcessRunReadModel>[] = [
   {
     accessorKey: 'processName',
     header: ({ column }) => sortableHeader(column, 'Process'),
@@ -67,7 +67,7 @@ const sorting = ref([{ id: 'startedAtUtc', desc: true }])
 // evaluated per row.
 const tableMeta = {
   class: {
-    tr: (row: { original: ProcessRun }) => {
+    tr: (row: { original: ProcessRunReadModel }) => {
       if (row.original.status === 'Failed') {
         return 'bg-error/5'
       }

@@ -16,7 +16,7 @@
 //
 // The value-classification helpers live in `shared/utils/process-summary` so
 // they can be unit-tested without mounting the component.
-import type { ProcessRunBaseline } from '~~/shared/types/ops'
+import type { ProcessRunBaselineReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import ProcessesBaselineBadge from '~~/app/components/processes/ProcessesBaselineBadge.vue'
 import { formatScalar, humanizeKey, isPlainObject, isScalar } from '~~/shared/utils/process-summary'
@@ -26,7 +26,7 @@ import { formatScalar, humanizeKey, isPlainObject, isScalar } from '~~/shared/ut
 // pathologically deep payload can't blow the render stack. `baseline` (#2298) is
 // read at the root only: its counters are the summary's top-level numbers, so it is
 // never handed down to a nested level.
-const props = withDefaults(defineProps<{ value: unknown, depth?: number, baseline?: ProcessRunBaseline | null }>(), {
+const props = withDefaults(defineProps<{ value: unknown, depth?: number, baseline?: ProcessRunBaselineReadModel | null }>(), {
   depth: 0,
   baseline: null,
 })

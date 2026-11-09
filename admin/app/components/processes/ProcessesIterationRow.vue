@@ -3,7 +3,7 @@
 // pass it was, when it ran, a bar of where its time went, and how its steps ended.
 // Hovering a segment of the bar recaps that step; the row expands into the step
 // timeline, and the per-run summaries stay in the slide-over.
-import type { ProcessIteration, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 import type { IterationKindId } from '~~/shared/utils/iteration-timeline'
 // Explicit imports, unlike most of the portal: the component tests mount it without
 // Nuxt's auto-imports, the way `ProcessSummaryView` is tested.
@@ -15,14 +15,14 @@ import { summaryRecap } from '~~/shared/utils/process-summary'
 import ProcessesIterationSteps from './ProcessesIterationSteps.vue'
 
 const props = defineProps<{
-  iteration: ProcessIteration
+  iteration: ProcessIterationReadModel
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
 
 defineEmits<{
-  openRun: [run: ProcessRun]
-  openIteration: [iteration: ProcessIteration]
+  openRun: [run: ProcessRunReadModel]
+  openIteration: [iteration: ProcessIterationReadModel]
 }>()
 
 const KIND_ICON: Record<IterationKindId, string> = {
