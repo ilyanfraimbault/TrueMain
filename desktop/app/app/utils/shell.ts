@@ -1,11 +1,10 @@
-import { commands, events } from '~/generated/shell'
+import type { commands } from '~/generated/shell'
 
 /**
  * The shell's commands and events, generated from Rust
  * (`desktop/src-tauri/src/contract.rs`): the webview's only way to the shell.
  */
-export const shell = commands
-export const shellEvents = events
+export { commands as shell, events as shellEvents } from '~/generated/shell'
 
 export type ShellCommands = typeof commands
 export type ShellCommand = keyof ShellCommands
