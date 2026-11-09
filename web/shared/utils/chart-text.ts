@@ -1,5 +1,3 @@
-import type { axisFormatter } from 'vue-chrts/types'
-
 // XML-escaping for chart axis tick labels (issue #842).
 //
 // `@unovis/ts` — the engine behind `nuxt-charts`/`vue-chrts` — renders axis
@@ -16,8 +14,9 @@ import type { axisFormatter } from 'vue-chrts/types'
 // so the chart keeps working, but Firefox logs an `XML Parsing Error` for every
 // failed parse.
 //
-// TrueMain hits this on every champion detail page: the scaling buckets are
-// labelled `<20m`, `20-25m`, … (`ChampionScalingQueryService.BucketLabels`).
+// The site hits this on every champion page (the scaling buckets are labelled
+// `<20m`, `20-25m`, …) and the admin on every bar chart labelled from data
+// ("Nunu & Willump"). Both read this one copy.
 //
 // Verified still present in every published `@unovis/ts` — 1.6.5 (ours), 1.6.7
 // (latest) and the 1.7.0 pre-releases — and `vue-chrts@2.2.0` still depends on
@@ -40,9 +39,9 @@ import type { axisFormatter } from 'vue-chrts/types'
  */
 export function escapeChartTickText(text: string): string {
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
 }
 
 /**
@@ -50,13 +49,13 @@ export function escapeChartTickText(text: string): string {
  * stays absent — unovis then stringifies the raw tick value, which is numeric
  * or a `Date` and never needs escaping.
  */
-export function escapeTickFormatter(
-  formatter: axisFormatter | undefined,
-): axisFormatter | undefined {
+export function escapeTickFormatter<F extends (tick: never, i?: number, ticks?: never[]) => string>(
+  formatter: F | undefined,
+): F | undefined {
   if (!formatter) return undefined
-  // The two arms of `axisFormatter` differ only in their tick type (number vs
-  // Date); both return a string, so one pass-through wrapper covers both.
-  const format = formatter as (tick: never, i?: number, ticks?: never[]) => string
+  // A chart's tick type (number or Date) passes through untouched; only the
+  // returned string is escaped. Generic over the formatter rather than naming
+  // the chart library's type, so the admin can read this file without it.
   return ((tick: never, i?: number, ticks?: never[]) =>
-    escapeChartTickText(format(tick, i, ticks))) as axisFormatter
+    escapeChartTickText(formatter(tick, i, ticks))) as F
 }

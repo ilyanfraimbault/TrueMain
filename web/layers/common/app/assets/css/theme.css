@@ -233,6 +233,25 @@
   --color-tier-d: #837a7c;               /* iron (worst) */
 
   /*
+   * ─── Ranked tiers ──────────────────────────────────────────────────────
+   * *Riot's* rank colours, not TrueMain's: a player reads Iron / Bronze / Gold
+   * from the colour before the word, so the in-client cues beat agreeing with
+   * the brand. A rank names a bracket rather than scoring anything, so they
+   * never collide with the data axis. `text-rank-*` on the pages
+   * (`TIER_COLORS`), the hex values for the LP chart and the share card.
+   */
+  --color-rank-iron: #a8a29e;
+  --color-rank-bronze: #b45309;
+  --color-rank-silver: #cbd5e1;
+  --color-rank-gold: #fbbf24;
+  --color-rank-platinum: #5eead4;
+  --color-rank-emerald: #6ee7b7;
+  --color-rank-diamond: #60a5fa;
+  --color-rank-master: #f0abfc;
+  --color-rank-grandmaster: #fca5a5;
+  --color-rank-challenger: #a5f3fc;
+
+  /*
    * ─── Rune trees ────────────────────────────────────────────────────────
    * Riot's five keystone trees in their in-client colours, for the champion
    * page's build paragraph (#1143), which names runes inside flowing prose.
