@@ -19,6 +19,7 @@
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
     "test": "vitest run",
+    "tokens": "node scripts/theme-tokens.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {
