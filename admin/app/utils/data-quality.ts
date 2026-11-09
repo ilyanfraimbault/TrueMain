@@ -1,6 +1,7 @@
 // Presentation shared by the Data Quality page and its cards (split out of
 // `pages/data-quality.vue`, #1436).
-import type { DataQualityIssueType, IssueMeta } from '~~/shared/types/ops'
+import type { IssueMeta } from '~~/shared/types/ops'
+import type { DataQualityIssueType } from '#site-shared/contract/api'
 import { getQueueLabel } from '#site-shared/utils/queues'
 
 // Issue-type metadata: label, icon, badge color — drives the filter select and

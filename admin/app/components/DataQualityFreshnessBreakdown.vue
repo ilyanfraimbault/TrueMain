@@ -4,10 +4,10 @@
 //
 // Extracted from pages/data-quality.vue (#992) alongside the match detail, for
 // the same reason: the page should read as its own structure.
-import type { AggregateFreshnessResponse } from '~~/shared/types/ops'
+import type { AggregateFreshnessReadModel } from '#site-shared/contract/api'
 
 defineProps<{
-  freshness: AggregateFreshnessResponse | null
+  freshness: AggregateFreshnessReadModel | null
   pending: boolean
   error: string | null
 }>()

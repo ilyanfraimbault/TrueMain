@@ -48,7 +48,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/truemains/Phantasm-EUW1/champions/157");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>(ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.ChampionId.Should().Be(157);
         payload.Patch.Should().Be("16.5");
@@ -107,7 +107,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/truemains/Phantasm-EUW1/champions/103");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>(ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.ChampionId.Should().Be(103);
         payload.TotalGames.Should().Be(1);
@@ -174,7 +174,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/truemains/Phantasm-EUW1/champions/157");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<ChampionResponse>(ApiJson.Options);
         payload!.Patch.Should().Be("16.5");
         payload.TotalGames.Should().Be(8, "the thin latest patch is skipped for the newest one above the floor");
     }
@@ -194,7 +194,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         // No position: still the dominant one, MIDDLE's 8 games alone.
-        var dominant = await client.GetFromJsonAsync<ChampionResponse>("/truemains/Phantasm-EUW1/champions/157");
+        var dominant = await client.GetFromJsonAsync<ChampionResponse>("/truemains/Phantasm-EUW1/champions/157", ApiJson.Options);
         dominant!.Position.Should().Be("MIDDLE");
         dominant.TotalGames.Should().Be(8);
 

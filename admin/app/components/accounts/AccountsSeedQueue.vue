@@ -4,7 +4,7 @@
 // `AccountsSeed.vue` (#1436); exposes `refresh`/`refreshFromFirstPage`/`pending`
 // so the tab can refresh it after a submit and the hub's navbar button drives it.
 import type { TableColumn } from '@nuxt/ui'
-import type { SeedRequestReadModel, SeedRequestStatus } from '~~/shared/types/ops'
+import type { SeedRequestReadModel, SeedRequestStatus } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 
 // Server-paginated rather than a capped "recent" list (#1166): the weekly OTP

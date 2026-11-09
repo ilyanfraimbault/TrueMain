@@ -1,13 +1,4 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type {
-  CrashesFilters,
-  CrashesResponse,
-  EffectiveConfigurationOverviewResponse,
-  PipelineHealth,
-  RiotApiUsage,
-  RiotUsageFilters,
-} from '~~/shared/types/ops'
-import type { LogsFilters, LogsResponse } from '~~/shared/types/logs'
 import type { OpsQueryOf } from './useOps'
 
 // Pipeline runtime reads of the ops API — process runs, logs, crashes, Riot usage,
@@ -39,11 +30,11 @@ export function useProcessIterations(filters?: MaybeRefOrGetter<OpsQueryOf<'/pro
  * filter or the page changes.
  */
 export function useLogs(
-  filters?: MaybeRefOrGetter<LogsFilters>,
+  filters?: MaybeRefOrGetter<OpsQueryOf<'/logs'>>,
 ) {
-  return useOps<LogsResponse>(
+  return useOps(
     '/logs',
-    filters ? () => ({ ...toValue(filters) }) : undefined,
+    filters,
   )
 }
 
@@ -54,11 +45,11 @@ export function useLogs(
  * so the table re-fetches when a filter or the page changes.
  */
 export function useCrashes(
-  filters?: MaybeRefOrGetter<CrashesFilters>,
+  filters?: MaybeRefOrGetter<OpsQueryOf<'/crashes'>>,
 ) {
-  return useOps<CrashesResponse>(
+  return useOps(
     '/crashes',
-    filters ? () => ({ ...toValue(filters) }) : undefined,
+    filters,
   )
 }
 
@@ -69,11 +60,11 @@ export function useCrashes(
  * getter so the panel re-fetches when the window or endpoint filter changes.
  */
 export function useRiotUsage(
-  filters?: MaybeRefOrGetter<RiotUsageFilters>,
+  filters?: MaybeRefOrGetter<OpsQueryOf<'/riot-usage'>>,
 ) {
-  return useOps<RiotApiUsage>(
+  return useOps(
     '/riot-usage',
-    filters ? () => ({ ...toValue(filters) }) : undefined,
+    filters,
   )
 }
 
@@ -84,7 +75,7 @@ export function useRiotUsage(
  * panels it links to cannot drift apart.
  */
 export function usePipelineHealth() {
-  return useOps<PipelineHealth>('/pipeline-health')
+  return useOps('/pipeline-health')
 }
 
 /**
@@ -93,5 +84,5 @@ export function usePipelineHealth() {
  * Mongo at its own boot. Takes no filters.
  */
 export function useEffectiveConfiguration() {
-  return useOps<EffectiveConfigurationOverviewResponse>('/configuration')
+  return useOps('/configuration')
 }

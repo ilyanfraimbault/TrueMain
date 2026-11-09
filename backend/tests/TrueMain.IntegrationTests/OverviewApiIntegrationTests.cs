@@ -57,7 +57,7 @@ public sealed class OverviewApiIntegrationTests : IAsyncLifetime
                 "computedAtUtc"
             ]);
 
-        var payload = await response.Content.ReadFromJsonAsync<OverviewTestContract>();
+        var payload = await response.Content.ReadFromJsonAsync<OverviewTestContract>(ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.TrackedAccounts.Should().Be(2);
         // Planner estimates (#2301): the statistics of a freshly seeded table trail its rows,

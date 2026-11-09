@@ -8,13 +8,12 @@
 // no header of its own: the summary lives on the always-visible trigger, and the
 // accordion mounts this component only once its group is opened — which is what
 // makes the fetch lazy, one table's worth of rows instead of five on arrival.
+import type { OpsQueryOf } from '~/composables/useOps'
 import type { TableColumn } from '@nuxt/ui'
 import type {
-  DataQualityIssueType,
-  FlaggedMatch,
-  IncompleteMatchesFilters,
   IssueMeta,
 } from '~~/shared/types/ops'
+import type { DataQualityIssueType, FlaggedMatchReadModel } from '#site-shared/contract/api'
 import { formatDateTime } from '~~/shared/utils/format'
 
 const props = defineProps<{
@@ -22,7 +21,7 @@ const props = defineProps<{
   /** Total matches flagged by this check (from the parent's overview fetch). */
   count: number
   /** Shared filters (queue / age); this card pins `issue` and its own `page`. */
-  baseFilters: Omit<IncompleteMatchesFilters, 'issue' | 'page'>
+  baseFilters: Omit<OpsQueryOf<'/data-quality/incomplete-matches'>, 'issue' | 'page'>
   pageSize: number
   meta: Record<DataQualityIssueType, IssueMeta>
   queueLabel: (queueId: number) => string
@@ -39,7 +38,7 @@ watch(
   { deep: true },
 )
 
-const filters = computed<IncompleteMatchesFilters>(() => ({
+const filters = computed<OpsQueryOf<'/data-quality/incomplete-matches'>>(() => ({
   ...props.baseFilters,
   issue: props.issueType,
   page: page.value,
@@ -51,11 +50,11 @@ const { data, pending } = useIncompleteMatches(filters)
 // The single-issue response carries exactly this group (or none, if a filter
 // pushed the count to zero between the overview fetch and this one).
 const group = computed(() => data.value?.groups.find(g => g.issueType === props.issueType))
-const matches = computed<FlaggedMatch[]>(() => group.value?.matches ?? [])
+const matches = computed<FlaggedMatchReadModel[]>(() => group.value?.matches ?? [])
 // Prefer the live per-issue count, falling back to the parent's overview count.
 const liveCount = computed(() => group.value?.count ?? props.count)
 
-const columns: TableColumn<FlaggedMatch>[] = [
+const columns: TableColumn<FlaggedMatchReadModel>[] = [
   { accessorKey: 'matchId', header: 'Match' },
   { accessorKey: 'platformId', header: 'Region' },
   { accessorKey: 'queueId', header: 'Queue' },

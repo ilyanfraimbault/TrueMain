@@ -51,7 +51,7 @@ public sealed class PersonaEditsApiIntegrationTests : IAsyncLifetime
             accounts = new[] { new { gameName = "g2 caps", tagLine = "1323", platformId = "euw1" } },
         });
         response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
-        var created = (await response.Content.ReadFromJsonAsync<PersonaEditedResponse>())!;
+        var created = (await response.Content.ReadFromJsonAsync<PersonaEditedResponse>(ApiJson.Options))!;
         created.Slug.Should().Be("caps");
         created.Accounts.Single().Status.Should().Be("linked");
 
@@ -120,11 +120,11 @@ public sealed class PersonaEditsApiIntegrationTests : IAsyncLifetime
         again.Accounts.Single(a => a.GameName == "caps alt").Status.Should().Be("excluded");
         var detail = await DetailAsync(client, id);
         detail.Accounts.Should().ContainSingle();
-        detail.Exclusions.Single().Reason.Should().Be("unlinked");
+        detail.Exclusions.Single().Reason.Should().Be(PersonaExclusionReason.Unlinked);
 
         var added = await client.PostAsJsonAsync($"/ops/personas/{id}/accounts", new { gameName = "Caps Alt", tagLine = "EUW", platformId = "EUW1" });
         added.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await added.Content.ReadFromJsonAsync<PersonaEditedResponse>())!.Accounts.Single().Status.Should().Be("linked");
+        (await added.Content.ReadFromJsonAsync<PersonaEditedResponse>(ApiJson.Options))!.Accounts.Single().Status.Should().Be("linked");
         (await DetailAsync(client, id)).Exclusions.Should().BeEmpty();
         (await PlayerAsync(client, "caps")).Accounts.Should().HaveCount(2);
 
@@ -142,7 +142,7 @@ public sealed class PersonaEditsApiIntegrationTests : IAsyncLifetime
         await BatchAsync(client, "caps", "leaguepedia", ("G2 Caps", "1323"));
         var holder = await IdAsync("notcaps");
         (await ListAsync(client, "?view=conflicts")).Personas.Select(p => p.Slug).Should().BeEquivalentTo(["caps", "notcaps"]);
-        (await DetailAsync(client, holder)).Conflicts.Single().Role.Should().Be("owner");
+        (await DetailAsync(client, holder)).Conflicts.Single().Role.Should().Be(PersonaConflictSide.Owner);
 
         var row = (await DetailAsync(client, holder)).Accounts.Single();
         (await client.DeleteAsync($"/ops/personas/{holder}/accounts/{row.Id}")).StatusCode.Should().Be(HttpStatusCode.OK);
@@ -227,8 +227,8 @@ public sealed class PersonaEditsApiIntegrationTests : IAsyncLifetime
 
         var otherId = await IdAsync("caps-dpm");
         var manual = await client.PostAsJsonAsync($"/ops/personas/{otherId}/accounts", new { gameName = "G2 Caps", tagLine = "1323", platformId = "EUW1" });
-        (await manual.Content.ReadFromJsonAsync<PersonaEditedResponse>())!.Accounts.Single().Status.Should().Be("excluded");
-        (await DetailAsync(client, id)).Exclusions.Should().OnlyContain(e => e.Reason == "takedown").And.HaveCount(2);
+        (await manual.Content.ReadFromJsonAsync<PersonaEditedResponse>(ApiJson.Options))!.Accounts.Single().Status.Should().Be("excluded");
+        (await DetailAsync(client, id)).Exclusions.Should().OnlyContain(e => e.Reason == PersonaExclusionReason.Takedown).And.HaveCount(2);
     }
 
     [Fact]
@@ -321,17 +321,17 @@ public sealed class PersonaEditsApiIntegrationTests : IAsyncLifetime
             },
         });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>())!.Personas.Single();
+        return (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>(ApiJson.Options))!.Personas.Single();
     }
 
     private static async Task<PersonasPageReadModel> ListAsync(HttpClient client, string query) =>
-        (await client.GetFromJsonAsync<PersonasPageReadModel>($"/ops/personas{query}"))!;
+        (await client.GetFromJsonAsync<PersonasPageReadModel>($"/ops/personas{query}", ApiJson.Options))!;
 
     private static async Task<PersonaAdminDetailReadModel> DetailAsync(HttpClient client, Guid id) =>
-        (await client.GetFromJsonAsync<PersonaAdminDetailReadModel>($"/ops/personas/{id}"))!;
+        (await client.GetFromJsonAsync<PersonaAdminDetailReadModel>($"/ops/personas/{id}", ApiJson.Options))!;
 
     private static async Task<PersonaReadModel> PlayerAsync(HttpClient client, string slug) =>
-        (await client.GetFromJsonAsync<PersonaReadModel>($"/players/{slug}"))!;
+        (await client.GetFromJsonAsync<PersonaReadModel>($"/players/{slug}", ApiJson.Options))!;
 
     private ApiWebApplicationFactory CreateFactory() => new(_fixture, _mongo);
 

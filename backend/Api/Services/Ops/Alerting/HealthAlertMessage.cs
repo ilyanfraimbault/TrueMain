@@ -1,5 +1,6 @@
 using System.Globalization;
 using TrueMain.Options;
+using TrueMain.ReadModels;
 using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops.Alerting;
@@ -39,7 +40,7 @@ internal sealed record HealthAlertMessage(
         var kind = failing > 0 ? HealthAlertChangeKind.Failing : HealthAlertChangeKind.Recovered;
         var title = kind == HealthAlertChangeKind.Failing
             ? string.Create(CultureInfo.InvariantCulture, $"Pipeline health: {Count(failing)} failing")
-            : health.Status == "red"
+            : health.Status == DetectorStatus.Red
                 ? string.Create(CultureInfo.InvariantCulture, $"Pipeline health: {Count(changes.Count)} recovered")
                 : "Pipeline health recovered";
 
@@ -51,7 +52,7 @@ internal sealed record HealthAlertMessage(
         return new HealthAlertMessage(
             title,
             kind,
-            health.Status,
+            health.Status.WireName(),
             health.Headline,
             health.EvaluatedAtUtc,
             HealthUrlOf(options.AdminBaseUrl),

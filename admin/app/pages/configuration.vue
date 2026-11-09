@@ -10,14 +10,13 @@
 // Read-only: this page has no write path, by design (see the issue's scope).
 import type {
   EffectiveConfigurationOrigin,
-  EffectiveConfigurationProcess,
-  EffectiveConfigurationValue,
 } from '~~/shared/types/ops'
+import type { EffectiveConfigurationProcessReadModel, EffectiveConfigurationValueReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatTimeAgo } from '~~/shared/utils/format'
 
 const { data, pending, refreshing, error, refresh } = useEffectiveConfiguration()
 
-const processes = computed<EffectiveConfigurationProcess[]>(() => data.value?.processes ?? [])
+const processes = computed<EffectiveConfigurationProcessReadModel[]>(() => data.value?.processes ?? [])
 
 // Stated in words, not just colour: an operator scanning for "did someone
 // override this" should not have to learn a colour code first.
@@ -27,8 +26,12 @@ const ORIGIN_META: Record<EffectiveConfigurationOrigin, { label: string, color: 
   derived: { label: 'Derived', color: 'warning' },
 }
 
-function originLabel(value: EffectiveConfigurationValue): string {
-  const meta = ORIGIN_META[value.origin]
+function originMeta(origin: string) {
+  return ORIGIN_META[origin as EffectiveConfigurationOrigin] ?? { label: origin, color: 'neutral' as const }
+}
+
+function originLabel(value: EffectiveConfigurationValueReadModel): string {
+  const meta = originMeta(value.origin)
   return value.source ? `${meta.label} — ${value.source}` : meta.label
 }
 </script>
@@ -120,7 +123,7 @@ function originLabel(value: EffectiveConfigurationValue): string {
                   </span>
                   <span v-else />
                   <UBadge
-                    :color="ORIGIN_META[value.origin].color"
+                    :color="originMeta(value.origin).color"
                     variant="subtle"
                     size="sm"
                     :label="originLabel(value)"

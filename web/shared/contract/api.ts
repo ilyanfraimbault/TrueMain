@@ -6665,7 +6665,7 @@ export interface components {
             riotAccountId: string;
             puuid: string;
             platformId: string;
-            status: string;
+            status: components["schemas"]["RiotAccountStatus"];
             /** Format: date-time */
             lastMatchIngestAtUtc: null | string;
         };
@@ -6679,14 +6679,14 @@ export interface components {
             /** Format: int32 */
             championId: number;
             /** @description The `MainCandidateStatus` name. */
-            status: string;
+            status: components["schemas"]["MainCandidateStatus"];
             /**
              * @description The `MainCandidateSource` name. Note that `ManualSeed` is never
              *     assigned in production — `ManualSeedProcess` reuses the ladder
              *     upsert, so a manually seeded candidate reads `Ladder`. Read
              *     SeedRequestReadModel? AccountExplorerReadModel.SeedRequest for the manual trail.
              */
-            source: string;
+            source: components["schemas"]["MainCandidateSource"];
             /**
              * Format: double
              * @description The 0–100 blend computed by `ScoringProcess`.
@@ -6776,7 +6776,7 @@ export interface components {
             /** Format: int32 */
             summonerLevel: number;
             /** @description The `RiotAccountStatus` name: "Active" or "Invalid". */
-            status: string;
+            status: components["schemas"]["RiotAccountStatus"];
             /** Format: date-time */
             createdAtUtc: string;
             /** Format: date-time */
@@ -6987,7 +6987,7 @@ export interface components {
          *         main-champion rows and the rank history, in one read.
          *         The endpoint answers "why does this player not show up on the site?", so its
          *     contract is that no state is ever inferred from an absent row without
-         *     saying so. An unknown Riot ID is a 200 with string AccountExplorerReadModel.State =
+         *     saying so. An unknown Riot ID is a 200 with AccountPipelineState AccountExplorerReadModel.State =
          *     NeverDiscovered, never a 404 — "we have never seen this account" is an
          *     answer, not an error. Counts each carry the population they count, and the
          *     retention-bounded ones carry the window they were measured over.
@@ -7004,7 +7004,7 @@ export interface components {
              *     and what each value means. The booleans behind it stay exposed in the
              *     sections below — the state is a headline, not the source of truth.
              */
-            state: string;
+            state: components["schemas"]["AccountPipelineState"];
             /**
              * @description The state in a sentence, built server-side so every consumer explains a
              *     given state identically.
@@ -7055,20 +7055,16 @@ export interface components {
              *     `ClaimAccountsForMatchIngestAtomicallyAsync` derives it.
              */
             isTracked: boolean;
-            /**
-             * @description Which arm: "EstablishedMain", "QueuedCandidate", "Both", or null when
-             *     neither — i.e. the account is never selected for ingestion.
-             */
-            trackedVia: null | string;
+            trackedVia: null | components["schemas"]["AccountTrackingArm"];
             /** @description True when an `IsMain` + `IsActive` row exists. */
             hasActiveMain: boolean;
             /**
              * @description True when a candidate sits at `Queued`. It is the claim's new-candidate arm only
-             *     while the account was never ingested (#1535) — string? AccountExplorerTrackingReadModel.TrackedVia applies that rule.
+             *     while the account was never ingested (#1535) — AccountTrackingArm? AccountExplorerTrackingReadModel.TrackedVia applies that rule.
              */
             hasQueuedCandidate: boolean;
             /** @description The `MatchIngestStatus` name: "Idle" or "Processing". */
-            matchIngestStatus: string;
+            matchIngestStatus: components["schemas"]["MatchIngestStatus"];
             /**
              * Format: date-time
              * @description When the current lease was taken; null while Idle.
@@ -7135,6 +7131,14 @@ export interface components {
         AccountFreshnessResponse: {
             accounts: components["schemas"]["AccountFreshnessReadModel"][];
         };
+        /**
+         * @description The verdict ladder, resolved in declaration order — the first matching state
+         *     wins. Serialized as its name.
+         * @enum {unknown}
+         */
+        AccountPipelineState: "NeverDiscovered" | "SeedRequestedOnly" | "Invalidated" | "Tracked" | "Retired" | "NotAMain" | "CandidateOnly" | "Discovered";
+        /** @enum {unknown} */
+        AccountTrackingArm: "EstablishedMain" | "QueuedCandidate" | "Both" | null;
         /**
          * @description The on-demand per-champion aggregate-freshness breakdown
          *     (`GET /ops/data-quality/aggregate-freshness`). Split off the detector payload
@@ -7226,7 +7230,7 @@ export interface components {
          *     returned on its last success (e.g. per-run row/champion counts).
          */
         AggregationRunReadModel: {
-            status: string;
+            status: components["schemas"]["ProcessRunStatus"];
             /** Format: date-time */
             lastStartedAtUtc: null | string;
             /** Format: date-time */
@@ -7466,7 +7470,7 @@ export interface components {
             championRankInMasteryTop: number;
             /** Format: double */
             score: number;
-            status: string;
+            status: components["schemas"]["MainCandidateStatus"];
             /** Format: date-time */
             discoveredAtUtc: string;
             /** Format: date-time */
@@ -7635,7 +7639,7 @@ export interface components {
             asOfUtc: string;
         };
         /**
-         * @description A single `MainCandidate` as surfaced to the list. string CandidateRowReadModel.Status is
+         * @description A single `MainCandidate` as surfaced to the list. MainCandidateStatus CandidateRowReadModel.Status is
          *     the `MainCandidateStatus` name ("New"/"Scored"/"Queued"/"Processing"/
          *     "Validated"). The Riot ID fields (string? CandidateRowReadModel.GameName,
          *     string? CandidateRowReadModel.TagLine) are populated from the joined `RiotAccount` when one
@@ -7659,7 +7663,7 @@ export interface components {
             championRankInMasteryTop: number;
             /** Format: double */
             score: number;
-            status: string;
+            status: components["schemas"]["MainCandidateStatus"];
             /** Format: date-time */
             discoveredAtUtc: string;
             /** Format: date-time */
@@ -8011,7 +8015,7 @@ export interface components {
              */
             scopeRows: number;
             /** @description `green` | `amber` | `red` for this champion's age. */
-            status: string;
+            status: components["schemas"]["DetectorStatus"];
         };
         /** @description One situation that moves an item's pick rate. */
         ChampionItemContextAxisReadModel: {
@@ -9277,7 +9281,7 @@ export interface components {
              * @description `green` | `amber` | `red` | `unknown`. Unknown means the
              *     detector could not compute its answer — it is never used for "measured and fine".
              */
-            status: string;
+            status: components["schemas"]["DetectorStatus"];
             /**
              * Format: int64
              * @description The card's headline number, or null when unknown. What it counts is stated by
@@ -9290,7 +9294,7 @@ export interface components {
             /** @description One sentence answering "so what": the verdict in words, with the numbers in it. */
             headline: string;
             /**
-             * @description Why the answer is unknown. Set if and only if string DataQualityDetectorReadModel.Status is
+             * @description Why the answer is unknown. Set if and only if DetectorStatus DataQualityDetectorReadModel.Status is
              *     `unknown`, so the panel can always explain the state instead of showing a
              *     blank card.
              */
@@ -9323,7 +9327,7 @@ export interface components {
             /** @description Table, platform, process, patch or check name. */
             label: string;
             /** @description `green` | `amber` | `red` | `unknown` for this row alone. */
-            status: string;
+            status: components["schemas"]["DetectorStatus"];
             /**
              * Format: double
              * @description The row's primary number, or null when it could not be measured.
@@ -9335,17 +9339,7 @@ export interface components {
              *     type without the front end branching on the detector.
              */
             valueLabel: null | string;
-            /**
-             * @description The verdict of the measure string? DataQualityDetectorRowReadModel.ValueLabel prints, when it is not the
-             *          row's own (#1656).
-             *
-             *          A row can judge more than one measure — the orphan card judges a share and its
-             *     movement — and string DataQualityDetectorRowReadModel.Status is the worst of them. Painting the printed
-             *     number with that verdict puts a warning colour on a reading that is fine and hides
-             *     which measure actually tripped. Null means the printed number is the
-             *     judged one and carries string DataQualityDetectorRowReadModel.Status.
-             */
-            valueStatus: null | string;
+            valueStatus: null | components["schemas"]["DetectorStatus"];
             /** @description Why this row reads the way it does, or what it is measuring. */
             note: null | string;
         };
@@ -9373,7 +9367,7 @@ export interface components {
         /** @description One issue type's flagged matches: a capped sample plus the full count. */
         DataQualityIssueGroupReadModel: {
             /** @description The DataQualityIssueType name (camelCase on the wire). */
-            issueType: string;
+            issueType: components["schemas"]["DataQualityIssueType"];
             /**
              * Format: int64
              * @description Total matches flagged by this check across the active filters.
@@ -9382,6 +9376,12 @@ export interface components {
             /** @description Newest-first sample of flagged matches (bounded by the page size). */
             matches: components["schemas"]["FlaggedMatchReadModel"][];
         };
+        /**
+         * @description The data-quality checks the panel can run, each independently listable. The
+         *     camelCase name is what crosses the API boundary and what the `issue` query filter accepts.
+         * @enum {unknown}
+         */
+        DataQualityIssueType: "missingTimeline" | "wrongParticipantCount" | "missingTeamPosition" | "zeroDuration" | "duplicateChampion";
         /** @description One configured green/amber/red boundary, echoed for display. */
         DataQualityThresholdReadModel: {
             /** @description What the levels apply to (e.g. "duplicate groups"). */
@@ -9807,6 +9807,12 @@ export interface components {
             /** Format: int64 */
             downloadsWindows: number;
         };
+        /**
+         * @description A detector verdict. Ordered by declaration only; precedence lives in
+         *         `DataQualityDetectorEvaluator.Worst`.
+         * @enum {unknown}
+         */
+        DetectorStatus: "unknown" | "green" | "amber" | "red";
         /** @description A champion worth banning, and why (#1906). */
         DraftBanCandidateReadModel: {
             /** Format: int32 */
@@ -10219,7 +10225,7 @@ export interface components {
              * @description Every issue this match is flagged by (a match can trip several checks),
              *     as DataQualityIssueType names.
              */
-            issues: string[];
+            issues: components["schemas"]["DataQualityIssueType"][];
         };
         /**
          * @description The form benchmark of one position (#2076): for every tier with data, how many laners'
@@ -10258,11 +10264,16 @@ export interface components {
             deaths: null | components["schemas"]["PaceQuartilesReadModel"];
             visionPerMinute: null | components["schemas"]["PaceQuartilesReadModel"];
         };
+        /**
+         * @description What a health alert announces about a key: it started failing, or it recovered.
+         * @enum {unknown}
+         */
+        HealthAlertChangeKind: "failing" | "recovered";
         HealthAlertChangeReadModel: {
             key: string;
             title: string;
             /** @description `failing` | `recovered`. */
-            change: string;
+            change: components["schemas"]["HealthAlertChangeKind"];
             status: string;
             headline: string;
         };
@@ -10271,7 +10282,7 @@ export interface components {
             /** Format: date-time */
             sentAtUtc: string;
             /** @description `failing` | `recovered`. */
-            kind: string;
+            kind: components["schemas"]["HealthAlertChangeKind"];
             title: string;
             verdict: string;
             channel: string;
@@ -10729,6 +10740,17 @@ export interface components {
             processes: string[];
         };
         /**
+         * @description Where a MainCandidate came from. Ladder candidates are
+         *     mastery-gated ladder crawl results (rank/points populated); ManualSeed are
+         *     operator-added accounts; Harvest are derived from orphan
+         *     `match_participants` rows (observed games/wins, no mastery data). The
+         *     source selects how `ScoringProcess` scores the candidate.
+         * @enum {unknown}
+         */
+        MainCandidateSource: "Ladder" | "ManualSeed" | "Harvest";
+        /** @enum {unknown} */
+        MainCandidateStatus: "New" | "Scored" | "Queued" | "Processing" | "Validated";
+        /**
          * @description Per-match detail: both teams laid out by position with the gaps identified.
          *     Returned by `GET /ops/data-quality/match/{id}`.
          */
@@ -10753,7 +10775,7 @@ export interface components {
             /** @description True when `TeamPosition` is meaningful for this queue. */
             hasLanes: boolean;
             /** @description Issue types this match is flagged by, as DataQualityIssueType names. */
-            issues: string[];
+            issues: components["schemas"]["DataQualityIssueType"][];
             /**
              * @description One entry per team. For lane queues each team is laid out across the five
              *     canonical positions (missing slots flagged); for laneless queues the slots
@@ -11059,6 +11081,8 @@ export interface components {
              */
             earliestRunAtUtc: null | string;
         };
+        /** @enum {unknown} */
+        MatchIngestStatus: "Idle" | "Processing";
         /**
          * @description One position slot on a team. For lane queues, string MatchSlotReadModel.Position is one of
          *     the five canonical lanes and bool MatchSlotReadModel.Filled is false when no participant
@@ -11322,7 +11346,7 @@ export interface components {
              *     pipeline-health payload holds it. `unknown` as well when no recent evaluation is held:
              *     this read never runs one (see DateTime? NavSummaryReadModel.HealthEvaluatedAtUtc).
              */
-            healthStatus: string;
+            healthStatus: components["schemas"]["DetectorStatus"];
             /**
              * Format: date-time
              * @description When that verdict was evaluated; null when no evaluation recent enough is held, which tells an
@@ -11591,16 +11615,16 @@ export interface components {
             currentPatch: null | string;
             /**
              * @description The current patch's verdict, hoisted so the page opens on the answer.
-             *     See string PatchCoverageRowReadModel.Verdict.
+             *     See PatchVerdict PatchCoverageRowReadModel.Verdict.
              */
-            verdict: string;
+            verdict: components["schemas"]["PatchVerdict"];
             /** @description `green` | `amber` | `red` | `unknown` for the current patch. */
-            status: string;
+            status: components["schemas"]["DetectorStatus"];
             /** @description The current patch's verdict in a sentence, with the floor in it. */
             headline: string;
             /**
              * @description Why no verdict could be given, when one of the two measurements the page rests on
-             *     failed. Set if and only if string PatchCoverageReadModel.Verdict is `unknown` for that reason:
+             *     failed. Set if and only if PatchVerdict PatchCoverageReadModel.Verdict is `unknown` for that reason:
              *     without the coverage rollup, "thin" and "not aggregated" are indistinguishable, and
              *     guessing between them is worse than saying nothing.
              */
@@ -11636,9 +11660,9 @@ export interface components {
              *         `notAggregated` and `thin` are kept apart on purpose: they are the two
              *         causes of the same low number and they call for opposite reactions.
              */
-            verdict: string;
+            verdict: components["schemas"]["PatchVerdict"];
             /** @description `green` | `amber` | `red` | `unknown`. */
-            status: string;
+            status: components["schemas"]["DetectorStatus"];
             /** @description The verdict in a sentence, naming the floor and the bar it was judged against. */
             headline: string;
             /**
@@ -11761,7 +11785,7 @@ export interface components {
              */
             ageHours: null | number;
             /** @description `green` | `amber` | `red` | `unknown` for that age. */
-            status: string;
+            status: components["schemas"]["DetectorStatus"];
             /**
              * Format: int64
              * @description Matches on this patch the fold has not folded yet, from the per-match flag it
@@ -11793,6 +11817,11 @@ export interface components {
              */
             gamesToFloor: number;
         };
+        /**
+         * @description Whether the public reads can serve a patch (#1033).
+         * @enum {unknown}
+         */
+        PatchVerdict: "unknown" | "servable" | "thin" | "notAggregated";
         PersonaAccountChampionReadModel: {
             /** Format: int32 */
             championId: number;
@@ -11882,7 +11911,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @description `claimant` when this persona claims an account another holds, `owner` when it holds one another claims. */
-            role: string;
+            role: components["schemas"]["PersonaConflictSide"];
             gameName: string;
             tagLine: string;
             platformId: string;
@@ -11926,7 +11955,7 @@ export interface components {
             tagLine: string;
             platformId: string;
             /** @description `conflict` (a resolution), `unlinked` (an operator's unlink) or `takedown`. */
-            reason: string;
+            reason: components["schemas"]["PersonaExclusionReason"];
             /** Format: date-time */
             createdAtUtc: string;
         };
@@ -12015,26 +12044,28 @@ export interface components {
             currentGameName: null | string;
             currentTagLine: null | string;
         };
+        /** @enum {unknown} */
+        PersonaConflictAction: "move" | "keep" | "detach" | "merge" | null;
         /** @description One conflict of the preview and the merge it would get: into the older known player. */
         PersonaConflictBulkCandidateReadModel: {
             conflict: components["schemas"]["PersonaConflictReadModel"];
             /** @description `claimant` or `owner`: the side that stays. */
-            keep: string;
+            keep: components["schemas"]["PersonaConflictSide"];
             keptSlug: string;
             /** @description The slug that redirects to string PersonaConflictBulkCandidateReadModel.KeptSlug once merged. */
             mergedSlug: string;
         };
         /**
-         * @description One conflict of a bulk resolution. string PersonaConflictBulkOutcomeReadModel.Status is `resolved` or `skipped`;
-         *     a skip names its string? PersonaConflictBulkOutcomeReadModel.Reason: `notFound`, `notOpen` (resolved since, often by an
+         * @description One conflict of a bulk resolution. PersonaConflictBulkStatus PersonaConflictBulkOutcomeReadModel.Status is `resolved` or `skipped`;
+         *     a skip names its PersonaConflictBulkSkipReason? PersonaConflictBulkOutcomeReadModel.Reason: `notFound`, `notOpen` (resolved since, often by an
          *     earlier merge of the same batch), `differingChannel`, `belowFloor` (under the floor, or no shared social channel), or `changed`
          *     (one of the known players was merged or removed since).
          */
         PersonaConflictBulkOutcomeReadModel: {
             /** Format: uuid */
             id: string;
-            status: string;
-            reason: null | string;
+            status: components["schemas"]["PersonaConflictBulkStatus"];
+            reason: null | components["schemas"]["PersonaConflictBulkSkipReason"];
             resolution: null | components["schemas"]["PersonaConflictResolvedResponse"];
         };
         /**
@@ -12073,6 +12104,13 @@ export interface components {
             skipped: number;
             outcomes: components["schemas"]["PersonaConflictBulkOutcomeReadModel"][];
         };
+        /** @enum {unknown} */
+        PersonaConflictBulkSkipReason: "notFound" | "notOpen" | "differingChannel" | "belowFloor" | "changed" | null;
+        /**
+         * @description What a bulk resolution did with one conflict.
+         * @enum {unknown}
+         */
+        PersonaConflictBulkStatus: "resolved" | "skipped";
         /**
          * @description One conflict with both personas in full — every account and link with its source — which is
          *     what the operator reads to decide.
@@ -12118,15 +12156,15 @@ export interface components {
             linkCount: number;
         };
         /**
-         * @description One persona claiming a Riot account another persona holds. string PersonaConflictReadModel.Status is
-         *     `Open` or `Resolved`; string? PersonaConflictReadModel.Resolution is `Moved`, `Kept`,
+         * @description One persona claiming a Riot account another persona holds. PersonaConflictStatus PersonaConflictReadModel.Status is
+         *     `Open` or `Resolved`; PersonaConflictResolution? PersonaConflictReadModel.Resolution is `Moved`, `Kept`,
          *     `Detached` or `Merged` once resolved.
          */
         PersonaConflictReadModel: {
             /** Format: uuid */
             id: string;
-            status: string;
-            resolution: null | string;
+            status: components["schemas"]["PersonaConflictStatus"];
+            resolution: null | components["schemas"]["PersonaConflictResolution"];
             /** @description The source of the claim. */
             source: string;
             /** Format: date-time */
@@ -12145,11 +12183,13 @@ export interface components {
             /** @description What the two personas' links say about the answer (#2277); the open queue is ordered by it. */
             evidence: components["schemas"]["PersonaConflictEvidenceReadModel"];
         };
+        /** @enum {unknown} */
+        PersonaConflictResolution: "Moved" | "Kept" | "Detached" | "Merged" | null;
         /** @description What `POST /ops/personas/conflicts/{id}/resolve` did. */
         PersonaConflictResolvedResponse: {
             /** Format: uuid */
             id: string;
-            resolution: string;
+            resolution: components["schemas"]["PersonaConflictResolution"];
             /** @description The persona that holds the account now; null when it was detached. */
             holderSlug: null | string;
             /** @description For a merge: the slug that now redirects to string? PersonaConflictResolvedResponse.HolderSlug. */
@@ -12161,15 +12201,19 @@ export interface components {
             alsoResolved: number;
         };
         /**
-         * @description Body of `POST /ops/personas/conflicts/{id}/resolve` (#2253). string? PersonaConflictResolveRequest.Action is one of
+         * @description Body of `POST /ops/personas/conflicts/{id}/resolve` (#2253). PersonaConflictAction? PersonaConflictResolveRequest.Action is one of
          *     `move` (the account goes to the claiming persona), `keep` (it stays with its holder),
          *     `detach` (it belongs to neither) or `merge` (the two personas are one person).
          */
         PersonaConflictResolveRequest: {
-            action?: null | string;
-            /** @description For `merge` only: `claimant` or `owner`, the persona that stays. */
-            keep?: null | string;
+            action?: null | components["schemas"]["PersonaConflictAction"];
+            keep?: null | components["schemas"]["PersonaConflictSide"];
         };
+        /**
+         * @description A side of a persona conflict: the persona claiming the account, or the one holding it.
+         * @enum {unknown}
+         */
+        PersonaConflictSide: "claimant" | "owner";
         /**
          * @description A page of persona account conflicts for the admin queue (#2253), most recently seen first.
          *     long PersonaConflictsReadModel.Total counts the rows matching the filters before paging; long PersonaConflictsReadModel.Open and
@@ -12188,6 +12232,11 @@ export interface components {
             /** Format: int64 */
             resolved: number;
         };
+        /**
+         * @description Where a PersonaAccountConflict stands. Stored as text (#1251).
+         * @enum {unknown}
+         */
+        PersonaConflictStatus: "Open" | "Resolved";
         /**
          * @description Body of `POST /ops/personas` (#2019): a known player an operator adds by hand. Everything it
          *     writes carries the source `manual`, and its name is the operator's from then on.
@@ -12219,6 +12268,11 @@ export interface components {
             /** @description For a create or an added account: each account's outcome, as the batch answers it. */
             accounts: components["schemas"]["PersonaAccountUpsertResult"][];
         };
+        /**
+         * @description Why an account is excluded from a known player.
+         * @enum {unknown}
+         */
+        PersonaExclusionReason: "conflict" | "unlinked" | "takedown";
         /** @description Body of `POST /ops/personas/homonyms/distinct` (#2271): known players that are different people. */
         PersonaHomonymDistinctRequest: {
             /** @description Two or more personas; every pair among them is marked. */
@@ -12487,7 +12541,7 @@ export interface components {
              *     green` — the same vocabulary and the same precedence as the data-quality
              *     detectors, so one dot means one thing across the whole portal.
              */
-            status: string;
+            status: components["schemas"]["DetectorStatus"];
             /**
              * @description The verdict as one sentence an operator can act on ("All 5 signals pass", "2
              *     signals are failing"). Never blank.
@@ -12522,11 +12576,11 @@ export interface components {
             key: string;
             title: string;
             /** @description `green` | `amber` | `red` | `unknown`. */
-            status: string;
+            status: components["schemas"]["DetectorStatus"];
             /** @description The one sentence explaining this signal's current state. */
             headline: string;
             /**
-             * @description Why the signal could not be measured. Set <b>iff</b> string PipelineHealthSignalReadModel.Status is
+             * @description Why the signal could not be measured. Set <b>iff</b> DetectorStatus PipelineHealthSignalReadModel.Status is
              *     `unknown` — the tile renders this in place instead of a zero that would look
              *     healthy. A degraded sub-signal must explain itself, never fail the page.
              */
@@ -12745,17 +12799,7 @@ export interface components {
         };
         ProcessHealthReadModel: {
             processName: string;
-            /**
-             * @description Effective status, PascalCase: `Success` | `Failed` | `Running` |
-             *          `Abandoned` | `Skipped` | `Cancelled` | `Missing`.
-             *
-             *          Effective, not stored: a Running row whose heartbeat has gone stale reads
-             *     Abandoned here, via the same ProcessRunStaleness policy
-             *     /ops/process-runs applies. Before #1031 this endpoint skipped that step and
-             *     lower-cased the name, so a dead run read "running" on the cockpit and
-             *     "Abandoned" on the panel the cockpit links to.
-             */
-            status: string;
+            status: null | components["schemas"]["ProcessRunStatus"];
             /**
              * Format: date-time
              * @description Null when the process has never recorded a run (`Missing`).
@@ -13211,6 +13255,8 @@ export interface components {
             /** @description Every ops route answered in the window, slowest p95 first. */
             routes: components["schemas"]["RouteLatencyReadModel"][];
         };
+        /** @enum {unknown} */
+        RiotAccountStatus: "Active" | "Invalid";
         /**
          * @description The app rate-limit window with the smallest sustained-load daily ceiling among
          *     the ones Riot returned (#1035) — the one that binds first under sustained
@@ -13606,16 +13652,16 @@ export interface components {
         SeedRequestAcceptedResponse: {
             /** Format: uuid */
             id: string;
-            status: string;
+            status: components["schemas"]["SeedRequestStatus"];
             created: boolean;
         };
         /**
          * @description A single "seed by Riot ID" request as surfaced to the admin panel. The API
          *     records the row at `Pending`; the Ingestor's ManualSeedProcess resolves
          *     the Riot ID, upserts the account, and stamps the terminal state.
-         *     string SeedRequestReadModel.Status is the `SeedRequestStatus` name
+         *     SeedRequestStatus SeedRequestReadModel.Status is the `SeedRequestStatus` name
          *     ("Pending"/"Resolving"/"Ingested"/"Failed"). string? SeedRequestReadModel.Error carries the
-         *     failure detail when string SeedRequestReadModel.Status is "Failed" (else null);
+         *     failure detail when SeedRequestStatus SeedRequestReadModel.Status is "Failed" (else null);
          *     string? SeedRequestReadModel.ResolvedPuuid and Guid? SeedRequestReadModel.ResolvedRiotAccountId are
          *     populated once ingested.
          */
@@ -13625,7 +13671,7 @@ export interface components {
             gameName: string;
             tagLine: string;
             platformId: string;
-            status: string;
+            status: components["schemas"]["SeedRequestStatus"];
             error: null | string;
             /** Format: date-time */
             requestedAtUtc: string;
@@ -13652,6 +13698,15 @@ export interface components {
             /** Format: int32 */
             pageSize: number;
         };
+        /**
+         * @description Lifecycle of a seed request (SeedRequestDocument). SeedRequestStatus.Pending and
+         *     SeedRequestStatus.Resolving are the unprocessed states the idempotency check and
+         *     the Ingestor's claim scan look at; SeedRequestStatus.Ingested and
+         *     SeedRequestStatus.Failed are terminal. Stored as the enum name (a string) so the
+         *     document is human-readable in the shell.
+         * @enum {unknown}
+         */
+        SeedRequestStatus: "Pending" | "Resolving" | "Ingested" | "Failed";
         /**
          * @description Physical storage footprint of a single table in the `public` schema,
          *     sourced from `pg_catalog`. long TableStatRow.RowEstimate is the planner's
@@ -13915,6 +13970,8 @@ export type AccountFreshnessReadModel = components['schemas']['AccountFreshnessR
 export type AccountFreshnessRequest = components['schemas']['AccountFreshnessRequest'];
 export type AccountFreshnessRequestEntry = components['schemas']['AccountFreshnessRequestEntry'];
 export type AccountFreshnessResponse = components['schemas']['AccountFreshnessResponse'];
+export type AccountPipelineState = components['schemas']['AccountPipelineState'];
+export type AccountTrackingArm = components['schemas']['AccountTrackingArm'];
 export type AggregateFreshnessReadModel = components['schemas']['AggregateFreshnessReadModel'];
 export type AggregationBacklogReadModel = components['schemas']['AggregationBacklogReadModel'];
 export type AggregationFamilyReadModel = components['schemas']['AggregationFamilyReadModel'];
@@ -13992,6 +14049,7 @@ export type DataQualityDetectorReadModel = components['schemas']['DataQualityDet
 export type DataQualityDetectorRowReadModel = components['schemas']['DataQualityDetectorRowReadModel'];
 export type DataQualityDetectorsReadModel = components['schemas']['DataQualityDetectorsReadModel'];
 export type DataQualityIssueGroupReadModel = components['schemas']['DataQualityIssueGroupReadModel'];
+export type DataQualityIssueType = components['schemas']['DataQualityIssueType'];
 export type DataQualityThresholdReadModel = components['schemas']['DataQualityThresholdReadModel'];
 export type DbStorageDailyPoint = components['schemas']['DbStorageDailyPoint'];
 export type DbStorageForecast = components['schemas']['DbStorageForecast'];
@@ -14012,6 +14070,7 @@ export type DesktopTelemetryRequest = components['schemas']['DesktopTelemetryReq
 export type DesktopUsageDayBucket = components['schemas']['DesktopUsageDayBucket'];
 export type DesktopUsageReadModel = components['schemas']['DesktopUsageReadModel'];
 export type DesktopUsageTotals = components['schemas']['DesktopUsageTotals'];
+export type DetectorStatus = components['schemas']['DetectorStatus'];
 export type DraftBanCandidateReadModel = components['schemas']['DraftBanCandidateReadModel'];
 export type DraftBanRequest = components['schemas']['DraftBanRequest'];
 export type DraftBanResponse = components['schemas']['DraftBanResponse'];
@@ -14032,6 +14091,7 @@ export type ExternalProcessRunStartRequest = components['schemas']['ExternalProc
 export type FlaggedMatchReadModel = components['schemas']['FlaggedMatchReadModel'];
 export type FormBenchmarkResponse = components['schemas']['FormBenchmarkResponse'];
 export type FormBenchmarkTierReadModel = components['schemas']['FormBenchmarkTierReadModel'];
+export type HealthAlertChangeKind = components['schemas']['HealthAlertChangeKind'];
 export type HealthAlertChangeReadModel = components['schemas']['HealthAlertChangeReadModel'];
 export type HealthAlertReadModel = components['schemas']['HealthAlertReadModel'];
 export type HealthAlertsReadModel = components['schemas']['HealthAlertsReadModel'];
@@ -14055,6 +14115,8 @@ export type LogIngestAcceptedResponse = components['schemas']['LogIngestAccepted
 export type LogIngestEntry = components['schemas']['LogIngestEntry'];
 export type LogIngestRequest = components['schemas']['LogIngestRequest'];
 export type LogsReadModel = components['schemas']['LogsReadModel'];
+export type MainCandidateSource = components['schemas']['MainCandidateSource'];
+export type MainCandidateStatus = components['schemas']['MainCandidateStatus'];
 export type MatchDataQualityDetailReadModel = components['schemas']['MatchDataQualityDetailReadModel'];
 export type MatchDetailItemEventReadModel = components['schemas']['MatchDetailItemEventReadModel'];
 export type MatchDetailLaning15ReadModel = components['schemas']['MatchDetailLaning15ReadModel'];
@@ -14065,6 +14127,7 @@ export type MatchDetailRuneReadModel = components['schemas']['MatchDetailRuneRea
 export type MatchDetailSkillEventReadModel = components['schemas']['MatchDetailSkillEventReadModel'];
 export type MatchesIngestedBucket = components['schemas']['MatchesIngestedBucket'];
 export type MatchesIngestedReadModel = components['schemas']['MatchesIngestedReadModel'];
+export type MatchIngestStatus = components['schemas']['MatchIngestStatus'];
 export type MatchSlotReadModel = components['schemas']['MatchSlotReadModel'];
 export type MatchSummariesResponse = components['schemas']['MatchSummariesResponse'];
 export type MatchSummaryParticipantReadModel = components['schemas']['MatchSummaryParticipantReadModel'];
@@ -14090,6 +14153,7 @@ export type PatchCoverageReadModel = components['schemas']['PatchCoverageReadMod
 export type PatchCoverageRowReadModel = components['schemas']['PatchCoverageRowReadModel'];
 export type PatchFoldCoverageReadModel = components['schemas']['PatchFoldCoverageReadModel'];
 export type PatchThinLineReadModel = components['schemas']['PatchThinLineReadModel'];
+export type PatchVerdict = components['schemas']['PatchVerdict'];
 export type PersonaAccountChampionReadModel = components['schemas']['PersonaAccountChampionReadModel'];
 export type PersonaAccountEntry = components['schemas']['PersonaAccountEntry'];
 export type PersonaAccountRankedReadModel = components['schemas']['PersonaAccountRankedReadModel'];
@@ -14107,22 +14171,29 @@ export type PersonaBatchResponse = components['schemas']['PersonaBatchResponse']
 export type PersonaChannelConflictReadModel = components['schemas']['PersonaChannelConflictReadModel'];
 export type PersonaChannelConflictsReadModel = components['schemas']['PersonaChannelConflictsReadModel'];
 export type PersonaConflictAccountReadModel = components['schemas']['PersonaConflictAccountReadModel'];
+export type PersonaConflictAction = components['schemas']['PersonaConflictAction'];
 export type PersonaConflictBulkCandidateReadModel = components['schemas']['PersonaConflictBulkCandidateReadModel'];
 export type PersonaConflictBulkOutcomeReadModel = components['schemas']['PersonaConflictBulkOutcomeReadModel'];
 export type PersonaConflictBulkPreviewReadModel = components['schemas']['PersonaConflictBulkPreviewReadModel'];
 export type PersonaConflictBulkResolveRequest = components['schemas']['PersonaConflictBulkResolveRequest'];
 export type PersonaConflictBulkResolveResponse = components['schemas']['PersonaConflictBulkResolveResponse'];
+export type PersonaConflictBulkSkipReason = components['schemas']['PersonaConflictBulkSkipReason'];
+export type PersonaConflictBulkStatus = components['schemas']['PersonaConflictBulkStatus'];
 export type PersonaConflictDetailReadModel = components['schemas']['PersonaConflictDetailReadModel'];
 export type PersonaConflictEvidenceReadModel = components['schemas']['PersonaConflictEvidenceReadModel'];
 export type PersonaConflictPersonaReadModel = components['schemas']['PersonaConflictPersonaReadModel'];
 export type PersonaConflictReadModel = components['schemas']['PersonaConflictReadModel'];
+export type PersonaConflictResolution = components['schemas']['PersonaConflictResolution'];
 export type PersonaConflictResolvedResponse = components['schemas']['PersonaConflictResolvedResponse'];
 export type PersonaConflictResolveRequest = components['schemas']['PersonaConflictResolveRequest'];
+export type PersonaConflictSide = components['schemas']['PersonaConflictSide'];
 export type PersonaConflictsReadModel = components['schemas']['PersonaConflictsReadModel'];
+export type PersonaConflictStatus = components['schemas']['PersonaConflictStatus'];
 export type PersonaCreateRequest = components['schemas']['PersonaCreateRequest'];
 export type PersonaDirectoryEntryReadModel = components['schemas']['PersonaDirectoryEntryReadModel'];
 export type PersonaDirectoryResponse = components['schemas']['PersonaDirectoryResponse'];
 export type PersonaEditedResponse = components['schemas']['PersonaEditedResponse'];
+export type PersonaExclusionReason = components['schemas']['PersonaExclusionReason'];
 export type PersonaHomonymDistinctRequest = components['schemas']['PersonaHomonymDistinctRequest'];
 export type PersonaHomonymDistinctResponse = components['schemas']['PersonaHomonymDistinctResponse'];
 export type PersonaHomonymGroupReadModel = components['schemas']['PersonaHomonymGroupReadModel'];
@@ -14176,6 +14247,7 @@ export type RankHistoryReadModel = components['schemas']['RankHistoryReadModel']
 export type RawDataFreshnessReadModel = components['schemas']['RawDataFreshnessReadModel'];
 export type RegionBalanceReadModel = components['schemas']['RegionBalanceReadModel'];
 export type RequestLatencyReadModel = components['schemas']['RequestLatencyReadModel'];
+export type RiotAccountStatus = components['schemas']['RiotAccountStatus'];
 export type RiotApiBindingLimitReadModel = components['schemas']['RiotApiBindingLimitReadModel'];
 export type RiotApiCallerUsageReadModel = components['schemas']['RiotApiCallerUsageReadModel'];
 export type RiotApiEndpointUsageReadModel = components['schemas']['RiotApiEndpointUsageReadModel'];
@@ -14198,6 +14270,7 @@ export type SeedAccountRequest = components['schemas']['SeedAccountRequest'];
 export type SeedRequestAcceptedResponse = components['schemas']['SeedRequestAcceptedResponse'];
 export type SeedRequestReadModel = components['schemas']['SeedRequestReadModel'];
 export type SeedRequestsReadModel = components['schemas']['SeedRequestsReadModel'];
+export type SeedRequestStatus = components['schemas']['SeedRequestStatus'];
 export type TableStatRow = components['schemas']['TableStatRow'];
 export type TopBuildReadModel = components['schemas']['TopBuildReadModel'];
 export type TruemainActivityBucketReadModel = components['schemas']['TruemainActivityBucketReadModel'];

@@ -3,7 +3,7 @@
 // "seed all" that POSTs every valid row with limited concurrency, tracking
 // per-row outcomes, progress and a summary. Parsing itself is in
 // `utils/seed-bulk.ts`.
-import type { SeedRequestStatus } from '~~/shared/types/ops'
+import type { SeedRequestStatus } from '#site-shared/contract/api'
 import type { TrackedRegion } from '~~/shared/utils/regions'
 import type { BulkParsedRow, BulkPreviewRow, BulkRowOutcome } from '~/utils/seed-bulk'
 import { parseBulkSeedLines } from '~/utils/seed-bulk'

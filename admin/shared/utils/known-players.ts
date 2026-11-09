@@ -1,7 +1,8 @@
 // What the known-players management (#2019) says about a known player and the
 // operator's edits. Kept under `shared/` so it is importable — and tested —
 // without the Nuxt runtime.
-import type { PersonaAdminAccount, PersonaExclusionReason, PersonaListRow, PersonaListView } from '~~/shared/types/ops'
+import type { PersonaListView } from '~~/shared/types/ops'
+import type { PersonaAdminAccountReadModel, PersonaExclusionReason, PersonaListRowReadModel } from '#site-shared/contract/api'
 import { TRACKED_REGIONS } from '~~/shared/utils/regions'
 import { riotIdError, splitRiotId } from '#site-shared/utils/riot-id'
 
@@ -97,7 +98,7 @@ export function linkUrlError(url: string): string | null {
 }
 
 /** `Name#TAG` as the source published it, with the current Riot ID when the account was renamed. */
-export function accountLabel(account: Pick<PersonaAdminAccount, 'gameName' | 'tagLine' | 'currentGameName' | 'currentTagLine'>): string {
+export function accountLabel(account: Pick<PersonaAdminAccountReadModel, 'gameName' | 'tagLine' | 'currentGameName' | 'currentTagLine'>): string {
   const published = `${account.gameName}#${account.tagLine}`
   if (!account.currentGameName || account.currentTagLine === null) {
     return published
@@ -107,7 +108,7 @@ export function accountLabel(account: Pick<PersonaAdminAccount, 'gameName' | 'ta
 }
 
 /** "2 tracked · 1 untracked", or "No account". */
-export function accountsSummary(row: Pick<PersonaListRow, 'trackedAccounts' | 'unresolvedAccounts'>): string {
+export function accountsSummary(row: Pick<PersonaListRowReadModel, 'trackedAccounts' | 'unresolvedAccounts'>): string {
   const parts = [
     row.trackedAccounts > 0 ? `${row.trackedAccounts} tracked` : null,
     row.unresolvedAccounts > 0 ? `${row.unresolvedAccounts} untracked` : null,

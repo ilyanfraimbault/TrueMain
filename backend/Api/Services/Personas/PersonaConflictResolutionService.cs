@@ -102,13 +102,12 @@ public sealed class PersonaConflictResolutionService(
 
     private static (PersonaConflictResolution Resolution, bool KeepClaimant)? Parse(PersonaConflictResolveRequest request)
     {
-        var keep = request.Keep?.Trim().ToLowerInvariant();
-        return request.Action?.Trim().ToLowerInvariant() switch
+        return request.Action switch
         {
-            "move" => (PersonaConflictResolution.Moved, false),
-            "keep" => (PersonaConflictResolution.Kept, false),
-            "detach" => (PersonaConflictResolution.Detached, false),
-            "merge" when keep is "claimant" or "owner" => (PersonaConflictResolution.Merged, keep == "claimant"),
+            PersonaConflictAction.Move => (PersonaConflictResolution.Moved, false),
+            PersonaConflictAction.Keep => (PersonaConflictResolution.Kept, false),
+            PersonaConflictAction.Detach => (PersonaConflictResolution.Detached, false),
+            PersonaConflictAction.Merge when request.Keep is { } keep => (PersonaConflictResolution.Merged, keep == PersonaConflictSide.Claimant),
             _ => null,
         };
     }
@@ -333,7 +332,7 @@ public sealed class PersonaConflictResolutionService(
         new(PersonaConflictResolveResult.Ok, Resolved: new PersonaConflictResolvedResponse
         {
             Id = conflict.Id,
-            Resolution = resolution.ToString(),
+            Resolution = resolution,
             HolderSlug = holderSlug,
             MergedSlug = mergedSlug,
             AlsoResolved = alsoResolved,
@@ -344,7 +343,7 @@ public sealed class PersonaConflictResolutionService(
         // Best effort, like the seed intake's: the resolution is committed; a Mongo outage must not 500 it.
         try
         {
-            var metadata = new Dictionary<string, string> { ["resolution"] = resolved.Resolution };
+            var metadata = new Dictionary<string, string> { ["resolution"] = resolved.Resolution.ToString() };
             if (resolved.HolderSlug is { } holder)
             {
                 metadata["holder"] = holder;

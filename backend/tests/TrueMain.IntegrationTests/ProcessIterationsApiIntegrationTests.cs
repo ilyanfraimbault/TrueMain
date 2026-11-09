@@ -60,7 +60,7 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/process-iterations");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>();
+        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         // Only the two iteration-grouped passes — the legacy un-grouped run is excluded.
@@ -209,7 +209,7 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync(url);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>();
+        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>(ApiJson.Options);
         payload.Should().NotBeNull();
         return payload!;
     }
