@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using Data.Metrics;
-using Ingestor.Options;
+using Data.Pipeline;
 
 namespace Ingestor.Services;
 

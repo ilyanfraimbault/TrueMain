@@ -4,7 +4,7 @@
 // Split out of `AccountsTrace.vue` (#1436).
 import type { AccountExplorer, AccountPipelineState, BadgeColor } from '~~/shared/types/ops'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
-import { formatRiotId } from '~~/shared/utils/riot-id'
+import { formatRiotId } from '#site-shared/utils/riot-id'
 
 const props = defineProps<{
   result: AccountExplorer

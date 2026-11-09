@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Data.Pipeline;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -54,7 +55,7 @@ public sealed class WorkerResilienceTests
         // its own scope (its own DbContext / scoped services) rather than sharing
         // a single scope across the whole run — so the keyed lookup must happen on
         // the scope's provider, not on the root one.
-        var steps = JobModeSequence.For(JobMode.Full);
+        var steps = PipelineCatalog.Steps.Select(step => step.Mode).ToList();
 
         var services = new ServiceCollection();
         foreach (var step in steps)

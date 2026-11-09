@@ -4,7 +4,7 @@ import type { LibraryItem } from '~/utils/recording-library'
 import { clipDeleteDescription, itemTitle, recordingKda, revealLabel } from '~/utils/recording-library'
 import { videoOnDisk, youtubeUrl } from '~/types/recordings'
 import { clipOrigin } from '~/utils/auto-clips'
-import { getQueueLabel } from '#common/utils/queues'
+import { getQueueLabel } from '#shared/utils/queues'
 
 /**
  * One card of the Recordings page, laid out as the reference's: the picture,

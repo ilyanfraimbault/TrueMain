@@ -1,4 +1,5 @@
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Ingestor.FetchWorkers;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -99,7 +100,7 @@ public sealed class Worker(
 
     private async Task RunFetchWorkersAsync(JobMode mode, bool runOnce, CancellationToken stoppingToken)
     {
-        if (!JobModeSequence.RunsPermanentFetchWorkers(mode))
+        if (!PipelineCatalog.RunsPermanentFetchWorkers(mode))
         {
             return;
         }
@@ -159,24 +160,7 @@ public sealed class Worker(
             // Only this instance's own steps (#1362). Running the pipeline as two lanes puts
             // two ingestor processes on the same database, and a sweep that abandoned every
             // Running document would mark the other lane's live run as dead on every restart.
-            //
-            // Resolved with GetKeyedService, not GetRequiredKeyedService: a step with no
-            // registration is a wiring mistake that the run itself reports, precisely and by
-            // name. Throwing here would bury that behind a second, vaguer boot error.
-            var ownedProcesses = JobModeSequence.For(mode)
-                .Select(step => scope.ServiceProvider.GetKeyedService<IIngestorProcess>(step)?.Name)
-                .OfType<string>()
-                .ToList();
-
-            if (ownedProcesses.Count == 0)
-            {
-                // An empty list means "every process" to the store, which is the one thing
-                // this must not do when it does not know what it owns.
-                logger.LogWarning(
-                    "No registered process resolved for mode {Mode}; skipping orphaned-run reconciliation.",
-                    mode);
-                return;
-            }
+            var ownedProcesses = PipelineCatalog.StepsOwnedBy(mode).Select(step => step.Name).ToList();
 
             var abandoned = await recorder.ReconcileOrphanedRunsAsync(ownedProcesses, stoppingToken);
             if (abandoned > 0)
@@ -203,7 +187,7 @@ public sealed class Worker(
         // release from the aggregate lane would free whatever the fetch lane is holding
         // right now — every one of its accounts, on every restart of a container that has
         // nothing to do with them.
-        if (!JobModeSequence.For(mode).Contains(JobMode.MatchIngestionOnly))
+        if (!PipelineCatalog.StepsOwnedBy(mode).Contains(PipelineCatalog.MatchIngestion))
         {
             return;
         }
@@ -239,7 +223,7 @@ public sealed class Worker(
     {
         // Only the lane that runs the manual seed: a Resolving seed request is that
         // process's claim, and another lane's boot has no business releasing it.
-        if (!JobModeSequence.For(mode).Contains(JobMode.ManualSeedOnly))
+        if (!PipelineCatalog.StepsOwnedBy(mode).Contains(PipelineCatalog.ManualSeed))
         {
             return;
         }
@@ -332,7 +316,7 @@ public sealed class Worker(
     {
         // Less the steps permanent workers run on their own (#1457), so a FetchWorkers pass
         // is the fetch lane's maintenance: every step but match fetching.
-        var sequence = JobModeSequence.SequencedStepsFor(mode);
+        var sequence = PipelineCatalog.SequencedStepsFor(mode);
 
         // Open a fresh iteration for this whole pass so every ProcessRun recorded
         // below (across the per-process scopes) is stamped with the same id and the
@@ -356,18 +340,18 @@ public sealed class Worker(
             // resolve leniently and throw one that names the offending mode. The
             // throw aborts this pass but is caught by RunOnceAsync, so a bad
             // registration is loud in the logs instead of crash-looping the host.
-            var process = scope.ServiceProvider.GetKeyedService<IIngestorProcess>(step)
+            var process = scope.ServiceProvider.GetKeyedService<IIngestorProcess>(step.Mode)
                 ?? throw new InvalidOperationException(
-                    $"No IIngestorProcess is registered for {nameof(JobMode)}.{step} "
+                    $"No IIngestorProcess is registered for {nameof(JobMode)}.{step.Mode} "
                     + $"(reached while running Job:Mode '{mode}'). "
                     + $"Registered modes: {DescribeRegisteredModes(scope.ServiceProvider)}. "
-                    + "Register the missing one via AddRecordedProcess<T>(JobMode) in AddIngestorProcesses.");
+                    + "Mark its class with [PipelineStep] so AddIngestorProcesses registers it.");
 
             // Ambient caller attribution (#1035): every Riot call the process makes
             // while this scope is open is tagged with its name in the usage rollups,
             // so /riot-api can attribute consumption per caller. Scoped to just the
             // RunCoreAsync call so it never leaks into the next process below.
-            using var callerScope = callerContext.BeginCall(process.Name);
+            using var callerScope = callerContext.BeginCall(step.Name);
 
             try
             {
@@ -388,13 +372,13 @@ public sealed class Worker(
                 logger.LogError(
                     ex,
                     "Process {ProcessName} failed; continuing with the next process in the sequence.",
-                    process.Name);
+                    step.Name);
 
                 // This is the catch that hides the failures worth alerting on: a dead
                 // Riot key or schema drift surfaces here, per process, and never reaches
                 // RunOnceAsync. Counting only the outer catch would leave the counter at
                 // zero in exactly the scenario it exists for (#260).
-                metrics.RecordRunFailure(process.Name, mode);
+                metrics.RecordRunFailure(step.Name, mode);
             }
         }
     }
