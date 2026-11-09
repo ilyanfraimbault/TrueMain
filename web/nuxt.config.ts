@@ -2,10 +2,12 @@
 import { fileURLToPath } from 'node:url'
 import { addServerHandler, defineNuxtModule } from '@nuxt/kit'
 import { IPX_CACHE_SECONDS, IPX_ROUTE_BASE, IPX_SOURCE_DOMAINS } from './shared/utils/ipx'
+import { SITE_PAGES, sitePageGlob, type SitePage } from './shared/utils/site-pages'
 
-// How long a rendered text page stays in the Nitro cache before it is
-// re-rendered in the background (see the `routeRules` entries below).
-const STATIC_PAGE_SWR_SECONDS = 60 * 60 // 1 hour
+// The sitemap families and route rules derive from the site's page catalogue.
+const sitemapGlobs = (family: SitePage['sitemap']) =>
+  SITE_PAGES.filter(page => page.sitemap === family).map(page => sitePageGlob(page.path))
+const DYNAMIC_SITEMAP_FAMILIES = ['champions', 'players', 'truemains'] as const
 
 // The static Inter cuts the share cards render with (see `ogImage` below):
 // latin only, the weights `app/components/OgImage/*` set. From @fontsource/inter
@@ -77,13 +79,10 @@ export default defineNuxtConfig({
     },
   },
   sitemap: {
-    // `/truemains/favorites` renders a per-visitor localStorage list — there is
-    // nothing stable for a crawler to index (the page also sets `noindex`).
-    // `/builder` is the legacy redirect to `/matchup` (#939) — kept for old
-    // links, not something to advertise. `/dev/*` is stripped from the prod
-    // build entirely (hook below) but excluded here too so a dev-mode sitemap
-    // stays clean. Applies to every sitemap below.
-    exclude: ['/dev/**', '/truemains/favorites', '/builder'],
+    // Pages no sitemap lists (`shared/utils/site-pages.ts` says why for each),
+    // plus `/dev/*`, which the production build strips (hook below). Applies to
+    // every sitemap below.
+    exclude: ['/dev/**', ...sitemapGlobs(null)],
     // An index (`/sitemap_index.xml`, which `/sitemap.xml` redirects to) over
     // one sitemap per page family (#1538), so Search Console reports what it
     // read and indexed family by family. Static pages are auto-discovered from
@@ -91,10 +90,9 @@ export default defineNuxtConfig({
     // endpoint (server/routes/__sitemap__/urls.ts, which also says why truemain
     // profiles are *not* advertised, #1337), split by path.
     sitemaps: {
-      pages: { includeAppSources: true, exclude: ['/champions/*', '/players/*', '/truemains/*'] },
-      champions: { sources: ['/__sitemap__/urls'], include: ['/champions/*'] },
-      players: { sources: ['/__sitemap__/urls'], include: ['/players/*'] },
-      truemains: { sources: ['/__sitemap__/urls'], include: ['/truemains/*'] },
+      pages: { includeAppSources: true, exclude: DYNAMIC_SITEMAP_FAMILIES.flatMap(sitemapGlobs) },
+      ...Object.fromEntries(DYNAMIC_SITEMAP_FAMILIES.map(family =>
+        [family, { sources: ['/__sitemap__/urls'], include: sitemapGlobs(family) }])),
     },
   },
   // On-demand social-share artwork (#926). This was `enabled: false` from the
@@ -299,19 +297,8 @@ export default defineNuxtConfig({
         'cache-control': `public, max-age=${IPX_CACHE_SECONDS}, immutable`,
       },
     },
-    // The three text pages fetch nothing of their own, so their HTML only
-    // depends on the shell: render it once, then serve it from the Nitro cache
-    // and re-render in the background when the entry ages out (#1617).
-    // `swr` rather than `prerender` on purpose: a prerendered page would carry
-    // the *build* environment's `runtimeConfig.public` — no Umami, no version
-    // stamp, the prod canonical URL on preprod — for the whole visit that lands
-    // on it, which is exactly what the runtime-config decision below avoids.
-    // The TTL matches the champion slug map's own server cache
-    // (`layers/nitro/server/api/static/champion-slugs.get.ts`), so a cached page is never
-    // staler than an SSR one.
-    '/about': { swr: STATIC_PAGE_SWR_SECONDS },
-    '/privacy': { swr: STATIC_PAGE_SWR_SECONDS },
-    '/terms': { swr: STATIC_PAGE_SWR_SECONDS },
+    // Pages served stale-while-revalidate (`shared/utils/site-pages.ts`, #1617).
+    ...Object.fromEntries(SITE_PAGES.flatMap(page => page.swrSeconds ? [[page.path, { swr: page.swrSeconds }]] : [])),
   },
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
