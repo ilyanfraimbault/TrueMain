@@ -14,7 +14,6 @@ import { formatDuration } from './relativeTime'
  * curve stores reads for team 100; these turn it to the viewer's side.
  */
 
-/** How many turning points are listed. */
 export const SWINGS_SHOWN = 5
 
 /**
@@ -97,7 +96,6 @@ export function structureLabel(
 export interface SwingContext {
   /** The side the viewer reads the game for. */
   perspectiveTeamId: number
-  /** A participant's champion name. */
   championName: (participantId: number) => string
 }
 

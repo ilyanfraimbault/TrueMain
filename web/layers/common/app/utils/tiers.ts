@@ -28,7 +28,6 @@ export function tierHex(tier: string | null | undefined): string {
   return (tier && TIER_HEX[tier.toUpperCase()]) || THEME_HEX['ink-500']
 }
 
-/** Returns a Tailwind text-colour class for the tier, or a muted default. */
 export function tierColor(tier: string | null | undefined): string {
   if (!tier) return 'text-muted'
   return TIER_COLORS[tier.toUpperCase()] ?? 'text-default'

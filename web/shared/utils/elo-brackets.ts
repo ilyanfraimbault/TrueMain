@@ -34,12 +34,10 @@ export const ELO_PLUS_SUFFIX = '_PLUS'
  */
 export const DEFAULT_ELO_BRACKET = 'MASTER_PLUS'
 
-/** Filter value for "this tier only". */
 export function tierOnly(tier: EloTier): string {
   return tier
 }
 
-/** Filter value for "this tier and above". */
 export function tierPlus(tier: EloTier): string {
   return `${tier}${ELO_PLUS_SUFFIX}`
 }

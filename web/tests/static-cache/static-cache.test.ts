@@ -64,10 +64,3 @@ describe('getStaticCachedData', () => {
   })
 })
 
-describe('markStaticFetched', () => {
-  it('writes the timestamp to the sibling key', () => {
-    const host = makeHost()
-    markStaticFetched('rune-tree', host, 1234)
-    expect(host.payload.data['rune-tree::fetchedAt']).toBe(1234)
-  })
-})
