@@ -41,6 +41,8 @@ export interface DesktopDownloadVersion {
 
 export interface DesktopKeyUsage {
   key: string
+  /** What the page calls it, from the API's catalog. */
+  label: string
   count: number
   installs: number
 }
