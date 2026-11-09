@@ -24,10 +24,6 @@ const title = computed(() =>
     : 'Candidate detail',
 )
 
-// Ordered pipeline stages for the detail stepper, with the timestamp that marks
-// each one. Processing has no dedicated timestamp on the entity, so it inherits
-// the discovered floor for ordering only.
-
 // Index of the open candidate's stage in `CANDIDATE_STATUSES`, and the derived
 // reached/not-reached flag per stage. Computed once per detail instead of
 // re-scanning the array four times per rendered step.
