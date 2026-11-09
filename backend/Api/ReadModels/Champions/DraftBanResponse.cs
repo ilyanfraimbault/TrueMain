@@ -18,7 +18,7 @@ public sealed record DraftBanCandidateReadModel
     /// <summary>
     /// The facts behind the suggestion, strongest first: <c>laneThreat</c> (our
     /// pick is behind into it) or <c>banRate</c> (the fallback: how often it is
-    /// banned) — see <see cref="DraftReasonKinds"/>.
+    /// banned) — see <see cref="DraftReasonKind"/>.
     /// </summary>
     public IReadOnlyList<DraftReasonReadModel> Reasons { get; init; } = [];
 }

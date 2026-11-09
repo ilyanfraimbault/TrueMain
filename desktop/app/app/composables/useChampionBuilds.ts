@@ -1,4 +1,4 @@
-import type { ChampionBuildResponse } from '~/types/build'
+import type { ChampionResponse } from '#shared/contract/api'
 
 /**
  * A champion's builds on one lane — the site's champion page endpoint, one
@@ -7,7 +7,7 @@ import type { ChampionBuildResponse } from '~/types/build'
  * draft should not ask twice for the same one.
  */
 export function useChampionBuilds(championId: Ref<number | null>, position: Ref<string | null>) {
-  const cache = useState<Record<string, ChampionBuildResponse>>('champion-builds', () => ({}))
+  const cache = useState<Record<string, ChampionResponse>>('champion-builds', () => ({}))
   const pending = ref(false)
   const error = ref<string | null>(null)
 
@@ -16,12 +16,12 @@ export function useChampionBuilds(championId: Ref<number | null>, position: Ref<
 
   let latest = 0
 
-  async function fetchBuilds(champion: number, lane: string): Promise<ChampionBuildResponse> {
+  async function fetchBuilds(champion: number, lane: string): Promise<ChampionResponse> {
     if (insideTauri()) {
       const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<ChampionBuildResponse>('champion_build', { championId: champion, position: lane, opponentChampionId: null })
+      return await invoke<ChampionResponse>('champion_build', { championId: champion, position: lane, opponentChampionId: null })
     }
-    return await $fetch<ChampionBuildResponse>(`/api/champions/${champion}`, { query: { position: lane } })
+    return await $fetch<ChampionResponse>(`/api/champions/${champion}`, { query: { position: lane } })
   }
 
   watch(key, async (next) => {

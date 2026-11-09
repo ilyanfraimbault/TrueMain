@@ -186,7 +186,7 @@ public sealed class DraftBanQueryService(
                 [
                     new DraftReasonReadModel
                     {
-                        Kind = DraftReasonKinds.BanRate,
+                        Kind = DraftReasonKind.BanRate,
                         ChampionId = id,
                         Rate = banRates.RateFor(id),
                         Games = (int)Math.Min(int.MaxValue, banRates.Matches),

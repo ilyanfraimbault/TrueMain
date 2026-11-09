@@ -27,7 +27,7 @@ public class DraftSuggestionScorerTests
         var candidate = DraftCandidateScorer.Score(1, record, NoOccupancy, shares, 0.5, [], Weights);
 
         var reason = Assert.Single(candidate.Reasons);
-        Assert.Equal(DraftReasonKinds.BlindSafety, reason.Kind);
+        Assert.Equal(DraftReasonKind.BlindSafety, reason.Kind);
         Assert.Equal(0, reason.Count);
         Assert.Equal(2, reason.Of);
         Assert.True(candidate.Score > 0);
@@ -43,11 +43,11 @@ public class DraftSuggestionScorerTests
 
         var candidate = DraftCandidateScorer.Score(1, record, occupancy, NoOccupancy, 0.5, allies, Weights);
 
-        Assert.Equal(DraftReasonKinds.LaneMatchup, candidate.Reasons[0].Kind);
+        Assert.Equal(DraftReasonKind.LaneMatchup, candidate.Reasons[0].Kind);
         Assert.Equal(10, candidate.Reasons[0].ChampionId);
         Assert.Equal(1d, candidate.Reasons[0].Probability);
-        Assert.Equal(DraftReasonKinds.Synergy, candidate.Reasons[1].Kind);
-        Assert.Equal(DraftReasonKinds.LanePhase, candidate.Reasons[2].Kind);
+        Assert.Equal(DraftReasonKind.Synergy, candidate.Reasons[1].Kind);
+        Assert.Equal(DraftReasonKind.LanePhase, candidate.Reasons[2].Kind);
         Assert.Equal(2d / 3d, candidate.Reasons[2].Rate!.Value, 9);
         Assert.Equal(0.05, candidate.MatchupDelta, 9);
     }
@@ -62,7 +62,7 @@ public class DraftSuggestionScorerTests
         var weakCandidate = DraftCandidateScorer.Score(2, weak, NoOccupancy, NoOccupancy, 0.52, [], Weights);
 
         var reason = Assert.Single(strongCandidate.Reasons);
-        Assert.Equal(DraftReasonKinds.LaneStrength, reason.Kind);
+        Assert.Equal(DraftReasonKind.LaneStrength, reason.Kind);
         Assert.Equal(0.04, reason.Delta!.Value, 9);
         Assert.Equal(0.04, strongCandidate.StrengthDelta, 9);
         Assert.True(strongCandidate.Score > weakCandidate.Score);
@@ -104,7 +104,7 @@ public class DraftSuggestionScorerTests
 
         Assert.Equal([10, 11], bans.Select(b => b.ChampionId));
         var reason = Assert.Single(bans[0].Reasons);
-        Assert.Equal(DraftReasonKinds.LaneThreat, reason.Kind);
+        Assert.Equal(DraftReasonKind.LaneThreat, reason.Kind);
         Assert.Equal(1, reason.ChampionId);
         Assert.Equal(0.5, reason.Share!.Value, 9);
     }

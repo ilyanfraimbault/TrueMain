@@ -1,6 +1,6 @@
-import type { ChampionItemContextItemReadModel } from '#shared/contract/api'
+import type { BuildTreeNodeReadModel, ChampionItemContextItemReadModel } from '#shared/contract/api'
 import type { Kit } from '#shared/types/kit'
-import type { BuildCoreView, BuildTreeNode } from '~/types/build'
+import type { BuildCoreView } from '~/types/build'
 import { kitPaths } from '~/utils/kit-tree'
 
 /**
@@ -34,7 +34,7 @@ export function situationalFromContext(items: ChampionItemContextItemReadModel[]
  * to at each step of the core path — the path's siblings — most played first.
  * `tree` holds what followed the first item, which `path` starts with.
  */
-export function situationalFromTree(tree: BuildTreeNode[], path: number[]): number[] {
+export function situationalFromTree(tree: BuildTreeNodeReadModel[], path: number[]): number[] {
   const games = new Map<number, number>()
   let level = tree
   for (const step of path.slice(1)) {

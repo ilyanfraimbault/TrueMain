@@ -1,4 +1,4 @@
-import type { DraftBans } from '~/types/draft'
+import type { DraftBanResponse } from '#shared/contract/api'
 import type { DraftState } from '~/types/lcu'
 
 /** Bans and hovers landing together collapse into one request. */
@@ -24,20 +24,20 @@ export function useDraftBans(
   /** The player's bracket (`useDraftEloBracket`); null reads every bracket. */
   eloBracket: Ref<string | null> = ref(null),
 ) {
-  const bans = ref<DraftBans | null>(null)
+  const bans = ref<DraftBanResponse | null>(null)
   const pending = ref(false)
   const error = ref<string | null>(null)
 
   let latestRequest = 0
   let timer: ReturnType<typeof setTimeout> | undefined
 
-  async function ask(request: object): Promise<DraftBans> {
+  async function ask(request: object): Promise<DraftBanResponse> {
     if (insideTauri()) {
       const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<DraftBans>('draft_bans', { request })
+      return await invoke<DraftBanResponse>('draft_bans', { request })
     }
     // `npm run dev` in a browser: the dev server proxies `/api` (nuxt.config).
-    return await $fetch<DraftBans>('/api/champions/draft/bans', { method: 'POST', body: request })
+    return await $fetch<DraftBanResponse>('/api/champions/draft/bans', { method: 'POST', body: request })
   }
 
   /** Our hover, not yet locked: the pick the bans protect. */

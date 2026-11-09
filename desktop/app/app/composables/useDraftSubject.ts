@@ -1,5 +1,5 @@
+import type { DraftEnemyLaneReadModel } from '#shared/contract/api'
 import type { CompositionSlot } from '~/types/build'
-import type { EnemyLane } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 import type { BuildSubject } from '~/composables/useDraftBuild'
 
@@ -21,7 +21,7 @@ export interface ViewedPick {
  */
 export function useDraftSubject(
   draft: Ref<DraftState>,
-  enemyLanes: Ref<EnemyLane[]>,
+  enemyLanes: Ref<DraftEnemyLaneReadModel[]>,
   viewed: Ref<ViewedPick | null>,
   previewed: Ref<number | null>,
 ) {
