@@ -1,4 +1,4 @@
-import type { CompositionBuildRequest, CompositionBuildResponse, CompositionSlotInput } from '#shared/types/composition'
+import type { CompositionBuildRequest, CompositionBuildResponse, CompositionSlotInput } from '#shared/contract/api'
 import { describeStaleFetchError } from '#common/utils/errors'
 import { POSITION_OPTIONS, type ChampionPosition } from '#shared/utils/positions'
 

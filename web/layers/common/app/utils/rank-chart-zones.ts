@@ -1,4 +1,4 @@
-import type { ApexCutoff } from '#shared/types/apex-cutoffs'
+import type { ApexCutoffReadModel } from '#shared/contract/api'
 import type { RankChartPoint } from '#common/utils/rank-chart'
 import { ELO_TIERS } from '#shared/utils/ranks'
 
@@ -10,7 +10,7 @@ import { ELO_TIERS } from '#shared/utils/ranks'
 // 2800 too, but Grandmaster and Challenger have no fixed LP: each region
 // promotes whoever sits above the lowest LP of its Grandmaster / Challenger
 // league that day, so those two thresholds move from one snapshot to the next
-// and are only known where a cutoff was measured (`ApexCutoff`).
+// and are only known where a cutoff was measured (`ApexCutoffReadModel`).
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const TIER_SPAN = 400
@@ -91,7 +91,7 @@ function nearestValue(
 }
 
 /** The apex floors in effect on each snapshot's UTC day. */
-export function apexFloorsAt(points: readonly RankChartPoint[], cutoffs: readonly ApexCutoff[]): ApexFloors[] {
+export function apexFloorsAt(points: readonly RankChartPoint[], cutoffs: readonly ApexCutoffReadModel[]): ApexFloors[] {
   const byDay = cutoffs
     .map(cutoff => ({ day: utcDay(cutoff.dateUtc), gm: cutoff.grandmasterMinLp, ch: cutoff.challengerMinLp }))
     .sort((a, b) => a.day - b.day)

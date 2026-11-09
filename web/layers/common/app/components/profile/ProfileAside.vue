@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import type { TruemainActivityResponse } from '#shared/types/activity'
-import type { ProfileResponse } from '#shared/types/profile'
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { ProfileReadModel, RankHistoryEntryReadModel, TruemainActivityReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 
 // A player profile's 18rem column, for every host's profile page: ranked card,
@@ -10,17 +8,17 @@ import type { ChampionStaticListItem } from '#shared/types/static-data'
 // said once, instead of four skeletons that never end (#2476).
 defineProps<{
   nameTag: string
-  profile: ProfileResponse | null | undefined
+  profile: ProfileReadModel | null | undefined
   profileLoading: boolean
   profileError: unknown
-  rankHistory: readonly RankHistoryEntry[]
+  rankHistory: readonly RankHistoryEntryReadModel[]
   rankHistoryLoading: boolean
-  activity: TruemainActivityResponse | null | undefined
+  activity: TruemainActivityReadModel | null | undefined
   activityLoading: boolean
   champions: ChampionStaticListItem[]
 }>()
 
-defineSlots<{ mains?: (props: { profile: ProfileResponse }) => unknown }>()
+defineSlots<{ mains?: (props: { profile: ProfileReadModel }) => unknown }>()
 </script>
 
 <template>

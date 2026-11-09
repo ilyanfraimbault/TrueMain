@@ -1,4 +1,4 @@
-import type { PlayerChampionPerformanceResponse } from '~~/shared/types/performance'
+import type { PlayerChampionPerformanceResponse } from '#shared/contract/api'
 import type { PositionFilter } from '#shared/utils/positions'
 import { fetchErrorStatus } from '#common/utils/errors'
 

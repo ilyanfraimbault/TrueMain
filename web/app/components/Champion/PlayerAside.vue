@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import type { ProfileRanked } from '#shared/types/profile'
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { ProfileRankedReadModel, RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { PositionFilter } from '#shared/utils/positions'
 
 // The player-scoped champion page's cards beside the build: the ranked card the
@@ -9,9 +8,9 @@ import type { PositionFilter } from '#shared/utils/positions'
 // matchups moved to the main column as a spread (the page itself).
 const props = defineProps<{
   /** Null until the profile has loaded: the ranked card skeletons. */
-  ranked: ProfileRanked | null | undefined
+  ranked: ProfileRankedReadModel | null | undefined
   profileLoaded: boolean
-  history: readonly RankHistoryEntry[]
+  history: readonly RankHistoryEntryReadModel[]
   historyLoading: boolean
   /** The player's platform, for the LP curve's Grandmaster / Challenger lines (#2174). */
   platformId: string | null

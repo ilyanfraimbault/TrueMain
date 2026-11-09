@@ -1,4 +1,4 @@
-import type { LeaderboardPositions, LeaderboardStats, LeaderboardTopChampion } from '#shared/types/leaderboard'
+import type { LeaderboardPositionsReadModel, LeaderboardStatsReadModel, LeaderboardTopChampionReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 import { formatCount } from '#shared/utils/counts'
@@ -33,7 +33,7 @@ export function leaderboardChampionIcon(championsById: ReadonlyMap<number, Champ
  * without main-champion analysis, so the column stays empty rather than
  * guessing a lane.
  */
-export function leaderboardLanes(positions: LeaderboardPositions | null): LeaderboardLane[] {
+export function leaderboardLanes(positions: LeaderboardPositionsReadModel | null): LeaderboardLane[] {
   if (!positions) return []
   return [positions.primary, positions.secondary]
     .filter((position): position is string => Boolean(position))
@@ -50,7 +50,7 @@ export function leaderboardLanes(positions: LeaderboardPositions | null): Leader
  * leaves no room for a second main), so any flagged top champion makes the
  * whole player one.
  */
-export function isOneTrick(topChampions: readonly LeaderboardTopChampion[]): boolean {
+export function isOneTrick(topChampions: readonly LeaderboardTopChampionReadModel[]): boolean {
   return topChampions.some(champion => champion.isOtp)
 }
 
@@ -62,7 +62,7 @@ export const SUB_CHAMPION_SLOTS = 2
  * long — padded with nulls, because a variable number of icons would shift
  * the columns beside them.
  */
-export function subChampionSlots(topChampions: readonly LeaderboardTopChampion[]): (LeaderboardTopChampion | null)[] {
+export function subChampionSlots(topChampions: readonly LeaderboardTopChampionReadModel[]): (LeaderboardTopChampionReadModel | null)[] {
   return Array.from({ length: SUB_CHAMPION_SLOTS }, (_, index) => topChampions[index + 1] ?? null)
 }
 
@@ -70,7 +70,7 @@ export function subChampionSlots(topChampions: readonly LeaderboardTopChampion[]
 export const EMPTY_STAT = '—'
 
 /** Games, KDA and win rate as the row writes them. */
-export function leaderboardStatLabels(stats: LeaderboardStats): { games: string, kda: string, winRate: string } {
+export function leaderboardStatLabels(stats: LeaderboardStatsReadModel): { games: string, kda: string, winRate: string } {
   return {
     games: formatCount(stats.games),
     kda: stats.kda === null ? EMPTY_STAT : formatKdaRatio(stats.kda),

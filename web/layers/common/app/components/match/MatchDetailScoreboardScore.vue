@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import { ordinal } from '#common/utils/ordinal'
 
 // A scoreboard player's performance score (#639) and placement. The score,
@@ -11,7 +11,7 @@ import { ordinal } from '#common/utils/ordinal'
 // graded (placement 0) keeps the column, empty, rather than ranking ten
 // players 0th.
 const props = defineProps<{
-  participant: MatchDetailParticipant
+  participant: MatchDetailParticipantReadModel
 }>()
 
 // Four steps inside the brand rose-gold (`primary`) palette: the better the

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { championDisplayName } from '#shared/utils/champion-name'
-import type { MatchSummaryParticipant } from '#shared/types/matches'
+import type { MatchSummaryParticipantReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { riotIdLabel } from '#shared/utils/truemain-path'
 import { compareByPosition, POSITION_BY_VALUE } from '#shared/utils/positions'
@@ -19,7 +19,7 @@ import { iconPlaceholderClass } from '#common/utils/icon-placeholder'
 // know draws the hollow "no icon" box: the list has landed before any row is
 // drawn, so its absence is final.
 const props = defineProps<{
-  participants: MatchSummaryParticipant[]
+  participants: MatchSummaryParticipantReadModel[]
   selfTeamId: number
   championById: Map<number, ChampionStaticListItem>
 }>()
@@ -39,7 +39,7 @@ function settle(event: Event) {
   (event.target as HTMLElement).classList.remove('img-skeleton')
 }
 
-function participantLabel(p: MatchSummaryParticipant): string {
+function participantLabel(p: MatchSummaryParticipantReadModel): string {
   const champion = championDisplayName(p.championId, props.championById.get(p.championId))
   const role = p.position ? POSITION_BY_VALUE.get(p.position)?.label : null
   const who = p.gameName ? ` — ${riotIdLabel(p.gameName, p.tagLine)}` : ''

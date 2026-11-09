@@ -198,7 +198,7 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
 
         var mains = await client.GetFromJsonAsync<ChampionTrendReadModel>($"/champions/{ChampionId}/trend?position=middle", ApiJson.Options);
         var everyone = await client.GetFromJsonAsync<ChampionTrendReadModel>(
-            $"/champions/{ChampionId}/trend?position=middle&truemainsOnly=false");
+            $"/champions/{ChampionId}/trend?position=middle&truemainsOnly=false", ApiJson.Options);
 
         // Mains only by default: the non-main games never reach the series (#2353).
         mains!.Points.Single(point => point.Patch == "16.5").Games.Should().Be(60);

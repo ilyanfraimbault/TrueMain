@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { LeaderboardTopChampion } from '#shared/types/leaderboard'
+import type { LeaderboardTopChampionReadModel } from '#shared/contract/api'
 import { EMPTY_STAT, isOneTrick, leaderboardLanes, leaderboardStatLabels, subChampionSlots } from '#common/utils/leaderboard-row'
 
-const champion = (championId: number, isOtp = false): LeaderboardTopChampion => ({
+const champion = (championId: number, isOtp = false): LeaderboardTopChampionReadModel => ({
   championId,
   games: 10,
   playRate: 0.5,

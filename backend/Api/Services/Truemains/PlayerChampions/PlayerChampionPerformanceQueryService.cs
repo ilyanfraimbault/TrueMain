@@ -355,7 +355,7 @@ public sealed class PlayerChampionPerformanceQueryService(
             {
                 components[i] = new PlayerChampionPerformanceComponent
                 {
-                    Kind = Kinds[i].ToString(),
+                    Kind = Kinds[i],
                     Weight = _weightTotals[i] / _games,
                     Value = _componentGames[i] == 0
                         ? null

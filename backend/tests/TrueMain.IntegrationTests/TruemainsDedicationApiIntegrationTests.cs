@@ -79,7 +79,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
         dedication.Score.Should().Be(expected.Score);
 
         dedication.Parts.Select(part => part.Key).Should().Equal(
-            DedicationPartKeys.PlayRate, DedicationPartKeys.Mastery, DedicationPartKeys.MasteryRank);
+            DedicationPart.PlayRate, DedicationPart.Mastery, DedicationPart.MasteryRank);
         dedication.Parts[0].Points.Should().BeApproximately(100d * DedicationScore.CommitmentWeight * expected.Commitment, 1e-9);
         dedication.Parts[1].Points.Should().BeApproximately(100d * DedicationScore.MasteryWeight * expected.Mastery, 1e-9);
         dedication.Parts[2].Points.Should().BeApproximately(100d * DedicationScore.MasteryRankWeight * expected.MasteryRank, 1e-9);
@@ -290,7 +290,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var page1 = await client.GetFromJsonAsync<LeaderboardResponse>(
-            "/truemains?sort=dedication&pageSize=2&page=1");
+            "/truemains?sort=dedication&pageSize=2&page=1", ApiJson.Options);
         page1!.Total.Should().Be(3);
         page1.Rows.Select(r => r.Identity.GameName)
             .Should().ContainInOrder("FirstMain", "SecondMain");
@@ -310,7 +310,7 @@ public sealed class TruemainsDedicationApiIntegrationTests : IAsyncLifetime
         }
 
         var page2 = await client.GetFromJsonAsync<LeaderboardResponse>(
-            "/truemains?sort=dedication&pageSize=2&page=2");
+            "/truemains?sort=dedication&pageSize=2&page=2", ApiJson.Options);
 
         page2!.Total.Should().Be(3, "the cached ranking still describes the population it scored");
         page2.Rows.Should().HaveCount(1);

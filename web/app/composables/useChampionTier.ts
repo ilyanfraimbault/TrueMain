@@ -1,4 +1,4 @@
-import type { ChampionDirectoryResponse } from '#shared/types/champion-directory'
+import type { ChampionDirectoryPageReadModel } from '#shared/contract/api'
 import { championSliceQuery } from '#common/utils/champion-slice-query'
 
 /**
@@ -30,12 +30,12 @@ export function useChampionTier(options: {
   })
 
   const apiFetch = useApiFetch()
-  const { data } = useAsyncData<ChampionDirectoryResponse | null>(
+  const { data } = useAsyncData<ChampionDirectoryPageReadModel | null>(
     () => `champion-tier-${Object.entries(query.value).map(([key, value]) => `${key}=${value}`).join('&')}`,
     (_nuxtApp, { signal }) => {
       const championId = Number(query.value.championId)
       if (!Number.isFinite(championId) || championId <= 0 || !query.value.position) return Promise.resolve(null)
-      return apiFetch<ChampionDirectoryResponse>('/champions/directory', { query: query.value, signal }).catch(() => null)
+      return apiFetch<ChampionDirectoryPageReadModel>('/champions/directory', { query: query.value, signal }).catch(() => null)
     },
     { server: false, watch: [query], default: () => null },
   )

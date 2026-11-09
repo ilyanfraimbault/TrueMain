@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ActivityMode, TruemainActivityResponse } from '#shared/types/activity'
+import type { ActivityMode, TruemainActivityReadModel } from '#shared/contract/api'
 import { formatPercentage } from '#shared/utils/ddragon'
 import {
   type ActivityCell,
@@ -47,7 +47,7 @@ import {
  * facts live one hover away.
  */
 const props = withDefaults(defineProps<{
-  data: TruemainActivityResponse | null
+  data: TruemainActivityReadModel | null
   loading?: boolean
   /**
    * The windows on offer, a subset of `MODES`. The desktop dashboard folds the

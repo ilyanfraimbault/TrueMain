@@ -110,18 +110,18 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
 
         // ALL sums both cohorts: 12 Gold + 12 Iron Yone-vs-Zed games.
         var all = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}");
+            $"/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
         all!.Matchups.Single(m => m.OpponentChampionId == Opponent).Games.Should().Be(24);
 
         // A bare Gold filter reads only the Gold-stamped slice of the aggregate.
         var gold = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLD");
+            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLD", ApiJson.Options);
         gold!.Matchups.Single(m => m.OpponentChampionId == Opponent).Games
             .Should().Be(12, "only the Gold-stamped games count");
 
         // GOLD_PLUS unions Gold and above; Iron is below and drops out.
         var goldPlus = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLD_PLUS");
+            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLD_PLUS", ApiJson.Options);
         goldPlus!.Matchups.Single(m => m.OpponentChampionId == Opponent).Games
             .Should().Be(12, "Iron is below Gold and drops out");
     }
@@ -186,7 +186,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}");
+            $"/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
 
         var zed = matchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
         zed.GoldDiffLaneGames.Should().Be(25, "both patch slices' samples fold together");
@@ -212,7 +212,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}");
+            $"/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
 
         var zed = matchups!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
         zed.AverageGoldDiffAt15.Should().BeNull("no lane of this matchup has a measured gap");
@@ -238,7 +238,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         // rows like "13 games, gold gap averaged over 16 lanes" reachable, and made
         // the same matchup answer differently here and on the leaderboard.
         var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}", ApiJson.Options);
 
         var talon = matchups!.Matchups.Should().ContainSingle().Subject;
         talon.Games.Should().Be(12, "the games and the lane counters are read off the same aggregate row");
@@ -257,9 +257,9 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var leaderboard = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}");
+            $"/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
         var searched = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}&opponent={Opponent}");
+            $"/champions/{Champion}/matchups?position={Position}&opponent={Opponent}", ApiJson.Options);
 
         // The two used to read different sources and disagreed on production by a
         // factor of 1.7 on the same matchup — 22 games listed, 13 searched. Only the
@@ -289,7 +289,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}");
+            $"/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
 
         matchups!.Matchups.Should().OnlyContain(m => m.OpponentChampionId == Opponent);
 
@@ -300,7 +300,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         // The search ignores both floors, so the dropped line is still reachable
         // deliberately — the whole point of keeping the lookup floor-free.
         var searched = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}", ApiJson.Options);
         searched!.Matchups.Should().ContainSingle().Which.Games.Should().Be(20);
     }
 
@@ -317,11 +317,11 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+            $"/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}", ApiJson.Options);
         var talon = matchups!.Matchups.Should().ContainSingle().Subject;
 
         var zedResponse = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}&opponent={Opponent}");
+            $"/champions/{Champion}/matchups?position={Position}&opponent={Opponent}", ApiJson.Options);
         var zed = zedResponse!.Matchups.Should().ContainSingle().Subject;
 
         talon.WinRate.Should().BeGreaterThan(zed.WinRate, "the raw rates rank Talon first");
@@ -346,7 +346,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}");
+            $"/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
         var zed = matchups!.Matchups.Should().ContainSingle().Subject;
 
         zed.Games.Should().Be(40, "the row itself is well above the games floor");
@@ -367,7 +367,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         // it is folded over every tracked account, so lending it here would tell this
         // player their lane went the way the population's did.
         var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}", ApiJson.Options);
 
         var talon = matchups!.Matchups.Should().ContainSingle().Subject;
         talon.Games.Should().Be(1, "the player scope still narrows to their own game");
@@ -385,7 +385,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var matchups = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
 
         // Four games against Zed: +500 gold at 15 (won), +100 (even), -400 (lost), and
         // one with no 15-minute reading, which is a game but not a lane anyone can call.
@@ -492,7 +492,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         // Two Yone-vs-Zed games in MIDDLE, one Yone-vs-Zed in TOP and one Yone-vs-Talon
         // in TOP: across every position Zed is one line of three games.
         var all = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/truemains/{nameTag}/champions/{Champion}/matchups?position=all");
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position=all", ApiJson.Options);
         all!.Position.Should().Be(LanePositions.AllPositions);
         all.Matchups.Should().HaveCount(2);
         var zed = all.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
@@ -503,7 +503,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
 
         // A single position still reads only its own games.
         var middle = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
         middle!.Matchups.Should().ContainSingle()
             .Which.Games.Should().Be(2);
     }
@@ -562,14 +562,14 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         // by name. #1098 fixed exactly this on the aggregate path; the live path kept
         // the hole, and the comment beside it claimed the two agreed.
         var searched = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}");
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}&opponent={OtherOpponent}", ApiJson.Options);
         var talon = searched!.Matchups.Should().ContainSingle().Subject;
         talon.Games.Should().Be(2);
         talon.PlayRate.Should().BeApproximately(2d / 10d, 1e-9);
 
         // And the list's shares are over that same field, and add up to all of it.
         var listed = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}");
+            $"/truemains/{nameTag}/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
         var zed = listed!.Matchups.Should().ContainSingle(m => m.OpponentChampionId == Opponent).Subject;
         zed.Games.Should().Be(8);
         zed.PlayRate.Should().BeApproximately(8d / 10d, 1e-9);
@@ -588,9 +588,9 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var first = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}");
+            $"/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
         var second = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}");
+            $"/champions/{Champion}/matchups?position={Position}", ApiJson.Options);
 
         // Talon (91) before Zed (238): the opponent id is the tie-breaker, so two
         // identical requests can never hand back the same rows in a different
@@ -618,7 +618,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
         // The recognised filter still reads its own slice, so the rejection is about
         // the value and not about the parameter.
         var gold = await client.GetFromJsonAsync<ChampionMatchupsResponse>(
-            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLD");
+            $"/champions/{Champion}/matchups?position={Position}&eloBracket=GOLD", ApiJson.Options);
         gold!.Matchups.Single(m => m.OpponentChampionId == Opponent).Games.Should().Be(12);
     }
 

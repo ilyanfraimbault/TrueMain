@@ -1,4 +1,4 @@
-import type { ChampionResponse } from '~~/shared/types/champions'
+import type { ChampionResponse } from '#shared/contract/api'
 import { describeStaleFetchError, fetchErrorStatus } from '#common/utils/errors'
 import { resolveGlobalChampion } from '~/utils/champion-fetch'
 import { GLOBAL_CHAMPION_SCOPE, type ChampionScope } from '#common/utils/champion-scope'

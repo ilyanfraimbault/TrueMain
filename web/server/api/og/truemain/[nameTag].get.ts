@@ -1,5 +1,5 @@
 import type { TruemainOgCard } from '~~/shared/types/og-card'
-import type { ProfileResponse } from '~~/shared/types/profile'
+import type { ProfileReadModel } from '#shared/contract/api'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
 import { selectSignatureMain } from '~~/shared/utils/og-card'
 import { riotIdLabel } from '~~/shared/utils/truemain-path'
@@ -34,7 +34,7 @@ const EMPTY_CARD: TruemainOgCard = {
  */
 const loadTruemainOgCard = defineCachedRead<TruemainOgCard, [string, string?]>(
   async (nameTag: string, forwardedFor?: string): Promise<TruemainOgCard> => {
-    const profile = await readOrAbsent<ProfileResponse>(
+    const profile = await readOrAbsent<ProfileReadModel>(
       `/api/truemains/${encodeURIComponent(nameTag)}/profile`,
       { forwardedFor },
     )

@@ -8,7 +8,7 @@
   app's "Watch") goes in the `actions` slot, scoped by the row's match.
 -->
 <script setup lang="ts">
-import type { MatchSummaryResponse } from '#shared/types/matches'
+import type { MatchSummaryReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
@@ -21,7 +21,7 @@ const SKELETON_ROWS = 6
 
 const props = defineProps<{
   /** The page on screen, newest first — the list cuts it into days, it never re-sorts. */
-  matches: MatchSummaryResponse[]
+  matches: MatchSummaryReadModel[]
   /** The page is being read; the statics are waited on here. */
   loading: boolean
   /** Every match there is, for the pager. */
@@ -47,7 +47,7 @@ const props = defineProps<{
 
 const page = defineModel<number>('page', { required: true })
 
-defineSlots<{ actions?: (props: { match: MatchSummaryResponse }) => unknown }>()
+defineSlots<{ actions?: (props: { match: MatchSummaryReadModel }) => unknown }>()
 
 // The empty state needs no static data, so it never waits on it: a failing
 // static read (CDragon lagging a new patch) would otherwise pin the skeletons

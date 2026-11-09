@@ -2,7 +2,7 @@
 import { formatCount } from '#shared/utils/counts'
 import { formatPointDelta } from '#shared/utils/deltas'
 import { championDisplayName } from '#shared/utils/champion-name'
-import type { ChampionTrendPoint } from '#shared/types/champions'
+import type { ChampionTrendPoint } from '#shared/contract/api'
 import { formatPercentage, formatPercentageOrDash } from '#shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '#shared/utils/positions'
 

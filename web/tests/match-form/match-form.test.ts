@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FormTile } from '#common/utils/match-form'
 import { MIN_GAMES_FOR_DELTA, formTiles } from '#common/utils/match-form'
-import type { MatchSummaryResponse, MatchSummarySelf } from '~~/shared/types/matches'
+import type { MatchSummaryReadModel, MatchSummarySelfReadModel } from '#shared/contract/api'
 
 /**
  * The four form tiles the profile opens on, on the site and in the app alike.
@@ -13,7 +13,7 @@ import type { MatchSummaryResponse, MatchSummarySelf } from '~~/shared/types/mat
  */
 
 /** One thirty-minute game; the self line the tiles read, every other field inert. */
-function match(index: number, self: Partial<MatchSummarySelf> = {}, gameDurationSeconds = 1800): MatchSummaryResponse {
+function match(index: number, self: Partial<MatchSummarySelfReadModel> = {}, gameDurationSeconds = 1800): MatchSummaryReadModel {
   return {
     matchId: `EUW1_${index}`,
     queueId: 420,
@@ -51,7 +51,7 @@ function match(index: number, self: Partial<MatchSummarySelf> = {}, gameDuration
 }
 
 /** Newest first, as every history is served: the `recent` games' deaths, then the `older` ones'. */
-function deathsRun(recent: number[], older: number[]): MatchSummaryResponse[] {
+function deathsRun(recent: number[], older: number[]): MatchSummaryReadModel[] {
   return [...recent, ...older].map((deaths, index) => match(index, { deaths }))
 }
 

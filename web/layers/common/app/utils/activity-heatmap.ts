@@ -1,4 +1,4 @@
-import type { ActivityBucket, ActivityMode, ActivitySeries } from '#shared/types/activity'
+import type { ActivityMode, TruemainActivityBucketReadModel, TruemainActivitySeriesReadModel } from '#shared/contract/api'
 import { formatPercentage } from '#shared/utils/ddragon'
 
 /**
@@ -19,7 +19,7 @@ export const ACTIVITY_LEVELS = 4
 
 /** One tile of the grid, resolved for drawing: its colour and its hover text. */
 export interface ActivityCell {
-  bucket: ActivityBucket
+  bucket: TruemainActivityBucketReadModel
   fill: string
   label: string
   result: string
@@ -87,7 +87,7 @@ export function activityCellsAreGames(mode: ActivityMode): boolean {
  * a won game on the deepest step, a lost one two steps lighter, so the strip
  * still has a shape instead of being a flat rose bar.
  */
-export function activityCellLevel(bucket: ActivityBucket, maxGames: number, perGame = false): number {
+export function activityCellLevel(bucket: TruemainActivityBucketReadModel, maxGames: number, perGame = false): number {
   if (bucket.games <= 0) return 0
   if (perGame) return bucket.wins > 0 ? ACTIVITY_LEVELS : ACTIVITY_LEVELS - 2
 
@@ -102,7 +102,7 @@ export function activityCellLevel(bucket: ActivityBucket, maxGames: number, perG
  * {@link ACTIVITY_EMPTY_FILL} — `games: 0` and `winRate: 0` are different facts
  * and must never render alike.
  */
-export function activityCellFill(bucket: ActivityBucket, maxGames: number, perGame = false): string | null {
+export function activityCellFill(bucket: TruemainActivityBucketReadModel, maxGames: number, perGame = false): string | null {
   if (bucket.games <= 0) return null
 
   return ACTIVITY_RAMP[activityCellLevel(bucket, maxGames, perGame) - 1]!
@@ -112,7 +112,7 @@ export function activityCellFill(bucket: ActivityBucket, maxGames: number, perGa
  * The busiest cell in the series — the denominator of the intensity scale above.
  * Returns 0 for an empty series.
  */
-export function activityMaxGames(series: ActivitySeries): number {
+export function activityMaxGames(series: TruemainActivitySeriesReadModel): number {
   let max = 0
   for (const bucket of series.buckets) {
     if (bucket.games > max) max = bucket.games
@@ -127,7 +127,7 @@ export function activityMaxGames(series: ActivitySeries): number {
  * The locale is pinned to `en-US` everywhere — the app has no i18n, and an
  * implicit locale is what makes a server render disagree with the client one.
  */
-export function activityBucketLabel(bucket: ActivityBucket, mode: ActivityMode): string {
+export function activityBucketLabel(bucket: TruemainActivityBucketReadModel, mode: ActivityMode): string {
   const start = new Date(bucket.startUtc)
 
   if (activityCellsAreGames(mode)) {
@@ -158,7 +158,7 @@ export function activityBucketLabel(bucket: ActivityBucket, mode: ActivityMode):
  * An empty day says so in words instead of printing "0/0 · 0%" — a fabricated
  * rate is exactly what the empty state exists to avoid.
  */
-export function activityBucketResult(bucket: ActivityBucket): string {
+export function activityBucketResult(bucket: TruemainActivityBucketReadModel): string {
   if (bucket.games <= 0 || bucket.winRate === null) return 'No games'
 
   return `${bucket.wins}/${bucket.games} · ${formatPercentage(bucket.winRate, 0)}`

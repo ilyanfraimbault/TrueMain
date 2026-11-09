@@ -1,6 +1,5 @@
 import { championSliceQuery } from '#common/utils/champion-slice-query'
-import type { ChampionDirectoryResponse } from '#shared/types/champion-directory'
-import type { ChampionSummaryResponse } from '#shared/types/champions'
+import type { ChampionDirectoryPageReadModel, ChampionSummaryReadModel } from '#shared/contract/api'
 import { DEFAULT_DIRECTORY_ORDER, type DirectoryOrder } from '#common/utils/table-sorting'
 import { describeStaleFetchError } from '#common/utils/errors'
 
@@ -50,12 +49,12 @@ export function useChampionDirectory(options: UseChampionDirectoryOptions) {
   })
 
   const apiFetch = useApiFetch()
-  const directoryFetch = useAsyncData<ChampionDirectoryResponse>(
+  const directoryFetch = useAsyncData<ChampionDirectoryPageReadModel>(
     () => `champion-directory-${Object.entries(query.value).map(([key, value]) => `${key}=${value}`).join('&')}`,
-    (_nuxtApp, { signal }) => apiFetch<ChampionDirectoryResponse>('/champions/directory', { query: query.value, signal }),
+    (_nuxtApp, { signal }) => apiFetch<ChampionDirectoryPageReadModel>('/champions/directory', { query: query.value, signal }),
     {
       watch: [query],
-      default: (): ChampionDirectoryResponse => ({
+      default: (): ChampionDirectoryPageReadModel => ({
         rows: [],
         page: 1,
         pageSize: options.pageSize,
@@ -73,7 +72,7 @@ export function useChampionDirectory(options: UseChampionDirectoryOptions) {
     onStaleFailure: failure => actionToast.failure('Could not update the champion list', describeStaleFetchError(failure)),
   })
 
-  const rows = computed<ChampionSummaryResponse[]>(() => data.value?.rows ?? [])
+  const rows = computed<ChampionSummaryReadModel[]>(() => data.value?.rows ?? [])
   const total = computed(() => data.value?.total ?? 0)
   const pageSize = computed(() => data.value?.pageSize ?? options.pageSize)
   // The page the rows on screen belong to — not the URL's after a failed pager

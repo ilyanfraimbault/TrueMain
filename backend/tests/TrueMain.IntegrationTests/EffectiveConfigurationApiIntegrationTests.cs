@@ -138,7 +138,7 @@ public sealed class EffectiveConfigurationApiIntegrationTests : IAsyncLifetime
             [new KeyValuePair<string, string?>("StorageHistory:DiskCapacityBytes", "1099511627776")]);
         using var overriddenClient = CreateClient(overridden);
         var overriddenPayload = await overriddenClient.GetFromJsonAsync<ConfigurationTestContract>(
-            "/ops/configuration");
+            "/ops/configuration", ApiJson.Options);
         var setCapacity = ValueOf(overriddenPayload!, "StorageHistory", "DiskCapacityBytes");
 
         // Set: origin names that a provider supplied it, source names which one, and the

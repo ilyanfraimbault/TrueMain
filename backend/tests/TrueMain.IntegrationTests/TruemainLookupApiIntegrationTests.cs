@@ -48,7 +48,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
 
         // ZedMain is on Ahri this game: a true main of another champion gets no mark.
         var response = await client.GetFromJsonAsync<TruemainLookupResponse>(
-            Url("EUW1", "AhriMain#EUW:103", "ZedMain#EUW:103", "Casual#EUW:103", "Unknown#EUW:103"));
+            Url("EUW1", "AhriMain#EUW:103", "ZedMain#EUW:103", "Casual#EUW:103", "Unknown#EUW:103"), ApiJson.Options);
 
         var entry = response!.Players.Should().ContainSingle().Subject;
         entry.RiotId.Should().Be("AhriMain#EUW");
@@ -74,7 +74,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        var response = await client.GetFromJsonAsync<TruemainLookupResponse>(Url("euw1", "aHRImain#euw:103"));
+        var response = await client.GetFromJsonAsync<TruemainLookupResponse>(Url("euw1", "aHRImain#euw:103"), ApiJson.Options);
 
         response!.Players.Should().ContainSingle().Which.RiotId.Should().Be("AhriMain#EUW");
     }
@@ -92,10 +92,10 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        var elsewhere = await client.GetFromJsonAsync<TruemainLookupResponse>(Url("EUW1", "Faker#KR1:7"));
+        var elsewhere = await client.GetFromJsonAsync<TruemainLookupResponse>(Url("EUW1", "Faker#KR1:7"), ApiJson.Options);
         elsewhere!.Players.Should().BeEmpty();
 
-        var home = await client.GetFromJsonAsync<TruemainLookupResponse>(Url("KR", "Faker#KR1:7"));
+        var home = await client.GetFromJsonAsync<TruemainLookupResponse>(Url("KR", "Faker#KR1:7"), ApiJson.Options);
         home!.Players.Should().ContainSingle();
     }
 
@@ -117,7 +117,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var response = await client.GetFromJsonAsync<TruemainLookupResponse>(
-            Url("EUW1", "Retired#EUW:103", "Unranked#EUW:103"));
+            Url("EUW1", "Retired#EUW:103", "Unranked#EUW:103"), ApiJson.Options);
 
         response!.Players.Should().BeEmpty();
     }
@@ -141,7 +141,7 @@ public sealed class TruemainLookupApiIntegrationTests : IAsyncLifetime
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        var response = await client.GetFromJsonAsync<TruemainLookupResponse>(Url("EUW1", "Recycled#EUW:103"));
+        var response = await client.GetFromJsonAsync<TruemainLookupResponse>(Url("EUW1", "Recycled#EUW:103"), ApiJson.Options);
 
         response!.Players.Should().BeEmpty();
     }

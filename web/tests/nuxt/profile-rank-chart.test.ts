@@ -2,8 +2,7 @@ import { flushPromises } from '@vue/test-utils'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ProfileRankChart } from '#components'
-import type { ApexCutoff } from '~~/shared/types/apex-cutoffs'
-import type { RankHistoryEntry } from '~~/shared/types/rank-history'
+import type { ApexCutoffReadModel, RankHistoryEntryReadModel } from '#shared/contract/api'
 import { rankChartPoints } from '#common/utils/rank-chart'
 
 /**
@@ -15,13 +14,13 @@ const DAY = 24 * 60 * 60 * 1000
 const START = Date.parse('2026-09-01T12:00:00Z')
 const day = (i: number) => new Date(START + i * DAY).toISOString()
 
-const history: RankHistoryEntry[] = [
+const history: RankHistoryEntryReadModel[] = [
   { capturedAtUtc: day(0), tier: 'GRANDMASTER', division: 'I', leaguePoints: 520 },
   { capturedAtUtc: day(1), tier: 'MASTER', division: 'I', leaguePoints: 300 },
   { capturedAtUtc: day(2), tier: 'MASTER', division: 'I', leaguePoints: 40 },
   { capturedAtUtc: day(3), tier: 'DIAMOND', division: 'I', leaguePoints: 70 },
 ]
-const cutoffs: ApexCutoff[] = [0, 1, 2, 3].map(i => ({
+const cutoffs: ApexCutoffReadModel[] = [0, 1, 2, 3].map(i => ({
   dateUtc: day(i).slice(0, 10),
   grandmasterMinLp: 400,
   challengerMinLp: 900,

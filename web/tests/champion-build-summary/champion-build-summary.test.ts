@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ChampionResponse } from '~~/shared/types/champions'
+import type { ChampionResponse } from '#shared/contract/api'
 import type {
   ChampionStaticData,
   RuneTreeResponse,

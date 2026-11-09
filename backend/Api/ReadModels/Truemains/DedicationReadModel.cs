@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TrueMain.ReadModels.Truemains;
 
 /// <summary>
@@ -49,8 +51,7 @@ public sealed record DedicationReadModel
 /// <summary>One part of the score and what it contributed.</summary>
 public sealed record DedicationPartReadModel
 {
-    /// <summary>One of <see cref="DedicationPartKeys"/>.</summary>
-    public string Key { get; init; } = string.Empty;
+    public DedicationPart Key { get; init; }
 
     /// <summary>Score points this part contributed (unrounded; the parts sum to the score).</summary>
     public double Points { get; init; }
@@ -59,10 +60,15 @@ public sealed record DedicationPartReadModel
     public double MaxPoints { get; init; }
 }
 
-/// <summary>Wire keys of <see cref="DedicationPartReadModel.Key"/>, mirrored by <c>web/shared/types/dedication.ts</c>.</summary>
-public static class DedicationPartKeys
+/// <summary>A part of the Truemain score.</summary>
+public enum DedicationPart
 {
-    public const string PlayRate = "playRate";
-    public const string Mastery = "mastery";
-    public const string MasteryRank = "masteryRank";
+    [JsonStringEnumMemberName("playRate")]
+    PlayRate,
+
+    [JsonStringEnumMemberName("mastery")]
+    Mastery,
+
+    [JsonStringEnumMemberName("masteryRank")]
+    MasteryRank
 }

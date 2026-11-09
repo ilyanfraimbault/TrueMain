@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import type { ChampionSynergyEntry } from '~~/shared/types/champions'
+import type { ChampionSynergyEntry } from '#shared/contract/api'
 import type { ChampionPosition } from '#shared/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 

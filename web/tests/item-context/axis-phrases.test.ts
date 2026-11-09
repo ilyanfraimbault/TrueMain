@@ -1,4 +1,4 @@
-import type { ChampionItemContextAxis, ChampionItemContextItem } from '~~/shared/types/item-context'
+import type { ChampionItemContextAxisReadModel, ChampionItemContextItemReadModel } from '#shared/contract/api'
 import { describe, expect, it } from 'vitest'
 import {
   capitalizePhrase,
@@ -36,7 +36,7 @@ const BACKEND_AXES = [
   'OwnGoldLeadAt15',
 ]
 
-function axis(partial: Partial<ChampionItemContextAxis> & { axis: string }): ChampionItemContextAxis {
+function axis(partial: Partial<ChampionItemContextAxisReadModel> & { axis: string }): ChampionItemContextAxisReadModel {
   return {
     bucket: 'High',
     draftTime: true,
@@ -128,7 +128,7 @@ describe('wordableAxes', () => {
   it('drops the findings the card could not word', () => {
     const item = {
       axes: [axis({ axis: 'EnemyMagicDamage' }), axis({ axis: 'SomethingNew' })],
-    } as ChampionItemContextItem
+    } as ChampionItemContextItemReadModel
 
     expect(wordableAxes(item).map(a => a.axis)).toEqual(['EnemyMagicDamage'])
   })
@@ -136,8 +136,8 @@ describe('wordableAxes', () => {
 
 describe('indexItemContext', () => {
   it('keys on the slot as well as the item, because the two answer different questions', () => {
-    const build = { slot: 'Build', itemId: 3111, parentItemId: 0 } as ChampionItemContextItem
-    const boots = { slot: 'Boots', itemId: 3111, parentItemId: 0 } as ChampionItemContextItem
+    const build = { slot: 'Build', itemId: 3111, parentItemId: 0 } as ChampionItemContextItemReadModel
+    const boots = { slot: 'Boots', itemId: 3111, parentItemId: 0 } as ChampionItemContextItemReadModel
 
     const index = indexItemContext([build, boots])
 
@@ -147,8 +147,8 @@ describe('indexItemContext', () => {
   })
 
   it('keys on the branch too: the same item after another parent is another decision', () => {
-    const first = { slot: 'Build', itemId: 3153, parentItemId: 0 } as ChampionItemContextItem
-    const afterSteraks = { slot: 'Build', itemId: 3153, parentItemId: 3181 } as ChampionItemContextItem
+    const first = { slot: 'Build', itemId: 3153, parentItemId: 0 } as ChampionItemContextItemReadModel
+    const afterSteraks = { slot: 'Build', itemId: 3153, parentItemId: 3181 } as ChampionItemContextItemReadModel
 
     const index = indexItemContext([first, afterSteraks])
 
@@ -172,10 +172,10 @@ describe('resolveItemContext', () => {
   function verdict(
     parentItemId: number,
     itemId: number,
-    itemClass: ChampionItemContextItem['class'],
+    itemClass: ChampionItemContextItemReadModel['class'],
     branchGames: number,
-  ): ChampionItemContextItem {
-    return { slot: 'Build', parentItemId, itemId, class: itemClass, branchGames } as ChampionItemContextItem
+  ): ChampionItemContextItemReadModel {
+    return { slot: 'Build', parentItemId, itemId, class: itemClass, branchGames } as ChampionItemContextItemReadModel
   }
 
   it('prefers the exact edge when that edge carries the finding', () => {

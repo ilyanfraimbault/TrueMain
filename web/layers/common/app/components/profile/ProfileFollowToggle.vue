@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { ProfileIdentity } from '#shared/types/profile'
+import type { ProfileIdentityReadModel } from '#shared/contract/api'
 import { platformIdToRegion } from '#shared/utils/region'
 
 // The follow star on a player page's Riot ID line, from the profile's identity.
-defineProps<{ identity: ProfileIdentity }>()
+defineProps<{ identity: ProfileIdentityReadModel }>()
 </script>
 
 <template>

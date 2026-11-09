@@ -2,7 +2,7 @@ import type { DraftRecommendation } from '~/types/draft'
 import type { GameState } from '~/types/game'
 import type { AppState } from '~/types/lcu'
 import type { PlayerRecord } from '~/types/record'
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { NextItemResponse } from '~/utils/next-item'
 import { EMPTY_STATE } from '~/types/lcu'
 
@@ -15,7 +15,7 @@ export interface Scenario {
   /** What the client's history would have answered, when the scenario shows the dashboard. */
   record?: PlayerRecord
   /** The Solo/Duo snapshots the app would have noted on this machine. */
-  rankHistory?: RankHistoryEntry[]
+  rankHistory?: RankHistoryEntryReadModel[]
   /**
    * The game Rust would have derived, when the scenario is in one. Checked
    * against the committed game tape by a test in `crates/live-client`, so it
@@ -52,7 +52,7 @@ export function useDevScenarios() {
   const state = useState<AppState>('lcu-state', () => ({ ...EMPTY_STATE }))
   const recommendation = useState<DraftRecommendation | null>('dev-recommendation', () => null)
   const record = useState<PlayerRecord | null>('dev-record', () => null)
-  const rankHistory = useState<RankHistoryEntry[]>('dev-rank-history', () => [])
+  const rankHistory = useState<RankHistoryEntryReadModel[]>('dev-rank-history', () => [])
   const nextItem = useState<NextItemResponse | null>('dev-next-item', () => null)
   // `useLiveGame`'s own state, set directly as `lcu-state` is above.
   const game = useState<GameState | null>('live-game', () => null)

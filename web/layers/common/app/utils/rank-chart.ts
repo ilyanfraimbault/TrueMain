@@ -1,4 +1,4 @@
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import { rankScore } from '#shared/utils/ranks'
 
 // The ranked card's LP curve (`profile/ProfileRankChart.vue`) and its LP delta
@@ -12,11 +12,11 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // (`rank-chart-zones.ts`), so a rank change shows where the line passes a
 // threshold rather than at the snapshot whose tier changed.
 export interface RankChartPoint extends Record<string, unknown> {
-  entry: RankHistoryEntry
+  entry: RankHistoryEntryReadModel
   score: number
 }
 
-export function rankChartPoints(history: readonly RankHistoryEntry[]): RankChartPoint[] {
+export function rankChartPoints(history: readonly RankHistoryEntryReadModel[]): RankChartPoint[] {
   return history.map(entry => ({
     entry,
     score: rankScore(entry.tier, entry.division, entry.leaguePoints),

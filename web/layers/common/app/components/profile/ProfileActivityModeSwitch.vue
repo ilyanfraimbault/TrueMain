@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ActivityMode } from '#shared/types/activity'
+import type { ActivityMode } from '#shared/contract/api'
 
 // The activity card's window switch. A segmented control rather than four loose
 // buttons: the views are one choice, and the shared inset strip is what says so.

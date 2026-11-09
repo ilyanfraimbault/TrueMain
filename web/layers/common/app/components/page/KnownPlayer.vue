@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PersonaResponse } from '#shared/types/players'
+import type { PersonaReadModel } from '#shared/contract/api'
 import { PLAYER_PICTURE_FETCH_SIZE } from '#common/utils/icon-fetch'
 
 // A known player's page (#2016): the person — a pro, a streamer, a creator or
@@ -10,7 +10,7 @@ import { PLAYER_PICTURE_FETCH_SIZE } from '#common/utils/icon-fetch'
 // (`useKnownPlayer`) and hands it here.
 const props = defineProps<{
   slug: string
-  persona: PersonaResponse | null | undefined
+  persona: PersonaReadModel | null | undefined
   loading: boolean
   notFound: boolean
   error: unknown

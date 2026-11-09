@@ -1,4 +1,4 @@
-import type { ProfileResponse } from '~~/shared/types/profile'
+import type { ProfileReadModel } from '#shared/contract/api'
 import type { TruemainIdentity } from '~~/shared/types/truemain-identity'
 import { truemainNameTag } from '~~/shared/utils/truemain-path'
 import { RIOT_ID_MAX_LENGTH } from '~~/shared/utils/riot-id'
@@ -41,7 +41,7 @@ type IdentityLookup = { found: true, identity: TruemainIdentity } | { found: fal
 
 const lookupTruemainIdentity = defineCachedFunction<IdentityLookup, [string, string?]>(
   async (nameTag: string, forwardedFor?: string): Promise<IdentityLookup> => {
-    const profile = await readOrAbsent<ProfileResponse>(`/api/truemains/${encodeURIComponent(nameTag)}/profile`, { forwardedFor })
+    const profile = await readOrAbsent<ProfileReadModel>(`/api/truemains/${encodeURIComponent(nameTag)}/profile`, { forwardedFor })
     if (!profile?.identity?.gameName) return { found: false }
     return {
       found: true,

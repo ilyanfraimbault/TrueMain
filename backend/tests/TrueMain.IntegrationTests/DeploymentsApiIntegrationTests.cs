@@ -112,7 +112,7 @@ public sealed class DeploymentsApiIntegrationTests : IAsyncLifetime
         var to = now.AddDays(-5).ToString("O");
 
         var payload = await client.GetFromJsonAsync<DeploymentsTestContract>(
-            $"/ops/deployments?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}");
+            $"/ops/deployments?from={Uri.EscapeDataString(from)}&to={Uri.EscapeDataString(to)}", ApiJson.Options);
 
         var deploy = payload!.Deployments.Should().ContainSingle().Subject;
         deploy.Version.Should().Be("1.1.0");

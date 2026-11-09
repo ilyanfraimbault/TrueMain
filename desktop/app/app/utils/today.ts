@@ -1,4 +1,4 @@
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { PlayerGame } from '~/types/record'
 import { lpDeltaOf } from '~/utils/lp-history'
 import { RANKED_SOLO_QUEUE_ID } from '#shared/utils/queues'
@@ -41,7 +41,7 @@ export function startOfDay(now: Date): number {
 export function todayOf(
   games: PlayerGame[],
   allGames: PlayerGame[],
-  history: RankHistoryEntry[],
+  history: RankHistoryEntryReadModel[],
   now = new Date(),
 ): DaySummary | null {
   const since = startOfDay(now)

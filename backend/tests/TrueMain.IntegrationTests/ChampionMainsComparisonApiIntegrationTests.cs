@@ -72,7 +72,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
 
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
             $"/champions/{Champion}/mains-comparison"
-            + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}&position={Position}&patch=16.4");
+            + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}&position={Position}&patch=16.4", ApiJson.Options);
         comparison.Should().NotBeNull();
         comparison!.Status.Should().Be(ChampionComparisonStatus.Ok);
         comparison.Patch.Should().Be("16.4");
@@ -134,7 +134,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         // MainOne also has 2 games on 16.5 that the pinned 16.4 slice drops.
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
             $"/champions/{Champion}/mains-comparison"
-            + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}&position={Position}");
+            + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}&position={Position}", ApiJson.Options);
         comparison.Should().NotBeNull();
         comparison!.Patch.Should().BeNull("no patch was pinned");
         comparison.Mains!.Games.Should().Be(15, "the two 16.5 games join the 13 on 16.4");
@@ -152,7 +152,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
             $"/champions/{Champion}/mains-comparison"
             + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}"
-            + $"&main={Uri.EscapeDataString($"{MainTwoName}#{Tag}")}&position={Position}&patch=16.4");
+            + $"&main={Uri.EscapeDataString($"{MainTwoName}#{Tag}")}&position={Position}&patch=16.4", ApiJson.Options);
         comparison.Should().NotBeNull();
         comparison!.Status.Should().Be(ChampionComparisonStatus.Ok);
 
@@ -180,7 +180,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
             $"/champions/{Champion}/mains-comparison"
             + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}"
-            + $"&main={Uri.EscapeDataString("Ghost#KR1")}&position={Position}&patch=16.4");
+            + $"&main={Uri.EscapeDataString("Ghost#KR1")}&position={Position}&patch=16.4", ApiJson.Options);
         comparison.Should().NotBeNull();
         comparison!.Status.Should().Be(ChampionComparisonStatus.UnknownTarget);
         comparison.Mains.Should().BeNull();
@@ -212,7 +212,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         var self = Uri.EscapeDataString($"{PlayerName}#{Tag}");
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
             $"/champions/{Champion}/mains-comparison"
-            + $"?account={self}&main={self}&position={Position}&patch=16.4");
+            + $"?account={self}&main={self}&position={Position}&patch=16.4", ApiJson.Options);
         comparison.Should().NotBeNull();
         comparison!.Status.Should().Be(ChampionComparisonStatus.Ok);
 
@@ -246,7 +246,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
             $"/champions/{Champion}/mains-comparison"
             + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}"
-            + $"&main={Uri.EscapeDataString($"NotAMain#{Tag}")}&position={Position}&patch=16.4");
+            + $"&main={Uri.EscapeDataString($"NotAMain#{Tag}")}&position={Position}&patch=16.4", ApiJson.Options);
         comparison.Should().NotBeNull();
 
         comparison!.Mains.Should().NotBeNull();
@@ -269,7 +269,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
             $"/champions/{Champion}/mains-comparison"
             + $"?account={Uri.EscapeDataString($"{PlayerName.ToLowerInvariant()}-{Tag.ToLowerInvariant()}")}"
-            + $"&position={Position}&patch=16.4");
+            + $"&position={Position}&patch=16.4", ApiJson.Options);
         comparison.Should().NotBeNull();
         comparison!.Player.Should().NotBeNull();
         comparison.Player!.Identity!.GameName.Should().Be(PlayerName);
@@ -287,7 +287,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         // A bare '%' must be matched literally, not as an ILIKE wildcard that
         // would resolve to whichever account happens to sort first.
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
-            $"/champions/{Champion}/mains-comparison?account={Uri.EscapeDataString($"%#{Tag}")}");
+            $"/champions/{Champion}/mains-comparison?account={Uri.EscapeDataString($"%#{Tag}")}", ApiJson.Options);
         comparison.Should().NotBeNull();
         comparison!.Status.Should().Be(ChampionComparisonStatus.UnknownAccount);
     }
@@ -304,7 +304,7 @@ public sealed class ChampionMainsComparisonApiIntegrationTests : IAsyncLifetime
         // real counts so the caller can say how far the sample is from the bar.
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
             $"/champions/{Champion}/mains-comparison"
-            + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}&position={Position}");
+            + $"?account={Uri.EscapeDataString($"{PlayerName}#{Tag}")}&position={Position}", ApiJson.Options);
         comparison.Should().NotBeNull();
         comparison!.Status.Should().Be(ChampionComparisonStatus.InsufficientSample);
         comparison.Player!.Games.Should().Be(2);

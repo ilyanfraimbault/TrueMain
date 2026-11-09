@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ChampionMatchupEntry } from '~~/shared/types/champions'
+import type { ChampionMatchupEntry } from '#shared/contract/api'
 import {
   beeswarmRows,
   buildMatchupSpread,

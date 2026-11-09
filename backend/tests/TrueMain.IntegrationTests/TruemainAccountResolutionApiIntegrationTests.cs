@@ -80,7 +80,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
         // And the resolved account is the seeded one, not merely *an* account:
         // the rank curve read against its id carries the snapshot we stored.
         var rankHistory = await client.GetFromJsonAsync<RankHistoryReadModel>(
-            $"/truemains/{nameTag}/rank-history");
+            $"/truemains/{nameTag}/rank-history", ApiJson.Options);
         rankHistory.Should().NotBeNull();
         rankHistory!.Entries.Should().ContainSingle("the seeded account has one rank snapshot")
             .Which.Tier.Should().Be("DIAMOND");
@@ -98,7 +98,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
         using var client = CreateClient(factory);
 
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
-            $"/champions/{Champion}/mains-comparison?account={Uri.EscapeDataString(riotId)}");
+            $"/champions/{Champion}/mains-comparison?account={Uri.EscapeDataString(riotId)}", ApiJson.Options);
 
         comparison.Should().NotBeNull();
         comparison!.Status.Should().NotBe(

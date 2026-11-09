@@ -1,4 +1,4 @@
-import type { ApexCutoff, ApexCutoffsResponse } from '#shared/types/apex-cutoffs'
+import type { ApexCutoffReadModel, ApexCutoffsReadModel } from '#shared/contract/api'
 
 /**
  * The Grandmaster / Challenger cutoffs of a platform over the rank-history
@@ -20,11 +20,11 @@ export function useApexCutoffs(
   const apiFetch = useApiFetch()
   const platform = computed(() => toValue(platformId) || null)
 
-  const { data, status } = useLazyAsyncData<ApexCutoff[]>(
+  const { data, status } = useLazyAsyncData<ApexCutoffReadModel[]>(
     () => `apex-cutoffs-${platform.value ?? 'none'}-${days}`,
     async () => {
       if (!platform.value) return []
-      const response = await apiFetch<ApexCutoffsResponse | null>(
+      const response = await apiFetch<ApexCutoffsReadModel | null>(
         `/ladder/${encodeURIComponent(platform.value)}/apex-cutoffs`,
         { query: { days }, ignoreResponseError: true },
       ).catch(() => null)

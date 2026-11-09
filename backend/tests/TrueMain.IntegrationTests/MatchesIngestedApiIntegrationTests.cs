@@ -86,7 +86,7 @@ public sealed class MatchesIngestedApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<MatchesIngestedReadModel>(
-            "/ops/stats/matches-ingested?granularity=day");
+            "/ops/stats/matches-ingested?granularity=day", ApiJson.Options);
 
         // An unmeasured range is empty, never a run of zeros: zeros would assert an
         // idle pipeline over days retention has already dropped.

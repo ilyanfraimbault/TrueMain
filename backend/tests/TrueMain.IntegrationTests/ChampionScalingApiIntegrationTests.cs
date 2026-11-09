@@ -130,19 +130,19 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
 
         // ALL (no bracket) sums both slices: 12 Gold + 12 Iron short games.
         var all = await client.GetFromJsonAsync<ChampionScalingResponse>(
-            $"/champions/{Champion}/scaling?position={Position}");
+            $"/champions/{Champion}/scaling?position={Position}", ApiJson.Options);
         all!.Buckets.Single(b => b.Bucket == 0).Games.Should().Be(24);
 
         // A bare Gold filter counts only the Gold-stamped games.
         var gold = await client.GetFromJsonAsync<ChampionScalingResponse>(
-            $"/champions/{Champion}/scaling?position={Position}&eloBracket=GOLD");
+            $"/champions/{Champion}/scaling?position={Position}&eloBracket=GOLD", ApiJson.Options);
         var goldBucket = gold!.Buckets.Single(b => b.Bucket == 0);
         goldBucket.Games.Should().Be(12, "only the Gold-stamped games count");
         goldBucket.WinRate.Should().BeApproximately(8d / 12d, 1e-9);
 
         // GOLD_PLUS unions Gold and every tier above; Iron sits below and drops.
         var goldPlus = await client.GetFromJsonAsync<ChampionScalingResponse>(
-            $"/champions/{Champion}/scaling?position={Position}&eloBracket=GOLD_PLUS");
+            $"/champions/{Champion}/scaling?position={Position}&eloBracket=GOLD_PLUS", ApiJson.Options);
         goldPlus!.Buckets.Single(b => b.Bucket == 0).Games.Should().Be(12, "Iron is below Gold and drops out");
     }
 
@@ -155,7 +155,7 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var scaling = await client.GetFromJsonAsync<ChampionScalingResponse>(
-            $"/champions/{Champion}/scaling?position={Position}");
+            $"/champions/{Champion}/scaling?position={Position}", ApiJson.Options);
 
         // 12 of the 48 seeded games: the off-main account, the remakes and the untracked
         // player each clear the bucket floor on their own, so any of them leaking in

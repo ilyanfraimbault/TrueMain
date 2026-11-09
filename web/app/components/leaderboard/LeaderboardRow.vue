@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import type { LeaderboardRowReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '~~/shared/types/static-data'
 import { riotIdLabel, truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { isOneTrick } from '#common/utils/leaderboard-row'
+import { regionOf } from '#shared/utils/region'
 
 // One row of the champion page's truemains. The whole row navigates to the
 // player's profile via a stretched overlay link, while the top-champion icons
@@ -10,7 +11,7 @@ import { isOneTrick } from '#common/utils/leaderboard-row'
 // of the overlay, never nested <a> inside <a>. Its columns are the `/truemains`
 // table's (#2028): the same lanes, champions, score and rank emblem.
 const props = defineProps<{
-  row: LeaderboardRowResponse
+  row: LeaderboardRowReadModel
   championsById: Map<number, ChampionStaticListItem>
   /** Static rune tree + item map, to draw the main champion's keystone + first item. */
   runeTree: RuneTreeResponse | null
@@ -155,7 +156,7 @@ const main = computed(() => mainBuild(props.row))
     <FavoriteToggle
       :game-name="row.identity.gameName"
       :tag-line="row.identity.tagLine"
-      :region="row.region"
+      :region="regionOf(row.region)"
       :profile-icon-id="row.identity.profileIconId"
     />
   </ListRowSurface>

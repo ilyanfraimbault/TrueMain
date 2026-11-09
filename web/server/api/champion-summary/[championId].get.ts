@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import type { ChampionBuildSummary } from '~~/shared/types/champion-build-summary'
-import type { ChampionMatchups, ChampionResponse } from '~~/shared/types/champions'
+import type { ChampionMatchupsResponse, ChampionResponse } from '#shared/contract/api'
 import type {
   ChampionStaticData,
   ChampionStaticListItem,
@@ -156,7 +156,7 @@ const loadChampionBuildSummary = defineCachedRead<ChampionBuildSummary, [number,
       // No lane resolved means no matchup to read — the endpoint 400s without one.
       withMatchups
         ? championFetch.then(resolved => resolved?.position
-          ? readOrAbsent<ChampionMatchups>(`/api/champions/${championId}/matchups`, {
+          ? readOrAbsent<ChampionMatchupsResponse>(`/api/champions/${championId}/matchups`, {
               query: { position: resolved.position, patch: resolved.patch, eloBracket: query.eloBracket ?? undefined },
               forwardedFor,
             })

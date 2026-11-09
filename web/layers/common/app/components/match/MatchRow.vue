@@ -11,7 +11,7 @@
 -->
 <script setup lang="ts">
 import { championDisplayName } from '#shared/utils/champion-name'
-import type { MatchSummaryResponse } from '#shared/types/matches'
+import type { MatchSummaryReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
@@ -21,7 +21,7 @@ import type {
 import { resultTone } from '#common/utils/result-tone'
 
 const props = defineProps<{
-  match: MatchSummaryResponse
+  match: MatchSummaryReadModel
   champions: ChampionStaticListItem[]
   items: Record<number, StaticItemData>
   summonerSpells: Record<number, StaticSummonerSpellData>

@@ -13,7 +13,7 @@ export const DISPLAY_NAME_MAX_LENGTH = 64
 /** The sources a known player, account or link can come from (`PersonaSource`). */
 export const PERSONA_SOURCES = ['Leaguepedia', 'TrackingThePros', 'DeepLol', 'Dpm', 'LoLPros', 'Manual'] as const
 
-/** The link kinds the intake stores (`PersonaLinkKind`), lowercase as the API answers them. */
+/** The link kinds the intake stores, lowercase as the API answers them. */
 export const LINK_KINDS: readonly string[] = [
   'twitch', 'youtube', 'x', 'kick', 'tiktok', 'instagram', 'soop', 'chzzk',
   'leaguepedia', 'lolpros', 'deeplol', 'website',

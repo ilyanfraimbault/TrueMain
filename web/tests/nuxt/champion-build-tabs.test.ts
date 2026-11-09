@@ -2,7 +2,7 @@ import { flushPromises } from '@vue/test-utils'
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { ChampionBuildTabs, ChampionBuildTabsSkeleton, UApp } from '#components'
-import type { ChampionResponse } from '~~/shared/types/champions'
+import type { ChampionResponse } from '#shared/contract/api'
 import { PLACEHOLDER_BUILDS, PLACEHOLDER_CHAMPION_STATIC } from '#common/utils/build-placeholder'
 import { isLoadingStatus } from '#common/utils/async-data'
 

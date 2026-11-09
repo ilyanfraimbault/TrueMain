@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { ChampionItemContextAxis } from '#shared/types/item-context'
+import type { ChampionItemContextAxisReadModel } from '#shared/contract/api'
 import type { GameState } from '~/types/game'
 import type { NextItemCandidate, NextItemReason } from '~/utils/next-item'
 import { formatPercentage } from '#shared/utils/ddragon'
@@ -62,7 +62,7 @@ export function useNextItemPanel(game: Ref<GameState>) {
   function reason(candidate: NextItemCandidate | null) {
     const strongest: NextItemReason | undefined = candidate?.reasons[0]
     if (!strongest) return null
-    return itemContextAxisPhrase({ axis: strongest.axis, bucket: strongest.bucket } as ChampionItemContextAxis)
+    return itemContextAxisPhrase({ axis: strongest.axis, bucket: strongest.bucket } as ChampionItemContextAxisReadModel)
       ?? builtAxisPhrase(strongest.axis, strongest.bucket)
   }
   const why = computed(() => reason(top.value))

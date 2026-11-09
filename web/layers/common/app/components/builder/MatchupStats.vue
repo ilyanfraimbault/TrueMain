@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatCount } from '#shared/utils/counts'
-import type { CompositionBuildResponse } from '#shared/types/composition'
+import type { CompositionBuildResponse } from '#shared/contract/api'
 import type { ChampionPosition } from '#shared/utils/positions'
 import type { RateBand } from '#common/utils/rate-tone'
 import { formatPercentage } from '#shared/utils/ddragon'

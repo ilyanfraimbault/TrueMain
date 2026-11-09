@@ -1,4 +1,4 @@
-import type { BuildRunePage } from './champions/builds'
+import type { BuildRunePageReadModel } from '../contract/api'
 
 /**
  * A kit (#2185): a player's own build on one champion, offered on one or several positions — a branching item tree, a rune page and two
@@ -7,7 +7,7 @@ import type { BuildRunePage } from './champions/builds'
  */
 
 /** A kit's rune page: the build's page without its measured figures. */
-export type KitRunePage = Omit<BuildRunePage, 'games' | 'pickRate' | 'winRate'>
+export type KitRunePage = Omit<BuildRunePageReadModel, 'games' | 'pickRate' | 'winRate'>
 
 /** One step of a kit's item tree: an item, and the items that can follow it, the first one the default. */
 export interface KitNode {

@@ -1,4 +1,4 @@
-import type { ChampionTrendResponse } from '#shared/types/champions'
+import type { ChampionTrendReadModel } from '#shared/contract/api'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { championSliceQuery } from '#common/utils/champion-slice-query'
 
@@ -54,7 +54,7 @@ export function useChampionTrend(
 
   const apiFetch = useApiFetch()
 
-  const result = useLazyAsyncData<ChampionTrendResponse>(
+  const result = useLazyAsyncData<ChampionTrendReadModel>(
     () => championTrendKey(championIdRef.value, positionRef.value, eloBracketRef.value, everyoneRef.value),
     (_nuxtApp, { signal }) => {
       // Hold an empty series until the gate opens so we never fire a throwaway
@@ -62,7 +62,7 @@ export function useChampionTrend(
       if (!enabledRef.value) {
         return Promise.resolve({ championId: championIdRef.value, position: '', points: [] })
       }
-      return apiFetch<ChampionTrendResponse>(`/champions/${championIdRef.value}/trend`, {
+      return apiFetch<ChampionTrendReadModel>(`/champions/${championIdRef.value}/trend`, {
         query: championSliceQuery({
           position: positionRef.value,
           eloBracket: eloBracketRef.value,

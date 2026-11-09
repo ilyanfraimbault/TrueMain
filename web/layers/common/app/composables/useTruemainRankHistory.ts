@@ -1,4 +1,4 @@
-import type { RankHistoryResponse } from '#shared/types/rank-history'
+import type { RankHistoryReadModel } from '#shared/contract/api'
 
 /**
  * Fetch the rank-history payload for the given <c>nameTag</c>. Mirrors the
@@ -13,18 +13,18 @@ export function useTruemainRankHistory(
   const daysRef = computed(() => toValue(options.days) ?? 90)
 
   const apiFetch = useApiFetch()
-  const data = ref<RankHistoryResponse | null>(null)
+  const data = ref<RankHistoryReadModel | null>(null)
 
-  const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<RankHistoryResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<RankHistoryReadModel>(nameTag, {
     watch: [daysRef],
-    request: (tag, signal) => apiFetch<RankHistoryResponse | null>(
+    request: (tag, signal) => apiFetch<RankHistoryReadModel | null>(
       `/truemains/${encodeURIComponent(tag)}/rank-history`,
       {
         query: { days: daysRef.value },
         signal,
       },
     ),
-    validate: (response): response is RankHistoryResponse =>
+    validate: (response): response is RankHistoryReadModel =>
       Boolean(response && typeof response === 'object' && Array.isArray(response.entries)),
     onResponse: (response) => { data.value = response },
     onClear: () => { data.value = null },

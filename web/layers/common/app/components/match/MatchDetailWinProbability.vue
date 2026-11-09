@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { championDisplayName } from '#shared/utils/champion-name'
 import { formatPercentage } from '#shared/utils/ddragon'
@@ -25,7 +25,7 @@ import { minuteTicks } from '#common/utils/timeline-curves'
 const props = defineProps<{
   winProbability: MatchWinProbability
   perspectiveTeamId: number
-  participants: MatchDetailParticipant[]
+  participants: MatchDetailParticipantReadModel[]
   champions: ChampionStaticListItem[]
 }>()
 

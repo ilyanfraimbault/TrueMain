@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/types/composition'
+import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { POSITION_BY_VALUE, type ChampionPosition } from '#shared/utils/positions'
 

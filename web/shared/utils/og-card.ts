@@ -1,5 +1,4 @@
-import type { ChampionSummaryResponse } from '../types/champions'
-import type { ProfileMainChampion } from '../types/profile'
+import type { ChampionSummaryReadModel, ProfileMainChampionReadModel } from '../contract/api'
 
 /**
  * Pure selection helpers behind the share cards (#926). Kept out of the
@@ -28,10 +27,10 @@ import type { ProfileMainChampion } from '../types/profile'
  * the whole stats block rather than substituting another champion's numbers.
  */
 export function selectChampionSummaryRow(
-  summaries: readonly ChampionSummaryResponse[] | null | undefined,
+  summaries: readonly ChampionSummaryReadModel[] | null | undefined,
   championId: number,
   position?: string | null,
-): ChampionSummaryResponse | null {
+): ChampionSummaryReadModel | null {
   if (!summaries?.length) return null
 
   const rows = summaries.filter(row => row.championId === championId)
@@ -57,8 +56,8 @@ export function selectChampionSummaryRow(
  * the card then simply has no champion block.
  */
 export function selectSignatureMain(
-  mains: readonly ProfileMainChampion[] | null | undefined,
-): ProfileMainChampion | null {
+  mains: readonly ProfileMainChampionReadModel[] | null | undefined,
+): ProfileMainChampionReadModel | null {
   if (!mains?.length) return null
   return mains.reduce((best, main) => (main.games > best.games ? main : best))
 }

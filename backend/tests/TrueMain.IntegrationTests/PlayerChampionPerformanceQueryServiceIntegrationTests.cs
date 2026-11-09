@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Core.Lol.Performance;
 using Core.Options;
 using Data.Entities;
 using Microsoft.Extensions.Caching.Memory;
@@ -99,11 +100,11 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
 
         // Combat needs no timeline, so it covers every game; laning only exists
         // for the four games we gave a @15 snapshot to.
-        var combat = response.Components.Single(c => c.Kind == "Combat");
+        var combat = response.Components.Single(c => c.Kind == PerformanceComponentKind.Combat);
         combat.Games.Should().Be(6);
         combat.Value.Should().NotBeNull();
 
-        var laning = response.Components.Single(c => c.Kind == "Laning");
+        var laning = response.Components.Single(c => c.Kind == PerformanceComponentKind.Laning);
         laning.Games.Should().Be(4, "a game with no timeline lowers the component's sample, not its average");
         laning.Value.Should().NotBeNull();
     }
@@ -210,7 +211,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
         response.Should().NotBeNull();
         response!.Games.Should().Be(PlayerChampionPerformanceQueryService.Window);
 
-        var laning = response.Components.Single(c => c.Kind == "Laning");
+        var laning = response.Components.Single(c => c.Kind == PerformanceComponentKind.Laning);
         laning.Games.Should().Be(0, "PERF_MATCH_0 sorts last on the id tie-break and stays out of the window");
         laning.Value.Should().BeNull();
     }
