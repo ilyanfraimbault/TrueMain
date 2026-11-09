@@ -263,6 +263,8 @@ export const GOLD_STEP = 50 as const;
 
 export const IDLE_LOADING = {"platformId":"","players":[],"status":"idle"} as const;
 
+export const KEY_LABELS = {"Backquote":"`","Backslash":"\\","BracketLeft":"[","BracketRight":"]","Comma":",","Digit0":"0","Digit1":"1","Digit2":"2","Digit3":"3","Digit4":"4","Digit5":"5","Digit6":"6","Digit7":"7","Digit8":"8","Digit9":"9","Enter":"Enter","Equal":"=","Escape":"Esc","F1":"F1","F10":"F10","F11":"F11","F12":"F12","F2":"F2","F3":"F3","F4":"F4","F5":"F5","F6":"F6","F7":"F7","F8":"F8","F9":"F9","IntlBackslash":"<","KeyA":"A","KeyB":"B","KeyC":"C","KeyD":"D","KeyE":"E","KeyF":"F","KeyG":"G","KeyH":"H","KeyI":"I","KeyJ":"J","KeyK":"K","KeyL":"L","KeyM":"M","KeyN":"N","KeyO":"O","KeyP":"P","KeyQ":"Q","KeyR":"R","KeyS":"S","KeyT":"T","KeyU":"U","KeyV":"V","KeyW":"W","KeyX":"X","KeyY":"Y","KeyZ":"Z","Minus":"-","Period":".","Quote":"'","Semicolon":";","Slash":"/","Space":"Space"} as const;
+
 export const OVERLAY_GEOMETRY = {"edgeMargin":16.0,"scoreboard":{"boardWidthAtZero":996.5,"hudGrowth":0.52,"reference":{"height":1080.0,"width":1920.0},"rowPitchAtZero":66.4,"rows":5,"rowsBottomBelowMiddle":152.8},"topMargin":56.0} as const;
 
 export const OVERLAY_LIMITS = {"opacity":{"max":1.0,"min":0.5},"scale":{"max":1.4,"min":0.8},"scoreboardNudge":60.0} as const;

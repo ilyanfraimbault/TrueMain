@@ -1,4 +1,5 @@
 import type { KeyCode } from '~/generated/shell'
+import { KEY_LABELS as SHELL_KEY_LABELS } from '~/generated/shell'
 import type { Chord, OverlayPanel, PanelTrigger } from '~/types/overlay'
 
 /**
@@ -7,27 +8,8 @@ import type { Chord, OverlayPanel, PanelTrigger } from '~/types/overlay'
  * `overlay_check_trigger`); this only turns key presses into a chord.
  */
 
-/** The `KeyboardEvent.code`s a chord can use (`KeyCode`), each with its US label. */
-const KEY_LABELS = {
-  ...Object.fromEntries('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(letter => [`Key${letter}`, letter])),
-  ...Object.fromEntries('0123456789'.split('').map(digit => [`Digit${digit}`, digit])),
-  ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`F${i + 1}`, `F${i + 1}`])),
-  Backquote: '`',
-  Minus: '-',
-  Equal: '=',
-  BracketLeft: '[',
-  BracketRight: ']',
-  Backslash: '\\',
-  IntlBackslash: '<',
-  Semicolon: ';',
-  Quote: '\'',
-  Comma: ',',
-  Period: '.',
-  Slash: '/',
-  Space: 'Space',
-  Escape: 'Esc',
-  Enter: 'Enter',
-} as Record<KeyCode, string>
+/** The `KeyboardEvent.code`s a chord can use, each with its US label (`KeyCode::label`). */
+const KEY_LABELS: Record<KeyCode, string> = SHELL_KEY_LABELS
 
 const MODIFIERS = new Set(['AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight'])
 

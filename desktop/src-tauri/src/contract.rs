@@ -95,6 +95,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         .constant("DEFAULT_OVERLAY_SETTINGS", shell_state::overlay::OverlaySettings::default())
         .constant("DEFAULT_HUD", shell_state::scoreboard::HudSettings::DEFAULTS)
         .constant("GOLD_STEP", live_client::GOLD_STEP)
+        .constant("KEY_LABELS", key_labels())
         .error_handling(ErrorHandlingMode::Throw)
         // Ids, timestamps and sizes stay far below 2^53.
         .dangerously_cast_bigints_to_number()
@@ -230,6 +231,19 @@ fn overlay_geometry() -> serde_json::Value {
             "boardWidthAtZero": scoreboard::BOARD_WIDTH_AT_ZERO,
         },
     })
+}
+
+/// The keys a chord may use, each with its name on a US keyboard.
+fn key_labels() -> serde_json::Value {
+    use shell_state::keys::KeyCode;
+    KeyCode::ALL
+        .iter()
+        .map(|key| {
+            let code = serde_json::to_value(key).expect("a key code serialises");
+            (code.as_str().unwrap_or_default().to_string(), key.label().into())
+        })
+        .collect::<serde_json::Map<_, _>>()
+        .into()
 }
 
 /// Send `event` to every webview, under the name its binding listens to.
