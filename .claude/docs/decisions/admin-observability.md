@@ -275,8 +275,9 @@ duration comes from its runs' statuses, not their timestamps** — the API mirro
 `finishedAtUtc` so the iteration's last-activity stamp advances, so measuring from the timestamps alone
 reports a lane that has been running for minutes as `0ms`.
 
-`PIPELINE_LANES` is a hand-maintained copy of `JobModeSequence`'s two lanes, exactly as `PIPELINE_CHAIN` is
-one of `FullPipeline`, and pinned by the same kind of test — a partition of the chain, in the chain's order.
+`PIPELINE_LANES` is a hand-maintained copy of the catalog's two lanes (`Data/Pipeline/PipelineCatalog.cs`), exactly as
+`PIPELINE_CHAIN` is one of its steps (the Api serves both at `GET /ops/pipeline` since #2488; the admin switches to it with the
+generated contract), and pinned by the same kind of test — a partition of the chain, in the chain's order.
 The drift is worse than the flat chain's was: a step in neither lane is not misplaced, it stops being drawn
 at all. A run whose process no lane declares therefore still renders, in a trailing branch under its raw
 name — #1399, #1362, #1314.

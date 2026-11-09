@@ -1,3 +1,5 @@
+using System.Reflection;
+using Data.Pipeline;
 using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
@@ -17,6 +19,11 @@ internal static class IngestorProcessTestExtensions
         IProcessRunRecorder recorder,
         CancellationToken ct = default)
         where T : IIngestorProcess
-        => new RecordedProcess<T>(process, recorder, TimeProvider.System, NullLogger<RecordedProcess<T>>.Instance)
+        => new RecordedProcess<T>(
+                process,
+                PipelineCatalog.Get(typeof(T).GetCustomAttribute<PipelineStepAttribute>()!.Mode),
+                recorder,
+                TimeProvider.System,
+                NullLogger<RecordedProcess<T>>.Instance)
             .RunCoreAsync(ct);
 }

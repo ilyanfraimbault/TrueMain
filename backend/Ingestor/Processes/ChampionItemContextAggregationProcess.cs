@@ -5,6 +5,7 @@ using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
+using Data.Pipeline;
 using Data.Statics;
 using Ingestor.Options;
 using Ingestor.Processes.Components.ItemContextAggregation;
@@ -54,6 +55,7 @@ namespace Ingestor.Processes;
 /// together, and the read says so rather than letting a card look rank-scoped.
 /// </para>
 /// </summary>
+[PipelineStep(JobMode.ChampionItemContextAggregationOnly)]
 public sealed class ChampionItemContextAggregationProcess(
     ILogger<ChampionItemContextAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
@@ -64,9 +66,6 @@ public sealed class ChampionItemContextAggregationProcess(
     TimeProvider timeProvider) : IIngestorProcess
 {
     private const int LaneLeadMinute = 15;
-
-    public string Name => "ChampionItemContextAggregation";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var settings = options.Value;

@@ -2,6 +2,7 @@ using System.Globalization;
 using Core.Options;
 using Data;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
@@ -19,7 +20,7 @@ internal sealed class OrphanParticipantsDetector(
     IProcessRunStore processRunStore,
     IOptions<MainAnalysisOptions> mainAnalysisOptions)
 {
-    private const string HarvestProcessName = "Harvest";
+    private static readonly string HarvestProcessName = PipelineCatalog.Harvest.Name;
 
     public async Task<DataQualityDetectorReadModel> BuildAsync(
         DataQualityDetectorOptions settings,

@@ -1,5 +1,6 @@
 using System.Diagnostics.Metrics;
 using AwesomeAssertions;
+using Data.Pipeline;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -22,33 +23,7 @@ namespace TrueMain.UnitTests;
 public sealed class WorkerFailureMetricsTests
 {
     private static readonly (string Name, JobMode Mode)[] FullSequence =
-    [
-        ("LadderSync", JobMode.LadderSyncOnly),
-        ("Discovery", JobMode.DiscoveryOnly),
-        ("ManualSeed", JobMode.ManualSeedOnly),
-        ("Harvest", JobMode.HarvestOnly),
-        ("Scoring", JobMode.ScoringOnly),
-        ("MainActivity", JobMode.MainActivityOnly),
-        ("MatchIngestion", JobMode.MatchIngestionOnly),
-        ("MatchTeamPositionCorrection", JobMode.TeamPositionCorrectionOnly),
-        ("MatchRoleBoundItemBackfill", JobMode.RoleBoundItemBackfillOnly),
-        ("MainAnalysis", JobMode.MainAnalysisOnly),
-        ("MatchParticipantEloBracketEnrichment", JobMode.EloBracketEnrichmentOnly),
-        ("ChampionPatternAggregation", JobMode.PatternAggregationOnly),
-        ("ChampionProfileAggregation", JobMode.ChampionProfileAggregationOnly),
-        ("ChampionItemContextAggregation", JobMode.ChampionItemContextAggregationOnly),
-        ("ChampionMatchupLeadAggregation", JobMode.MatchupLeadAggregationOnly),
-        ("ChampionSynergyAggregation", JobMode.SynergyAggregationOnly),
-        ("ChampionOpponentAggregation", JobMode.OpponentAggregationOnly),
-        ("ChampionScalingAggregation", JobMode.ScalingAggregationOnly),
-        ("ChampionBanAggregation", JobMode.BanAggregationOnly),
-        ("AccountRefresh", JobMode.AccountRefreshOnly),
-        ("PaceSampling", JobMode.PaceSamplingOnly),
-        ("MatchDataRetention", JobMode.MatchDataRetentionOnly),
-        ("ChampionGameCountRefresh", JobMode.ChampionGameCountRefreshOnly),
-        ("CandidateStockSnapshot", JobMode.CandidateStockSnapshotOnly),
-        ("StorageSnapshot", JobMode.StorageSnapshotOnly)
-    ];
+        PipelineCatalog.Steps.Select(step => (step.Name, step.Mode)).ToArray();
 
     private static readonly string[] ThrowingProcessNames = ["Discovery", "MatchIngestion"];
 

@@ -1,7 +1,8 @@
+using AwesomeAssertions;
 using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
-using AwesomeAssertions;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
@@ -443,6 +444,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 
         return new RecordedProcess<MatchDataRetentionProcess>(
             process,
+            PipelineCatalog.MatchDataRetention,
             new ProcessRunRecorder(_processRunStore, new IterationContext()),
             TimeProvider.System,
             NullLogger<RecordedProcess<MatchDataRetentionProcess>>.Instance);

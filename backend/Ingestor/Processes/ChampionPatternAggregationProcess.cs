@@ -1,4 +1,5 @@
 using Core.Options;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Processes.Summaries;
@@ -38,6 +39,7 @@ namespace Ingestor.Processes;
 /// whole window back for one run when the slice shape changes.
 /// </para>
 /// </summary>
+[PipelineStep(JobMode.PatternAggregationOnly)]
 public sealed class ChampionPatternAggregationProcess(
     ILogger<ChampionPatternAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
@@ -48,8 +50,6 @@ public sealed class ChampionPatternAggregationProcess(
     ChampionPatternAggregatePersister aggregatePersister,
     TimeProvider timeProvider) : IIngestorProcess
 {
-    public string Name => "ChampionPatternAggregation";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;

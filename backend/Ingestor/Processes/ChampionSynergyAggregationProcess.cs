@@ -3,6 +3,7 @@ using Core.Options;
 using Data;
 using Data.Aggregation;
 using Data.Entities;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes.Components.IncrementalFolds;
 using Ingestor.Processes.Summaries;
@@ -54,6 +55,7 @@ namespace Ingestor.Processes;
 /// aggregate is new, needs only participant rows, and gating it would silently
 /// exclude every timeline-less match from the synergy pool for no benefit.
 /// </summary>
+[PipelineStep(JobMode.SynergyAggregationOnly)]
 public sealed class ChampionSynergyAggregationProcess(
     ILogger<ChampionSynergyAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
@@ -81,9 +83,6 @@ public sealed class ChampionSynergyAggregationProcess(
             .Key("elo_bracket", "text", r => r.Key.EloBracket)
             .Sum("Games", "integer", r => r.Value.Games)
             .Sum("Wins", "integer", r => r.Value.Wins);
-
-    public string Name => "ChampionSynergyAggregation";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;

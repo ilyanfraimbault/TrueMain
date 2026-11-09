@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Core;
 using Core.Lol.Identifiers;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
+[PipelineStep(JobMode.MatchIngestionOnly)]
 public sealed class MatchIngestionProcess(
     ILogger<MatchIngestionProcess> logger,
     IDataSessionFactory sessionFactory,
@@ -20,8 +22,6 @@ public sealed class MatchIngestionProcess(
     IOptions<MatchIngestionOptions> matchOptions,
     MatchIngestionScope? scope = null) : IIngestorProcess
 {
-    public string Name => "MatchIngestion";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = matchOptions.Value;

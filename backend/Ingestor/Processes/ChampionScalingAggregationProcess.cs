@@ -2,6 +2,7 @@ using Core.Options;
 using Data;
 using Data.Aggregation;
 using Data.Entities;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes.Components.IncrementalFolds;
 using Ingestor.Processes.Summaries;
@@ -34,6 +35,7 @@ namespace Ingestor.Processes;
 /// gate, like the synergy fold: a game's length and result come with the match itself.
 /// </para>
 /// </summary>
+[PipelineStep(JobMode.ScalingAggregationOnly)]
 public sealed class ChampionScalingAggregationProcess(
     ILogger<ChampionScalingAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
@@ -52,9 +54,6 @@ public sealed class ChampionScalingAggregationProcess(
             .Key("Bucket", IntegerType, r => r.Key.Bucket)
             .Sum("Games", IntegerType, r => r.Value.Games)
             .Sum("Wins", IntegerType, r => r.Value.Wins);
-
-    public string Name => "ChampionScalingAggregation";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;

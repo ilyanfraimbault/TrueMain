@@ -1,12 +1,13 @@
+using Data.Pipeline;
+
 namespace Ingestor.Options;
 
 public static class JobModeParser
 {
     /// <summary>
-    /// Parses a configured Job:Mode string into a <see cref="JobMode"/>.
-    /// Accepts the enum names case-insensitively, the legacy
-    /// <c>RetentionOnly</c> alias for <see cref="JobMode.MatchDataRetentionOnly"/>,
-    /// and a null/empty value (defaults to <see cref="JobMode.Full"/>).
+    /// Parses a configured Job:Mode string into a <see cref="JobMode"/>: an enum name,
+    /// case-insensitively, or null/empty for <see cref="JobMode.Full"/>. Numeric strings are
+    /// rejected, so only a named mode resolves.
     /// </summary>
     public static bool TryParse(string? value, out JobMode mode)
     {
@@ -16,28 +17,18 @@ public static class JobModeParser
             return true;
         }
 
-        var trimmed = value.Trim();
-        if (string.Equals(trimmed, "RetentionOnly", StringComparison.OrdinalIgnoreCase))
-        {
-            mode = JobMode.MatchDataRetentionOnly;
-            return true;
-        }
-
-        // Enum.TryParse accepts numeric strings like "0"; reject them so only
-        // the named modes + RetentionOnly alias resolve successfully.
-        if (!IsDefinedJobModeName(trimmed))
+        var name = Array.Find(
+            Enum.GetNames<JobMode>(),
+            candidate => string.Equals(candidate, value.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (name is null)
         {
             mode = default;
             return false;
         }
 
-        return Enum.TryParse(trimmed, ignoreCase: true, out mode);
+        mode = Enum.Parse<JobMode>(name);
+        return true;
     }
-
-    private static bool IsDefinedJobModeName(string value)
-        => Array.Exists(
-            Enum.GetNames<JobMode>(),
-            name => string.Equals(name, value, StringComparison.OrdinalIgnoreCase));
 
     public static JobMode Parse(string? value)
         => TryParse(value, out var mode)

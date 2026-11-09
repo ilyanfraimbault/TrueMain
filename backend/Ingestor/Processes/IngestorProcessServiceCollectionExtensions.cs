@@ -1,52 +1,58 @@
-using Ingestor.Options;
+using System.Reflection;
+using Data.Pipeline;
 
 namespace Ingestor.Processes;
 
 public static class IngestorProcessServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers every <see cref="IIngestorProcess"/> keyed by the
-    /// <see cref="JobMode"/> it implements. Exactly one process must be
-    /// registered per single-process mode: <see cref="JobMode.Full"/> is a
-    /// composite handled by <see cref="JobModeSequence"/> and is deliberately
-    /// left unkeyed.
+    /// Registers the process of every <see cref="PipelineCatalog"/> step, found by its
+    /// <see cref="PipelineStepAttribute"/>, keyed by the step's <see cref="JobMode"/> and wrapped
+    /// in <see cref="RecordedProcess{TInner}"/> so every run is recorded.
     /// </summary>
-    /// <remarks>
-    /// Listed in pipeline order for readability only — the worker's execution
-    /// order comes from <see cref="JobModeSequence"/>, not from this method.
-    /// Always register through <see cref="RecordedProcessServiceCollectionExtensions.AddRecordedProcess{TProcess}"/>:
-    /// the per-process catch in the worker assumes every production registration
-    /// is wrapped in <see cref="RecordedProcess{TInner}"/> so a failure is still
-    /// persisted as a Failed run. A process registered without the wrapper still
-    /// runs and logs, but its runs are invisible to process health.
-    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// A catalog step has no process, two processes claim one step, or a process claims a mode
+    /// the catalog does not declare.
+    /// </exception>
     public static IServiceCollection AddIngestorProcesses(this IServiceCollection services)
     {
-        services.AddRecordedProcess<LadderSyncProcess>(JobMode.LadderSyncOnly);
-        services.AddRecordedProcess<DiscoveryProcess>(JobMode.DiscoveryOnly);
-        services.AddRecordedProcess<ManualSeedProcess>(JobMode.ManualSeedOnly);
-        services.AddRecordedProcess<HarvestProcess>(JobMode.HarvestOnly);
-        services.AddRecordedProcess<ScoringProcess>(JobMode.ScoringOnly);
-        services.AddRecordedProcess<MainActivityProcess>(JobMode.MainActivityOnly);
-        services.AddRecordedProcess<MatchIngestionProcess>(JobMode.MatchIngestionOnly);
-        services.AddRecordedProcess<MatchTeamPositionCorrectionProcess>(JobMode.TeamPositionCorrectionOnly);
-        services.AddRecordedProcess<MatchRoleBoundItemBackfillProcess>(JobMode.RoleBoundItemBackfillOnly);
-        services.AddRecordedProcess<MainAnalysisProcess>(JobMode.MainAnalysisOnly);
-        services.AddRecordedProcess<MatchParticipantEloBracketEnrichmentProcess>(JobMode.EloBracketEnrichmentOnly);
-        services.AddRecordedProcess<ChampionPatternAggregationProcess>(JobMode.PatternAggregationOnly);
-        services.AddRecordedProcess<ChampionProfileAggregationProcess>(JobMode.ChampionProfileAggregationOnly);
-        services.AddRecordedProcess<ChampionItemContextAggregationProcess>(JobMode.ChampionItemContextAggregationOnly);
-        services.AddRecordedProcess<ChampionMatchupLeadAggregationProcess>(JobMode.MatchupLeadAggregationOnly);
-        services.AddRecordedProcess<ChampionSynergyAggregationProcess>(JobMode.SynergyAggregationOnly);
-        services.AddRecordedProcess<ChampionOpponentAggregationProcess>(JobMode.OpponentAggregationOnly);
-        services.AddRecordedProcess<ChampionScalingAggregationProcess>(JobMode.ScalingAggregationOnly);
-        services.AddRecordedProcess<ChampionBanAggregationProcess>(JobMode.BanAggregationOnly);
-        services.AddRecordedProcess<AccountRefreshProcess>(JobMode.AccountRefreshOnly);
-        services.AddRecordedProcess<PaceSamplingProcess>(JobMode.PaceSamplingOnly);
-        services.AddRecordedProcess<MatchDataRetentionProcess>(JobMode.MatchDataRetentionOnly);
-        services.AddRecordedProcess<ChampionGameCountRefreshProcess>(JobMode.ChampionGameCountRefreshOnly);
-        services.AddRecordedProcess<CandidateStockSnapshotProcess>(JobMode.CandidateStockSnapshotOnly);
-        services.AddRecordedProcess<StorageSnapshotProcess>(JobMode.StorageSnapshotOnly);
+        foreach (var (step, processType) in ProcessTypes(typeof(IngestorProcessServiceCollectionExtensions).Assembly))
+        {
+            services.AddRecordedProcess(processType, step);
+        }
+
         return services;
+    }
+
+    internal static IReadOnlyList<(PipelineProcess Step, Type ProcessType)> ProcessTypes(Assembly assembly)
+    {
+        var claimed = assembly.GetTypes()
+            .Select(type => (Type: type, Attribute: type.GetCustomAttribute<PipelineStepAttribute>()))
+            .Where(candidate => candidate.Attribute is not null)
+            .ToList();
+
+        foreach (var (type, attribute) in claimed)
+        {
+            if (!typeof(IIngestorProcess).IsAssignableFrom(type) || type.IsAbstract)
+            {
+                throw new InvalidOperationException($"{type.Name} carries [PipelineStep] but is not a concrete {nameof(IIngestorProcess)}.");
+            }
+
+            if (PipelineCatalog.CompositeModes.Contains(attribute!.Mode) || !Enum.IsDefined(attribute.Mode))
+            {
+                throw new InvalidOperationException($"{type.Name} claims {attribute.Mode}, which is not a single pipeline step.");
+            }
+        }
+
+        return PipelineCatalog.Steps
+            .Select(step =>
+            {
+                var implementations = claimed.Where(candidate => candidate.Attribute!.Mode == step.Mode).ToList();
+                return implementations.Count == 1
+                    ? (step, implementations[0].Type)
+                    : throw new InvalidOperationException(
+                        $"Pipeline step {step.Name} ({step.Mode}) needs exactly one [PipelineStep] process; found {implementations.Count}.");
+            })
+            .ToList();
     }
 }

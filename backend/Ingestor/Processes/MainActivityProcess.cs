@@ -2,6 +2,7 @@ using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Logging;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
@@ -29,6 +30,7 @@ namespace Ingestor.Processes;
 /// plays another keeps the second one active. Rows are flagged, never deleted — a returning
 /// player is reactivated by the next pass instead of going through discovery again.
 /// </remarks>
+[PipelineStep(JobMode.MainActivityOnly)]
 public sealed class MainActivityProcess(
     ILogger<MainActivityProcess> logger,
     IRiotPlatformClient riotPlatformClient,
@@ -37,8 +39,6 @@ public sealed class MainActivityProcess(
     TimeProvider timeProvider,
     IOptions<MainActivityOptions> activityOptions) : IIngestorProcess
 {
-    public string Name => "MainActivity";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = activityOptions.Value;
@@ -50,7 +50,7 @@ public sealed class MainActivityProcess(
         // account is always due and only this interval bounds the lane time spent (#1474).
         if (options.MinRunInterval > TimeSpan.Zero)
         {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.MainActivity.Name, nowUtc, ct);
             if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
             {
                 logger.LogInformation(

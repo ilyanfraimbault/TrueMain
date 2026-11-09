@@ -2,6 +2,7 @@ using System.Net;
 using Core;
 using Core.Lol.Identifiers;
 using Data.Entities;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
+[PipelineStep(JobMode.AccountRefreshOnly)]
 public sealed class AccountRefreshProcess(
     ILogger<AccountRefreshProcess> logger,
     IRiotAccountClient riotAccountClient,
@@ -22,9 +24,6 @@ public sealed class AccountRefreshProcess(
     IOptions<AccountRefreshOptions> refreshOptions) : IIngestorProcess
 {
     private const string SoloQueueType = "RANKED_SOLO_5x5";
-
-    public string Name => "AccountRefresh";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var accounts = await LoadAccountsForRefreshAsync(ct);

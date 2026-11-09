@@ -2,6 +2,7 @@ using System.Globalization;
 using Core.Lol.Patches;
 using Data;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
@@ -21,12 +22,7 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
     /// a process that legitimately runs rarely would sit permanently amber here.
     /// </summary>
     private static readonly string[] AggregationProcessNames =
-    [
-        "ChampionPatternAggregation",
-        "ChampionMatchupLeadAggregation",
-        "ChampionBanAggregation",
-        "ChampionSynergyAggregation", "ChampionOpponentAggregation", "ChampionScalingAggregation", "ChampionProfileAggregation", "ChampionItemContextAggregation"
-    ];
+        PipelineCatalog.Steps.Where(step => step.IsMatchFold).Select(step => step.Name).ToArray();
 
     public async Task<DataQualityDetectorReadModel> BuildAsync(
         DataQualityDetectorOptions settings,

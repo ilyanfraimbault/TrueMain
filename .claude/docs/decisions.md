@@ -322,6 +322,7 @@ Last verified against `develop` on 2026-09-02.
 - A redeploy is an outcome the pipeline records, not an accident it absorbs (2026-09-07) — #1513
 - Jungle first-clear tracking was built, then removed entirely (2026-08-24) — #1186, #1195, #535
 - A shell match (`endOfGameResult` ≠ `GameComplete`) is refused at ingest; a remake is Riot's flag *or* the 5-minute floor (2026-10-06) — #1364, #1365
+- The pipeline is one catalog in `Data`: every step's mode, persisted name, lane, order and prerequisites, read by the ingestor, the Api and the admin (2026-11-08) — #2488
 
 ## Performance, caching and incidents — [`decisions/performance-and-incidents.md`](decisions/performance-and-incidents.md)
 

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using AwesomeAssertions;
+using Data.Pipeline;
 using Ingestor;
 using Ingestor.FetchWorkers;
 using Ingestor.Options;
@@ -33,7 +34,7 @@ public sealed class WorkerFetchWorkersTests
         await worker.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(10));
 
         harness.Maintenance.Should().Equal(
-            JobModeSequence.For(JobMode.FetchLane).Where(step => step != JobMode.MatchIngestionOnly),
+            PipelineCatalog.InLane(PipelineLane.Fetch).Where(step => step != PipelineCatalog.MatchIngestion).Select(step => step.Mode),
             "the maintenance pass is the fetch lane without the step the workers took over");
         harness.Batches.Should().BeEquivalentTo(["NA1", "KR", "EUW1"], "one batch per routing value, each on its own platforms");
         harness.Lifetime.Received(1).StopApplication();
@@ -85,7 +86,7 @@ public sealed class WorkerFetchWorkersTests
         public Harness(List<string> platforms)
         {
             Claims.ReleaseOrphanedClaimsAsync(Arg.Any<CancellationToken>()).Returns(new ExpiredClaimRelease(0, 0));
-            foreach (var step in JobModeSequence.SequencedStepsFor(JobMode.FetchWorkers))
+            foreach (var step in PipelineCatalog.SequencedStepsFor(JobMode.FetchWorkers).Select(step => step.Mode))
             {
                 _services.AddKeyedSingleton<IIngestorProcess>(step, new MaintenanceStep(step, Maintenance));
             }

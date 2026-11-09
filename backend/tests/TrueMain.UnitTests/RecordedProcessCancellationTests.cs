@@ -5,6 +5,7 @@ using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -130,14 +131,13 @@ public sealed class RecordedProcessCancellationTests
         Func<IProcessRunSummary?> body)
         => new(
             new StubProcess(body),
+            TestPipelineSteps.Named("Stub"),
             recorder,
             TimeProvider.System,
             NullLogger<RecordedProcess<StubProcess>>.Instance);
 
     private sealed class StubProcess(Func<IProcessRunSummary?> body) : IIngestorProcess
     {
-        public string Name => "Stub";
-
         public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult(body());
     }
 }

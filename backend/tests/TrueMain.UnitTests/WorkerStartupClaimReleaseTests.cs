@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Data.Pipeline;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;

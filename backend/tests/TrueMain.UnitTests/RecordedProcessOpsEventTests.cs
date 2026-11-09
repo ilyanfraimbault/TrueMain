@@ -5,6 +5,7 @@ using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging;
+using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -23,6 +24,7 @@ public sealed class RecordedProcessOpsEventTests
         var logger = new CapturingLogger<RecordedProcess<StubProcess>>();
         var process = new RecordedProcess<StubProcess>(
             new StubProcess(() => new TeamPositionCorrectionSummary(3, 1)),
+            TestPipelineSteps.Named("Stub"),
             new NoOpRecorder(),
             TimeProvider.System,
             logger);
@@ -46,6 +48,7 @@ public sealed class RecordedProcessOpsEventTests
         var boom = new InvalidOperationException("boom");
         var process = new RecordedProcess<StubProcess>(
             new StubProcess(() => throw boom),
+            TestPipelineSteps.Named("Stub"),
             new NoOpRecorder(),
             TimeProvider.System,
             logger);
@@ -86,8 +89,6 @@ public sealed class RecordedProcessOpsEventTests
 
     private sealed class StubProcess(Func<IProcessRunSummary?> body) : IIngestorProcess
     {
-        public string Name => "Stub";
-
         public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult(body());
     }
 }

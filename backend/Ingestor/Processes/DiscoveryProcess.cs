@@ -2,6 +2,7 @@ using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Logging;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
+[PipelineStep(JobMode.DiscoveryOnly)]
 public sealed class DiscoveryProcess(
     ILogger<DiscoveryProcess> logger,
     IRiotPlatformClient riotPlatformClient,
@@ -25,8 +27,6 @@ public sealed class DiscoveryProcess(
     TimeProvider timeProvider,
     IOptions<DiscoveryOptions> discoveryOptions) : IIngestorProcess
 {
-    public string Name => "Discovery";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = discoveryOptions.Value;
@@ -63,7 +63,7 @@ public sealed class DiscoveryProcess(
     private async Task<DateTime?> ShouldSkipForCadenceAsync(TimeSpan minRunInterval, CancellationToken ct)
     {
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
+        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.Discovery.Name, nowUtc, ct);
         return lastRunUtc is not null && nowUtc - lastRunUtc.Value < minRunInterval
             ? lastRunUtc
             : null;

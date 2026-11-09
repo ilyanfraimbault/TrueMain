@@ -1,6 +1,7 @@
 using Core.Lol.Map;
 using Data;
 using Data.Aggregation;
+using Data.Pipeline;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +16,7 @@ namespace Ingestor.Processes;
 /// gaps, a duplicated lane) is left flagged on the Data Quality panel for manual
 /// review — see <see cref="TeamPositionInferrer"/>.
 /// </summary>
+[PipelineStep(JobMode.TeamPositionCorrectionOnly)]
 public sealed class MatchTeamPositionCorrectionProcess(
     ILogger<MatchTeamPositionCorrectionProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory) : IIngestorProcess
@@ -26,9 +28,6 @@ public sealed class MatchTeamPositionCorrectionProcess(
     // only ever drains the pre-existing backlog — a corrected team drops out of
     // the candidate set on the next scan, so steady state is a near-empty query.
     private const int BatchSize = 2000;
-
-    public string Name => "MatchTeamPositionCorrection";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);

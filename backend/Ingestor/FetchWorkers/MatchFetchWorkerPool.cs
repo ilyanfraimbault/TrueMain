@@ -1,5 +1,6 @@
 using Core;
 using Core.Lol.Identifiers;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Common;
@@ -55,8 +56,6 @@ public sealed class MatchFetchWorkerPool(
     /// </summary>
     private static readonly TimeSpan ShutdownReleaseBudget = TimeSpan.FromSeconds(10);
 
-    private const string MatchIngestionCaller = "MatchIngestion";
-
     /// <summary>
     /// The routing values the workers run on, each with the configured platforms it serves,
     /// in a stable order. A platform that does not parse has no route and is left out — the
@@ -105,7 +104,7 @@ public sealed class MatchFetchWorkerPool(
             ?? Math.Max(1, (int)Math.Ceiling(matchOptions.Value.BatchSize / (double)routes.Count));
 
         var target = options.TargetRequestsPerMinute();
-        rateLimiter.SetCallerCeiling(MatchIngestionCaller, target);
+        rateLimiter.SetCallerCeiling(PipelineCatalog.PermanentFetchWorkerStep.Name, target);
         logger.LogInformation(
             "Starting {WorkerCount} match-fetch worker(s) ({Routes}): {BatchSize} accounts per claim, ramp stage {RampStage} of {RampStageCount}, at most {TargetRequestsPerMinute} Riot calls a minute per route.",
             routes.Count,
@@ -121,7 +120,7 @@ public sealed class MatchFetchWorkerPool(
         }
         finally
         {
-            rateLimiter.SetCallerCeiling(MatchIngestionCaller, null);
+            rateLimiter.SetCallerCeiling(PipelineCatalog.PermanentFetchWorkerStep.Name, null);
         }
     }
 
@@ -168,15 +167,16 @@ public sealed class MatchFetchWorkerPool(
         // DbContext, nothing cached from one batch into the next.
         await using var scope = scopeFactory.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<MatchIngestionScope>().Restrict(route.Platforms, batchSize);
-        var process = scope.ServiceProvider.GetKeyedService<IIngestorProcess>(JobMode.MatchIngestionOnly)
+        var step = PipelineCatalog.PermanentFetchWorkerStep;
+        var process = scope.ServiceProvider.GetKeyedService<IIngestorProcess>(step.Mode)
             ?? throw new InvalidOperationException(
-                $"No IIngestorProcess is registered for {nameof(JobMode)}.{JobMode.MatchIngestionOnly}, "
+                $"No IIngestorProcess is registered for {nameof(JobMode)}.{step.Mode}, "
                 + $"which the {route.RoutingValue} fetch worker runs.");
 
         // One iteration per batch, stamped with the mode the host runs: the admin reads a
         // batch as the worker half of the lane, beside its maintenance passes.
         using var iteration = iterationContext.BeginIteration(JobMode.FetchWorkers);
-        using var caller = callerContext.BeginCall(process.Name);
+        using var caller = callerContext.BeginCall(step.Name);
 
         try
         {
@@ -204,7 +204,7 @@ public sealed class MatchFetchWorkerPool(
             // again, and the next one starts after a backoff. The run is already recorded as
             // Failed by the decorator; this counts it, as the lane does for a failed step.
             logger.LogError(ex, "Match-fetch worker {RoutingValue} batch failed; retrying after a backoff.", route.RoutingValue);
-            metrics.RecordRunFailure(process.Name, JobMode.FetchWorkers);
+            metrics.RecordRunFailure(step.Name, JobMode.FetchWorkers);
             return BatchOutcome.Failed;
         }
     }

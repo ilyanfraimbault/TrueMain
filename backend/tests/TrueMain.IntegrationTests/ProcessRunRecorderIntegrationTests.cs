@@ -1,8 +1,9 @@
-using Ingestor.Options;
 using AwesomeAssertions;
 using Data.Entities;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
+using Data.Pipeline;
+using Ingestor.Options;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using MongoDB.Driver;

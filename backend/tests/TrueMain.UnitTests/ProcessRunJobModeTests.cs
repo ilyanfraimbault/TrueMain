@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Data.Entities;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Services;
 using NSubstitute;

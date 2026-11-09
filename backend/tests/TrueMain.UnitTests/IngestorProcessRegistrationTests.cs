@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using Ingestor.Options;
+using Data.Pipeline;
 using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
@@ -8,50 +8,30 @@ using NSubstitute;
 
 namespace TrueMain.UnitTests;
 
-/// <summary>
-/// Issue #259: the worker resolves each process from DI by <see cref="JobMode"/>
-/// key instead of by process-name string. The lookup can no longer be broken by a
-/// typo, but it can still be broken by a missing registration — so these tests
-/// pin that every mode the worker can be configured with actually resolves.
-/// </summary>
 public sealed class IngestorProcessRegistrationTests
 {
-    public static TheoryData<JobMode> AllJobModes()
+    [Fact]
+    public void AddIngestorProcesses_RegistersOneProcessPerCatalogStep_AndNothingUnderACompositeMode()
     {
-        var data = new TheoryData<JobMode>();
-        foreach (var mode in Enum.GetValues<JobMode>())
-        {
-            data.Add(mode);
-        }
+        var services = new ServiceCollection();
+        services.AddIngestorProcesses();
 
-        return data;
-    }
+        var keys = services
+            .Where(d => d.ServiceType == typeof(IIngestorProcess) && d.IsKeyedService)
+            .Select(d => d.ServiceKey)
+            .OfType<JobMode>()
+            .ToList();
 
-    [Theory]
-    [MemberData(nameof(AllJobModes))]
-    public void AddIngestorProcesses_RegistersEveryStep_OfEveryJobMode(JobMode mode)
-    {
-        var steps = JobModeSequence.For(mode);
-
-        // A mode that expands to nothing would silently do no work for a whole run.
-        steps.Should().NotBeEmpty();
-        steps.Should().BeSubsetOf(RegisteredProcessKeys());
+        keys.Should().OnlyHaveUniqueItems();
+        keys.Should().BeEquivalentTo(PipelineCatalog.Steps.Select(step => step.Mode));
+        keys.Should().NotIntersectWith(PipelineCatalog.CompositeModes);
     }
 
     [Fact]
-    public void AddIngestorProcesses_RegistersExactlyOneProcess_PerSingleProcessMode()
+    public void EveryDeclaredMode_IsACatalogStepOrAComposite()
     {
-        var keys = RegisteredProcessKeys();
-
-        // Keyed DI silently lets the last registration for a key win, so a
-        // duplicate would shadow a process instead of failing like the old
-        // name-indexed dictionary did.
-        keys.Should().OnlyHaveUniqueItems();
-
-        // The composite modes are expanded by JobModeSequence and have no process of their
-        // own; every other mode must have exactly one.
-        keys.Should().BeEquivalentTo(
-            Enum.GetValues<JobMode>().Where(mode => !JobModeSequence.CompositeModes.Contains(mode)));
+        Enum.GetValues<JobMode>().Should().BeEquivalentTo(
+            PipelineCatalog.Steps.Select(step => step.Mode).Concat(PipelineCatalog.CompositeModes));
     }
 
     [Fact]
@@ -61,7 +41,7 @@ public sealed class IngestorProcessRegistrationTests
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Substitute.For<IProcessRunRecorder>());
-        services.AddRecordedProcess<StubProcess>(JobMode.DiscoveryOnly);
+        services.AddRecordedProcess<StubProcess>(PipelineCatalog.Discovery);
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
@@ -69,127 +49,88 @@ public sealed class IngestorProcessRegistrationTests
 
         var process = scope.ServiceProvider.GetRequiredKeyedService<IIngestorProcess>(JobMode.DiscoveryOnly);
 
-        // Production registrations must stay wrapped: the worker's per-process
-        // catch relies on RecordedProcess having already persisted the Failed run.
         process.Should().BeOfType<RecordedProcess<StubProcess>>();
-
-        // Scoped, not singleton — issue #256 requires the fresh per-process scope
-        // to hand out its own instance (and its own DbContext with it).
         otherScope.ServiceProvider.GetRequiredKeyedService<IIngestorProcess>(JobMode.DiscoveryOnly)
             .Should().NotBeSameAs(process);
     }
 
     [Fact]
-    public void For_ReturnsTheModeItself_ForEverySingleProcessMode()
+    public async Task RecordedProcess_RecordsTheRunUnderTheCatalogName()
     {
-        foreach (var mode in Enum.GetValues<JobMode>().Where(mode => !JobModeSequence.CompositeModes.Contains(mode)))
+        var recorder = Substitute.For<IProcessRunRecorder>();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(recorder);
+        services.AddRecordedProcess<StubProcess>(PipelineCatalog.MatchupAggregation);
+
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        await scope.ServiceProvider
+            .GetRequiredKeyedService<IIngestorProcess>(JobMode.MatchupLeadAggregationOnly)
+            .RunCoreAsync(CancellationToken.None);
+
+        await recorder.Received(1).RecordStartAsync("ChampionMatchupLeadAggregation", Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Steps_HaveUniquePersistedNames()
+        => PipelineCatalog.Steps.Select(step => step.Name).Should().OnlyHaveUniqueItems();
+
+    [Fact]
+    public void EveryStep_RunsAfterWhatItReads()
+    {
+        var order = PipelineCatalog.Steps.Select(step => step.Mode).ToList();
+
+        foreach (var step in PipelineCatalog.Steps)
         {
-            JobModeSequence.For(mode).Should().Equal(mode);
+            foreach (var prerequisite in step.RunsAfter)
+            {
+                order.IndexOf(prerequisite).Should().BeLessThan(
+                    order.IndexOf(step.Mode), $"{step.Name} reads what {prerequisite} writes");
+            }
         }
     }
 
-    /// <summary>
-    /// The two lanes (#1362) are a partition of the full pipeline, not a re-selection of it:
-    /// a step in neither would silently stop running the moment the lanes are deployed, and a
-    /// step in both would run twice per cycle against the same rows.
-    /// </summary>
+    [Theory]
+    [InlineData(JobMode.FetchLane)]
+    [InlineData(JobMode.FetchWorkers)]
+    public void TheFetchModes_OwnTheFetchLane(JobMode mode)
+        => PipelineCatalog.StepsOwnedBy(mode).Should().Equal(PipelineCatalog.InLane(PipelineLane.Fetch));
+
     [Fact]
-    public void FetchAndAggregateLanes_PartitionTheFullPipeline()
+    public void FetchWorkers_SequencesEveryFetchStepButMatchFetching()
     {
-        var full = JobModeSequence.For(JobMode.Full);
-        var fetch = JobModeSequence.For(JobMode.FetchLane);
-        var aggregate = JobModeSequence.For(JobMode.AggregateLane);
-
-        fetch.Should().OnlyHaveUniqueItems();
-        aggregate.Should().OnlyHaveUniqueItems();
-        fetch.Should().NotIntersectWith(aggregate);
-        fetch.Concat(aggregate).Should().BeEquivalentTo(full);
-    }
-
-    /// <summary>
-    /// Each lane keeps the relative order the full pipeline gives its steps: the order
-    /// within a lane is still load-bearing (the ban fold must see stamped elo brackets, the
-    /// storage snapshot must follow retention), even though the two lanes
-    /// themselves are free to run at different cadences.
-    /// </summary>
-    [Fact]
-    public void EachLane_KeepsTheRelativeOrderOfTheFullPipeline()
-    {
-        var full = JobModeSequence.For(JobMode.Full).ToList();
-
-        foreach (var lane in new[] { JobModeSequence.For(JobMode.FetchLane), JobModeSequence.For(JobMode.AggregateLane) })
-        {
-            lane.Select(step => full.IndexOf(step)).Should().BeInAscendingOrder();
-        }
-    }
-
-    /// <summary>
-    /// FetchWorkers (#1457) is the fetch lane with one of its steps run differently: it owns
-    /// exactly the same steps — so the boot reconciles and releases what the fetch lane would
-    /// — and its sequenced pass is that lane less match fetching, in the same order.
-    /// </summary>
-    [Fact]
-    public void FetchWorkers_OwnsTheFetchLane_AndSequencesEveryStepButMatchFetching()
-    {
-        var fetch = JobModeSequence.For(JobMode.FetchLane);
-
-        JobModeSequence.For(JobMode.FetchWorkers).Should().Equal(fetch);
-        JobModeSequence.SequencedStepsFor(JobMode.FetchWorkers)
-            .Should().Equal(fetch.Where(step => step != JobMode.MatchIngestionOnly));
-        JobModeSequence.RunsPermanentFetchWorkers(JobMode.FetchWorkers).Should().BeTrue();
-        JobModeSequence.SequencedStepsFor(JobMode.FetchLane).Should().Equal(fetch, "the lane keeps its sequential pass");
-        JobModeSequence.CompositeModes.Should().Contain(JobMode.FetchWorkers);
+        PipelineCatalog.SequencedStepsFor(JobMode.FetchWorkers)
+            .Should().Equal(PipelineCatalog.InLane(PipelineLane.Fetch).Where(step => step != PipelineCatalog.MatchIngestion));
+        PipelineCatalog.SequencedStepsFor(JobMode.FetchLane)
+            .Should().Equal(PipelineCatalog.InLane(PipelineLane.Fetch), "the lane keeps its sequential pass");
     }
 
     [Fact]
-    public void For_Full_RunsEveryProcessOnce()
-    {
-        var full = JobModeSequence.For(JobMode.Full);
+    public void ASingleProcessMode_OwnsItsStepOnly()
+        => PipelineCatalog.StepsOwnedBy(JobMode.HarvestOnly).Should().Equal(PipelineCatalog.Harvest);
 
-        full.Should().OnlyHaveUniqueItems();
-        full.Should().NotContain(JobMode.Full, "Full would expand into itself forever");
+    [Fact]
+    public void ModesRunning_NamesEveryCompositeThatRunsTheLane()
+    {
+        PipelineCatalog.ModesRunning(PipelineLane.Fetch)
+            .Should().BeEquivalentTo([JobMode.Full, JobMode.FetchLane, JobMode.FetchWorkers]);
+        PipelineCatalog.ModesRunning(PipelineLane.Aggregate)
+            .Should().BeEquivalentTo([JobMode.Full, JobMode.AggregateLane]);
     }
 
     [Fact]
-    public void For_Full_HandsBackAnUnmodifiableSequence()
+    public void StepsOwnedBy_Throws_ForAnUndefinedMode()
     {
-        // For() returns the same shared instance to every caller, so it must not
-        // be castable back to something that can reorder the pipeline.
-        var full = JobModeSequence.For(JobMode.Full);
-
-        full.Should().NotBeAssignableTo<JobMode[]>();
-        ((IList<JobMode>)full).Invoking(list => list[0] = JobMode.MatchDataRetentionOnly)
-            .Should().Throw<NotSupportedException>();
-
-        JobModeSequence.For(JobMode.Full).Should().Equal(full);
-    }
-
-    [Fact]
-    public void For_Throws_ForAnUndefinedMode()
-    {
-        // The old string mapping fell back to the full pipeline for any unmatched
-        // value, so a bogus mode quietly ran everything.
-        var act = () => JobModeSequence.For((JobMode)999);
+        var act = () => PipelineCatalog.StepsOwnedBy((JobMode)999);
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
 
-    private static List<JobMode> RegisteredProcessKeys()
-    {
-        var services = new ServiceCollection();
-        services.AddIngestorProcesses();
-
-        return services
-            .Where(d => d.ServiceType == typeof(IIngestorProcess) && d.IsKeyedService)
-            .Select(d => d.ServiceKey)
-            .OfType<JobMode>()
-            .ToList();
-    }
-
     private sealed class StubProcess : IIngestorProcess
     {
-        public string Name => "Stub";
-
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult<IProcessRunSummary?>(null);
+        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+            => Task.FromResult<IProcessRunSummary?>(null);
     }
 }

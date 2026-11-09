@@ -4,6 +4,7 @@ using Data;
 using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
+using Data.Pipeline;
 using Data.Statics;
 using Ingestor.Options;
 using Ingestor.Processes.Components.ProfileAggregation;
@@ -49,6 +50,7 @@ namespace Ingestor.Processes;
 ///    arithmetic over the sums, which keeps the fold additive and lets the read side
 ///    change a normalisation without re-folding anything.
 /// </summary>
+[PipelineStep(JobMode.ChampionProfileAggregationOnly)]
 public sealed class ChampionProfileAggregationProcess(
     ILogger<ChampionProfileAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
@@ -60,9 +62,6 @@ public sealed class ChampionProfileAggregationProcess(
 {
     private const int EarlyMinute = 10;
     private const int LaneMinute = 15;
-
-    public string Name => "ChampionProfileAggregation";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
