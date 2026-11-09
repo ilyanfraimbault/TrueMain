@@ -1,4 +1,5 @@
 import type { ChampionDirectoryResponse } from '#shared/types/champion-directory'
+import { championSliceQuery } from '#common/utils/champion-slice-query'
 
 /**
  * The tier a champion holds on one lane of a slice, for the champion page's
@@ -15,16 +16,17 @@ export function useChampionTier(options: {
   eloBracket: MaybeRefOrGetter<string | null | undefined>
   truemainsOnly: MaybeRefOrGetter<boolean>
 }) {
-  const query = computed(() => {
-    const query: Record<string, string | number> = { pageSize: 1, championId: toValue(options.championId) }
-    const position = toValue(options.position)
-    if (position) query.position = position
-    const patch = toValue(options.patch)
-    if (patch) query.patch = patch
-    const elo = toValue(options.eloBracket)
-    if (elo) query.eloBracket = elo
-    if (!toValue(options.truemainsOnly)) query.truemainsOnly = 'false'
-    return query
+  const query = computed((): Record<string, string | number> => {
+    return {
+      pageSize: 1,
+      championId: toValue(options.championId),
+      ...championSliceQuery({
+        position: toValue(options.position),
+        patch: toValue(options.patch),
+        eloBracket: toValue(options.eloBracket),
+        truemainsOnly: toValue(options.truemainsOnly),
+      }),
+    }
   })
 
   const apiFetch = useApiFetch()

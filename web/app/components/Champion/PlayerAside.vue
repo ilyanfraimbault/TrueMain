@@ -25,8 +25,6 @@ const props = defineProps<{
   championName: string | null
 }>()
 
-const apexCutoffs = useApexCutoffs(() => props.platformId)
-
 // Frozen prop bundle for the lazy performance card (#918), whose only client-only
 // inputs are the two display names it prints. `patch`/`position` stay live — they feed the
 // fetch key, never the SSR markup, so they can't desynchronise hydration.
@@ -37,13 +35,12 @@ const performanceSnapshot = useLazyHydrationSnapshot(
 </script>
 
 <template>
-  <ProfileRankedCardSkeleton v-if="!profileLoaded" />
-  <ProfileRankedCard
-    v-else
-    :ranked="ranked ?? null"
+  <ProfileRanked
+    :ranked="ranked"
+    :loading="!profileLoaded"
     :history="history"
-    :history-loading="historyLoading || apexCutoffs.loading"
-    :cutoffs="apexCutoffs.cutoffs"
+    :history-loading="historyLoading"
+    :platform-id="platformId"
   />
 
   <!-- Performance score (#918), lazy + hydrate-on-visible with the
