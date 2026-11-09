@@ -1,3 +1,7 @@
+using Core.Options;
+using Microsoft.Extensions.Options;
+using TrueMain.Configuration;
+using TrueMain.Options;
 using TrueMain.Services.Ladder;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
@@ -16,6 +20,32 @@ public static class TruemainsServiceCollectionExtensions
 {
     public static IServiceCollection AddTrueMainTruemains(this IServiceCollection services)
     {
+        services.AddMainAnalysisOptions();
+        services.AddApiOptions<ChampionsListOptions>();
+        services.AddApiOptions<TruemainsLeaderboardOptions>();
+        // MinRankedGames is compared against main_champion_stats.TotalMatches, which saturates at
+        // MainAnalysis:MatchesToConsider: above it the leaderboard would silently empty out.
+        services.AddOptions<TruemainsLeaderboardOptions>()
+            .Validate<IOptions<MainAnalysisOptions>>(
+                (leaderboard, mainAnalysis) =>
+                {
+                    var cap = mainAnalysis.Value.MatchesToConsider;
+                    if (leaderboard.MinRankedGames >= 0 && leaderboard.MinRankedGames <= cap)
+                    {
+                        return true;
+                    }
+
+                    // Validate's failure message is static; throwing names the actual values.
+                    throw new OptionsValidationException(
+                        TruemainsLeaderboardOptions.SectionName,
+                        typeof(TruemainsLeaderboardOptions),
+                        [
+                            $"TruemainsLeaderboard:MinRankedGames ({leaderboard.MinRankedGames}) must be "
+                            + $"between 0 and MainAnalysis:MatchesToConsider ({cap})."
+                        ]);
+                },
+                "TruemainsLeaderboard:MinRankedGames is out of range.");
+
         // The single name-tag -> account lookup shared by every player-scoped route
         // (#1230), so they cannot disagree on which account a Riot ID means.
         services.AddScoped<TruemainAccountResolver>();

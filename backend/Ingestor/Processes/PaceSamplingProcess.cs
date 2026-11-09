@@ -5,6 +5,7 @@ using Core.Lol.Ranking;
 using Data.Aggregation;
 using Data.Entities;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
@@ -44,6 +45,7 @@ namespace Ingestor.Processes;
 /// what the ingestion left of the run's time.
 /// </para>
 /// </remarks>
+[PipelineStep(JobMode.PaceSamplingOnly)]
 public sealed class PaceSamplingProcess(
     ILogger<PaceSamplingProcess> logger,
     IRiotPlatformClient riotPlatformClient,
@@ -66,9 +68,6 @@ public sealed class PaceSamplingProcess(
     internal const int MaxConsecutiveFailures = 5;
 
     private static readonly string[] Divisions = ["I", "II", "III", "IV"];
-
-    public string Name => "PaceSampling";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = paceSamplingOptions.Value;
@@ -87,14 +86,14 @@ public sealed class PaceSamplingProcess(
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         if (options.MinRunInterval > TimeSpan.Zero)
         {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
+            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.PaceSampling.Name, nowUtc, ct);
             if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
             {
                 return new SkippedSummary("Within MinRunInterval; pace sampling skipped this iteration.", true);
             }
         }
 
-        var budget = await PaceSamplingBudget.ReadAsync(processRunStore, Name, options, nowUtc, ct);
+        var budget = await PaceSamplingBudget.ReadAsync(processRunStore, PipelineCatalog.PaceSampling.Name, options, nowUtc, ct);
         if (!budget.CanSpend(1 + 1 + CallsPerMatch))
         {
             logger.LogInformation(

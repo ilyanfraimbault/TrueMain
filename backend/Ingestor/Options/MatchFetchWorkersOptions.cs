@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Data.Pipeline;
 
 namespace Ingestor.Options;
 

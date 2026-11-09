@@ -3,6 +3,7 @@ using Core.Options;
 using Data;
 using Data.Aggregation;
 using Data.Entities;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes.Components.IncrementalFolds;
 using Ingestor.Processes.Summaries;
@@ -34,6 +35,7 @@ namespace Ingestor.Processes;
 /// opponent included; the draft read leaves the lane to <c>champion_matchup_stats</c>.
 /// </para>
 /// </summary>
+[PipelineStep(JobMode.OpponentAggregationOnly)]
 public sealed class ChampionOpponentAggregationProcess(
     ILogger<ChampionOpponentAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
@@ -61,9 +63,6 @@ public sealed class ChampionOpponentAggregationProcess(
             .Key("EloBracket", "text", r => r.Key.EloBracket)
             .Sum("Games", "integer", r => r.Value.Games)
             .Sum("Wins", "integer", r => r.Value.Wins);
-
-    public string Name => "ChampionOpponentAggregation";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;

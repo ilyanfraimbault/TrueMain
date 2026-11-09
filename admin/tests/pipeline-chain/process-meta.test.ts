@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PIPELINE_CHAIN, PROCESS_META } from '~~/shared/types/pipeline-chain'
 
-// PIPELINE_CHAIN is a hand-maintained copy of the ingestor's JobModeSequence, and
+// PIPELINE_CHAIN is a hand-maintained copy of the ingestor's PipelineCatalog, and
 // PROCESS_META names what is in it. Both drift silently — a missing chain entry is
 // appended past the last step instead of failing (#1314), and a missing meta entry
 // renders a raw C# class name instead of failing (#1316). Neither shows up in a
