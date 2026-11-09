@@ -68,62 +68,48 @@ const RUNE_TONES = [
 // tokens most likely to be mistaken for a scale, and the page should not be the
 // first place someone sees one as a fill. Grouped the way `theme.css` groups
 // them so the two read side by side.
-const STAT_FAMILIES = [
-  {
-    family: 'Defensive / sustain',
-    tones: [
-      { name: 'stat-health', class: 'text-stat-health', use: 'Flat HP / HP regen' },
-      { name: 'stat-armor', class: 'text-stat-armor', use: 'Armor' },
-      { name: 'stat-mr', class: 'text-stat-mr', use: 'Magic resist' },
-      { name: 'stat-tenacity', class: 'text-stat-tenacity', use: 'Tenacity / slow resist' },
-      { name: 'stat-hsp', class: 'text-stat-hsp', use: 'Heal & shield power' },
-      { name: 'stat-heal-reduction', class: 'text-stat-heal-reduction', use: 'Grievous wounds' },
-    ],
-  },
-  {
-    family: 'Resources / utility',
-    tones: [
-      { name: 'stat-mana', class: 'text-stat-mana', use: 'Mana / mana regen' },
-      { name: 'stat-haste', class: 'text-stat-haste', use: 'Ability haste' },
-      { name: 'stat-speed', class: 'text-stat-speed', use: 'Move speed / on-hit' },
-    ],
-  },
-  {
-    family: 'Offensive — physical',
-    tones: [
-      { name: 'stat-ad', class: 'text-stat-ad', use: 'Attack damage' },
-      { name: 'stat-lethality', class: 'text-stat-lethality', use: 'Lethality / armor pen' },
-      { name: 'stat-crit', class: 'text-stat-crit', use: 'Crit chance / crit damage' },
-      { name: 'stat-as', class: 'text-stat-as', use: 'Attack speed' },
-      { name: 'stat-vamp', class: 'text-stat-vamp', use: 'Lifesteal / omnivamp' },
-    ],
-  },
-  {
-    family: 'Offensive — magical',
-    tones: [
-      { name: 'stat-ap', class: 'text-stat-ap', use: 'Ability power' },
-      { name: 'stat-magicpen', class: 'text-stat-magicpen', use: 'Magic penetration' },
-    ],
-  },
-  {
-    family: 'Damage types',
-    tones: [
-      { name: 'stat-true', class: 'text-stat-true', use: 'True damage' },
-      { name: 'stat-adaptive', class: 'text-stat-adaptive', use: 'Adaptive damage (verified)' },
-    ],
-  },
-  {
-    family: 'Misc / structural',
-    tones: [
-      { name: 'stat-status', class: 'text-stat-status', use: 'CC keywords — Stun, Airborne' },
-      { name: 'stat-stealth', class: 'text-stat-stealth', use: 'Stealth keywords' },
-      { name: 'stat-shield', class: 'text-stat-shield', use: 'Shield value' },
-      { name: 'stat-gold', class: 'text-stat-gold', use: 'Gold per X seconds' },
-      { name: 'stat-passive', class: 'text-stat-passive', use: 'Item passive label' },
-      { name: 'stat-active', class: 'text-stat-active', use: 'Item active label' },
-    ],
-  },
-]
+// Each tone as [class, use]: the class stays a literal for Tailwind's scanner.
+const STAT_FAMILIES = ([
+  ['Defensive / sustain', [
+    ['text-stat-health', 'Flat HP / HP regen'],
+    ['text-stat-armor', 'Armor'],
+    ['text-stat-mr', 'Magic resist'],
+    ['text-stat-tenacity', 'Tenacity / slow resist'],
+    ['text-stat-hsp', 'Heal & shield power'],
+    ['text-stat-heal-reduction', 'Grievous wounds'],
+  ]],
+  ['Resources / utility', [
+    ['text-stat-mana', 'Mana / mana regen'],
+    ['text-stat-haste', 'Ability haste'],
+    ['text-stat-speed', 'Move speed / on-hit'],
+  ]],
+  ['Offensive — physical', [
+    ['text-stat-ad', 'Attack damage'],
+    ['text-stat-lethality', 'Lethality / armor pen'],
+    ['text-stat-crit', 'Crit chance / crit damage'],
+    ['text-stat-as', 'Attack speed'],
+    ['text-stat-vamp', 'Lifesteal / omnivamp'],
+  ]],
+  ['Offensive — magical', [
+    ['text-stat-ap', 'Ability power'],
+    ['text-stat-magicpen', 'Magic penetration'],
+  ]],
+  ['Damage types', [
+    ['text-stat-true', 'True damage'],
+    ['text-stat-adaptive', 'Adaptive damage (verified)'],
+  ]],
+  ['Misc / structural', [
+    ['text-stat-status', 'CC keywords — Stun, Airborne'],
+    ['text-stat-stealth', 'Stealth keywords'],
+    ['text-stat-shield', 'Shield value'],
+    ['text-stat-gold', 'Gold per X seconds'],
+    ['text-stat-passive', 'Item passive label'],
+    ['text-stat-active', 'Item active label'],
+  ]],
+] as const).map(([family, tones]) => ({
+  family,
+  tones: tones.map(([cls, use]) => ({ name: cls.replace(/^text-/, ''), class: cls, use })),
+}))
 </script>
 
 <template>
