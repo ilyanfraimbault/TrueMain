@@ -1,4 +1,4 @@
-import { POSITIONS } from './positions'
+import { POSITIONS } from '#shared/utils/positions'
 
 /**
  * The win-probability model (#1795, #1864, #1911): a logistic over each lane's

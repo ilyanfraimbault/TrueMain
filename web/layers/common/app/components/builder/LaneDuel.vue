@@ -2,7 +2,7 @@
 import type { CompositionLane } from '#shared/types/composition'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { formatPercentage } from '#shared/utils/ddragon'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import { winRateTone } from '#common/utils/rate-tone'
 
 /**

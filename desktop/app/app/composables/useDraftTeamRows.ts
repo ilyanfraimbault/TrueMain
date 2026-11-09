@@ -1,7 +1,7 @@
 import type { DraftRecommendation, Lane, TeamRow } from '~/types/draft'
 import type { DraftState } from '~/types/lcu'
 import type { LaneSlot } from '~/composables/useLaneAssignment'
-import { POSITIONS } from '#common/utils/positions'
+import { POSITIONS } from '#shared/utils/positions'
 import { holdsEveryLane } from '~/utils/draft-lane'
 
 /** The two teams of the draft board, one row per card. */

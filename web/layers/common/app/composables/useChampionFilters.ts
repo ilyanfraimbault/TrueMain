@@ -1,5 +1,5 @@
-import type { PositionFilter } from '#common/utils/positions'
-import { DEFAULT_ELO_BRACKET, resolveEloBracket } from '#common/utils/elo-brackets'
+import type { PositionFilter } from '#shared/utils/positions'
+import { DEFAULT_ELO_BRACKET, resolveEloBracket } from '#shared/utils/elo-brackets'
 import {
   EVERYONE_QUERY_PARAM,
   EVERYONE_QUERY_VALUE,

@@ -11,7 +11,7 @@ import type {
   MatchDataQualityDetail,
   MatchTeam,
 } from '~~/shared/types/ops'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#site-shared/utils/positions'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
 
 defineProps<{

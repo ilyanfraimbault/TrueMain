@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import type { MatchSummaryResponse } from '~~/shared/types/matches'
 import type {
   ChampionStaticListItem,

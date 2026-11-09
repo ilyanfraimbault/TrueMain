@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import type { LibraryFilters, LibraryGrouping, LibraryItem, LibraryKind, LibraryResult } from '~/utils/recording-library'
-import { getQueueLabel } from '#common/utils/queues'
+import { getQueueLabel } from '#shared/utils/queues'
 
 /**
  * The Recordings page's toolbar, the reference's: a search over titles and

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { isLoadingStatus } from '#common/utils/async-data'
 import { parseRouteParam } from '#common/utils/route-params'
-import { ELO_BRACKET_ALL } from '#common/utils/elo-brackets'
-import { ALL_POSITIONS, type ChampionPosition, type PositionFilter } from '#common/utils/positions'
+import { ELO_BRACKET_ALL } from '#shared/utils/elo-brackets'
+import { ALL_POSITIONS, type ChampionPosition, type PositionFilter } from '#shared/utils/positions'
 import { platformIdToRegion } from '~~/shared/utils/region'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
@@ -64,7 +64,7 @@ const playerLabel = computed(() => {
 })
 // Same identity, without the tag line, for inline copy ("Faker vs mains").
 // Derived from the slug while the profile fetch is in flight, like `playerLabel`.
-const playerName = computed(() => profile.value?.identity?.gameName ?? parseTruemainNameTag(nameTag.value)?.gameName ?? nameTag.value)
+const playerName = computed(() => profile.value?.identity?.gameName ?? parseRiotIdSlug(nameTag.value)?.gameName ?? nameTag.value)
 const profilePath = computed(() => truemainProfilePath(nameTag.value))
 
 // A 404 for an unknown account, and the stored Riot ID's spelling as the

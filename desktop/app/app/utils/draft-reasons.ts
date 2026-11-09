@@ -2,7 +2,7 @@ import type { DraftReason } from '~/types/draft'
 import { formatCount } from '#shared/utils/counts'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { formatPointDelta } from '#shared/utils/deltas'
-import { positionLabel } from '#common/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 
 /**
  * How a draft suggestion's reasons read (#1906). The endpoint returns them as

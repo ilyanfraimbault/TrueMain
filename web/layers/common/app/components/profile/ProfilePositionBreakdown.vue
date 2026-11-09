@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ProfilePositionStat } from '#shared/types/profile'
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
-import { positionLabel } from '#common/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 
 // Each role's share of the player's games, main role first. The app's
 // dashboard adds how the player fares on each through the `games` slot

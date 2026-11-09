@@ -1,5 +1,5 @@
-import type { ChampionPosition } from '#common/utils/positions'
-import { isChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
+import { isChampionPosition } from '#shared/utils/positions'
 
 /**
  * Starred champions (#2080): the champion pages a player comes back to, next to

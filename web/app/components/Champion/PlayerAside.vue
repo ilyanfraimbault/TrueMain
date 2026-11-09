@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ProfileRanked } from '#shared/types/profile'
 import type { RankHistoryEntry } from '#shared/types/rank-history'
-import type { PositionFilter } from '#common/utils/positions'
+import type { PositionFilter } from '#shared/utils/positions'
 
 // The player-scoped champion page's cards beside the build: the ranked card the
 // profile opens its column on (it renders even when the champion aggregate

@@ -1,6 +1,7 @@
 // Presentation shared by the Data Quality page and its cards (split out of
 // `pages/data-quality.vue`, #1436).
 import type { DataQualityIssueType, IssueMeta } from '~~/shared/types/ops'
+import { getQueueLabel } from '#site-shared/utils/queues'
 
 // Issue-type metadata: label, icon, badge color — drives the filter select and
 // the group headers/badges so presentation stays consistent across the panel.
@@ -47,13 +48,6 @@ export const DATA_QUALITY_ISSUE_ORDER: DataQualityIssueType[] = [
   'duplicateChampion',
 ]
 
-const QUEUE_LABELS: Record<number, string> = {
-  420: 'Ranked Solo',
-  430: 'Normal',
-  440: 'Ranked Flex',
-  450: 'ARAM',
-  700: 'Clash',
-}
 
 export function dataQualityQueueLabel(queueId: number): string {
   // Queue id 0 isn't a real queue: Riot returns a stub payload (no queue id,
@@ -62,7 +56,7 @@ export function dataQualityQueueLabel(queueId: number): string {
   if (queueId === 0) {
     return 'Unknown queue'
   }
-  return QUEUE_LABELS[queueId] ?? `Queue ${queueId}`
+  return getQueueLabel(queueId)
 }
 
 export function pluralize(count: number, one: string, many: string): string {

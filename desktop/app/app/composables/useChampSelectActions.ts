@@ -1,6 +1,6 @@
 import type { InjectionKey, Ref } from 'vue'
 import type { DraftState, TeamSlot } from '~/types/lcu'
-import { positionLabel } from '#common/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 
 /** The two writes the app makes to champion select — on a click, never on its own. */
 export type ChampSelectKind = 'pick' | 'ban'

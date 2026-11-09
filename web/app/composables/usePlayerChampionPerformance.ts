@@ -1,5 +1,5 @@
 import type { PlayerChampionPerformanceResponse } from '~~/shared/types/performance'
-import type { PositionFilter } from '#common/utils/positions'
+import type { PositionFilter } from '#shared/utils/positions'
 import { fetchErrorStatus } from '#common/utils/errors'
 
 export interface UsePlayerChampionPerformanceOptions {

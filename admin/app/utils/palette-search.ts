@@ -1,6 +1,6 @@
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import type { PersonaListRow } from '~~/shared/types/ops'
-import { formatRiotId, parseRiotIdOrSlug } from '~~/shared/utils/riot-id'
+import { formatRiotId, parseRiotIdOrSlug } from '#site-shared/utils/riot-id'
 
 // What the ⌘K palette recognises in the typed term (#2290), on top of the pages:
 // a Riot ID, a known player, a match ID, a champion. Each one becomes a result

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rankScore } from '#common/utils/tiers'
+import { rankScore } from '~~/shared/utils/ranks'
 
 /**
  * `rankScore` mirrors `backend/Core/Lol/Ranking/RankScore.cs`: the backend sorts

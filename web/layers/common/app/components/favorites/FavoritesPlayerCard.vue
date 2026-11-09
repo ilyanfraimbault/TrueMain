@@ -9,7 +9,7 @@ import type { FavoriteTruemain } from '#common/utils/favorites'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { truemainProfilePath } from '#shared/utils/truemain-path'
 import { platformIdToRegion } from '#shared/utils/region'
-import { formatRank } from '#common/utils/tiers'
+import { formatRank } from '#shared/utils/ranks'
 
 // One followed player on the favorites view: identity + ranked summary from
 // the profile endpoint, then their latest games rendered with the shared

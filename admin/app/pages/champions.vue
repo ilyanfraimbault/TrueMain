@@ -17,7 +17,8 @@
 // qualifies instead, and only when there is something to say.
 import type { TableColumn } from '@nuxt/ui'
 import type { ChampionStatsRow } from '~~/shared/types/ops'
-import { ALL_POSITIONS_ICON_URL, POSITION_OPTIONS } from '~/utils/positions'
+import { getPositionIconUrl } from '#site-shared/utils/ddragon'
+import { POSITION_OPTIONS } from '#site-shared/utils/positions'
 import { formatNumber } from '~~/shared/utils/format'
 import { championSitePath } from '~~/shared/utils/site-link'
 
@@ -177,7 +178,7 @@ const mainsLabelFormatter = computed(() =>
                 aria-label="All positions"
                 @click="position = ALL"
               >
-                <NuxtImg :src="ALL_POSITIONS_ICON_URL" alt="All positions" width="18" height="18" class="size-[18px]" />
+                <NuxtImg :src="getPositionIconUrl('fill')" alt="All positions" width="18" height="18" class="size-[18px]" />
               </UButton>
             </UTooltip>
             <UTooltip v-for="option in POSITION_OPTIONS" :key="option.value" :text="option.label">

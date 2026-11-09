@@ -4,7 +4,7 @@ import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 import { formatCount } from '#shared/utils/counts'
 import { championDisplayName } from '#shared/utils/champion-name'
 import { formatKdaRatio } from '#shared/utils/kda'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 // What a truemains leaderboard row shows beside the player, derived once for
 // both rows that draw it: the site's `/truemains` table (`TruemainsTable`) and

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
-import { positionLabel } from '#common/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 import type { CompositionLane } from '~/types/build'
 import { winRateTone } from '#common/utils/rate-tone'
 

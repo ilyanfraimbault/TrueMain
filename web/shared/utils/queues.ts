@@ -8,14 +8,20 @@
 // public static.developer.riotgames.com/docs/lol/queues.json, which
 // lags the live game data).
 
+/** Ranked Solo/Duo: the one queue TrueMain stores and scores (#680). */
+export const RANKED_SOLO_QUEUE_ID = 420
+
+/** Ranked Flex. */
+export const RANKED_FLEX_QUEUE_ID = 440
+
 const QUEUE_LABELS: Record<number, string> = {
   0: 'Custom',
 
   // Summoner's Rift queues
   400: 'Normal',
-  420: 'Solo/Duo',
+  [RANKED_SOLO_QUEUE_ID]: 'Solo/Duo',
   430: 'Blind',
-  440: 'Flex',
+  [RANKED_FLEX_QUEUE_ID]: 'Flex',
   480: 'Swiftplay',
 
   // Co-op vs AI

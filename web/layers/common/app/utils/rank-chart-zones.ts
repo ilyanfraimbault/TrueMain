@@ -1,6 +1,6 @@
 import type { ApexCutoff } from '#shared/types/apex-cutoffs'
 import type { RankChartPoint } from '#common/utils/rank-chart'
-import { ELO_TIERS } from '#common/utils/elo-brackets'
+import { ELO_TIERS } from '#shared/utils/ranks'
 
 // Where each tier starts on the LP curve's score axis (`rankScore`), so the
 // chart can draw a rank change where it happens: when the curve crosses a

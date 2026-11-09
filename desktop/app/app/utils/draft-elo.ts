@@ -1,4 +1,5 @@
-import { hasPlus, isEloTier, tierPlus } from '#common/utils/elo-brackets'
+import { hasPlus, tierPlus } from '#shared/utils/elo-brackets'
+import { isEloTier } from '#shared/utils/ranks'
 
 /**
  * The bracket the draft reads for a player of `tier` (#1906): their tier and

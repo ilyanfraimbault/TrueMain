@@ -4,7 +4,7 @@
 import type { BadgeColor, SeedRequestStatus } from '~~/shared/types/ops'
 import type { TrackedRegion } from '~~/shared/utils/regions'
 import { parseTrackedRegion } from '~~/shared/utils/regions'
-import { riotIdError, splitRiotId } from '~~/shared/utils/riot-id'
+import { riotIdError, splitRiotId } from '#site-shared/utils/riot-id'
 
 // Per-row seeding outcome, kept separate from the parsed-row identity so a
 // re-parse (editing the textarea) doesn't wipe an in-flight/finished run until
@@ -36,7 +36,7 @@ export interface BulkPreviewRow extends BulkParsedRow {
 // are matched case-insensitively against the tracked set; an unknown region is
 // a hard error (we don't silently fall back, to avoid seeding the wrong shard).
 //
-// The Riot ID half is judged by `shared/utils/riot-id`, i.e. by the same rules
+// The Riot ID half is judged by `#site-shared/utils/riot-id`, i.e. by the same rules
 // the ops endpoints apply — this parser used to be laxer (no length cap, a
 // second '#' swallowed into the tag), so the preview counted lines as valid
 // that the API would have refused.

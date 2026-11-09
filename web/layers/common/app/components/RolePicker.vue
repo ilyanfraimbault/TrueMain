@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { POSITION_OPTIONS, type ChampionPosition } from '#common/utils/positions'
+import { POSITION_OPTIONS, type ChampionPosition } from '#shared/utils/positions'
 import { getPositionIconUrl } from '#shared/utils/ddragon'
 
 // Segmented picker: an "All positions" button followed by the five Riot

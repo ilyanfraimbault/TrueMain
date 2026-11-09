@@ -1,6 +1,6 @@
 import { IPX_ROUTE_BASE } from '~~/shared/utils/ipx'
 import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
-import { DEFAULT_ELO_BRACKET } from '~~/layers/common/app/utils/elo-brackets'
+import { DEFAULT_ELO_BRACKET } from '~~/shared/utils/elo-brackets'
 
 /**
  * What a web worker asks itself for before the site opens (#2425): the URLs a visitor's first

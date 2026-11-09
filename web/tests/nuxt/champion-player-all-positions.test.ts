@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ChampionFilters, ChampionMatchupSpread, ChampionPlayerHeading, UApp } from '#components'
 import type { ChampionMatchupEntry, ChampionMatchups as ChampionMatchupsResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { ALL_POSITIONS, type PositionFilter } from '#common/utils/positions'
+import { ALL_POSITIONS, type PositionFilter } from '#shared/utils/positions'
 
 /**
  * The player champion page's "All positions" slice (#2158): the matchup spread

@@ -1,6 +1,6 @@
 import type { CompositionBuildRequest, CompositionBuildResponse, CompositionSlotInput } from '#shared/types/composition'
 import { describeStaleFetchError } from '#common/utils/errors'
-import { POSITION_OPTIONS, type ChampionPosition } from '#common/utils/positions'
+import { POSITION_OPTIONS, type ChampionPosition } from '#shared/utils/positions'
 
 type DraftSlots = Record<ChampionPosition, number | null>
 

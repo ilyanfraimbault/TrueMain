@@ -599,7 +599,7 @@ and counts were written by hand in ~30 places, and a missing champion name was `
 - **Percentages** `formatPercentage(OrDash)`, **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
   recordings), **champion names** `championDisplayName` (`Champion {id}`), and lookups by id through
   `useChampionsById`, never a linear `find`.
-- **Positions** — `utils/positions.ts` holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
+- **Positions** — `web/shared/utils/positions.ts` (site, app and admin) holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
   names (`positionLabel`; `short` gives the app's `Mid` / `Bot`) and the icons (`getPositionIconUrl`).
 
 ## Favorites beyond players: a key per shape, no matchups, the clip flag stays the library's (2026-10-20)

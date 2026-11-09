@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ChampionMatchupSpread, UApp } from '#components'
 import type { ChampionMatchupEntry, ChampionMatchups } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 
 /**
  * The champion page's matchup spread (#2094), mounted against a mocked matchups

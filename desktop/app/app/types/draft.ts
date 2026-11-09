@@ -1,4 +1,4 @@
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 
 /** Mirrors `DraftEnemyLaneReadModel` on the API. */
 export interface EnemyLane {
@@ -124,5 +124,5 @@ export interface TeamRow {
   me?: boolean
 }
 
-/** A draft slot's position. The order, names and icons live in the shared `utils/positions.ts`. */
+/** A draft slot's position. The order, names and icons live in `#shared/utils/positions`. */
 export type Lane = ChampionPosition

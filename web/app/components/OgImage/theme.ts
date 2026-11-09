@@ -18,11 +18,12 @@
  * than on what we wrote.
  */
 
-export { formatRank, TIER_HEX as RANK_COLOR } from '#common/utils/tiers'
-export { eloBracketLabel as formatEloBracket } from '#common/utils/elo-brackets'
+export { formatRank } from '#shared/utils/ranks'
+export { TIER_HEX as RANK_COLOR } from '#common/utils/tiers'
+export { eloBracketLabel as formatEloBracket } from '#shared/utils/elo-brackets'
 export { formatCount } from '~~/shared/utils/counts'
 
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 /** `--color-ink-950`, the app's darkest surface — the card ground. */
 export const INK = '#0b0b0d'

@@ -1,5 +1,5 @@
 import type { RankHistoryEntry } from '#shared/types/rank-history'
-import { rankScore } from '#common/utils/tiers'
+import { rankScore } from '#shared/utils/ranks'
 
 // The ranked card's LP curve (`profile/ProfileRankChart.vue`) and its LP delta
 // chips, as pure functions over the rank-history snapshots.

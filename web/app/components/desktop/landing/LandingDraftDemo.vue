@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ComponentPublicInstance } from 'vue'
 import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { POSITIONS } from '#shared/utils/positions'
 import { championIconUrl, SAMPLE_ALLIES } from '~/utils/desktop-landing-sample'
 
 /**
@@ -11,8 +12,6 @@ import { championIconUrl, SAMPLE_ALLIES } from '~/utils/desktop-landing-sample'
  * figure; a sample has none to show, so the drawing shows no figure at all).
  */
 defineProps<{ patch: string | null }>()
-
-const LANES = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const
 
 const PICKS = [
   { key: 'Ahri', reason: 'vs Orianna (likely)' },
@@ -74,7 +73,7 @@ const loading = (key: string) => loadingArt(`https://ddragon.leagueoflegends.com
     <div class="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-3 sm:gap-4">
       <!-- Our team, lane by lane; our own slot fills with the hover. -->
       <ul class="flex flex-col gap-1.5">
-        <li v-for="(lane, index) in LANES" :key="lane" class="flex items-center gap-2 rounded-md p-1" :class="lane === 'MIDDLE' && 'bg-ally/10 ring-1 ring-ally/30'">
+        <li v-for="(lane, index) in POSITIONS" :key="lane" class="flex items-center gap-2 rounded-md p-1" :class="lane === 'MIDDLE' && 'bg-ally/10 ring-1 ring-ally/30'">
           <span class="relative size-8 overflow-hidden rounded bg-elevated">
             <img
               v-if="lane !== 'MIDDLE' && patch"

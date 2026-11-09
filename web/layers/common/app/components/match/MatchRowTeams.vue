@@ -3,7 +3,7 @@ import { championDisplayName } from '#shared/utils/champion-name'
 import type { MatchSummaryParticipant } from '#shared/types/matches'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { riotIdLabel } from '#shared/utils/truemain-path'
-import { compareByPosition, POSITION_BY_VALUE } from '#common/utils/positions'
+import { compareByPosition, POSITION_BY_VALUE } from '#shared/utils/positions'
 import { iconPlaceholderClass } from '#common/utils/icon-placeholder'
 
 // Both compositions of a match row, the player's team over the enemy's, each in

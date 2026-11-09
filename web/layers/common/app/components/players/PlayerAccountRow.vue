@@ -3,7 +3,7 @@ import type { PersonaAccount } from '#shared/types/players'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { truemainNameTag } from '#shared/utils/truemain-path'
-import { formatRank } from '#common/utils/tiers'
+import { formatRank } from '#shared/utils/ranks'
 import { formatRelativeTime } from '#common/utils/relativeTime'
 
 // One account of a known player (#2016): when it last played, then the account

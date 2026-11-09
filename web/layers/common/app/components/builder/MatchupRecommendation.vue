@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/types/composition'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
-import { POSITION_BY_VALUE, type ChampionPosition } from '#common/utils/positions'
+import { POSITION_BY_VALUE, type ChampionPosition } from '#shared/utils/positions'
 
 // The matchup page's recommendation, in each of its states: loading, the
 // standard-build fallback, no similar games, and the recommendation itself.
