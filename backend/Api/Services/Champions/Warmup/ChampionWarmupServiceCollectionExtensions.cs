@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using TrueMain.Configuration;
 
 namespace TrueMain.Services.Champions.Warmup;
 
@@ -11,16 +12,10 @@ public static class ChampionWarmupServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddChampionWarmup(this IServiceCollection services, IConfiguration configuration)
     {
-        var section = configuration.GetSection(ChampionWarmupOptions.SectionName);
-        services.AddOptions<ChampionWarmupOptions>()
-            .Bind(section)
-            .Validate(options => options.Concurrency > 0, "ChampionWarmup:Concurrency must be greater than 0.")
-            .Validate(options => options.StampPollSeconds > 0, "ChampionWarmup:StampPollSeconds must be greater than 0.")
-            .Validate(options => options.PatchDepth > 0, "ChampionWarmup:PatchDepth must be greater than 0.")
-            .ValidateOnStart();
+        services.AddApiOptions<ChampionWarmupOptions>();
         services.AddSingleton<ChampionReadVersion>();
 
-        if (section.GetValue<bool>(nameof(ChampionWarmupOptions.Enabled)))
+        if (configuration.GetSection(ChampionWarmupOptions.SectionName).GetValue<bool>(nameof(ChampionWarmupOptions.Enabled)))
         {
             services.AddHttpClient(ChampionCacheWarmer.ClientName);
             services.AddHostedService<ChampionCacheWarmer>();
