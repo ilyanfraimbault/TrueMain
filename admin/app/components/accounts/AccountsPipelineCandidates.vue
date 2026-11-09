@@ -5,7 +5,7 @@
 // out of `AccountsPipeline.vue` (#1436); exposes `refresh`/`pending` for the
 // hub's navbar button.
 import type { TableColumn } from '@nuxt/ui'
-import type { CandidateRow, MainCandidateStatus } from '~~/shared/types/ops'
+import type { CandidateRowReadModel, MainCandidateStatus } from '#site-shared/contract/api'
 import { formatCappedCount, formatDateTime } from '~~/shared/utils/format'
 
 defineEmits<{
@@ -60,14 +60,14 @@ const {
   refresh: refreshCandidates,
 } = useCandidates(candidateFilters)
 
-const candidateRows = computed<CandidateRow[]>(() => candidateData.value?.candidates ?? [])
+const candidateRows = computed<CandidateRowReadModel[]>(() => candidateData.value?.candidates ?? [])
 const candidateTotal = computed(() => candidateData.value?.total ?? 0)
 // A wide filter's total is counted up to a cap (#2304): the badge and the page
 // count then read as lower bounds, and the pager stops at the capped page.
 const candidateTotalCapped = computed(() => candidateData.value?.totalCapped ?? false)
 const candidatePageCount = computed(() => Math.max(1, Math.ceil(candidateTotal.value / candidatePageSize)))
 
-const candidateColumns: TableColumn<CandidateRow>[] = [
+const candidateColumns: TableColumn<CandidateRowReadModel>[] = [
   { accessorKey: 'championId', header: 'Champion' },
   { accessorKey: 'riotId', header: 'Riot ID' },
   { accessorKey: 'platformId', header: 'Region' },

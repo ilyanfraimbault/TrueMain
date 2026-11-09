@@ -6,7 +6,8 @@
 // snapshot, and the log lines captured just before it); the whole report is
 // copyable as text, and a checkbox selection can be copied as JSON.
 import type { TableColumn } from '@nuxt/ui'
-import type { CrashReport, CrashSource } from '~~/shared/types/ops'
+import type { CrashSource } from '~~/shared/types/ops'
+import type { CrashReportReadModel } from '#site-shared/contract/api'
 import { formatDateTime } from '~~/shared/utils/format'
 
 const processFilter = ref<string>(ALL)
@@ -87,8 +88,8 @@ const selectedEntries = computed(() =>
 const selectionJson = computed(() => JSON.stringify(selectedEntries.value, null, 2))
 
 // --- Table -------------------------------------------------------------------
-const columns: TableColumn<CrashReport>[] = [
-  selectColumn<CrashReport>(),
+const columns: TableColumn<CrashReportReadModel>[] = [
+  selectColumn<CrashReportReadModel>(),
   { accessorKey: 'timestampUtc', header: 'Time' },
   { accessorKey: 'processName', header: 'Process' },
   { accessorKey: 'source', header: 'Source' },
@@ -106,8 +107,8 @@ const tableMeta = {
 
 // --- Detail slide-over -------------------------------------------------------
 const detailOpen = ref(false)
-const selectedEntry = ref<CrashReport | null>(null)
-function openDetail(entry: CrashReport) {
+const selectedEntry = ref<CrashReportReadModel | null>(null)
+function openDetail(entry: CrashReportReadModel) {
   selectedEntry.value = entry
   detailOpen.value = true
 }

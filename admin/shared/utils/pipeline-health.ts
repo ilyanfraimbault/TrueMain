@@ -1,4 +1,5 @@
-import type { BadgeColor, ProcessHealthStatus } from '~~/shared/types/ops'
+import type { ProcessRunStatus } from '#site-shared/contract/api'
+import type { BadgeColor } from '~~/shared/types/ops'
 import { formatElapsed } from '~~/shared/utils/format'
 
 /**
@@ -9,6 +10,9 @@ import { formatElapsed } from '~~/shared/utils/format'
  * The green/amber/red/unknown signal vocabulary lives in `detector-status.ts`; this file
  * covers the two things unique to the cockpit: run statuses and the signed pipeline gaps.
  */
+
+/** A process's run status as the cockpit shows it: `Missing` when it never recorded a run. */
+export type ProcessHealthStatus = ProcessRunStatus | 'Missing'
 
 /** One colour and one icon per run status — the status is dressed once. */
 export interface ProcessStatusMeta {

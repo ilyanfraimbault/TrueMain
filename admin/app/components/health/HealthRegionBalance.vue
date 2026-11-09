@@ -5,13 +5,13 @@
 // Informational, like the Riot API tile: it feeds no signal and does not move the verdict.
 // Every figure is the backend's; the only thing computed here is the chart pivot, and the
 // zero days it fills are measured (the query covers the whole window).
-import type { RegionBalance } from '~~/shared/types/ops'
+import type { RegionBalanceReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber, formatPercentOrDash, formatTimeAgo } from '~~/shared/utils/format'
 import { chartedPlatforms, claimLabel, regionDailyRows } from '~~/shared/utils/region-balance'
 import { CHART_SERIES } from '~/utils/chart-palette'
 import { formatCount, indexLabelFormatter, labelTooltipTitle, multiTimeBarProps } from '~/utils/charts'
 
-const props = defineProps<{ balance: RegionBalance }>()
+const props = defineProps<{ balance: RegionBalanceReadModel }>()
 
 const platforms = computed(() => chartedPlatforms(props.balance))
 const chartData = computed(() => regionDailyRows(props.balance, platforms.value))

@@ -66,7 +66,7 @@ public sealed class MatchesIngestedApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/stats/matches-ingested?granularity=day&windowDays=7");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<MatchesIngestedReadModel>();
+        var payload = await response.Content.ReadFromJsonAsync<MatchesIngestedReadModel>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         var bucket = payload!.Buckets.Single(b => b.Bucket == today.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"));

@@ -1,4 +1,4 @@
-import type { RequestLatency, RouteLatency, RouteLatencyPoint } from '~~/shared/types/ops'
+import type { RequestLatencyReadModel, RouteLatencyPointReadModel, RouteLatencyReadModel } from '#site-shared/contract/api'
 import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
@@ -11,11 +11,11 @@ import { countSlowRoutes, formatLatency, isSlowRoute, sparkline } from '~~/share
 // bin breaks the sparkline instead of reading as fast, and that the table keeps the API's
 // slowest-first order with the slow routes marked.
 
-function point(p95Ms: number | null, index = 0): RouteLatencyPoint {
+function point(p95Ms: number | null, index = 0): RouteLatencyPointReadModel {
   return { binStartUtc: new Date(Date.UTC(2026, 9, 26, index)).toISOString(), count: p95Ms === null ? 0 : 3, p95Ms }
 }
 
-function route(overrides: Partial<RouteLatency>): RouteLatency {
+function route(overrides: Partial<RouteLatencyReadModel>): RouteLatencyReadModel {
   return {
     route: '/ops/logs',
     method: 'GET',
@@ -31,7 +31,7 @@ function route(overrides: Partial<RouteLatency>): RouteLatency {
   }
 }
 
-const latency: RequestLatency = {
+const latency: RequestLatencyReadModel = {
   window: '24h',
   sinceUtc: '2026-10-25T12:00:00Z',
   generatedAtUtc: '2026-10-26T12:00:00Z',

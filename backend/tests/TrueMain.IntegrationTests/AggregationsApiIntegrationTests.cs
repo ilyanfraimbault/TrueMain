@@ -83,7 +83,7 @@ public sealed class AggregationsApiIntegrationTests : IAsyncLifetime
         matchups.GetProperty("distinctChampions").GetInt32().Should().Be(2);
         var matchupsRun = matchups.GetProperty("lastRun");
         matchupsRun.ValueKind.Should().Be(JsonValueKind.Object);
-        matchupsRun.GetProperty("status").GetString().Should().Be("failed");
+        matchupsRun.GetProperty("status").GetString().Should().Be("Failed", "a run status is spelled as /ops/process-runs spells it");
         matchupsRun.GetProperty("lastSuccessAtUtc").ValueKind.Should().Be(JsonValueKind.String);
         matchupsRun.GetProperty("lastSuccessSummary").GetProperty("matchupRows").GetInt32().Should().Be(3);
 

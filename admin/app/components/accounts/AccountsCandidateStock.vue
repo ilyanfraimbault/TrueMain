@@ -16,18 +16,16 @@
 // still moving"; rows are what the queue actually holds. The rows-per-account line under
 // the chart is what tells the two kinds of change apart.
 import type {
-  CandidateFunnelBucket,
-  CandidateStock,
-  CandidateStockAccounts,
   IngestionTimeGranularity,
 } from '~~/shared/types/ops'
+import type { CandidateFunnelBucket, CandidateStockAccounts, CandidateStockReadModel } from '#site-shared/contract/api'
 import { formatNumber } from '~~/shared/utils/format'
 
 const props = defineProps<{
   /** The funnel's contiguous buckets — the x grid (see `chartData`). */
   funnelBuckets: CandidateFunnelBucket[]
   granularity: IngestionTimeGranularity
-  stock: CandidateStock | null | undefined
+  stock: CandidateStockReadModel | null | undefined
   pending: boolean
   error: unknown
   /** Accounts demoted over the window, from the funnel's flow series. */
@@ -44,7 +42,7 @@ const unit = ref<Unit>('rows')
 type Level = CandidateStockAccounts
 
 /** One bucket's level in the selected unit; undefined when it was not measured in it. */
-function levelOf(bucket: CandidateStock['buckets'][number] | undefined): Level | undefined {
+function levelOf(bucket: CandidateStockReadModel['buckets'][number] | undefined): Level | undefined {
   if (!bucket) {
     return undefined
   }

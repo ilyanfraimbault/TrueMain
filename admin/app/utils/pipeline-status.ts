@@ -2,7 +2,8 @@
 // panel that shows one. Colors trace New → Validated and Pending →
 // Ingested/Failed, and stay close to the Overview candidate-pipeline palette —
 // so a status never looks like two different things on two pages.
-import type { BadgeColor, MainCandidateStatus, SeedRequestStatus } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/types/ops'
+import type { MainCandidateStatus, SeedRequestStatus } from '#site-shared/contract/api'
 
 export const CANDIDATE_STATUSES: MainCandidateStatus[] = [
   'New',

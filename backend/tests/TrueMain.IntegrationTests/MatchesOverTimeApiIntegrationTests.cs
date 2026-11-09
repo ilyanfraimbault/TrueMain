@@ -40,7 +40,7 @@ public sealed class MatchesOverTimeApiIntegrationTests : IAsyncLifetime
         document.RootElement[0].EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["bucket", "matches"]);
 
-        var buckets = await response.Content.ReadFromJsonAsync<IReadOnlyList<MatchTimeBucketTestContract>>();
+        var buckets = await response.Content.ReadFromJsonAsync<IReadOnlyList<MatchTimeBucketTestContract>>(ApiJson.Options);
         buckets.Should().NotBeNull();
 
         // Seeded distribution by game month (UTC):
@@ -69,7 +69,7 @@ public sealed class MatchesOverTimeApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/stats/matches-over-time?granularity=patch");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var buckets = await response.Content.ReadFromJsonAsync<IReadOnlyList<MatchTimeBucketTestContract>>();
+        var buckets = await response.Content.ReadFromJsonAsync<IReadOnlyList<MatchTimeBucketTestContract>>(ApiJson.Options);
         buckets.Should().NotBeNull();
 
         // Two normalized patches: "16.4" (March, 3 matches) and "16.10" (May, 2).
@@ -97,7 +97,7 @@ public sealed class MatchesOverTimeApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/stats/matches-over-time?granularity=patch&region=KR");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var buckets = await response.Content.ReadFromJsonAsync<IReadOnlyList<MatchTimeBucketTestContract>>();
+        var buckets = await response.Content.ReadFromJsonAsync<IReadOnlyList<MatchTimeBucketTestContract>>(ApiJson.Options);
         buckets.Should().NotBeNull();
 
         buckets!.Should().ContainSingle();
@@ -116,7 +116,7 @@ public sealed class MatchesOverTimeApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/stats/matches-over-time?granularity=day");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var buckets = await response.Content.ReadFromJsonAsync<IReadOnlyList<MatchTimeBucketTestContract>>();
+        var buckets = await response.Content.ReadFromJsonAsync<IReadOnlyList<MatchTimeBucketTestContract>>(ApiJson.Options);
         buckets.Should().NotBeNull();
 
         // Every seeded match falls on a distinct UTC day, so five one-match day

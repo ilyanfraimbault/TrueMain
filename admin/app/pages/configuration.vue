@@ -8,29 +8,13 @@
 // legitimately be older than the page load without meaning anything is stale.
 //
 // Read-only: this page has no write path, by design (see the issue's scope).
-import type {
-  EffectiveConfigurationOrigin,
-  EffectiveConfigurationProcess,
-  EffectiveConfigurationValue,
-} from '~~/shared/types/ops'
+import type { EffectiveConfigurationProcessReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatTimeAgo } from '~~/shared/utils/format'
+import { originLabel, originMeta } from '~/utils/configuration-origin'
 
 const { data, pending, refreshing, error, refresh } = useEffectiveConfiguration()
 
-const processes = computed<EffectiveConfigurationProcess[]>(() => data.value?.processes ?? [])
-
-// Stated in words, not just colour: an operator scanning for "did someone
-// override this" should not have to learn a colour code first.
-const ORIGIN_META: Record<EffectiveConfigurationOrigin, { label: string, color: 'neutral' | 'primary' | 'warning' }> = {
-  default: { label: 'Default', color: 'neutral' },
-  override: { label: 'Override', color: 'primary' },
-  derived: { label: 'Derived', color: 'warning' },
-}
-
-function originLabel(value: EffectiveConfigurationValue): string {
-  const meta = ORIGIN_META[value.origin]
-  return value.source ? `${meta.label} — ${value.source}` : meta.label
-}
+const processes = computed<EffectiveConfigurationProcessReadModel[]>(() => data.value?.processes ?? [])
 </script>
 
 <template>
@@ -120,7 +104,7 @@ function originLabel(value: EffectiveConfigurationValue): string {
                   </span>
                   <span v-else />
                   <UBadge
-                    :color="ORIGIN_META[value.origin].color"
+                    :color="originMeta(value.origin).color"
                     variant="subtle"
                     size="sm"
                     :label="originLabel(value)"

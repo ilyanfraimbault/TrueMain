@@ -1,3 +1,4 @@
+using Data.Entities;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -29,9 +30,9 @@ public sealed record PersonaConflictReadModel
 {
     public Guid Id { get; init; }
 
-    public string Status { get; init; } = string.Empty;
+    public PersonaConflictStatus Status { get; init; }
 
-    public string? Resolution { get; init; }
+    public PersonaConflictResolution? Resolution { get; init; }
 
     /// <summary>The source of the claim.</summary>
     public string Source { get; init; } = string.Empty;
@@ -174,7 +175,7 @@ public sealed record PersonaConflictResolvedResponse
 {
     public Guid Id { get; init; }
 
-    public string Resolution { get; init; } = string.Empty;
+    public PersonaConflictResolution Resolution { get; init; }
 
     /// <summary>The persona that holds the account now; null when it was detached.</summary>
     public string? HolderSlug { get; init; }

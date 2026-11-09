@@ -6567,7 +6567,7 @@
             "type": "string"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/RiotAccountStatus"
           },
           "lastMatchIngestAtUtc": {
             "type": [
@@ -6602,12 +6602,12 @@
             "format": "int32"
           },
           "status": {
-            "type": "string",
-            "description": "The `MainCandidateStatus` name."
+            "description": "The `MainCandidateStatus` name.",
+            "$ref": "#/components/schemas/MainCandidateStatus"
           },
           "source": {
-            "type": "string",
-            "description": "The `MainCandidateSource` name. Note that `ManualSeed` is never\nassigned in production — `ManualSeedProcess` reuses the ladder\nupsert, so a manually seeded candidate reads `Ladder`. Read\nSeedRequestReadModel? AccountExplorerReadModel.SeedRequest for the manual trail."
+            "description": "The `MainCandidateSource` name. Note that `ManualSeed` is never\nassigned in production — `ManualSeedProcess` reuses the ladder\nupsert, so a manually seeded candidate reads `Ladder`. Read\nSeedRequestReadModel? AccountExplorerReadModel.SeedRequest for the manual trail.",
+            "$ref": "#/components/schemas/MainCandidateSource"
           },
           "score": {
             "type": "number",
@@ -6753,8 +6753,8 @@
             "format": "int32"
           },
           "status": {
-            "type": "string",
-            "description": "The `RiotAccountStatus` name: \"Active\" or \"Invalid\"."
+            "description": "The `RiotAccountStatus` name: \"Active\" or \"Invalid\".",
+            "$ref": "#/components/schemas/RiotAccountStatus"
           },
           "createdAtUtc": {
             "type": "string",
@@ -7132,8 +7132,8 @@
             "$ref": "#/components/schemas/AccountExplorerQueryReadModel"
           },
           "state": {
-            "type": "string",
-            "description": "One-word verdict, resolved first-match-wins so a player always lands in\nexactly one state. See AccountPipelineState for the ladder\nand what each value means. The booleans behind it stay exposed in the\nsections below — the state is a headline, not the source of truth."
+            "description": "One-word verdict, resolved first-match-wins so a player always lands in\nexactly one state. See AccountPipelineState for the ladder\nand what each value means. The booleans behind it stay exposed in the\nsections below — the state is a headline, not the source of truth.",
+            "$ref": "#/components/schemas/AccountPipelineState"
           },
           "stateDetail": {
             "type": "string",
@@ -7192,7 +7192,7 @@
                 "type": "null"
               },
               {
-                "description": "The manual \"add a main\" request behind this account, if any — the only\nreliable manual-seed signal (see\nstring AccountExplorerCandidateReadModel.Source). Matched on the\nresolved PUUID + platform when the account exists, and on the Riot ID\ntext when it does not — which is how a seed that never resolved is still\nvisible.",
+                "description": "The manual \"add a main\" request behind this account, if any — the only\nreliable manual-seed signal (see\nMainCandidateSource AccountExplorerCandidateReadModel.Source). Matched on the\nresolved PUUID + platform when the account exists, and on the Riot ID\ntext when it does not — which is how a seed that never resolved is still\nvisible.",
                 "$ref": "#/components/schemas/SeedRequestReadModel"
               }
             ]
@@ -7209,7 +7209,7 @@
             "description": "Rank snapshots, most recent first, capped at\n`AccountExplorerPanelReads.RankSnapshotCap`. At most one row per\nUTC day, solo queue only, and never pruned by retention — so this is the\none series whose gaps really are gaps in play, not in storage."
           }
         },
-        "description": "    Everything the pipeline knows about one Riot ID, for the admin account\n    explorer (#1032): identity, tracking/lease state, the candidate funnel, the\n    main-champion rows and the rank history, in one read.\n    The endpoint answers \"why does this player not show up on the site?\", so its\ncontract is that no state is ever inferred from an absent row without\nsaying so. An unknown Riot ID is a 200 with string AccountExplorerReadModel.State =\nNeverDiscovered, never a 404 — \"we have never seen this account\" is an\nanswer, not an error. Counts each carry the population they count, and the\nretention-bounded ones carry the window they were measured over.\n    Read-only, and deliberately database-only: the API holds no Riot client, so\nthis read cannot (and does not claim to) tell \"never discovered\" apart from\n\"this Riot ID does not exist at Riot\"."
+        "description": "    Everything the pipeline knows about one Riot ID, for the admin account\n    explorer (#1032): identity, tracking/lease state, the candidate funnel, the\n    main-champion rows and the rank history, in one read.\n    The endpoint answers \"why does this player not show up on the site?\", so its\ncontract is that no state is ever inferred from an absent row without\nsaying so. An unknown Riot ID is a 200 with AccountPipelineState AccountExplorerReadModel.State =\nNeverDiscovered, never a 404 — \"we have never seen this account\" is an\nanswer, not an error. Counts each carry the population they count, and the\nretention-bounded ones carry the window they were measured over.\n    Read-only, and deliberately database-only: the API holds no Riot client, so\nthis read cannot (and does not claim to) tell \"never discovered\" apart from\n\"this Riot ID does not exist at Riot\"."
       },
       "AccountExplorerTrackingReadModel": {
         "required": [
@@ -7230,11 +7230,15 @@
             "description": "True when the account satisfies either membership arm of the ingest claim.\nThere is no `IsTracked` column — this is derived, exactly as\n`ClaimAccountsForMatchIngestAtomicallyAsync` derives it."
           },
           "trackedVia": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "description": "Which arm: \"EstablishedMain\", \"QueuedCandidate\", \"Both\", or null when\nneither — i.e. the account is never selected for ingestion."
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Which arm: \"EstablishedMain\", \"QueuedCandidate\", \"Both\", or null when\nneither — i.e. the account is never selected for ingestion.",
+                "$ref": "#/components/schemas/AccountTrackingArm"
+              }
+            ]
           },
           "hasActiveMain": {
             "type": "boolean",
@@ -7242,11 +7246,11 @@
           },
           "hasQueuedCandidate": {
             "type": "boolean",
-            "description": "True when a candidate sits at `Queued`. It is the claim's new-candidate arm only\nwhile the account was never ingested (#1535) — string? AccountExplorerTrackingReadModel.TrackedVia applies that rule."
+            "description": "True when a candidate sits at `Queued`. It is the claim's new-candidate arm only\nwhile the account was never ingested (#1535) — AccountTrackingArm? AccountExplorerTrackingReadModel.TrackedVia applies that rule."
           },
           "matchIngestStatus": {
-            "type": "string",
-            "description": "The `MatchIngestStatus` name: \"Idle\" or \"Processing\"."
+            "description": "The `MatchIngestStatus` name: \"Idle\" or \"Processing\".",
+            "$ref": "#/components/schemas/MatchIngestStatus"
           },
           "matchIngestClaimedAtUtc": {
             "type": [
@@ -7374,6 +7378,27 @@
           }
         },
         "description": "Response for `POST /ops/accounts/freshness`."
+      },
+      "AccountPipelineState": {
+        "enum": [
+          "NeverDiscovered",
+          "SeedRequestedOnly",
+          "Invalidated",
+          "Tracked",
+          "Retired",
+          "NotAMain",
+          "CandidateOnly",
+          "Discovered"
+        ],
+        "description": "The verdict ladder, resolved in declaration order — the first matching state\nwins. Serialized as its name."
+      },
+      "AccountTrackingArm": {
+        "enum": [
+          "EstablishedMain",
+          "QueuedCandidate",
+          "Both",
+          null
+        ]
       },
       "AggregateFreshnessReadModel": {
         "required": [
@@ -7504,7 +7529,7 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/ProcessRunStatus"
           },
           "lastStartedAtUtc": {
             "type": [
@@ -8163,7 +8188,7 @@
             "format": "double"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/MainCandidateStatus"
           },
           "discoveredAtUtc": {
             "type": "string",
@@ -8438,7 +8463,7 @@
             "format": "double"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/MainCandidateStatus"
           },
           "discoveredAtUtc": {
             "type": "string",
@@ -8463,7 +8488,7 @@
             "format": "date-time"
           }
         },
-        "description": "A single `MainCandidate` as surfaced to the list. string CandidateRowReadModel.Status is\nthe `MainCandidateStatus` name (\"New\"/\"Scored\"/\"Queued\"/\"Processing\"/\n\"Validated\"). The Riot ID fields (string? CandidateRowReadModel.GameName,\nstring? CandidateRowReadModel.TagLine) are populated from the joined `RiotAccount` when one\nexists for the candidate's PUUID; null when the account hasn't been resolved\nyet (a candidate is discovered from mastery before its account is upserted)."
+        "description": "A single `MainCandidate` as surfaced to the list. MainCandidateStatus CandidateRowReadModel.Status is\nthe `MainCandidateStatus` name (\"New\"/\"Scored\"/\"Queued\"/\"Processing\"/\n\"Validated\"). The Riot ID fields (string? CandidateRowReadModel.GameName,\nstring? CandidateRowReadModel.TagLine) are populated from the joined `RiotAccount` when one\nexists for the candidate's PUUID; null when the account hasn't been resolved\nyet (a candidate is discovered from mastery before its account is upserted)."
       },
       "CandidatesReadModel": {
         "required": [
@@ -9020,8 +9045,8 @@
             "format": "int64"
           },
           "status": {
-            "type": "string",
-            "description": "`green` | `amber` | `red` for this champion's age."
+            "description": "`green` | `amber` | `red` for this champion's age.",
+            "$ref": "#/components/schemas/DetectorStatus"
           }
         },
         "description": "One champion's aggregate freshness on a patch."
@@ -10916,8 +10941,8 @@
             "description": "Short display title."
           },
           "status": {
-            "type": "string",
-            "description": "`green` | `amber` | `red` | `unknown`. Unknown means the\ndetector could not compute its answer — it is never used for \"measured and fine\"."
+            "description": "`green` | `amber` | `red` | `unknown`. Unknown means the\ndetector could not compute its answer — it is never used for \"measured and fine\".",
+            "$ref": "#/components/schemas/DetectorStatus"
           },
           "count": {
             "type": [
@@ -10940,7 +10965,7 @@
               "null",
               "string"
             ],
-            "description": "Why the answer is unknown. Set if and only if string DataQualityDetectorReadModel.Status is\n`unknown`, so the panel can always explain the state instead of showing a\nblank card."
+            "description": "Why the answer is unknown. Set if and only if DetectorStatus DataQualityDetectorReadModel.Status is\n`unknown`, so the panel can always explain the state instead of showing a\nblank card."
           },
           "sourceNote": {
             "type": "string",
@@ -10983,8 +11008,8 @@
             "description": "Table, platform, process, patch or check name."
           },
           "status": {
-            "type": "string",
-            "description": "`green` | `amber` | `red` | `unknown` for this row alone."
+            "description": "`green` | `amber` | `red` | `unknown` for this row alone.",
+            "$ref": "#/components/schemas/DetectorStatus"
           },
           "value": {
             "type": [
@@ -11002,11 +11027,15 @@
             "description": "The row's number as the panel should print it (with its unit), or null when\nunmeasured. Formatted here so a percentage, a count and an age can share one row\ntype without the front end branching on the detector."
           },
           "valueStatus": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "description": "     The verdict of the measure string? DataQualityDetectorRowReadModel.ValueLabel prints, when it is not the\n     row's own (#1656).\n\n     A row can judge more than one measure — the orphan card judges a share and its\nmovement — and string DataQualityDetectorRowReadModel.Status is the worst of them. Painting the printed\nnumber with that verdict puts a warning colour on a reading that is fine and hides\nwhich measure actually tripped. Null means the printed number is the\njudged one and carries string DataQualityDetectorRowReadModel.Status."
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "     The verdict of the measure string? DataQualityDetectorRowReadModel.ValueLabel prints, when it is not the\n     row's own (#1656).\n\n     A row can judge more than one measure — the orphan card judges a share and its\nmovement — and DetectorStatus DataQualityDetectorRowReadModel.Status is the worst of them. Painting the printed\nnumber with that verdict puts a warning colour on a reading that is fine and hides\nwhich measure actually tripped. Null means the printed number is the\njudged one and carries DetectorStatus DataQualityDetectorRowReadModel.Status.",
+                "$ref": "#/components/schemas/DetectorStatus"
+              }
+            ]
           },
           "note": {
             "type": [
@@ -11049,8 +11078,8 @@
         "type": "object",
         "properties": {
           "issueType": {
-            "type": "string",
-            "description": "The DataQualityIssueType name (camelCase on the wire)."
+            "description": "The DataQualityIssueType name (camelCase on the wire).",
+            "$ref": "#/components/schemas/DataQualityIssueType"
           },
           "count": {
             "type": "integer",
@@ -11066,6 +11095,16 @@
           }
         },
         "description": "One issue type's flagged matches: a capped sample plus the full count."
+      },
+      "DataQualityIssueType": {
+        "enum": [
+          "missingTimeline",
+          "wrongParticipantCount",
+          "missingTeamPosition",
+          "zeroDuration",
+          "duplicateChampion"
+        ],
+        "description": "The data-quality checks the panel can run, each independently listable. The\ncamelCase name is what crosses the API boundary and what the `issue` query filter accepts."
       },
       "DataQualityThresholdReadModel": {
         "required": [
@@ -11855,6 +11894,15 @@
             "format": "int64"
           }
         }
+      },
+      "DetectorStatus": {
+        "enum": [
+          "unknown",
+          "green",
+          "amber",
+          "red"
+        ],
+        "description": "A detector verdict. Ordered by declaration only; precedence lives in\n    `DataQualityDetectorEvaluator.Worst`."
       },
       "DraftBanCandidateReadModel": {
         "required": [
@@ -12754,7 +12802,7 @@
           "issues": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DataQualityIssueType"
             },
             "description": "Every issue this match is flagged by (a match can trip several checks),\nas DataQualityIssueType names."
           }
@@ -12874,6 +12922,13 @@
         },
         "description": "One tier of a position. Every quartile is null under\nint FormBenchmarkResponse.MinSamples: the tile then shows no reference rather\nthan one drawn from a handful of games."
       },
+      "HealthAlertChangeKind": {
+        "enum": [
+          "failing",
+          "recovered"
+        ],
+        "description": "What a health alert announces about a key: it started failing, or it recovered."
+      },
       "HealthAlertChangeReadModel": {
         "required": [
           "key",
@@ -12891,8 +12946,8 @@
             "type": "string"
           },
           "change": {
-            "type": "string",
-            "description": "`failing` | `recovered`."
+            "description": "`failing` | `recovered`.",
+            "$ref": "#/components/schemas/HealthAlertChangeKind"
           },
           "status": {
             "type": "string"
@@ -12924,8 +12979,8 @@
             "format": "date-time"
           },
           "kind": {
-            "type": "string",
-            "description": "`failing` | `recovered`."
+            "description": "`failing` | `recovered`.",
+            "$ref": "#/components/schemas/HealthAlertChangeKind"
           },
           "title": {
             "type": "string"
@@ -13891,6 +13946,23 @@
         },
         "description": "A page of persisted application/process logs for the admin Logs panel.\nEntries are newest-first. long LogsReadModel.Total is the count of all rows\nmatching the active filters (before paging), so the panel can render a pager."
       },
+      "MainCandidateSource": {
+        "enum": [
+          "Ladder",
+          "ManualSeed",
+          "Harvest"
+        ],
+        "description": "Where a MainCandidate came from. Ladder candidates are\nmastery-gated ladder crawl results (rank/points populated); ManualSeed are\noperator-added accounts; Harvest are derived from orphan\n`match_participants` rows (observed games/wins, no mastery data). The\nsource selects how `ScoringProcess` scores the candidate."
+      },
+      "MainCandidateStatus": {
+        "enum": [
+          "New",
+          "Scored",
+          "Queued",
+          "Processing",
+          "Validated"
+        ]
+      },
       "MatchDataQualityDetailReadModel": {
         "required": [
           "matchId",
@@ -13959,7 +14031,7 @@
           "issues": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DataQualityIssueType"
             },
             "description": "Issue types this match is flagged by, as DataQualityIssueType names."
           },
@@ -14478,6 +14550,12 @@
         },
         "description": "     Match ingestion throughput over time (#1025) — how many matches the pipeline\n     actually ingested per period.\n\n     Deliberately not the same question as /ops/stats/matches-over-time,\nwhich buckets matches.GameStartTimeUtc and therefore describes when the\ngames were played: a property of the player population, which barely\nmoves when ingestion stalls and grows in the *past* when a backfill lands. This\none buckets the ingestor's own runs, so it answers \"did the pipeline keep up this\nweek\" — the signal the two retention crash-loops (#982, #988) needed and nothing\nin the portal carried.\n\n     Sourced from the recorded run summaries in Mongo rather than from\nmatches.CreatedAtUtc. That column exists and looks tempting, but retention\ndeletes out-of-window and non-tracked-queue matches, so an old bucket shrinks over\ntime and the curve rewrites its own history. Deleting a match does not rewrite the\nrun that ingested it."
       },
+      "MatchIngestStatus": {
+        "enum": [
+          "Idle",
+          "Processing"
+        ]
+      },
       "MatchSlotReadModel": {
         "required": [
           "position",
@@ -14888,8 +14966,8 @@
             "format": "date-time"
           },
           "healthStatus": {
-            "type": "string",
-            "description": "The cockpit verdict — `green` | `amber` | `red` | `unknown` — as the warm\npipeline-health payload holds it. `unknown` as well when no recent evaluation is held:\nthis read never runs one (see DateTime? NavSummaryReadModel.HealthEvaluatedAtUtc)."
+            "description": "The cockpit verdict — `green` | `amber` | `red` | `unknown` — as the warm\npipeline-health payload holds it. `unknown` as well when no recent evaluation is held:\nthis read never runs one (see DateTime? NavSummaryReadModel.HealthEvaluatedAtUtc).",
+            "$ref": "#/components/schemas/DetectorStatus"
           },
           "healthEvaluatedAtUtc": {
             "type": [
@@ -15424,12 +15502,12 @@
             "description": "The patch the public reads resolve to today — the newest one holding aggregate\nrows, which is exactly how `ChampionAggregateScopeResolver` picks it. Null\nwhen nothing has been aggregated at all."
           },
           "verdict": {
-            "type": "string",
-            "description": "The current patch's verdict, hoisted so the page opens on the answer.\nSee string PatchCoverageRowReadModel.Verdict."
+            "description": "The current patch's verdict, hoisted so the page opens on the answer.\nSee PatchVerdict PatchCoverageRowReadModel.Verdict.",
+            "$ref": "#/components/schemas/PatchVerdict"
           },
           "status": {
-            "type": "string",
-            "description": "`green` | `amber` | `red` | `unknown` for the current patch."
+            "description": "`green` | `amber` | `red` | `unknown` for the current patch.",
+            "$ref": "#/components/schemas/DetectorStatus"
           },
           "headline": {
             "type": "string",
@@ -15440,7 +15518,7 @@
               "null",
               "string"
             ],
-            "description": "Why no verdict could be given, when one of the two measurements the page rests on\nfailed. Set if and only if string PatchCoverageReadModel.Verdict is `unknown` for that reason:\nwithout the coverage rollup, \"thin\" and \"not aggregated\" are indistinguishable, and\nguessing between them is worse than saying nothing."
+            "description": "Why no verdict could be given, when one of the two measurements the page rests on\nfailed. Set if and only if PatchVerdict PatchCoverageReadModel.Verdict is `unknown` for that reason:\nwithout the coverage rollup, \"thin\" and \"not aggregated\" are indistinguishable, and\nguessing between them is worse than saying nothing."
           },
           "patches": {
             "type": "array",
@@ -15501,12 +15579,12 @@
             "description": "True for the patch the public reads currently resolve to."
           },
           "verdict": {
-            "type": "string",
-            "description": "    First-match-wins verdict:\n    * servable — enough lines clear the floor for the patch-scoped surfaces to mean something;\n* notAggregated — matches were ingested but no aggregate row exists yet. Wait, or check the fold;\n* thin — aggregated, and still short of the bar. The patch genuinely lacks games;\n* unknown — nothing ingested and nothing aggregated, so there is no reading to give.\n    `notAggregated` and `thin` are kept apart on purpose: they are the two\n    causes of the same low number and they call for opposite reactions."
+            "description": "    First-match-wins verdict:\n    * servable — enough lines clear the floor for the patch-scoped surfaces to mean something;\n* notAggregated — matches were ingested but no aggregate row exists yet. Wait, or check the fold;\n* thin — aggregated, and still short of the bar. The patch genuinely lacks games;\n* unknown — nothing ingested and nothing aggregated, so there is no reading to give.\n    `notAggregated` and `thin` are kept apart on purpose: they are the two\n    causes of the same low number and they call for opposite reactions.",
+            "$ref": "#/components/schemas/PatchVerdict"
           },
           "status": {
-            "type": "string",
-            "description": "`green` | `amber` | `red` | `unknown`."
+            "description": "`green` | `amber` | `red` | `unknown`.",
+            "$ref": "#/components/schemas/DetectorStatus"
           },
           "headline": {
             "type": "string",
@@ -15678,8 +15756,8 @@
             "format": "double"
           },
           "status": {
-            "type": "string",
-            "description": "`green` | `amber` | `red` | `unknown` for that age."
+            "description": "`green` | `amber` | `red` | `unknown` for that age.",
+            "$ref": "#/components/schemas/DetectorStatus"
           },
           "pendingMatches": {
             "type": [
@@ -15729,6 +15807,15 @@
           }
         },
         "description": "A `(champion, lane)` line that has games but not enough of them."
+      },
+      "PatchVerdict": {
+        "enum": [
+          "unknown",
+          "servable",
+          "thin",
+          "notAggregated"
+        ],
+        "description": "Whether the public reads can serve a patch (#1033)."
       },
       "PersonaAccountChampionReadModel": {
         "required": [
@@ -15981,8 +16068,8 @@
             "format": "uuid"
           },
           "role": {
-            "type": "string",
-            "description": "`claimant` when this persona claims an account another holds, `owner` when it holds one another claims."
+            "description": "`claimant` when this persona claims an account another holds, `owner` when it holds one another claims.",
+            "$ref": "#/components/schemas/PersonaConflictSide"
           },
           "gameName": {
             "type": "string"
@@ -16123,8 +16210,8 @@
             "type": "string"
           },
           "reason": {
-            "type": "string",
-            "description": "`conflict` (a resolution), `unlinked` (an operator's unlink) or `takedown`."
+            "description": "`conflict` (a resolution), `unlinked` (an operator's unlink) or `takedown`.",
+            "$ref": "#/components/schemas/PersonaExclusionReason"
           },
           "createdAtUtc": {
             "type": "string",
@@ -16340,6 +16427,15 @@
           }
         }
       },
+      "PersonaConflictAction": {
+        "enum": [
+          "move",
+          "keep",
+          "detach",
+          "merge",
+          null
+        ]
+      },
       "PersonaConflictBulkCandidateReadModel": {
         "required": [
           "conflict",
@@ -16353,8 +16449,8 @@
             "$ref": "#/components/schemas/PersonaConflictReadModel"
           },
           "keep": {
-            "type": "string",
-            "description": "`claimant` or `owner`: the side that stays."
+            "description": "`claimant` or `owner`: the side that stays.",
+            "$ref": "#/components/schemas/PersonaConflictSide"
           },
           "keptSlug": {
             "type": "string"
@@ -16380,12 +16476,16 @@
             "format": "uuid"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaConflictBulkStatus"
           },
           "reason": {
-            "type": [
-              "null",
-              "string"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonaConflictBulkSkipReason"
+              }
             ]
           },
           "resolution": {
@@ -16400,7 +16500,7 @@
             ]
           }
         },
-        "description": "One conflict of a bulk resolution. string PersonaConflictBulkOutcomeReadModel.Status is `resolved` or `skipped`;\na skip names its string? PersonaConflictBulkOutcomeReadModel.Reason: `notFound`, `notOpen` (resolved since, often by an\nearlier merge of the same batch), `differingChannel`, `belowFloor` (under the floor, or no shared social channel), or `changed`\n(one of the known players was merged or removed since)."
+        "description": "One conflict of a bulk resolution. PersonaConflictBulkStatus PersonaConflictBulkOutcomeReadModel.Status is `resolved` or `skipped`;\na skip names its PersonaConflictBulkSkipReason? PersonaConflictBulkOutcomeReadModel.Reason: `notFound`, `notOpen` (resolved since, often by an\nearlier merge of the same batch), `differingChannel`, `belowFloor` (under the floor, or no shared social channel), or `changed`\n(one of the known players was merged or removed since)."
       },
       "PersonaConflictBulkPreviewReadModel": {
         "required": [
@@ -16480,6 +16580,23 @@
           }
         },
         "description": "What a bulk resolution did, one outcome per requested conflict in request order."
+      },
+      "PersonaConflictBulkSkipReason": {
+        "enum": [
+          "notFound",
+          "notOpen",
+          "differingChannel",
+          "belowFloor",
+          "changed",
+          null
+        ]
+      },
+      "PersonaConflictBulkStatus": {
+        "enum": [
+          "resolved",
+          "skipped"
+        ],
+        "description": "What a bulk resolution did with one conflict."
       },
       "PersonaConflictDetailReadModel": {
         "required": [
@@ -16599,12 +16716,16 @@
             "format": "uuid"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaConflictStatus"
           },
           "resolution": {
-            "type": [
-              "null",
-              "string"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonaConflictResolution"
+              }
             ]
           },
           "source": {
@@ -16646,7 +16767,16 @@
             "$ref": "#/components/schemas/PersonaConflictEvidenceReadModel"
           }
         },
-        "description": "One persona claiming a Riot account another persona holds. string PersonaConflictReadModel.Status is\n`Open` or `Resolved`; string? PersonaConflictReadModel.Resolution is `Moved`, `Kept`,\n`Detached` or `Merged` once resolved."
+        "description": "One persona claiming a Riot account another persona holds. PersonaConflictStatus PersonaConflictReadModel.Status is\n`Open` or `Resolved`; PersonaConflictResolution? PersonaConflictReadModel.Resolution is `Moved`, `Kept`,\n`Detached` or `Merged` once resolved."
+      },
+      "PersonaConflictResolution": {
+        "enum": [
+          "Moved",
+          "Kept",
+          "Detached",
+          "Merged",
+          null
+        ]
       },
       "PersonaConflictResolvedResponse": {
         "required": [
@@ -16663,7 +16793,7 @@
             "format": "uuid"
           },
           "resolution": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaConflictResolution"
           },
           "holderSlug": {
             "type": [
@@ -16691,20 +16821,35 @@
         "type": "object",
         "properties": {
           "action": {
-            "type": [
-              "null",
-              "string"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonaConflictAction"
+              }
             ]
           },
           "keep": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "description": "For `merge` only: `claimant` or `owner`, the persona that stays."
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "For `merge` only: `claimant` or `owner`, the persona that stays.",
+                "$ref": "#/components/schemas/PersonaConflictSide"
+              }
+            ]
           }
         },
-        "description": "Body of `POST /ops/personas/conflicts/{id}/resolve` (#2253). string? PersonaConflictResolveRequest.Action is one of\n`move` (the account goes to the claiming persona), `keep` (it stays with its holder),\n`detach` (it belongs to neither) or `merge` (the two personas are one person)."
+        "description": "Body of `POST /ops/personas/conflicts/{id}/resolve` (#2253). PersonaConflictAction? PersonaConflictResolveRequest.Action is one of\n`move` (the account goes to the claiming persona), `keep` (it stays with its holder),\n`detach` (it belongs to neither) or `merge` (the two personas are one person)."
+      },
+      "PersonaConflictSide": {
+        "enum": [
+          "claimant",
+          "owner"
+        ],
+        "description": "A side of a persona conflict: the persona claiming the account, or the one holding it."
       },
       "PersonaConflictsReadModel": {
         "required": [
@@ -16745,6 +16890,13 @@
           }
         },
         "description": "A page of persona account conflicts for the admin queue (#2253), most recently seen first.\nlong PersonaConflictsReadModel.Total counts the rows matching the filters before paging; long PersonaConflictsReadModel.Open and\nlong PersonaConflictsReadModel.Resolved count the whole table, for the tab badges."
+      },
+      "PersonaConflictStatus": {
+        "enum": [
+          "Open",
+          "Resolved"
+        ],
+        "description": "Where a PersonaAccountConflict stands. Stored as text (#1251)."
       },
       "PersonaCreateRequest": {
         "type": "object",
@@ -16839,6 +16991,14 @@
           }
         },
         "description": "What an admin edit of a known player did (#2019)."
+      },
+      "PersonaExclusionReason": {
+        "enum": [
+          "conflict",
+          "unlinked",
+          "takedown"
+        ],
+        "description": "Why an account is excluded from a known player."
       },
       "PersonaHomonymDistinctRequest": {
         "type": "object",
@@ -17520,8 +17680,8 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string",
-            "description": "The single verdict: `green` | `amber` | `red` | `unknown`. The\nworst of IReadOnlyList&lt;PipelineHealthSignalReadModel&gt; PipelineHealthReadModel.Signals with precedence `red &gt; amber &gt; unknown &gt;\ngreen` — the same vocabulary and the same precedence as the data-quality\ndetectors, so one dot means one thing across the whole portal."
+            "description": "The single verdict: `green` | `amber` | `red` | `unknown`. The\nworst of IReadOnlyList&lt;PipelineHealthSignalReadModel&gt; PipelineHealthReadModel.Signals with precedence `red &gt; amber &gt; unknown &gt;\ngreen` — the same vocabulary and the same precedence as the data-quality\ndetectors, so one dot means one thing across the whole portal.",
+            "$ref": "#/components/schemas/DetectorStatus"
           },
           "headline": {
             "type": "string",
@@ -17577,8 +17737,8 @@
             "type": "string"
           },
           "status": {
-            "type": "string",
-            "description": "`green` | `amber` | `red` | `unknown`."
+            "description": "`green` | `amber` | `red` | `unknown`.",
+            "$ref": "#/components/schemas/DetectorStatus"
           },
           "headline": {
             "type": "string",
@@ -17589,7 +17749,7 @@
               "null",
               "string"
             ],
-            "description": "Why the signal could not be measured. Set <b>iff</b> string PipelineHealthSignalReadModel.Status is\n`unknown` — the tile renders this in place instead of a zero that would look\nhealthy. A degraded sub-signal must explain itself, never fail the page."
+            "description": "Why the signal could not be measured. Set <b>iff</b> DetectorStatus PipelineHealthSignalReadModel.Status is\n`unknown` — the tile renders this in place instead of a zero that would look\nhealthy. A degraded sub-signal must explain itself, never fail the page."
           },
           "detailPath": {
             "type": "string",
@@ -18016,8 +18176,15 @@
             "type": "string"
           },
           "status": {
-            "type": "string",
-            "description": "     Effective status, PascalCase: `Success` | `Failed` | `Running` |\n     `Abandoned` | `Skipped` | `Cancelled` | `Missing`.\n\n     Effective, not stored: a Running row whose heartbeat has gone stale reads\nAbandoned here, via the same ProcessRunStaleness policy\n/ops/process-runs applies. Before #1031 this endpoint skipped that step and\nlower-cased the name, so a dead run read \"running\" on the cockpit and\n\"Abandoned\" on the panel the cockpit links to."
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "     Effective status, PascalCase: `Success` | `Failed` | `Running` |\n     `Abandoned` | `Skipped` | `Cancelled` | `Missing`.\n\n     Effective, not stored: a Running row whose heartbeat has gone stale reads\nAbandoned here, via the same ProcessRunStaleness policy\n/ops/process-runs applies. Before #1031 this endpoint skipped that step and\nlower-cased the name, so a dead run read \"running\" on the cockpit and\n\"Abandoned\" on the panel the cockpit links to.",
+                "$ref": "#/components/schemas/ProcessRunStatus"
+              }
+            ]
           },
           "lastStartedAtUtc": {
             "type": [
@@ -18834,6 +19001,12 @@
           }
         },
         "description": "How long the Api took to answer each ops route over a window (#2307), for the admin\nProcesses → Performance tab. Measured server-side, from the request reaching the Api to its\nanswer; the admin proxy's own hop is not in it."
+      },
+      "RiotAccountStatus": {
+        "enum": [
+          "Active",
+          "Invalid"
+        ]
       },
       "RiotApiBindingLimitReadModel": {
         "required": [
@@ -19716,7 +19889,7 @@
             "format": "uuid"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/SeedRequestStatus"
           },
           "created": {
             "type": "boolean"
@@ -19753,7 +19926,7 @@
             "type": "string"
           },
           "status": {
-            "type": "string"
+            "$ref": "#/components/schemas/SeedRequestStatus"
           },
           "error": {
             "type": [
@@ -19786,7 +19959,7 @@
             "format": "uuid"
           }
         },
-        "description": "A single \"seed by Riot ID\" request as surfaced to the admin panel. The API\nrecords the row at `Pending`; the Ingestor's ManualSeedProcess resolves\nthe Riot ID, upserts the account, and stamps the terminal state.\nstring SeedRequestReadModel.Status is the `SeedRequestStatus` name\n(\"Pending\"/\"Resolving\"/\"Ingested\"/\"Failed\"). string? SeedRequestReadModel.Error carries the\nfailure detail when string SeedRequestReadModel.Status is \"Failed\" (else null);\nstring? SeedRequestReadModel.ResolvedPuuid and Guid? SeedRequestReadModel.ResolvedRiotAccountId are\npopulated once ingested."
+        "description": "A single \"seed by Riot ID\" request as surfaced to the admin panel. The API\nrecords the row at `Pending`; the Ingestor's ManualSeedProcess resolves\nthe Riot ID, upserts the account, and stamps the terminal state.\nSeedRequestStatus SeedRequestReadModel.Status is the `SeedRequestStatus` name\n(\"Pending\"/\"Resolving\"/\"Ingested\"/\"Failed\"). string? SeedRequestReadModel.Error carries the\nfailure detail when SeedRequestStatus SeedRequestReadModel.Status is \"Failed\" (else null);\nstring? SeedRequestReadModel.ResolvedPuuid and Guid? SeedRequestReadModel.ResolvedRiotAccountId are\npopulated once ingested."
       },
       "SeedRequestsReadModel": {
         "required": [
@@ -19817,6 +19990,15 @@
           }
         },
         "description": "    A page of seed requests for the admin intake list, newest-first.\n    long SeedRequestsReadModel.Total counts every row matching the active filters, before\n    paging, so the panel can render a pager and say how much of the queue is left.\n    Shaped like CandidatesReadModel on purpose: the two lists sit on the\nsame page and answer the same kind of question, so they page identically\n(#1166)."
+      },
+      "SeedRequestStatus": {
+        "enum": [
+          "Pending",
+          "Resolving",
+          "Ingested",
+          "Failed"
+        ],
+        "description": "Lifecycle of a seed request (SeedRequestDocument). SeedRequestStatus.Pending and\nSeedRequestStatus.Resolving are the unprocessed states the idempotency check and\nthe Ingestor's claim scan look at; SeedRequestStatus.Ingested and\nSeedRequestStatus.Failed are terminal. Stored as the enum name (a string) so the\ndocument is human-readable in the shell."
       },
       "TableStatRow": {
         "required": [

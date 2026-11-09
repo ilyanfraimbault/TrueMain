@@ -55,7 +55,7 @@ internal static class AccountExplorerVerdict
 
     /// <summary>Whether any candidate sits at <c>Queued</c> — on its own, not a claim arm (#1535).</summary>
     internal static bool HasQueuedCandidate(IReadOnlyList<AccountExplorerCandidateReadModel> candidates)
-        => candidates.Any(c => c.Status == nameof(MainCandidateStatus.Queued));
+        => candidates.Any(c => c.Status == MainCandidateStatus.Queued);
 
     /// <summary>
     /// The other membership arm of the real ingest claim: a <c>Queued</c> candidate on an
@@ -170,9 +170,7 @@ internal static class AccountExplorerVerdict
     /// </summary>
     private static string DescribeStatuses(IReadOnlyList<AccountExplorerCandidateReadModel> candidates)
         => string.Join(", ", candidates
-            .Select(c => Enum.TryParse<MainCandidateStatus>(c.Status, out var parsed)
-                ? parsed
-                : MainCandidateStatus.New)
+            .Select(c => c.Status)
             .Distinct()
             .OrderBy(status => status)
             .Select(status => status.ToString()));

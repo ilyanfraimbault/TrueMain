@@ -144,7 +144,7 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
     {
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
-        return (await client.GetFromJsonAsync<ChampionItemContextResponse>(url))!;
+        return (await client.GetFromJsonAsync<ChampionItemContextResponse>(url, ApiJson.Options))!;
     }
 
     private static HttpClient CreateClient(ApiWebApplicationFactory factory)

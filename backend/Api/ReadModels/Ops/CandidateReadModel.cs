@@ -1,3 +1,4 @@
+using Data.Entities;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -54,7 +55,7 @@ public sealed record CandidateRowReadModel
 
     public double Score { get; init; }
 
-    public string Status { get; init; } = string.Empty;
+    public MainCandidateStatus Status { get; init; }
 
     public DateTime DiscoveredAtUtc { get; init; }
 
@@ -93,7 +94,7 @@ public sealed record CandidateDetailReadModel
 
     public double Score { get; init; }
 
-    public string Status { get; init; } = string.Empty;
+    public MainCandidateStatus Status { get; init; }
 
     public DateTime DiscoveredAtUtc { get; init; }
 

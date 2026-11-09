@@ -42,7 +42,7 @@ export function parseLevelQuery(raw: unknown): 'all' | LogLevel {
 
 // Severity presentation for log rows, shared by the Logs page and the crash
 // report's recent-log-tail view.
-export function levelColor(l: LogLevel): BadgeColor {
+export function levelColor(l: string): BadgeColor {
   switch (l) {
     case 'Critical':
     case 'Error':
@@ -57,7 +57,7 @@ export function levelColor(l: LogLevel): BadgeColor {
   }
 }
 
-export function levelIcon(l: LogLevel): string {
+export function levelIcon(l: string): string {
   switch (l) {
     case 'Critical':
       return 'i-lucide-octagon-alert'

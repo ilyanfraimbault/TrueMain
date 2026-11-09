@@ -58,7 +58,7 @@ public sealed class PersonaPicturesIntegrationTests : IAsyncLifetime
         (await worker.RunPassAsync(CancellationToken.None)).Should().Be(1);
 
         (await PlayerAsync(client, "caps")).PictureUrl.Should().Be(YouTubePicture);
-        var search = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=caps");
+        var search = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=caps", ApiJson.Options);
         search!.Players.Single().PictureUrl.Should().Be(YouTubePicture);
 
         (await worker.RunPassAsync(CancellationToken.None)).Should().Be(0);
@@ -251,7 +251,7 @@ public sealed class PersonaPicturesIntegrationTests : IAsyncLifetime
     }
 
     private static async Task<PersonaReadModel> PlayerAsync(HttpClient client, string slug) =>
-        (await client.GetFromJsonAsync<PersonaReadModel>($"/players/{slug}"))!;
+        (await client.GetFromJsonAsync<PersonaReadModel>($"/players/{slug}", ApiJson.Options))!;
 
     private sealed class FakeReaders
     {
