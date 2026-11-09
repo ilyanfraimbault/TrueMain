@@ -80,4 +80,13 @@ public sealed class OpsProcessesController(
         var readModel = await processIterationsQueryService.GetAsync(page, pageSize, finishedOnly ?? false, lane, ct);
         return Ok(readModel);
     }
+
+    /// <summary>
+    /// The pipeline the ingestor runs: its steps in order, with their lane, label and
+    /// description, and the lanes that partition them.
+    /// </summary>
+    [HttpGet("pipeline")]
+    [ProducesResponseType(typeof(PipelineCatalogReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public ActionResult<PipelineCatalogReadModel> GetPipeline() => Ok(PipelineCatalogProjection.ReadModel);
 }

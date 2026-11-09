@@ -1,4 +1,4 @@
-import { getPositionIconUrl } from '#shared/utils/ddragon'
+import { getPositionIconUrl } from './ddragon'
 
 /** The five positions, in lane order (top → support): every list of them reads in this order. */
 export const POSITIONS = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'] as const

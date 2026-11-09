@@ -5,7 +5,7 @@
 import type { TableColumn } from '@nuxt/ui'
 import type { AccountExplorerMainRow, AccountExplorerMainThresholds } from '~~/shared/types/ops'
 import { formatDateTime, formatNumber, formatPercentOrDash } from '~~/shared/utils/format'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import { POSITION_BY_VALUE } from '#site-shared/utils/positions'
 
 const props = defineProps<{
   rows: AccountExplorerMainRow[]

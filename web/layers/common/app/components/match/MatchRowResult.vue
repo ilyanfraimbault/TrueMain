@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getQueueLabel } from '#common/utils/queues'
+import { getQueueLabel } from '#shared/utils/queues'
 import { resultTone } from '#common/utils/result-tone'
 
 // Result and queue of a match row, the column the row drops first when narrow:

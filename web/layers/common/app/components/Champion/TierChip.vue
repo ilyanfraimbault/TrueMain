@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { banRateTone, pickRateTone, winRateTone } from '#common/utils/rate-tone'
 import { formatPercentage, formatPercentageOrDash } from '#shared/utils/ddragon'
 

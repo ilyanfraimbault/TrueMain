@@ -2,14 +2,14 @@
  * The ingestor pipeline chain as the admin draws it: the ordered steps, the two lanes
  * they partition into, and the label + description of every process. Split out of
  * `ops.ts` (#1449) — that file is the API contract of `/api/ops/*`, this one is the
- * hand-maintained mirror of `backend/Ingestor/Options/JobModeSequence.cs`.
+ * hand-maintained mirror of `backend/Data/Pipeline/PipelineCatalog.cs` (served at `GET /ops/pipeline`).
  */
 /**
  * The canonical ingestor pipeline chain, in execution order — one full pass runs
  * these processes in sequence. Drives the chain view: the ordered links and the
  * per-iteration outcome lookup.
  *
- * The source of truth is `backend/Ingestor/Options/JobModeSequence.cs`; this is a
+ * The source of truth is `backend/Data/Pipeline/PipelineCatalog.cs`; this is a
  * hand-maintained copy of it, so **a step added there must be added here too**.
  * Drift is quiet rather than broken: `buildChain` appends any process it sees but
  * does not know about, so a missing step still renders — at the end of the chain,
@@ -66,8 +66,8 @@ export interface PipelineLane {
 export type PipelineLaneId = 'fetch' | 'aggregate'
 
 /**
- * The two lanes, mirroring `JobModeSequence.FetchLanePipeline` /
- * `AggregateLanePipeline` — the same hand-maintained copy {@link PIPELINE_CHAIN}
+ * The two lanes, mirroring `PipelineCatalog.InLane(Fetch)` /
+ * `InLane(Aggregate)` — the same hand-maintained copy {@link PIPELINE_CHAIN}
  * is, and pinned the same way: `pipeline-lanes.test.ts` asserts they are a true
  * partition of the chain, in its order. A step in neither would stop being drawn
  * altogether (worse than the old misplacement), a step in both would be drawn

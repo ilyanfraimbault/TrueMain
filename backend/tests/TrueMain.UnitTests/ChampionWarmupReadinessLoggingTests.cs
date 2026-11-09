@@ -84,6 +84,7 @@ public sealed class ChampionWarmupReadinessLoggingTests
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["ChampionWarmup:Enabled"] = "true" })
                 .Build();
             var services = new ServiceCollection();
+            services.AddSingleton<IConfiguration>(configuration);
             services.AddSingleton<TimeProvider>(Clock);
             services.AddLogging(logging => logging
                 .SetMinimumLevel(LogLevel.Trace)

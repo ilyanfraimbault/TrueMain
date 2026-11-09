@@ -153,7 +153,7 @@ fix is to stop sharing the clock: each worker claims a batch of its own platform
 claims again, while the maintenance pass runs on `Job:IntervalMinutes`.
 
 - **A new composite mode, not a change of `FetchLane`.** `FetchWorkers` owns exactly the fetch lane's steps
-  (`JobModeSequence.For` returns the same list), so boot-time run reconciliation and orphan-claim release are
+  (`PipelineCatalog.StepsOwnedBy` returns the same list), so boot-time run reconciliation and orphan-claim release are
   unchanged; only `SequencedStepsFor` drops `MatchIngestion` from its pass. `FetchLane` keeps its sequential,
   `RunOnce`-restarted behaviour, and `INGESTOR_JOB_MODE=FetchLane` is the rollback. Under `FetchWorkers`,
   `Job:RunOnce` still means one pass of everything the lane owns: one maintenance pass and one batch per worker.
