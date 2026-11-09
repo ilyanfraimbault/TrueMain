@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The matchup page, as the site and the desktop app both render it (#1732):
 // each app's route file wraps this with its own head tags and nothing else.
-import { POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '#common/utils/positions'
+import { POSITIONS, POSITION_OPTIONS, isChampionPosition, type ChampionPosition } from '#shared/utils/positions'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,7 +26,7 @@ const playedPosition = ref<ChampionPosition | null>(
 const opponentChampionId = ref<number | null>(queryChampionId(route.query.opponent))
 
 function emptySlots(): Record<ChampionPosition, number | null> {
-  return { TOP: null, JUNGLE: null, MIDDLE: null, BOTTOM: null, UTILITY: null }
+  return Object.fromEntries(POSITIONS.map(position => [position, null])) as Record<ChampionPosition, number | null>
 }
 
 const allySlots = ref(emptySlots())

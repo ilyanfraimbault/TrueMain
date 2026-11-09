@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { BuilderDraftBoard, BuilderLaneDuel } from '#components'
 import type { CompositionLane } from '~~/shared/types/composition'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import { championLoadingUrlFromIcon } from '~~/shared/utils/ddragon'
 
 /**

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Options;
 
 namespace TrueMain.Services.Ops.Stats;
 
@@ -12,6 +13,7 @@ public static class OpsStatsServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTrueMainOpsStats(this IServiceCollection services)
     {
+        services.AddMainAnalysisOptions();
         services.AddScoped<IChampionStatsQueryService, ChampionStatsQueryService>();
         services.AddScoped<IMatchesOverTimeQueryService, MatchesOverTimeQueryService>();
         services.AddScoped<IMatchesIngestedQueryService, MatchesIngestedQueryService>();

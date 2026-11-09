@@ -6,7 +6,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import type { PositionFilter } from '#common/utils/positions'
+import type { PositionFilter } from '#shared/utils/positions'
 
 // The player-scoped champion page's build, resilient by design: with no
 // aggregate for the player (`notEnoughData`) a soft notice replaces it. The

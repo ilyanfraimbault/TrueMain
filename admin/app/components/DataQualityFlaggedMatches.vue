@@ -37,11 +37,7 @@ const issueItems = [
 // Queues that have a data-quality profile on the backend (count/position rules).
 const queueItems = [
   { label: 'All queues', value: ALL },
-  { label: 'Ranked Solo (420)', value: '420' },
-  { label: 'Ranked Flex (440)', value: '440' },
-  { label: 'Normal (430)', value: '430' },
-  { label: 'ARAM (450)', value: '450' },
-  { label: 'Clash (700)', value: '700' },
+  ...[420, 440, 430, 450, 700].map(id => ({ label: `${dataQualityQueueLabel(id)} (${id})`, value: String(id) })),
 ]
 
 const ageItems = [

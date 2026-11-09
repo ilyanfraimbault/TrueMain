@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Kit } from '#shared/types/kit'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import type { KitItemGroup } from '~/utils/kit-items'
 import { cloneKit, KIT_BOOTS_MAX, KIT_NAME_MAX, kitIssues, withBoots } from '~/utils/kit'
 import { addChild, blockedItems, maxDepth, removeSubtree, replaceItem, swapNodes } from '~/utils/kit-tree'

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import type { FavoriteChampion } from '#common/utils/favorites'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { championDisplayName } from '#shared/utils/champion-name'
 
 // One starred champion on the favorites page (#2080): a compact row — the

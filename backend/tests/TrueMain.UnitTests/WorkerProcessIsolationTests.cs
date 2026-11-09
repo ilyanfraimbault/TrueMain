@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Data.Entities;
+using Data.Pipeline;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;
 
@@ -20,7 +22,7 @@ namespace TrueMain.UnitTests;
 public sealed class WorkerProcessIsolationTests
 {
     // The keys the worker resolves each step of a Full pass under.
-    private static readonly IReadOnlyList<JobMode> FullSequence = JobModeSequence.For(JobMode.Full);
+    private static readonly IReadOnlyList<JobMode> FullSequence = PipelineCatalog.Steps.Select(step => step.Mode).ToList();
 
     [Fact]
     public async Task ExecuteAsync_RunsRemainingProcesses_WhenFirstProcessThrows()
@@ -64,6 +66,7 @@ public sealed class WorkerProcessIsolationTests
             FullSequence[0],
             new RecordedProcess<ThrowingProcess>(
                 new ThrowingProcess("Discovery"),
+                TestPipelineSteps.Named("Discovery"),
                 recorder,
                 TimeProvider.System,
                 NullLogger<RecordedProcess<ThrowingProcess>>.Instance));

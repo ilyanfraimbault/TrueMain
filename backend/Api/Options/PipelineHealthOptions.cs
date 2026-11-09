@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using TrueMain.Configuration;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -12,9 +15,11 @@ namespace TrueMain.Options;
 /// needs a reason; the two below have one.
 /// </para>
 /// </summary>
-public sealed class PipelineHealthOptions
+public sealed class PipelineHealthOptions : IApiOptions, IValidatableObject
 {
     public const string SectionName = "PipelineHealth";
+
+    static string IApiOptions.Section => SectionName;
 
     /// <summary>
     /// Days until the nearest projected disk-fill crossing at which the tile turns amber.
@@ -35,4 +40,14 @@ public sealed class PipelineHealthOptions
     /// threshold — the panel judges nothing — only how far back the trend reaches.
     /// </summary>
     public int RegionBalanceWindowDays { get; set; } = 14;
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        // Only enforced when both levels are enabled: either can be set to <= 0 to disable it,
+        // and requiring the ordering unconditionally would reject "amber off, red on".
+        if (DiskForecastAmberDays > 0 && DiskForecastRedDays > 0 && DiskForecastAmberDays < DiskForecastRedDays)
+        {
+            yield return new ValidationResult("PipelineHealth:DiskForecastAmberDays must be >= DiskForecastRedDays (amber fires first).");
+        }
+    }
 }
