@@ -16,39 +16,6 @@ const { data, pending, refreshing, error, refresh } = useDesktopUsage(windowDays
 
 const measured = computed(() => Boolean(data.value?.earliestDayUtc))
 
-// Each name says what was counted, not just where: a page is a view of it, a
-// feature an occurrence in which the app did that for the player.
-const PAGE_LABELS: Record<string, string> = {
-  dashboard: 'Dashboard',
-  champions: 'Champions',
-  champion: 'Champion page',
-  tierlist: 'Tier list',
-  matchup: 'Matchup',
-  truemains: 'Truemains',
-  favorites: 'Favorites',
-  draft: 'Champ select',
-  game: 'Game',
-  overlay: 'Overlay',
-  recordings: 'Recordings',
-  recording: 'Recording',
-  clip: 'Clip',
-}
-const FEATURE_LABELS: Record<string, string> = {
-  champSelect: 'Champion select followed',
-  liveGame: 'Game followed live',
-  overlayShown: 'Games with the overlay drawn',
-  gameRecorded: 'Games recorded',
-  clipSaved: 'Clips saved',
-  gameKept: 'Full games kept',
-  recordingDeleted: 'Recordings deleted by hand',
-  siteOpened: 'Site pages opened',
-  champSelectHover: 'Picks hovered from the app',
-  champSelectLock: 'Picks locked in from the app',
-  champSelectBan: 'Bans made from the app',
-  youtubeUploadOpened: 'YouTube upload opened from a clip',
-  clipPublished: 'Clips published on YouTube',
-  clipVideoDeleted: 'Published clips removed from disk',
-}
 const OS_LABELS: Record<string, string> = { macos: 'macOS', windows: 'Windows', linux: 'Linux' }
 
 function installs(count: number): string {
@@ -108,10 +75,10 @@ const downloadCategories = {
   windows: { name: 'Windows', color: CHART_SERIES[1] },
 }
 
-function keyRows(entries: DesktopKeyUsage[] | undefined, labels: Record<string, string>): DesktopShareRow[] {
+function keyRows(entries: DesktopKeyUsage[] | undefined): DesktopShareRow[] {
   return (entries ?? []).map(entry => ({
     key: entry.key,
-    label: labels[entry.key] ?? entry.key,
+    label: entry.label,
     value: entry.count,
     hint: entry.count > 0 ? installs(entry.installs) : undefined,
   }))
@@ -132,8 +99,8 @@ const downloadRows = computed<DesktopShareRow[]>(() =>
     value: version.mac + version.windows,
     hint: `${formatNumber(version.mac)} macOS · ${formatNumber(version.windows)} Windows`,
   })))
-const pageRows = computed(() => keyRows(data.value?.pages, PAGE_LABELS))
-const featureRows = computed(() => keyRows(data.value?.features, FEATURE_LABELS))
+const pageRows = computed(() => keyRows(data.value?.pages))
+const featureRows = computed(() => keyRows(data.value?.features))
 </script>
 
 <template>

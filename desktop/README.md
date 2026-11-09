@@ -288,9 +288,11 @@ opened), with the app's version and OS, under a random install id kept in
 `telemetry.json` in the app's config folder. Nothing read from the League client
 is part of it. It goes to the build's site, `POST <site>/api/desktop/telemetry`,
 a minute after launch, every five minutes and at exit, and lands on the admin
-portal's Desktop app page. A page counts only when its route has a key in
-`app/utils/telemetry.ts` **and** in the API's `DesktopTelemetryCatalog.cs` —
-add a page to both.
+portal's Desktop app page. The API's `DesktopTelemetryCatalog.cs` is the one
+list of keys, with the name the admin page shows for each: a page counts only
+when its route has a key in `app/utils/telemetry.ts` that the catalog lists, and
+a feature only when the catalog lists the shell's `Feature` key. Both sides have
+a test that fails on a key the catalog lacks.
 
 "Share Anonymous Usage Data" in the app menu (macOS) or the tray menu (Windows)
 turns it off. A debug build (`npm run tauri dev`) counts but never sends, so a
