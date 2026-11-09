@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed } from 'vue'
 import DraftSuggestionCard from '../app/components/draft/DraftSuggestionCard.vue'
-import type { DraftReason } from '~/types/draft'
+import type { DraftReasonReadModel } from '#shared/contract/api'
 import type { PlayerGame } from '~/types/record'
 import { comfortOf, comfortText, COMFORT_GAMES } from '~/utils/draft-comfort'
 import { describeReason } from '~/utils/draft-reasons'
@@ -43,7 +43,7 @@ const global = {
   },
 }
 
-const teamFit: DraftReason = {
+const teamFit: DraftReasonReadModel = {
   kind: 'teamFit',
   championId: null,
   position: null,

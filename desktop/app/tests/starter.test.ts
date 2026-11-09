@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { StaticItemData } from '#shared/types/static-data'
-import type { BuildItemSet, CompositionBuildResponse } from '~/types/build'
+import type { BuildItemSetReadModel, CompositionBuildResponse } from '#shared/contract/api'
 import { sampleGame } from '~/utils/overlay-sample'
 import { basketName, compositionStarter, starterBought, starterCost, starterRequest } from '~/utils/next-item'
 
@@ -79,8 +79,8 @@ describe('starterRequest', () => {
 })
 
 describe('compositionStarter', () => {
-  const basket: BuildItemSet = { itemIds: [1056, 2003, 2003], games: 1214, pickRate: 0.99, winRate: 0.55 }
-  function answer(overrides: Partial<CompositionBuildResponse>, starterItems: BuildItemSet | null = basket): CompositionBuildResponse {
+  const basket: BuildItemSetReadModel = { itemIds: [1056, 2003, 2003], games: 1214, pickRate: 0.99, winRate: 0.55 }
+  function answer(overrides: Partial<CompositionBuildResponse>, starterItems: BuildItemSetReadModel | null = basket): CompositionBuildResponse {
     return {
       championId: 103,
       position: 'MIDDLE',
