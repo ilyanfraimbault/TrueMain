@@ -1,4 +1,3 @@
-using Data.Configuration;
 using Data.Ops.Mongo;
 using TrueMain.ReadModels.Ops;
 
@@ -81,19 +80,4 @@ public sealed class DeploymentsQueryService(IProcessBootStore store, TimeProvide
         DateTimeKind.Local => value.Value.ToUniversalTime(),
         _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
     };
-}
-
-/// <summary>Registration of the deploy markers' backend (#2297).</summary>
-public static class DeploymentsServiceCollectionExtensions
-{
-    /// <summary>
-    /// Records the Api's own boot in the boot log and registers the read behind
-    /// <c>GET /ops/deployments</c>. The store comes from <c>AddMongoLogging</c>.
-    /// </summary>
-    public static IServiceCollection AddTrueMainDeployments(this IServiceCollection services)
-    {
-        services.AddProcessBootRecorder();
-        services.AddScoped<IDeploymentsQueryService, DeploymentsQueryService>();
-        return services;
-    }
 }
