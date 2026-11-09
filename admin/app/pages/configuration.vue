@@ -8,32 +8,13 @@
 // legitimately be older than the page load without meaning anything is stale.
 //
 // Read-only: this page has no write path, by design (see the issue's scope).
-import type {
-  EffectiveConfigurationOrigin,
-} from '~~/shared/types/ops'
-import type { EffectiveConfigurationProcessReadModel, EffectiveConfigurationValueReadModel } from '#site-shared/contract/api'
+import type { EffectiveConfigurationProcessReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatTimeAgo } from '~~/shared/utils/format'
+import { originLabel, originMeta } from '~/utils/configuration-origin'
 
 const { data, pending, refreshing, error, refresh } = useEffectiveConfiguration()
 
 const processes = computed<EffectiveConfigurationProcessReadModel[]>(() => data.value?.processes ?? [])
-
-// Stated in words, not just colour: an operator scanning for "did someone
-// override this" should not have to learn a colour code first.
-const ORIGIN_META: Record<EffectiveConfigurationOrigin, { label: string, color: 'neutral' | 'primary' | 'warning' }> = {
-  default: { label: 'Default', color: 'neutral' },
-  override: { label: 'Override', color: 'primary' },
-  derived: { label: 'Derived', color: 'warning' },
-}
-
-function originMeta(origin: string) {
-  return ORIGIN_META[origin as EffectiveConfigurationOrigin] ?? { label: origin, color: 'neutral' as const }
-}
-
-function originLabel(value: EffectiveConfigurationValueReadModel): string {
-  const meta = originMeta(value.origin)
-  return value.source ? `${meta.label} — ${value.source}` : meta.label
-}
 </script>
 
 <template>

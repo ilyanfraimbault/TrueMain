@@ -7,6 +7,11 @@ import * as dataQuality from '~/composables/useOpsDataQuality'
 import * as personas from '~/composables/useOpsPersonas'
 import * as pipeline from '~/composables/useOpsPipeline'
 import * as stats from '~/composables/useOps'
+import { useDesktopUsage } from '~/composables/useDesktopUsage'
+import { useHealthAlerts } from '~/composables/useHealthAlerts'
+import { useIngestorMetrics } from '~/composables/useIngestorMetrics'
+import { useRequestLatency } from '~/composables/useRequestLatency'
+import { useRiotQuota } from '~/composables/useRiotQuota'
 import { cleanQuery, opsCacheKey } from '~/utils/ops-cache'
 import { opsCacheFetchOptions, trackOpsCacheShown } from '~/utils/ops-cache-hooks'
 
@@ -110,6 +115,11 @@ describe('watched reads', () => {
     ['channel conflicts', () => personas.usePersonaChannelConflicts({ page: 1 }), '/api/ops/personas/channel-conflicts'],
     ['homonyms', () => personas.usePersonaHomonyms({ page: 1 }), '/api/ops/personas/homonyms'],
     ['known players', () => personas.usePersonas({ page: 1 }), '/api/ops/personas'],
+    ['riot quota', () => useRiotQuota('24h'), '/api/ops/riot-quota'],
+    ['request latency', () => useRequestLatency('7d'), '/api/ops/request-latency'],
+    ['ingestor metrics', () => useIngestorMetrics('24h'), '/api/ops/ingestor-metrics'],
+    ['health alerts', () => useHealthAlerts(), '/api/ops/health-alerts'],
+    ['desktop usage', () => useDesktopUsage(30), '/api/ops/desktop/usage'],
   ]
 
   it.each(cases)('%s', (_, read, url) => {
