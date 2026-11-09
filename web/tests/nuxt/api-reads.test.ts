@@ -71,6 +71,12 @@ describe('champion and player reads', () => {
     expect(requestFetch).not.toHaveBeenCalled()
   })
 
+  it('reads the homepage\'s champion snapshot', async () => {
+    await read(() => useChampionOverview())
+
+    expect(requestFetch).toHaveBeenCalledWith('/champions/overview', expect.objectContaining({ baseURL: '/api' }))
+  })
+
   it('reads a player\'s activity and rank history by their Riot ID', async () => {
     await read(() => {
       useTruemainActivity('Faker-KR1')
