@@ -1,4 +1,4 @@
-import type { ProfileResponse } from '~~/shared/types/profile'
+import type { ProfileReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 /**
@@ -9,7 +9,7 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
  * Shared by the profile and the player-scoped champion page.
  */
 export function useTruemainBanner(
-  profile: MaybeRefOrGetter<ProfileResponse | null | undefined>,
+  profile: MaybeRefOrGetter<ProfileReadModel | null | undefined>,
   champions: MaybeRefOrGetter<ChampionStaticListItem[] | null | undefined>,
   fallbackName: MaybeRefOrGetter<string>,
 ) {

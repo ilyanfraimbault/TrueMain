@@ -1,4 +1,4 @@
-import type { ChampionItemContextResponse } from '#shared/types/item-context'
+import type { ChampionItemContextResponse } from '#shared/contract/api'
 import type { BuildOption } from '~/types/build'
 import { hasItems, itemSetBuild, situationalFromContext, situationalFromTree } from '~/utils/item-set'
 

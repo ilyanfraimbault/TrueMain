@@ -156,7 +156,7 @@ public sealed class CandidateFunnelApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<CandidateFunnelReadModel>(
-            "/ops/candidates/funnel?granularity=day&windowDays=7");
+            "/ops/candidates/funnel?granularity=day&windowDays=7", ApiJson.Options);
 
         payload!.ValidatedFirstMeasuredAtUtc.Should().BeNull();
         payload.Buckets.Should().NotBeEmpty();
@@ -172,7 +172,7 @@ public sealed class CandidateFunnelApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<CandidateFunnelReadModel>(
-            "/ops/candidates/funnel?granularity=day");
+            "/ops/candidates/funnel?granularity=day", ApiJson.Options);
 
         payload!.Buckets.Should().BeEmpty();
         payload.EarliestRunAtUtc.Should().BeNull();

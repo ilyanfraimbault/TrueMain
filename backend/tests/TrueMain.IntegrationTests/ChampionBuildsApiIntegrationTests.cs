@@ -151,7 +151,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
 
         // A bare tier reads that tier only — Diamond's 30 games and its lone tab.
         var payload = await client.GetFromJsonAsync<ChampionResponse>(
-            "/champions/777?eloBracket=DIAMOND");
+            "/champions/777?eloBracket=DIAMOND", ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.EloBracket.Should().Be(EloBracket.Diamond);
         payload.TotalGames.Should().Be(30);
@@ -173,7 +173,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
         // "Diamond and above" unions Diamond (30) + Master (20); Silver is below
         // it and drops out.
         var payload = await client.GetFromJsonAsync<ChampionResponse>(
-            "/champions/777?eloBracket=DIAMOND_PLUS");
+            "/champions/777?eloBracket=DIAMOND_PLUS", ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.EloBracket.Should().Be("DIAMOND_PLUS");
         payload.TotalGames.Should().Be(50);
@@ -264,7 +264,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
 
         // The thin patch is still served when asked for by name.
         var explicitPatch = await client.GetFromJsonAsync<ChampionResponse>(
-            "/champions/779?position=BOTTOM&patch=16.6");
+            "/champions/779?position=BOTTOM&patch=16.6", ApiJson.Options);
         explicitPatch!.Patch.Should().Be("16.6");
         explicitPatch.TotalGames.Should().Be(30);
     }
@@ -289,7 +289,7 @@ public sealed class ChampionBuildsApiIntegrationTests : IAsyncLifetime
 
         // Widened: a superset, so both accounts land in the same slice.
         var everyone = await client.GetFromJsonAsync<ChampionResponse>(
-            "/champions/778?truemainsOnly=false");
+            "/champions/778?truemainsOnly=false", ApiJson.Options);
         everyone.Should().NotBeNull();
         everyone!.TotalGames.Should().Be(50);
     }

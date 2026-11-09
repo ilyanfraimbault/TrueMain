@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
-import type { RegionSlug } from '#shared/types/leaderboard'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
-import { platformIdToRegion } from '#shared/utils/region'
+import { platformIdToRegion, regionOf } from '#shared/utils/region'
 import { riotIdLabel, truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 
 /**
@@ -41,8 +40,8 @@ defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(defineProps<{
   identity: AccountIdentity
-  /** Overrides the region read from `identity.platformId`; `null` hides the flag. */
-  region?: RegionSlug | null
+  /** Overrides the region read from `identity.platformId` (an API slug); `null` hides the flag. */
+  region?: string | null
   /** Data Dragon patch for the icon; null until the version list has loaded. */
   patch: string | null
   size?: AccountSize
@@ -95,7 +94,7 @@ watch(src, () => {
 })
 
 const region = computed(() => (props.region !== undefined
-  ? props.region
+  ? regionOf(props.region)
   : platformIdToRegion(props.identity.platformId)))
 
 const href = computed(() => (props.to === false

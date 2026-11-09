@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import type { ProfileRanked } from '#shared/types/profile'
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { ProfileRankedReadModel, RankHistoryEntryReadModel } from '#shared/contract/api'
 
 // The ranked card as every player page opens its column on it: a skeleton until
 // the profile lands, then the card with the LP curve and the region's
 // Grandmaster / Challenger lines (#2174).
 const props = defineProps<{
   /** Null for an unranked account; ignored while `loading`. */
-  ranked: ProfileRanked | null | undefined
+  ranked: ProfileRankedReadModel | null | undefined
   loading: boolean
-  history: readonly RankHistoryEntry[]
+  history: readonly RankHistoryEntryReadModel[]
   historyLoading: boolean
   /** The player's platform, which picks the cutoff lines. */
   platformId: string | null | undefined

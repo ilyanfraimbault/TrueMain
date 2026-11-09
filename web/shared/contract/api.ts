@@ -7140,6 +7140,11 @@ export interface components {
         /** @enum {unknown} */
         AccountTrackingArm: "EstablishedMain" | "QueuedCandidate" | "Both" | null;
         /**
+         * @description Which window an activity series covers.
+         * @enum {unknown}
+         */
+        ActivityMode: "month" | "patch" | "week" | "day";
+        /**
          * @description The on-demand per-champion aggregate-freshness breakdown
          *     (`GET /ops/data-quality/aggregate-freshness`). Split off the detector payload
          *     because it is the one measurement that needs a grouped scan of
@@ -7889,6 +7894,11 @@ export interface components {
             /** @description Whether int ChampionComparisonSideReadModel.Games reached int ChampionMainsComparisonResponse.MinGames. */
             sampleMet: boolean;
         };
+        /**
+         * @description Why a comparison did — or did not — produce two comparable columns.
+         * @enum {unknown}
+         */
+        ChampionComparisonStatus: "OK" | "UNKNOWN_ACCOUNT" | "UNKNOWN_TARGET" | "INSUFFICIENT_SAMPLE";
         /** @description The damage split of the games where the champion's build leaned on one archetype. */
         ChampionDamageBuildReadModel: {
             /** @description `AbilityPower`, `Crit`, `ArmorPenetration`, `OnHit`, `Tank` or `None`. */
@@ -8060,8 +8070,8 @@ export interface components {
         };
         /** @description One step's verdict — one edge of the build tree (#1496). */
         ChampionItemContextItemReadModel: {
-            /** @description `Build`, `Boots` or `Starter` — the decision this verdict is about. */
-            slot: string;
+            /** @description The decision this verdict is about. */
+            slot: components["schemas"]["ItemContextSlot"];
             /**
              * Format: int32
              * @description The item this step followed, 0 on the branch every build starts from (and on every
@@ -8072,8 +8082,7 @@ export interface components {
             parentItemId: number;
             /** Format: int32 */
             itemId: number;
-            /** @description `Core`, `Situational` or `Preference`. */
-            class: string;
+            class: components["schemas"]["ItemContextClass"];
             /**
              * Format: int32
              * @description Games of the slice that took this branch to this item.
@@ -8148,7 +8157,7 @@ export interface components {
          *
          *     The endpoint never reaches out to Riot: the account must already exist in
          *     our database, and an unknown Riot ID resolves to
-         *     string ChampionComparisonStatus.UnknownAccount rather than an error.
+         *     ChampionComparisonStatus.UnknownAccount rather than an error.
          */
         ChampionMainsComparisonResponse: {
             /** Format: int32 */
@@ -8172,7 +8181,7 @@ export interface components {
              */
             minGames: number;
             /** @description Outcome of the lookup — see ChampionComparisonStatus. */
-            status: string;
+            status: components["schemas"]["ChampionComparisonStatus"];
             player: null | components["schemas"]["ChampionComparisonSideReadModel"];
             mains: null | components["schemas"]["ChampionComparisonSideReadModel"];
         };
@@ -9551,10 +9560,14 @@ export interface components {
              */
             projectedAtUtc: null | string;
         };
+        /**
+         * @description A part of the Truemain score.
+         * @enum {unknown}
+         */
+        DedicationPart: "playRate" | "mastery" | "masteryRank";
         /** @description One part of the score and what it contributed. */
         DedicationPartReadModel: {
-            /** @description One of DedicationPartKeys. */
-            key: string;
+            key: components["schemas"]["DedicationPart"];
             /**
              * Format: double
              * @description Score points this part contributed (unrounded; the parts sum to the score).
@@ -10437,6 +10450,19 @@ export interface components {
             /** @description The class names (`Fighter`, `Marksman`, …), the item's main class first. */
             classes: string[];
         };
+        /**
+         * @description What a verdict says about an item (#1450).
+         * @enum {unknown}
+         */
+        ItemContextClass: "Core" | "Situational" | "Preference";
+        /**
+         * @description Which decision an item context row describes (#1450). The slots are read from
+         *     different resolvers and answer different questions, so a verdict never mixes them:
+         *     "which legendary do I complete", "which boots do I take", "what do I start with", and
+         *     "when do the boots come".
+         * @enum {unknown}
+         */
+        ItemContextSlot: "Build" | "Boots" | "Starter" | "BootsTiming";
         /**
          * @description One component on the way to an item (#2183), at its place in the order the champion's
          *     mains buy them — or, when too few games measured it, at its place in the recipe.
@@ -11822,6 +11848,11 @@ export interface components {
          * @enum {unknown}
          */
         PatchVerdict: "unknown" | "servable" | "thin" | "notAggregated";
+        /**
+         * @description The eight graded axes of PerformanceScore.
+         * @enum {unknown}
+         */
+        PerformanceComponentKind: "Combat" | "KillParticipation" | "DamageShare" | "GoldShare" | "Farming" | "Vision" | "Laning" | "MidGame";
         PersonaAccountChampionReadModel: {
             /** Format: int32 */
             championId: number;
@@ -12683,12 +12714,7 @@ export interface components {
          *     reported alongside the value.
          */
         PlayerChampionPerformanceComponent: {
-            /**
-             * @description The component's name, matching `Core.Lol.Performance.PerformanceComponentKind`
-             *     (`Combat`, `KillParticipation`, `DamageShare`, `GoldShare`,
-             *     `Farming`, `Vision`, `Laning`, `MidGame`).
-             */
-            kind: string;
+            kind: components["schemas"]["PerformanceComponentKind"];
             /**
              * Format: double
              * @description The role profile's nominal weight for this component on the 0..100 scale,
@@ -13834,12 +13860,7 @@ export interface components {
         };
         /** @description One window of the activity grid. */
         TruemainActivitySeriesReadModel: {
-            /**
-             * @description Window id — one of string TruemainActivityKinds.PatchMode,
-             *     string TruemainActivityKinds.WeekMode,
-             *     string TruemainActivityKinds.DayMode.
-             */
-            mode: string;
+            mode: components["schemas"]["ActivityMode"];
             /**
              * @description The `major.minor` patch the window covers, on the patch series only;
              *     `null` elsewhere, and also on the patch series when no
@@ -13972,6 +13993,7 @@ export type AccountFreshnessRequestEntry = components['schemas']['AccountFreshne
 export type AccountFreshnessResponse = components['schemas']['AccountFreshnessResponse'];
 export type AccountPipelineState = components['schemas']['AccountPipelineState'];
 export type AccountTrackingArm = components['schemas']['AccountTrackingArm'];
+export type ActivityMode = components['schemas']['ActivityMode'];
 export type AggregateFreshnessReadModel = components['schemas']['AggregateFreshnessReadModel'];
 export type AggregationBacklogReadModel = components['schemas']['AggregationBacklogReadModel'];
 export type AggregationFamilyReadModel = components['schemas']['AggregationFamilyReadModel'];
@@ -14003,6 +14025,7 @@ export type CandidateStockBucket = components['schemas']['CandidateStockBucket']
 export type CandidateStockReadModel = components['schemas']['CandidateStockReadModel'];
 export type ChampionBuildReadModel = components['schemas']['ChampionBuildReadModel'];
 export type ChampionComparisonSideReadModel = components['schemas']['ChampionComparisonSideReadModel'];
+export type ChampionComparisonStatus = components['schemas']['ChampionComparisonStatus'];
 export type ChampionDamageBuildReadModel = components['schemas']['ChampionDamageBuildReadModel'];
 export type ChampionDamageProfileReadModel = components['schemas']['ChampionDamageProfileReadModel'];
 export type ChampionDamageProfilesResponse = components['schemas']['ChampionDamageProfilesResponse'];
@@ -14057,6 +14080,7 @@ export type DbStorageHistoryReadModel = components['schemas']['DbStorageHistoryR
 export type DbStorageTablePoint = components['schemas']['DbStorageTablePoint'];
 export type DbStorageTableSeries = components['schemas']['DbStorageTableSeries'];
 export type DbStorageThresholdCrossing = components['schemas']['DbStorageThresholdCrossing'];
+export type DedicationPart = components['schemas']['DedicationPart'];
 export type DedicationPartReadModel = components['schemas']['DedicationPartReadModel'];
 export type DedicationReadModel = components['schemas']['DedicationReadModel'];
 export type DeploymentReadModel = components['schemas']['DeploymentReadModel'];
@@ -14101,6 +14125,8 @@ export type IngestorMeterSeriesReadModel = components['schemas']['IngestorMeterS
 export type IngestorMetricsReadModel = components['schemas']['IngestorMetricsReadModel'];
 export type ItemClassesResponse = components['schemas']['ItemClassesResponse'];
 export type ItemClassReadModel = components['schemas']['ItemClassReadModel'];
+export type ItemContextClass = components['schemas']['ItemContextClass'];
+export type ItemContextSlot = components['schemas']['ItemContextSlot'];
 export type ItemRouteStepReadModel = components['schemas']['ItemRouteStepReadModel'];
 export type JsonElement = components['schemas']['JsonElement'];
 export type LaneDutyCycleReadModel = components['schemas']['LaneDutyCycleReadModel'];
@@ -14154,6 +14180,7 @@ export type PatchCoverageRowReadModel = components['schemas']['PatchCoverageRowR
 export type PatchFoldCoverageReadModel = components['schemas']['PatchFoldCoverageReadModel'];
 export type PatchThinLineReadModel = components['schemas']['PatchThinLineReadModel'];
 export type PatchVerdict = components['schemas']['PatchVerdict'];
+export type PerformanceComponentKind = components['schemas']['PerformanceComponentKind'];
 export type PersonaAccountChampionReadModel = components['schemas']['PersonaAccountChampionReadModel'];
 export type PersonaAccountEntry = components['schemas']['PersonaAccountEntry'];
 export type PersonaAccountRankedReadModel = components['schemas']['PersonaAccountRankedReadModel'];
@@ -14280,4 +14307,33 @@ export type TruemainLookupEntryReadModel = components['schemas']['TruemainLookup
 export type TruemainLookupResponse = components['schemas']['TruemainLookupResponse'];
 export type ValidationProblemDetails = components['schemas']['ValidationProblemDetails'];
 export type $defs = Record<string, never>;
+type FlattenedDeepRequired<T> = {
+    [K in keyof T]-?: FlattenedDeepRequired<T[K] extends unknown[] | undefined | null ? Extract<T[K], unknown[]>[number] : T[K]>;
+};
+type ReadonlyArray<T> = [
+    Exclude<T, undefined>
+] extends [
+    unknown[]
+] ? Readonly<Exclude<T, undefined>> : Readonly<Exclude<T, undefined>[]>;
+export const accountPipelineStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AccountPipelineState"]> = ["NeverDiscovered", "SeedRequestedOnly", "Invalidated", "Tracked", "Retired", "NotAMain", "CandidateOnly", "Discovered"];
+export const activityModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ActivityMode"]> = ["month", "patch", "week", "day"];
+export const championComparisonStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChampionComparisonStatus"]> = ["OK", "UNKNOWN_ACCOUNT", "UNKNOWN_TARGET", "INSUFFICIENT_SAMPLE"];
+export const dataQualityIssueTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DataQualityIssueType"]> = ["missingTimeline", "wrongParticipantCount", "missingTeamPosition", "zeroDuration", "duplicateChampion"];
+export const dedicationPartValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DedicationPart"]> = ["playRate", "mastery", "masteryRank"];
+export const detectorStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DetectorStatus"]> = ["unknown", "green", "amber", "red"];
+export const healthAlertChangeKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HealthAlertChangeKind"]> = ["failing", "recovered"];
+export const itemContextClassValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ItemContextClass"]> = ["Core", "Situational", "Preference"];
+export const itemContextSlotValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ItemContextSlot"]> = ["Build", "Boots", "Starter", "BootsTiming"];
+export const mainCandidateSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MainCandidateSource"]> = ["Ladder", "ManualSeed", "Harvest"];
+export const mainCandidateStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MainCandidateStatus"]> = ["New", "Scored", "Queued", "Processing", "Validated"];
+export const matchIngestStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MatchIngestStatus"]> = ["Idle", "Processing"];
+export const patchVerdictValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PatchVerdict"]> = ["unknown", "servable", "thin", "notAggregated"];
+export const performanceComponentKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PerformanceComponentKind"]> = ["Combat", "KillParticipation", "DamageShare", "GoldShare", "Farming", "Vision", "Laning", "MidGame"];
+export const personaConflictBulkStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PersonaConflictBulkStatus"]> = ["resolved", "skipped"];
+export const personaConflictSideValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PersonaConflictSide"]> = ["claimant", "owner"];
+export const personaConflictStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PersonaConflictStatus"]> = ["Open", "Resolved"];
+export const personaExclusionReasonValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PersonaExclusionReason"]> = ["conflict", "unlinked", "takedown"];
+export const processRunStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ProcessRunStatus"]> = ["Success", "Failed", "Running", "Abandoned", "Skipped", "Cancelled"];
+export const riotAccountStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RiotAccountStatus"]> = ["Active", "Invalid"];
+export const seedRequestStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SeedRequestStatus"]> = ["Pending", "Resolving", "Ingested", "Failed"];
 export type operations = Record<string, never>;

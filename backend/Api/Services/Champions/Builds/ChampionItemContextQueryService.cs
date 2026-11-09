@@ -78,7 +78,7 @@ public sealed class ChampionItemContextQueryService(
         return response with
         {
             Routes = [.. response.Items
-                .Where(item => item.Slot is nameof(ItemContextSlot.Build) or nameof(ItemContextSlot.Boots))
+                .Where(item => item.Slot is ItemContextSlot.Build or ItemContextSlot.Boots)
                 .Select(item => item.ItemId)
                 .Distinct()
                 .Select(paths.ReadModel)
@@ -143,10 +143,10 @@ public sealed class ChampionItemContextQueryService(
     private static ChampionItemContextItemReadModel ToReadModel(ChampionItemContextVerdict verdict)
         => new()
         {
-            Slot = verdict.Slot.ToString(),
+            Slot = verdict.Slot,
             ParentItemId = verdict.ParentItemId,
             ItemId = verdict.ItemId,
-            Class = verdict.Class.ToString(),
+            Class = verdict.Class,
             Games = verdict.Games,
             BranchGames = verdict.BranchGames,
             PickRate = verdict.PickRate,

@@ -176,7 +176,7 @@ public sealed class SeedRequestApiIntegrationTests : IAsyncLifetime
         all.Requests.Should().BeInDescendingOrder(request => request.RequestedAtUtc);
 
         var pendingOnly = await client.GetFromJsonAsync<SeedRequestPageContract>(
-            "/ops/accounts/seed?status=Pending");
+            "/ops/accounts/seed?status=Pending", ApiJson.Options);
         pendingOnly.Should().NotBeNull();
         pendingOnly!.Requests.Should().HaveCount(2);
         pendingOnly.Requests.Should().OnlyContain(request => request.Status == "Pending");
@@ -200,11 +200,11 @@ public sealed class SeedRequestApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var first = await client.GetFromJsonAsync<SeedRequestPageContract>(
-            "/ops/accounts/seed?page=1&pageSize=2");
+            "/ops/accounts/seed?page=1&pageSize=2", ApiJson.Options);
         var second = await client.GetFromJsonAsync<SeedRequestPageContract>(
-            "/ops/accounts/seed?page=2&pageSize=2");
+            "/ops/accounts/seed?page=2&pageSize=2", ApiJson.Options);
         var third = await client.GetFromJsonAsync<SeedRequestPageContract>(
-            "/ops/accounts/seed?page=3&pageSize=2");
+            "/ops/accounts/seed?page=3&pageSize=2", ApiJson.Options);
 
         first!.Total.Should().Be(5);
         first.Page.Should().Be(1);
@@ -237,7 +237,7 @@ public sealed class SeedRequestApiIntegrationTests : IAsyncLifetime
         // joined "Name#TAG" string — so without the split this returns nothing,
         // which reads as "never requested" for an account that is right there.
         var exact = await client.GetFromJsonAsync<SeedRequestPageContract>(
-            "/ops/accounts/seed?search=Aileri%23KR4");
+            "/ops/accounts/seed?search=Aileri%23KR4", ApiJson.Options);
         exact.Should().NotBeNull();
         exact!.Requests.Should().ContainSingle();
         exact.Total.Should().Be(1);
@@ -247,12 +247,12 @@ public sealed class SeedRequestApiIntegrationTests : IAsyncLifetime
         // Halfway through typing the Riot ID, the name alone still matches — the
         // '#' keystroke must not empty the list.
         var midTyping = await client.GetFromJsonAsync<SeedRequestPageContract>(
-            "/ops/accounts/seed?search=Aileri%23");
+            "/ops/accounts/seed?search=Aileri%23", ApiJson.Options);
         midTyping!.Requests.Should().HaveCount(2);
 
         // And a bare term keeps matching either half, so searching a tag works.
         var bareTag = await client.GetFromJsonAsync<SeedRequestPageContract>(
-            "/ops/accounts/seed?search=KR4");
+            "/ops/accounts/seed?search=KR4", ApiJson.Options);
         bareTag!.Requests.Should().HaveCount(2);
     }
 

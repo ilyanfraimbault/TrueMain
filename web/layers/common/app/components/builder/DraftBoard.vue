@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CompositionLane } from '#shared/types/composition'
+import type { CompositionLaneReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { POSITION_OPTIONS, type ChampionPosition } from '#shared/utils/positions'
 
@@ -29,7 +29,7 @@ const props = defineProps<{
   enemySlots: Record<ChampionPosition, number | null>
   /** Enables the clear button — the page decides whether anything is set. */
   hasPicks: boolean
-  lane: CompositionLane | null
+  lane: CompositionLaneReadModel | null
   laneLoading: boolean
 }>()
 

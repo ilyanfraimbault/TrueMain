@@ -382,8 +382,9 @@ the rest of the account's writes. Pace before form, everywhere — #2448.
 
 The site, the admin and the desktop app read the API through types generated from the API's OpenAPI document, not
 copied by hand from `Api/ReadModels`: about 75 read models had three hand-kept TypeScript mirrors, and a rename only
-broke at runtime. `AddTrueMainContract` (`backend/Api/OpenApi`) owns the wire: enums travel by their C# name
-everywhere (a read model types a status as its enum, never as a `ToString()`), and the document says what the API
+broke at runtime. `AddTrueMainContract` (`backend/Api/OpenApi`) owns the wire: enums travel by name everywhere —
+the C# name, or a `JsonStringEnumMemberName` that keeps a spelling clients already read (a read model types a status
+as its enum, never as a `ToString()`; text persisted outside a response goes through `WireNames`), and the document says what the API
 writes — every response field present (`T | null` when nullable), numbers as numbers, JSON only. Request bodies keep
 C#'s rule: only `required` members are required.
 
@@ -391,5 +392,9 @@ C#'s rule: only `required` members are required.
 committed: a frontend builds without the .NET SDK and a contract change shows in the PR diff. A stale one fails CI
 (`OpenApiContractTests`, `npm run contract -- --check`). The front end imports the generated names (the C# names,
 `ProcessRunReadModel`) — no alias layer; hand-written types remain only for shapes the front end builds itself. The
-admin's `useOps` is typed by path through `contract/routes.ts`, so a renamed route is a type error. Regenerating:
+admin's `useOps` / `opsCall` are typed by path through `contract/routes.ts`, so a renamed route is a type error. An
+ordered list of an enum's values comes from the contract too (`--enum-values`: `performanceComponentKindValues`), never
+a copied array. A wire value the API relays from storage it does not own (log level, link kind), or one with no name for every row
+(the region slug is `""` on a shard without a region), stays a `string`: the front end narrows it where it keys a
+table, with a fallback. Regenerating:
 `docs/ci.md` → "The API contract" — #2493, #2481.

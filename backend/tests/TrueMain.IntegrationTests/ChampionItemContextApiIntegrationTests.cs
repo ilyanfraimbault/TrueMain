@@ -54,8 +54,8 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
         response.Items.Should().HaveCount(2);
 
         var situational = response.Items.Single(item => item.ItemId == 3065);
-        situational.Slot.Should().Be("Build");
-        situational.Class.Should().Be("Situational");
+        situational.Slot.Should().Be(ItemContextSlot.Build);
+        situational.Class.Should().Be(ItemContextClass.Situational);
         situational.Games.Should().Be(300);
         situational.BranchGames.Should().Be(1000);
         situational.ParentItemId.Should().Be(0, "the first legendary is decided on the branch every build starts from");
@@ -71,7 +71,7 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
         finding.PatchWindow.Should().Be(2);
 
         var core = response.Items.Single(item => item.ItemId == 6632);
-        core.Class.Should().Be("Core");
+        core.Class.Should().Be(ItemContextClass.Core);
         core.Axes.Should().BeEmpty("a core item has no situation to explain");
     }
 

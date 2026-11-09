@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionBuild } from '~~/shared/types/champions'
+import type { ChampionBuildReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticData,
   RuneTreeResponse,
@@ -11,7 +11,7 @@ import type { ItemContextCard } from '~~/shared/utils/item-context'
 import { indexItemContext } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
-  builds: ChampionBuild[]
+  builds: ChampionBuildReadModel[]
   championStatic: ChampionStaticData
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>
