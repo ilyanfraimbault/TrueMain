@@ -21,7 +21,7 @@
     "test": "vitest run",
     "tokens": "node scripts/theme-tokens.mjs",
     "test:watch": "vitest",
-    "contract": "openapi-typescript shared/contract/openapi.json -o shared/contract/api.ts --root-types --root-types-no-schema-prefix --empty-objects-unknown"
+    "contract": "openapi-typescript shared/contract/openapi.json -o shared/contract/api.ts --root-types --root-types-no-schema-prefix --empty-objects-unknown --enum-values"
   },
   "dependencies": {
     "@nuxt/image": "^2.2.1",

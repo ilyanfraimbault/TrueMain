@@ -147,7 +147,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         foreach (var query in new[] { string.Empty, "?days=0", "?days=-30" })
         {
             var payload = await client.GetFromJsonAsync<RankHistoryReadModel>(
-                $"/truemains/Veteran-EUW1/rank-history{query}");
+                $"/truemains/Veteran-EUW1/rank-history{query}", ApiJson.Options);
 
             // 0 and a negative are not "no window" and not "one day": they mean the
             // caller said nothing useful, which is the default.
@@ -174,7 +174,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<RankHistoryReadModel>(
-            "/truemains/Recent-EUW1/rank-history?days=7");
+            "/truemains/Recent-EUW1/rank-history?days=7", ApiJson.Options);
 
         payload!.Entries.Should().ContainSingle().Which.LeaguePoints.Should().Be(65);
     }
@@ -200,7 +200,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<RankHistoryReadModel>(
-            "/truemains/Ancient-EUW1/rank-history?days=999999");
+            "/truemains/Ancient-EUW1/rank-history?days=999999", ApiJson.Options);
 
         payload!.Entries.Select(entry => entry.LeaguePoints).Should().Equal(15, 25);
     }
@@ -224,7 +224,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<RankHistoryReadModel>(
-            "/truemains/Twin-EUW1/rank-history");
+            "/truemains/Twin-EUW1/rank-history", ApiJson.Options);
 
         // The tag line is half the identity: matching on the game name alone would draw
         // another player's curve on this profile.
@@ -263,7 +263,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<RankHistoryReadModel>(
-            "/truemains/Reused-EUW1/rank-history");
+            "/truemains/Reused-EUW1/rank-history", ApiJson.Options);
 
         payload!.Entries.Should().ContainSingle().Which.Tier.Should().Be("DIAMOND");
     }
@@ -290,7 +290,7 @@ public sealed class RankHistoryApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<RankHistoryReadModel>(
-            "/truemains/Plateau-EUW1/rank-history");
+            "/truemains/Plateau-EUW1/rank-history", ApiJson.Options);
 
         payload!.Entries.Should().HaveCount(3);
         payload.Entries.Should().OnlyContain(entry => entry.LeaguePoints == 47);

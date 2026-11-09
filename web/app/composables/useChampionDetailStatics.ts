@@ -1,4 +1,4 @@
-import type { ChampionResponse } from '~~/shared/types/champions'
+import type { ChampionResponse } from '#shared/contract/api'
 import { isChampionPosition, type ChampionPosition } from '#shared/utils/positions'
 import { resolveChampionStaticPatch } from '~/utils/champion-patch'
 import type { ChampionScope } from '#common/utils/champion-scope'

@@ -1,4 +1,4 @@
-import type { ChampionItemContextResponse } from '#shared/types/item-context'
+import type { ChampionItemContextResponse } from '#shared/contract/api'
 
 /**
  * The situational build context of the displayed slice (#1451).
@@ -25,6 +25,7 @@ export function useChampionItemContext(
     patch: patchRef.value ?? null,
     allRanks: true,
     items: [],
+    routes: [],
   })
 
   const apiFetch = useApiFetch()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BuildVariations } from '~~/shared/types/champions'
+import type { BuildVariationsReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticData,
   StaticItemData,
@@ -10,7 +10,7 @@ import type { ItemContextCard } from '~~/shared/utils/item-context'
 import { resolveItemContext } from '~~/shared/utils/item-context'
 
 const props = defineProps<{
-  variations: BuildVariations
+  variations: BuildVariationsReadModel
   championStatic: ChampionStaticData
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>

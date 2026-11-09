@@ -1,4 +1,4 @@
-import type { ProfileResponse } from '#shared/types/profile'
+import type { ProfileReadModel } from '#shared/contract/api'
 import { riotIdLabel, truemainSlugLabel } from '#shared/utils/truemain-path'
 
 /**
@@ -8,7 +8,7 @@ import { riotIdLabel, truemainSlugLabel } from '#shared/utils/truemain-path'
  */
 export function useTruemainPlayerLabel(
   nameTag: MaybeRefOrGetter<string>,
-  profile: MaybeRefOrGetter<ProfileResponse | null | undefined>,
+  profile: MaybeRefOrGetter<ProfileReadModel | null | undefined>,
 ) {
   return computed(() => {
     const identity = toValue(profile)?.identity

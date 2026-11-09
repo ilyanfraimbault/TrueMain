@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { ChampionItemContextItem } from '#shared/types/item-context'
-import type { BuildCoreView, BuildTreeNode } from '~/types/build'
+import type { ChampionItemContextItemReadModel } from '#shared/contract/api'
+import type { BuildCoreView, BuildTreeNodeReadModel } from '~/types/build'
 import { hasItems, itemSetBuild, situationalFromContext, situationalFromTree } from '~/utils/item-set'
 
-function verdict(itemId: number, pickRate: number, overrides: Partial<ChampionItemContextItem> = {}): ChampionItemContextItem {
+function verdict(itemId: number, pickRate: number, overrides: Partial<ChampionItemContextItemReadModel> = {}): ChampionItemContextItemReadModel {
   return { slot: 'Build', parentItemId: 0, itemId, class: 'Situational', games: 100, branchGames: 400, pickRate, winRate: 0.5, patchWindow: 1, axes: [], ...overrides }
 }
 
-function node(itemId: number, games: number, children: BuildTreeNode[] = []): BuildTreeNode {
+function node(itemId: number, games: number, children: BuildTreeNodeReadModel[] = []): BuildTreeNodeReadModel {
   return { itemId, games, wins: 0, pickRate: 0, children }
 }
 

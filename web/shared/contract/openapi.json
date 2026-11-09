@@ -7400,6 +7400,15 @@
           null
         ]
       },
+      "ActivityMode": {
+        "enum": [
+          "month",
+          "patch",
+          "week",
+          "day"
+        ],
+        "description": "Which window an activity series covers."
+      },
       "AggregateFreshnessReadModel": {
         "required": [
           "patches",
@@ -8803,6 +8812,15 @@
         },
         "description": "One column of the comparison. Counting stats are per-game averages so a\nsingle player and a pool of mains stay on the same scale."
       },
+      "ChampionComparisonStatus": {
+        "enum": [
+          "OK",
+          "UNKNOWN_ACCOUNT",
+          "UNKNOWN_TARGET",
+          "INSUFFICIENT_SAMPLE"
+        ],
+        "description": "Why a comparison did — or did not — produce two comparable columns."
+      },
       "ChampionDamageBuildReadModel": {
         "required": [
           "archetype",
@@ -9134,8 +9152,8 @@
         "type": "object",
         "properties": {
           "slot": {
-            "type": "string",
-            "description": "`Build`, `Boots` or `Starter` — the decision this verdict is about."
+            "description": "The decision this verdict is about.",
+            "$ref": "#/components/schemas/ItemContextSlot"
           },
           "parentItemId": {
             "type": "integer",
@@ -9147,8 +9165,7 @@
             "format": "int32"
           },
           "class": {
-            "type": "string",
-            "description": "`Core`, `Situational` or `Preference`."
+            "$ref": "#/components/schemas/ItemContextClass"
           },
           "games": {
             "type": "integer",
@@ -9298,8 +9315,8 @@
             "format": "int32"
           },
           "status": {
-            "type": "string",
-            "description": "Outcome of the lookup — see ChampionComparisonStatus."
+            "description": "Outcome of the lookup — see ChampionComparisonStatus.",
+            "$ref": "#/components/schemas/ChampionComparisonStatus"
           },
           "player": {
             "oneOf": [
@@ -9307,7 +9324,7 @@
                 "type": "null"
               },
               {
-                "description": "The compared account's side. Null only when the Riot ID is unknown to us\n(string ChampionComparisonStatus.UnknownAccount) — a known account\nwith no games on the champion still yields a side with zero games.",
+                "description": "The compared account's side. Null only when the Riot ID is unknown to us\n(ChampionComparisonStatus.UnknownAccount) — a known account\nwith no games on the champion still yields a side with zero games.",
                 "$ref": "#/components/schemas/ChampionComparisonSideReadModel"
               }
             ]
@@ -9324,7 +9341,7 @@
             ]
           }
         },
-        "description": "Head-to-head read model returned by\n`GET /champions/{championId}/mains-comparison` (issue #528): one Riot\naccount's numbers on a champion set against the champion's mains — either\nthe whole main pool (ProfileIdentityReadModel? ChampionComparisonSideReadModel.Identity\nnull) or a single named main.\n\nBoth sides are computed from the same population, queue, patch and lane\nscope, so the two columns are directly comparable. Build / skill order and\nearly-game leads are deliberately out of scope here (a separate issue\ncovers them).\n\nThe endpoint never reaches out to Riot: the account must already exist in\nour database, and an unknown Riot ID resolves to\nstring ChampionComparisonStatus.UnknownAccount rather than an error."
+        "description": "Head-to-head read model returned by\n`GET /champions/{championId}/mains-comparison` (issue #528): one Riot\naccount's numbers on a champion set against the champion's mains — either\nthe whole main pool (ProfileIdentityReadModel? ChampionComparisonSideReadModel.Identity\nnull) or a single named main.\n\nBoth sides are computed from the same population, queue, patch and lane\nscope, so the two columns are directly comparable. Build / skill order and\nearly-game leads are deliberately out of scope here (a separate issue\ncovers them).\n\nThe endpoint never reaches out to Riot: the account must already exist in\nour database, and an unknown Riot ID resolves to\nChampionComparisonStatus.UnknownAccount rather than an error."
       },
       "ChampionMatchupEntry": {
         "required": [
@@ -11369,6 +11386,14 @@
         },
         "description": "When the fitted line reaches one fill level."
       },
+      "DedicationPart": {
+        "enum": [
+          "playRate",
+          "mastery",
+          "masteryRank"
+        ],
+        "description": "A part of the Truemain score."
+      },
       "DedicationPartReadModel": {
         "required": [
           "key",
@@ -11378,8 +11403,7 @@
         "type": "object",
         "properties": {
           "key": {
-            "type": "string",
-            "description": "One of DedicationPartKeys."
+            "$ref": "#/components/schemas/DedicationPart"
           },
           "points": {
             "type": "number",
@@ -13301,6 +13325,23 @@
           }
         },
         "description": "One item's shop classes."
+      },
+      "ItemContextClass": {
+        "enum": [
+          "Core",
+          "Situational",
+          "Preference"
+        ],
+        "description": "What a verdict says about an item (#1450)."
+      },
+      "ItemContextSlot": {
+        "enum": [
+          "Build",
+          "Boots",
+          "Starter",
+          "BootsTiming"
+        ],
+        "description": "Which decision an item context row describes (#1450). The slots are read from\ndifferent resolvers and answer different questions, so a verdict never mixes them:\n\"which legendary do I complete\", \"which boots do I take\", \"what do I start with\", and\n\"when do the boots come\"."
       },
       "ItemRouteStepReadModel": {
         "required": [
@@ -15817,6 +15858,19 @@
         ],
         "description": "Whether the public reads can serve a patch (#1033)."
       },
+      "PerformanceComponentKind": {
+        "enum": [
+          "Combat",
+          "KillParticipation",
+          "DamageShare",
+          "GoldShare",
+          "Farming",
+          "Vision",
+          "Laning",
+          "MidGame"
+        ],
+        "description": "The eight graded axes of PerformanceScore."
+      },
       "PersonaAccountChampionReadModel": {
         "required": [
           "championId",
@@ -17960,8 +18014,7 @@
         "type": "object",
         "properties": {
           "kind": {
-            "type": "string",
-            "description": "The component's name, matching `Core.Lol.Performance.PerformanceComponentKind`\n(`Combat`, `KillParticipation`, `DamageShare`, `GoldShare`,\n`Farming`, `Vision`, `Laning`, `MidGame`)."
+            "$ref": "#/components/schemas/PerformanceComponentKind"
           },
           "weight": {
             "type": "number",
@@ -20165,8 +20218,7 @@
         "type": "object",
         "properties": {
           "mode": {
-            "type": "string",
-            "description": "Window id — one of string TruemainActivityKinds.PatchMode,\nstring TruemainActivityKinds.WeekMode,\nstring TruemainActivityKinds.DayMode."
+            "$ref": "#/components/schemas/ActivityMode"
           },
           "patch": {
             "type": [

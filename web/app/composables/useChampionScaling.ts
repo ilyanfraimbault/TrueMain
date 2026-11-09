@@ -1,4 +1,4 @@
-import type { ChampionScalingResponse } from '~~/shared/types/champions'
+import type { ChampionScalingResponse } from '#shared/contract/api'
 import { isLoadingStatus } from '#common/utils/async-data'
 
 /**

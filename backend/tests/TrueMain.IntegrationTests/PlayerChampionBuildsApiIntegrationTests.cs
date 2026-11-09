@@ -200,7 +200,7 @@ public sealed class PlayerChampionBuildsApiIntegrationTests : IAsyncLifetime
 
         // ALL: both positions summed, each build kept — and still only Phantasm's.
         var all = await client.GetFromJsonAsync<ChampionResponse>(
-            "/truemains/Phantasm-EUW1/champions/157?position=ALL");
+            "/truemains/Phantasm-EUW1/champions/157?position=ALL", ApiJson.Options);
         all!.Position.Should().Be("ALL");
         all.Patch.Should().Be("16.5");
         all.TotalGames.Should().Be(12, "MIDDLE's 8 and TOP's 4; Rival's MIDDLE games never count");

@@ -1,4 +1,4 @@
-import type { ChampionSummaryResponse } from '../types/champions'
+import type { ChampionSummaryReadModel } from '../contract/api'
 
 /**
  * Freshness dates for the sitemap's champion URLs (#1256).
@@ -38,7 +38,7 @@ export function toSitemapDay(value: string | null | undefined): string | null {
  * the caller emits their URL with no `lastmod` rather than inventing one.
  */
 export function championLastmodById(
-  summaries: ChampionSummaryResponse[] | null | undefined,
+  summaries: ChampionSummaryReadModel[] | null | undefined,
 ): Map<number, string> {
   const latest = new Map<number, number>()
 

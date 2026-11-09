@@ -1,4 +1,4 @@
-import type { LeaderboardRowResponse, LeaderboardTopChampion } from '#shared/types/leaderboard'
+import type { LeaderboardRowReadModel, LeaderboardTopChampionReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
@@ -11,7 +11,7 @@ import { leaderboardChampionIcon, leaderboardChampionName } from '#common/utils/
 
 /** A row's signature champion, resolved for `LeaderboardChampionBuild`. */
 export interface LeaderboardMainBuild {
-  champion: LeaderboardTopChampion
+  champion: LeaderboardTopChampionReadModel
   name: string
   iconUrl: string | null
   /** The player's slug: the cluster links to their page on the champion. */
@@ -37,7 +37,7 @@ export function useLeaderboardChampions(
   const championIcon = (id: number) => leaderboardChampionIcon(toValue(championsById), id)
 
   /** `LeaderboardChampionBuild`'s props for the row's signature champion; null without one. */
-  function mainBuild(row: LeaderboardRowResponse): LeaderboardMainBuild | null {
+  function mainBuild(row: LeaderboardRowReadModel): LeaderboardMainBuild | null {
     const champion = row.topChampions[0]
     if (!champion) return null
     return {

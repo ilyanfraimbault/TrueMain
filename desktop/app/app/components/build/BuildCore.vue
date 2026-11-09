@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BuildItemSet, BuildRunePage, BuildSkillOrder, BuildSummonerSpells } from '#shared/types/champions'
+import type { BuildItemSetReadModel, BuildRunePageReadModel, BuildSkillOrderReadModel, BuildSummonerSpellsReadModel } from '#shared/contract/api'
 import type { ChampionStaticData, RuneTreeResponse, StaticItemData, StaticSummonerSpellData } from '#shared/types/static-data'
 
 /**
@@ -17,11 +17,11 @@ import type { ChampionStaticData, RuneTreeResponse, StaticItemData, StaticSummon
  * The runes carry the import button in their corner (#1678).
  */
 withDefaults(defineProps<{
-  summonerSpells: BuildSummonerSpells | null
-  starterItems: BuildItemSet | null
-  skillOrder: BuildSkillOrder | null
-  boots: BuildItemSet | null
-  runePage: BuildRunePage | null
+  summonerSpells: BuildSummonerSpellsReadModel | null
+  starterItems: BuildItemSetReadModel | null
+  skillOrder: BuildSkillOrderReadModel | null
+  boots: BuildItemSetReadModel | null
+  runePage: BuildRunePageReadModel | null
   /** Null while the champion's spells are loading; the skill order waits for them, as on the site. */
   championStatic: ChampionStaticData | null
   itemsMap: Record<number, StaticItemData>
