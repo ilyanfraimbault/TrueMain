@@ -2,7 +2,6 @@
 // `pages/data-quality.vue`, #1436).
 import type { DataQualityIssueType } from '#site-shared/contract/api'
 import type { BadgeColor } from '~~/shared/utils/badge-color'
-import { dataQualityIssueTypeValues } from '#site-shared/contract/api'
 import { getQueueLabel } from '#site-shared/utils/queues'
 
 /**
@@ -50,7 +49,7 @@ export const DATA_QUALITY_ISSUE_META: Record<DataQualityIssueType, IssueMeta> = 
 }
 
 /** The checks in the order the API declares them. */
-export const DATA_QUALITY_ISSUE_ORDER = dataQualityIssueTypeValues
+export { dataQualityIssueTypeValues as DATA_QUALITY_ISSUE_ORDER } from '#site-shared/contract/api'
 
 
 export function dataQualityQueueLabel(queueId: number): string {

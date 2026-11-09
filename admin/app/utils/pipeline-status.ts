@@ -4,10 +4,9 @@
 // so a status never looks like two different things on two pages.
 import type { MainCandidateStatus, SeedRequestStatus } from '#site-shared/contract/api'
 import type { BadgeColor } from '~~/shared/utils/badge-color'
-import { mainCandidateStatusValues, seedRequestStatusValues } from '#site-shared/contract/api'
 
 /** The candidate statuses in pipeline order, New → Validated, as the API declares them. */
-export const CANDIDATE_STATUSES = mainCandidateStatusValues
+export { mainCandidateStatusValues as CANDIDATE_STATUSES } from '#site-shared/contract/api'
 
 export const CANDIDATE_STATUS_COLOR: Record<MainCandidateStatus, BadgeColor> = {
   New: 'neutral',
@@ -34,7 +33,7 @@ export function candidateStatusIcon(status: MainCandidateStatus): string {
 }
 
 /** The seed-request statuses in lifecycle order, as the API declares them. */
-export const SEED_STATUSES = seedRequestStatusValues
+export { seedRequestStatusValues as SEED_STATUSES } from '#site-shared/contract/api'
 
 export const SEED_STATUS_COLOR: Record<SeedRequestStatus, BadgeColor> = {
   Pending: 'neutral',
