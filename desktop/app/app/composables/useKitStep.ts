@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { BuildItemSet } from '~/types/build'
+import type { BuildItemSetReadModel } from '#shared/contract/api'
 import type { GameState } from '~/types/game'
 import { kitOrder, nextKitStep } from '~/utils/kit-tree'
 import { starterBought } from '~/utils/next-item'
@@ -34,7 +34,7 @@ export function useKitStep(game: Ref<GameState>, completed: Ref<number[]>) {
   const step = computed(() => (kit.value ? nextKitStep(kit.value.tree, kit.value.boots, completed.value, held.value) : null))
   const row = computed(() => (kit.value ? kitOrder(kit.value.tree, kit.value.boots, completed.value, held.value) : []))
 
-  const starter = computed<BuildItemSet | null>(() => {
+  const starter = computed<BuildItemSetReadModel | null>(() => {
     const basket = kit.value?.starter ?? []
     if (basket.length === 0 || starterBought(held.value, items.value)) return null
     return { itemIds: basket, games: 0, pickRate: 0, winRate: 0 }

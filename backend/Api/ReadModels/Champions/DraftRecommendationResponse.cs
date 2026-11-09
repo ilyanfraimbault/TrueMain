@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TrueMain.ReadModels.Champions;
 
 /// <summary>One enemy champion placed in a lane, and how sure we are.</summary>
@@ -135,50 +137,59 @@ public sealed record DraftBlindReadModel
 }
 
 /// <summary>What kind of fact a <see cref="DraftReasonReadModel"/> states.</summary>
-public static class DraftReasonKinds
+public enum DraftReasonKind
 {
     /// <summary>The matchup into one enemy: <c>championId</c> (the enemy), <c>delta</c>, <c>games</c>, <c>probability</c> it is our opponent.</summary>
-    public const string LaneMatchup = "laneMatchup";
+    [JsonStringEnumMemberName("laneMatchup")]
+    LaneMatchup,
 
     /// <summary>The lane phase into one enemy: <c>rate</c> of decided lanes won at 15 minutes over <c>games</c> decided lanes.</summary>
-    public const string LanePhase = "lanePhase";
+    [JsonStringEnumMemberName("lanePhase")]
+    LanePhase,
 
     /// <summary>Blind safety: <c>delta</c>, <c>games</c>, behind into <c>count</c> of the <c>of</c> most-played opponents.</summary>
-    public const string BlindSafety = "blindSafety";
+    [JsonStringEnumMemberName("blindSafety")]
+    BlindSafety,
 
     /// <summary>The champion's own record at the lane: <c>delta</c> against the lane's average, over <c>games</c>.</summary>
-    public const string LaneStrength = "laneStrength";
+    [JsonStringEnumMemberName("laneStrength")]
+    LaneStrength,
 
     /// <summary>
     /// Against one enemy off our lane (#1713): <c>championId</c> (the enemy), <c>delta</c>,
     /// <c>games</c>, <c>probability</c> it plays elsewhere than our lane.
     /// </summary>
-    public const string EnemyTeam = "enemyTeam";
+    [JsonStringEnumMemberName("enemyTeam")]
+    EnemyTeam,
 
     /// <summary>The pairing with one ally: <c>championId</c>, <c>position</c>, <c>delta</c>, <c>games</c>, <c>tentative</c> when only hovered.</summary>
-    public const string Synergy = "synergy";
+    [JsonStringEnumMemberName("synergy")]
+    Synergy,
 
     /// <summary>
     /// Our team's composition (#1906): with allies in <c>bucket</c> (<c>Low</c>, <c>Mid</c>,
     /// <c>High</c>) of <c>axis</c> (<c>AllyMagicDamage</c>, <c>AllyFrontline</c>), the pick's win
     /// rate moves by <c>delta</c> over <c>games</c>; <c>tentative</c> when a hover is part of it.
     /// </summary>
-    public const string TeamFit = "teamFit";
+    [JsonStringEnumMemberName("teamFit")]
+    TeamFit,
 
     /// <summary>A ban: our pick (<c>championId</c>) is behind by <c>delta</c> over <c>games</c> into it, played in <c>share</c> of the lane's games.</summary>
-    public const string LaneThreat = "laneThreat";
+    [JsonStringEnumMemberName("laneThreat")]
+    LaneThreat,
 
     /// <summary>A ban with no pick to protect: banned in <c>rate</c> of <c>games</c> matches.</summary>
-    public const string BanRate = "banRate";
+    [JsonStringEnumMemberName("banRate")]
+    BanRate,
 }
 
 /// <summary>
 /// One measured fact behind a suggestion. Text-free on purpose: the fields a
-/// kind uses are listed on <see cref="DraftReasonKinds"/>, the others are null.
+/// kind uses are listed on <see cref="DraftReasonKind"/>, the others are null.
 /// </summary>
 public sealed record DraftReasonReadModel
 {
-    public string Kind { get; init; } = string.Empty;
+    public DraftReasonKind Kind { get; init; }
 
     public int? ChampionId { get; init; }
 

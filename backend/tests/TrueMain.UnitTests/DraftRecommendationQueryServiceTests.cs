@@ -155,7 +155,7 @@ public sealed class DraftRecommendationQueryServiceTests
         Assert.Equal(0.05, fitted.TeamFitDelta, 9);
         Assert.Equal(2_000, fitted.TeamFitGames);
         var reason = Assert.Single(fitted.Reasons);
-        Assert.Equal(DraftReasonKinds.TeamFit, reason.Kind);
+        Assert.Equal(DraftReasonKind.TeamFit, reason.Kind);
         Assert.Equal("AllyMagicDamage", reason.Axis);
         Assert.Equal("Low", reason.Bucket);
         Assert.True(reason.Tentative);

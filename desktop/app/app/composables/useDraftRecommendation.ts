@@ -1,4 +1,4 @@
-import type { DraftCandidate, DraftRecommendation } from '~/types/draft'
+import type { DraftCandidateReadModel, DraftRecommendationResponse } from '#shared/contract/api'
 import type { DraftState } from '~/types/lcu'
 
 /** Our allies' champions keyed by lane, locked ones or hovered ones. */
@@ -20,7 +20,7 @@ const CANDIDATES_PER_REQUEST = 40
  * batches merge without distortion. Thin samples are not pushed back any more:
  * the score already discounts a delta by how few games it rests on (#1906).
  */
-function byServerOrder(a: DraftCandidate, b: DraftCandidate) {
+function byServerOrder(a: DraftCandidateReadModel, b: DraftCandidateReadModel) {
   return b.score - a.score || a.championId - b.championId
 }
 
@@ -41,7 +41,7 @@ export function useDraftRecommendation(
   /** The player's bracket (`useDraftEloBracket`); null reads every bracket. */
   eloBracket: Ref<string | null> = ref(null),
 ) {
-  const recommendation = ref<DraftRecommendation | null>(null)
+  const recommendation = ref<DraftRecommendationResponse | null>(null)
   const pending = ref(false)
   const error = ref<string | null>(null)
 
@@ -55,13 +55,13 @@ export function useDraftRecommendation(
   let latestRequest = 0
   let timer: ReturnType<typeof setTimeout> | undefined
 
-  async function ask(request: object): Promise<DraftRecommendation> {
+  async function ask(request: object): Promise<DraftRecommendationResponse> {
     if (insideTauri()) {
       const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<DraftRecommendation>('draft_recommendation', { request })
+      return await invoke<DraftRecommendationResponse>('draft_recommendation', { request })
     }
     // `npm run dev` in a browser: the dev server proxies `/api` (nuxt.config).
-    return await $fetch<DraftRecommendation>('/api/champions/draft', { method: 'POST', body: request })
+    return await $fetch<DraftRecommendationResponse>('/api/champions/draft', { method: 'POST', body: request })
   }
 
   async function fetchRecommendation() {
