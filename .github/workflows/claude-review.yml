@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Run Claude review
-        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33
+        uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           allowed_bots: "dependabot[bot]"
