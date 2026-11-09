@@ -6,7 +6,7 @@ import type {
   StaticItemData,
   StaticSummonerSpellData,
 } from '~~/shared/types/static-data'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import type { ChampionPanelSnapshots } from '~/composables/useChampionPanelSnapshots'
 
 // The champion page's main column: the build tabs, then the below-the-fold

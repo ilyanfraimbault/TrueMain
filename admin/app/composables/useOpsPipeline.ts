@@ -4,14 +4,11 @@ import type {
   CrashesResponse,
   EffectiveConfigurationOverviewResponse,
   PipelineHealth,
-  ProcessIterationsFilters,
-  ProcessIterationsResponse,
-  ProcessRunsFilters,
-  ProcessRunsResponse,
   RiotApiUsage,
   RiotUsageFilters,
 } from '~~/shared/types/ops'
 import type { LogsFilters, LogsResponse } from '~~/shared/types/logs'
+import type { OpsQueryOf } from './useOps'
 
 // Pipeline runtime reads of the ops API — process runs, logs, crashes, Riot usage,
 // health and configuration — built on `useOps` (`useOps.ts`).
@@ -22,13 +19,8 @@ import type { LogsFilters, LogsResponse } from '~~/shared/types/logs'
  * Pass a reactive getter so the table re-fetches when a filter or the page
  * changes.
  */
-export function useProcessRuns(
-  filters?: MaybeRefOrGetter<ProcessRunsFilters>,
-) {
-  return useOps<ProcessRunsResponse>(
-    '/process-runs',
-    filters ? () => ({ ...toValue(filters) }) : undefined,
-  )
+export function useProcessRuns(filters?: MaybeRefOrGetter<OpsQueryOf<'/process-runs'>>) {
+  return useOps('/process-runs', filters)
 }
 
 /**
@@ -36,13 +28,8 @@ export function useProcessRuns(
  * each carrying its ordered process runs. Feeds the chain view. Pass a reactive
  * getter so it re-fetches when the page changes.
  */
-export function useProcessIterations(
-  filters?: MaybeRefOrGetter<ProcessIterationsFilters>,
-) {
-  return useOps<ProcessIterationsResponse>(
-    '/process-iterations',
-    filters ? () => ({ ...toValue(filters) }) : undefined,
-  )
+export function useProcessIterations(filters?: MaybeRefOrGetter<OpsQueryOf<'/process-iterations'>>) {
+  return useOps('/process-iterations', filters)
 }
 
 /**

@@ -7,14 +7,14 @@
 // lanes interleaved: every row was a paragraph and a skipped step stood out more than
 // a successful one. A row now says what kind of pass it was, where its time went and
 // how its steps ended, and expands into the step timeline.
-import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel } from '#site-shared/contract/api'
 import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
 // Explicit imports so the component tests can mount it without Nuxt's auto-imports.
 import { ref, watch } from 'vue'
 import ProcessesIterationRow from './ProcessesIterationRow.vue'
 
 defineProps<{
-  iterations: ProcessIteration[]
+  iterations: ProcessIterationReadModel[]
   pending: boolean
   error: unknown
   total: number
@@ -27,8 +27,8 @@ const page = defineModel<number>('page', { required: true })
 const lane = defineModel<'all' | PipelineLaneId>('lane', { required: true })
 
 defineEmits<{
-  openIteration: [iteration: ProcessIteration]
-  openRun: [run: ProcessRun]
+  openIteration: [iteration: ProcessIterationReadModel]
+  openRun: [run: ProcessRunReadModel]
 }>()
 
 const laneTabs = [

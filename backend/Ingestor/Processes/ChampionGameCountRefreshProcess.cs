@@ -1,5 +1,6 @@
 using Data;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,6 +42,7 @@ namespace Ingestor.Processes;
 /// so the count it stores is the one retention leaves, not a peak about to be deleted.
 /// </para>
 /// </summary>
+[PipelineStep(JobMode.ChampionGameCountRefreshOnly)]
 public sealed class ChampionGameCountRefreshProcess(
     ILogger<ChampionGameCountRefreshProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
@@ -62,14 +64,11 @@ public sealed class ChampionGameCountRefreshProcess(
     /// patch left the window, is what retention's <c>PostPurgeVacuum</c> takes away (#2444).
     /// </summary>
     internal static readonly TimeSpan CommandTimeout = TimeSpan.FromMinutes(15);
-
-    public string Name => "ChampionGameCountRefresh";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
-        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
+        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.GameCountRefresh.Name, nowUtc, ct);
         if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < MinRunInterval)
         {
             logger.LogInformation(

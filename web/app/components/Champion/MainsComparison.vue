@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '#common/utils/positions'
-import { formatRiotId, isValidRiotId } from '~/utils/riot-id'
+import type { ChampionPosition } from '#shared/utils/positions'
+import { formatRiotId, isValidRiotId } from '#shared/utils/riot-id'
 import { riotIdLabel } from '~~/shared/utils/truemain-path'
 
 const props = defineProps<{

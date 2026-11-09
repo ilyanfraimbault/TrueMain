@@ -1,7 +1,7 @@
 // The health cockpit — `GET /api/ops/pipeline-health` (#1031).
 
 import type { DetectorStatus } from './common'
-import type { ProcessRunStatus } from './processes'
+import type { ProcessRunStatus } from '#site-shared/contract/api'
 
 /**
  * One cockpit signal (#1031): a verdict, the sentence behind it, and the route that

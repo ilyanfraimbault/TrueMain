@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DraftSuggestionItem } from '~/types/draft'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import { comfortOf, comfortText } from '~/utils/draft-comfort'
 import { damageNote } from '~/utils/draft-damage'
 

@@ -79,8 +79,7 @@ public sealed class ProcessRunsQueryService(IProcessRunStore store, IProcessRunB
                 // stale Running latest-run shows as Abandoned, consistent with the
                 // runs list.
                 LastStatus = ProcessRunStaleness
-                    .EffectiveStatus(row.LatestStatus, row.LatestHeartbeatAtUtc, now)
-                    .ToString(),
+                    .EffectiveStatus(row.LatestStatus, row.LatestHeartbeatAtUtc, now),
                 LastRunAtUtc = row.LastRunAtUtc,
                 LastSuccessAtUtc = row.LastSuccessAtUtc,
                 FailureCountInWindow = (int)row.FailureCountInWindow,
@@ -109,7 +108,7 @@ public sealed class ProcessRunsQueryService(IProcessRunStore store, IProcessRunB
             StartedAtUtc = run.StartedAtUtc,
             FinishedAtUtc = run.FinishedAtUtc,
             DurationMs = run.DurationMs,
-            Status = ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now).ToString(),
+            Status = ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now),
             Error = run.Error,
             Host = run.Host,
             JobMode = run.JobMode,

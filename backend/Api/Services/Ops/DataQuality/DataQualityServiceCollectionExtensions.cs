@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Configuration;
+using TrueMain.Options;
 
 namespace TrueMain.Services.Ops.DataQuality;
 
@@ -11,6 +13,8 @@ public static class DataQualityServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTrueMainDataQuality(this IServiceCollection services)
     {
+        services.AddMainAnalysisOptions();
+        services.AddApiOptions<DataQualityDetectorOptions>();
         services.AddScoped<IIncompleteMatchesQueryService, IncompleteMatchesQueryService>();
         services.AddScoped<IMatchDataQualityDetailQueryService, MatchDataQualityDetailQueryService>();
         services.AddScoped<DataQualityDetectorsQueryService>();

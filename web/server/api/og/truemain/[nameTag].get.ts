@@ -3,6 +3,8 @@ import type { ProfileResponse } from '~~/shared/types/profile'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
 import { selectSignatureMain } from '~~/shared/utils/og-card'
 import { riotIdLabel } from '~~/shared/utils/truemain-path'
+import { RIOT_ID_MAX_LENGTH } from '~~/shared/utils/riot-id'
+import { defineCachedRead, readOrAbsent, visitorAddress } from '~~/server/utils/upstream'
 
 /**
  * Card model for `/truemains/{nameTag}`'s share image (#926).
@@ -16,14 +18,6 @@ import { riotIdLabel } from '~~/shared/utils/truemain-path'
  * viewer-specific, so serving it from a shared cache is safe.
  */
 
-// The `[nameTag]` route param is the `{gameName}-{tagLine}` slug the app links
-// with, passed opaque to the backend (which resolves it). A Riot ID is at most
-// 16 + 1 + 5 characters, so this is deliberate headroom for percent-encoding
-// rather than the Riot limit itself. The point is only to bound the input
-// before it can become a cache key or an upstream call, this route being
-// publicly reachable.
-const MAX_NAME_TAG_LENGTH = 80
-
 const EMPTY_CARD: TruemainOgCard = {
   riotId: null,
   platformId: null,
@@ -32,16 +26,18 @@ const EMPTY_CARD: TruemainOgCard = {
   dedicationScore: null,
 }
 
-const loadTruemainOgCard = defineCachedFunction(
-  async (nameTag: string): Promise<TruemainOgCard> => {
-    // `ignoreResponseError` mirrors useTruemainProfile: an unknown player is a
-    // 404 with a null-ish body, not an exception. Either way we fall through to
-    // the branded card — the page itself renders "not found" for the same input,
-    // so inventing a profile-shaped preview would be worse than a generic one.
-    const profile = await $fetch<ProfileResponse | null>(
+/**
+ * An unknown player is the branded card, cached like any answer — the page
+ * itself renders "not found" for the same input, so inventing a profile-shaped
+ * preview would be worse than a generic one. A failing upstream is never cached
+ * (`server/utils/upstream.ts`, #1557): that one render gets the branded card.
+ */
+const loadTruemainOgCard = defineCachedRead<TruemainOgCard, [string, string?]>(
+  async (nameTag: string, forwardedFor?: string): Promise<TruemainOgCard> => {
+    const profile = await readOrAbsent<ProfileResponse>(
       `/api/truemains/${encodeURIComponent(nameTag)}/profile`,
-      { ignoreResponseError: true },
-    ).catch(() => null)
+      { forwardedFor },
+    )
 
     if (!profile?.identity) return EMPTY_CARD
 
@@ -51,7 +47,7 @@ const loadTruemainOgCard = defineCachedFunction(
     // Only fetched once a main exists — a profile with no classified champion
     // has no portrait to resolve, and the block is dropped entirely.
     const mainStatic = main
-      ? await $fetch<ChampionStaticData>(`/api/static/${main.championId}`).catch(() => null)
+      ? await readOrAbsent<ChampionStaticData>(`/api/static/${main.championId}`, { forwardedFor })
       : null
 
     return {
@@ -94,12 +90,16 @@ const loadTruemainOgCard = defineCachedFunction(
     name: 'og-truemain-card',
     getKey: (nameTag: string) => nameTag,
   },
+  () => EMPTY_CARD,
 )
 
 export default defineEventHandler(async (event): Promise<TruemainOgCard> => {
-  const nameTag = getRouterParam(event, 'nameTag') ?? ''
-  if (!nameTag || nameTag.length > MAX_NAME_TAG_LENGTH) {
+  // Decoded once here and encoded once in the read: the raw param is already
+  // percent-encoded, so a name with a space used to reach the API encoded twice.
+  // Bounded before it becomes a cache key or an upstream call.
+  const nameTag = getRouterParam(event, 'nameTag', { decode: true })?.trim() ?? ''
+  if (!nameTag || nameTag.length > RIOT_ID_MAX_LENGTH) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid nameTag' })
   }
-  return loadTruemainOgCard(nameTag)
+  return loadTruemainOgCard(nameTag, visitorAddress(event))
 })

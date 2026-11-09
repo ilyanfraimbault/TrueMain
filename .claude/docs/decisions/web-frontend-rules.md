@@ -38,7 +38,7 @@ is a build-time constant, so the watcher does not exist on the server at all —
 body happening to no-op there.
 
 **A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own
-`pending`.** `createChampionPatchSlice` and `useChampionTrend` hold their request
+`pending`.** `useChampionScaling` and `useChampionTrend` hold their request
 until the champion's lane lands, and while held they resolve the empty read-model — which reaches
 `status: "success"` with nothing loaded. A consumer driving a skeleton off `status` therefore renders its
 "no data" state for the whole (client-only) champion fetch and only then fills in. Each composable now
@@ -599,7 +599,7 @@ and counts were written by hand in ~30 places, and a missing champion name was `
 - **Percentages** `formatPercentage(OrDash)`, **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
   recordings), **champion names** `championDisplayName` (`Champion {id}`), and lookups by id through
   `useChampionsById`, never a linear `find`.
-- **Positions** — `utils/positions.ts` holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
+- **Positions** — `web/shared/utils/positions.ts` (site, app and admin) holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
   names (`positionLabel`; `short` gives the app's `Mid` / `Bot`) and the icons (`getPositionIconUrl`).
 
 ## Favorites beyond players: a key per shape, no matchups, the clip flag stays the library's (2026-10-20)

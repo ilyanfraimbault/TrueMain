@@ -215,6 +215,29 @@ produce.
 non-trivial SQL that needs its own reasoning and its own review; folded into a 200-file structural
 move, neither the move nor the splits would have been reviewable.
 
+## Api registration is owned by the feature: `Program.cs` only composes (2026-11-08)
+
+**Decision.** `backend/Api/Program.cs` composes one `AddTrueMain<Area>()` per area (`Champions`,
+`Truemains`, `Personas`, `Ops`, …) plus the middleware pipeline, and nothing else. A query service is
+registered in its area's extension, next to its folder. An options class declares its section
+(`IApiOptions.Section`), its startup rules (data annotations and `IValidatableObject`) and, when the
+admin configuration page shows it, its `ConfigurationPage` entry. Every feature registers the options it
+reads with `AddApiOptions<T>()`, which binds a section once however many features declare it. The
+configuration page lists the sections the features registered, ordered by title.
+
+**Why.** Before (#2489), Program.cs held 55 inline registrations and 12 inline validation blocks beside
+17 feature extensions, and 46 of the 46 commits that touched it since the #1520 layout split were
+feature commits: a new endpoint was controller + service + read model + a Program.cs line. A section
+shown on the configuration page was also listed by hand in a third place,
+`ApiEffectiveConfigurationCatalog`. The settled layout put the code of a feature in one folder; this puts
+its registration there too.
+
+**Not covered.** Data's own registrations (`AddTrueMainData`, `AddMongoLogging`, …) are composed by
+`AddTrueMainStores`. The `MainAnalysis` section, which the Api binds from Core, has its own
+`AddMainAnalysisOptions` until it gets a single owner across the hosts (#2481, F1).
+
+Source: #2489, #2481.
+
 ## A child table with a natural key uses it as its primary key — no surrogate `Guid` beside it (2026-09-25)
 
 **When every row of a table is identified by columns it already carries — `(MatchId, ParticipantId,
@@ -354,3 +377,19 @@ upsert holds each row until its transaction commits. Batches locking overlapping
 `TimelineIngestionService` folds the whole plan once, after its last save: a transaction upserting per save batch
 would still take the rows in several passes, which no statement order can reconcile, and would hold them through
 the rest of the account's writes. Pace before form, everywhere — #2448.
+
+## The API's TypeScript types are generated from its OpenAPI document, which is committed (2026-11-08)
+
+The site, the admin and the desktop app read the API through types generated from the API's OpenAPI document, not
+copied by hand from `Api/ReadModels`: about 75 read models had three hand-kept TypeScript mirrors, and a rename only
+broke at runtime. `AddTrueMainContract` (`backend/Api/OpenApi`) owns the wire: enums travel by their C# name
+everywhere (a read model types a status as its enum, never as a `ToString()`), and the document says what the API
+writes — every response field present (`T | null` when nullable), numbers as numbers, JSON only. Request bodies keep
+C#'s rule: only `required` members are required.
+
+`web/shared/contract/openapi.json` and the `openapi-typescript` output `web/shared/contract/api.ts` are both
+committed: a frontend builds without the .NET SDK and a contract change shows in the PR diff. A stale one fails CI
+(`OpenApiContractTests`, `npm run contract -- --check`). The front end imports the generated names (the C# names,
+`ProcessRunReadModel`) — no alias layer; hand-written types remain only for shapes the front end builds itself. The
+admin's `useOps` is typed by path through `contract/routes.ts`, so a renamed route is a type error. Regenerating:
+`docs/ci.md` → "The API contract" — #2493, #2481.

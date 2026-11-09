@@ -1,5 +1,6 @@
 import type { ChampionStaticListItem, RuneTreeResponse } from '~~/shared/types/static-data'
 import { RUNE_TREE_KEY_PREFIX, staticFetchKey } from '#common/composables/useBuildAssets'
+import { CHAMPION_STATIC_LIST_KEY } from '#common/composables/useChampionStaticList'
 
 // Warms the static caches that no page has to resolve a patch for —
 // `champion-static-list`, and the rune tree under its unresolved-patch key
@@ -8,9 +9,8 @@ import { RUNE_TREE_KEY_PREFIX, staticFetchKey } from '#common/composables/useBui
 // /champions the `useAsyncData` calls there hit `getCachedData` and skip the
 // round trip.
 //
-// The rune-tree key is built with the composable's own `staticFetchKey` rather
-// than spelled out here: writing the literal is how this warm-up silently went
-// dead once (#1231).
+// Both keys come from their composables rather than being spelled out here:
+// writing the literal is how this warm-up silently went dead once (#1231).
 //
 // Intentionally skips the patch-keyed items map — we'd have to guess which
 // patch the user will look at and risk fetching the wrong one. For the same
@@ -20,11 +20,11 @@ export default defineNuxtPlugin((nuxtApp) => {
   const payload = nuxtApp.payload.data as Record<string, unknown>
   const apiFetch = useApiFetch()
 
-  if (!payload['champion-static-list']) {
+  if (!payload[CHAMPION_STATIC_LIST_KEY]) {
     apiFetch<ChampionStaticListItem[]>('/static/champions')
       .then((data) => {
-        payload['champion-static-list'] = data
-        markStaticFetched('champion-static-list', nuxtApp)
+        payload[CHAMPION_STATIC_LIST_KEY] = data
+        markStaticFetched(CHAMPION_STATIC_LIST_KEY, nuxtApp)
       })
       .catch(() => {
         // Prefetch is best-effort; let the page-level fetch surface errors.

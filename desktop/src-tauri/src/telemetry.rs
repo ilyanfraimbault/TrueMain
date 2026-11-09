@@ -39,23 +39,12 @@ const DEV_VAR: &str = "TRUEMAIN_TELEMETRY_DEV";
 const MAX_LAUNCHES: u32 = 20;
 const MAX_OPEN_MINUTES: u32 = 1_440;
 
-/// The app's pages, as the API's catalog lists them
-/// (`backend/Api/Services/Desktop/DesktopTelemetryCatalog.cs`). The webview
-/// names the page; anything else is ignored here.
-const PAGES: &[&str] = &[
-    "dashboard",
-    "champions",
-    "champion",
-    "tierlist",
-    "matchup",
-    "truemains",
-    "favorites",
-    "draft",
-    "game",
-    "recordings",
-    "recording",
-    "clip",
-];
+/// The webview names the page it opened; the API keeps the keys its catalog
+/// (`backend/Api/Services/Desktop/DesktopTelemetryCatalog.cs`) lists and drops
+/// the rest. The shell only bounds what it holds: a key shaped like one, and
+/// no more distinct keys than the catalog could ever list.
+const MAX_PAGE_KEY_LENGTH: usize = 32;
+const MAX_PAGE_KEYS: usize = 64;
 
 /// What the app did for the player, beyond showing a page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,7 +116,7 @@ fn enabled_by_default() -> bool {
 struct Counters {
     launches: u32,
     open_minutes: u32,
-    pages: BTreeMap<&'static str, u32>,
+    pages: BTreeMap<String, u32>,
     features: BTreeMap<&'static str, u32>,
 }
 
@@ -162,7 +151,7 @@ struct Batch<'a> {
     first_launch: bool,
     launches: u32,
     open_minutes: u32,
-    page_views: &'a BTreeMap<&'static str, u32>,
+    page_views: &'a BTreeMap<String, u32>,
     features: &'a BTreeMap<&'static str, u32>,
 }
 
@@ -234,10 +223,17 @@ impl Telemetry {
     }
 
     pub fn page(&self, page: &str) {
-        let Some(key) = PAGES.iter().find(|known| **known == page) else {
+        let shaped = !page.is_empty()
+            && page.len() <= MAX_PAGE_KEY_LENGTH
+            && page.bytes().all(|byte| byte.is_ascii_alphanumeric());
+        if !shaped {
             return;
-        };
-        self.count(|counters| *counters.pages.entry(key).or_default() += 1);
+        }
+        self.count(|counters| {
+            if counters.pages.len() < MAX_PAGE_KEYS || counters.pages.contains_key(page) {
+                *counters.pages.entry(page.to_owned()).or_default() += 1;
+            }
+        });
     }
 
     pub fn feature(&self, feature: Feature) {
@@ -388,14 +384,54 @@ mod tests {
     }
 
     #[test]
-    fn counts_listed_pages_only() {
+    fn counts_page_keys_and_ignores_anything_else() {
         let telemetry = telemetry(true);
         telemetry.page("draft");
         telemetry.page("draft");
-        telemetry.page("admin");
+        telemetry.page("overlay");
+        telemetry.page("");
+        telemetry.page("../config");
+        telemetry.page(&"a".repeat(MAX_PAGE_KEY_LENGTH + 1));
         let counters = telemetry.counters.lock().unwrap().clone();
         assert_eq!(counters.pages.get("draft"), Some(&2));
-        assert_eq!(counters.pages.len(), 1);
+        assert_eq!(counters.pages.get("overlay"), Some(&1));
+        assert_eq!(counters.pages.len(), 2);
+    }
+
+    #[test]
+    fn holds_a_bounded_number_of_page_keys() {
+        let telemetry = telemetry(true);
+        for index in 0..MAX_PAGE_KEYS + 10 {
+            telemetry.page(&format!("page{index}"));
+        }
+        telemetry.page("page0");
+        let counters = telemetry.counters.lock().unwrap().clone();
+        assert_eq!(counters.pages.len(), MAX_PAGE_KEYS);
+        assert_eq!(counters.pages.get("page0"), Some(&2));
+    }
+
+    /// The keys `Feature::key` sends, read from this file, against the API's
+    /// catalog: a feature the catalog lacks would be dropped by the API.
+    #[test]
+    fn every_feature_key_is_in_the_api_catalog() {
+        let catalog =
+            include_str!("../../../backend/Api/Services/Desktop/DesktopTelemetryCatalog.cs");
+        let source = include_str!("telemetry.rs");
+        // Line by line, so a CRLF checkout (Windows) reads the same.
+        let keys: Vec<&str> = source
+            .lines()
+            .skip_while(|line| !line.contains("fn key(self) -> &'static str {"))
+            .take_while(|line| *line != "    }")
+            .filter_map(|line| line.split("=> \"").nth(1))
+            .filter_map(|rest| rest.split('"').next())
+            .collect();
+        assert!(keys.len() >= 10, "read {} feature keys", keys.len());
+        for key in keys {
+            assert!(
+                catalog.contains(&format!("new(\"{key}\"")),
+                "{key} is not in DesktopTelemetryCatalog.Features"
+            );
+        }
     }
 
     #[test]
@@ -445,7 +481,7 @@ mod tests {
             open_minutes: 100,
             ..Counters::default()
         };
-        failed.pages.insert("game", 3);
+        failed.pages.insert("game".to_owned(), 3);
         kept.absorb(failed);
         assert_eq!(kept.launches, MAX_LAUNCHES);
         assert_eq!(kept.open_minutes, MAX_OPEN_MINUTES);
@@ -455,7 +491,7 @@ mod tests {
     #[test]
     fn the_batch_reads_as_the_api_expects() {
         let mut pages = BTreeMap::new();
-        pages.insert("draft", 2);
+        pages.insert("draft".to_owned(), 2);
         let features = BTreeMap::new();
         let batch = Batch {
             install_id: "3f2b8c1e-5a4d-4e8f-9b7a-1c2d3e4f5a6b",

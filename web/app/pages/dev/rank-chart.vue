@@ -2,6 +2,7 @@
 import type { ApexCutoff } from '~~/shared/types/apex-cutoffs'
 import type { ProfileRanked } from '~~/shared/types/profile'
 import type { RankHistoryEntry } from '~~/shared/types/rank-history'
+import { ELO_TIERS, rankScore } from '~~/shared/utils/ranks'
 
 useSeoMeta({
   title: 'Rank chart playground',
@@ -11,9 +12,9 @@ useSeoMeta({
 // Deterministic mock histories for the ranked card's LP curve, each built
 // from a score per day and the day's mock Grandmaster / Challenger cutoffs.
 // The tier of every snapshot is derived from those cutoffs, as Riot would.
-const MASTER_FLOOR = 2800
+const MASTER_FLOOR = rankScore('MASTER', 'I', 0)
 const DIVISIONS = ['IV', 'III', 'II', 'I']
-const TIERS = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND']
+const TIERS = ELO_TIERS.slice(0, ELO_TIERS.indexOf('MASTER'))
 const END = Date.parse('2026-09-28T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
 
