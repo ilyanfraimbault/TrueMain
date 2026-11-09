@@ -19,7 +19,7 @@
 // Each section is its own card component (`AccountsTrace*.vue`, #1436); this one
 // owns the search and the one fetch, and hands each card its slice of the answer.
 import type { AccountExplorer } from '~~/shared/types/ops'
-import { RIOT_ID_MAX_LENGTH, isRiotIdOrSlug } from '~~/shared/utils/riot-id'
+import { RIOT_ID_MAX_LENGTH, isRiotIdOrSlug } from '#site-shared/utils/riot-id'
 import { useKeyedFetch } from '~/composables/useKeyedFetch'
 
 const route = useRoute()
@@ -52,7 +52,7 @@ const selectedRegion = computed(() => (regionInput.value === ALL ? undefined : r
 
 // `GET /ops/accounts/{nameTag}` validates against `NameTagParser.TryParseRiotId`
 // and 400s on anything else, so the same rules gate the input here (via
-// `shared/utils/riot-id`) rather than letting the operator spend a round trip to
+// `#site-shared/utils/riot-id`) rather than letting the operator spend a round trip to
 // be told the thing they pasted was never a Riot ID. Both typed `Name#TAG` and
 // the hyphen slug `Name-TAG` are accepted, exactly as the endpoint does.
 const searchable = computed(() => isRiotIdOrSlug(riotIdInput.value))

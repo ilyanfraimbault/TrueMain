@@ -1,5 +1,5 @@
 import type { DraftState } from '~/types/lcu'
-import { POSITIONS } from '#common/utils/positions'
+import { POSITIONS } from '#shared/utils/positions'
 import { freeLane, withLane } from '~/utils/draft-lane'
 
 /**

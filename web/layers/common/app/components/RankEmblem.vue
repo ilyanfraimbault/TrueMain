@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isApexTier } from '#common/utils/tiers'
+import { isApexTier } from '#shared/utils/ranks'
 
 // A player's rank where a row has no room to write it: the tier's crest, the
 // division beside it below the apex (the crest alone can't show it), and the

@@ -4,7 +4,7 @@ import { formatPointDelta } from '#shared/utils/deltas'
 import { championDisplayName } from '#shared/utils/champion-name'
 import type { ChampionTrendPoint } from '#shared/types/champions'
 import { formatPercentage, formatPercentageOrDash } from '#shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 /**
  * The champion page's banner: the champion's splash under its portrait and
