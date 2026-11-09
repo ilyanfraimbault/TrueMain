@@ -38,7 +38,7 @@ is a build-time constant, so the watcher does not exist on the server at all —
 body happening to no-op there.
 
 **A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own
-`pending`.** `createChampionPatchSlice` and `useChampionTrend` hold their request
+`pending`.** `useChampionScaling` and `useChampionTrend` hold their request
 until the champion's lane lands, and while held they resolve the empty read-model — which reaches
 `status: "success"` with nothing loaded. A consumer driving a skeleton off `status` therefore renders its
 "no data" state for the whole (client-only) champion fetch and only then fills in. Each composable now

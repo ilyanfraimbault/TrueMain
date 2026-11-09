@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { parseRouteParam } from '#common/utils/route-params'
-import { platformIdToRegion } from '#shared/utils/region'
-import { riotIdLabel, truemainSlugLabel } from '#shared/utils/truemain-path'
+import { truemainSlugLabel } from '#shared/utils/truemain-path'
 
 /**
  * Another player's profile, in the app (#1983): the site's
@@ -19,7 +18,6 @@ watch(nameTag, () => (page.value = 1))
 
 const { data: profile, isInitialLoading: profileLoading, notFound: profileNotFound, error: profileError } = useTruemainProfile(nameTag)
 const { data: rankHistory, isInitialLoading: rankHistoryLoading } = useTruemainRankHistory(nameTag)
-const apexCutoffs = useApexCutoffs(() => profile.value?.identity.platformId)
 const { data: activity, isInitialLoading: activityLoading } = useTruemainActivity(nameTag)
 const { matches, total, pageSize, isInitialLoading: matchesLoading, notFound: matchesNotFound, error: matchesError } = useTruemainMatches(nameTag, page, { pageSize: 20 })
 
@@ -35,6 +33,7 @@ const splashUrl = computed(() => {
 })
 // The player before the profile lands: the slug's Riot ID, without a picture.
 const identity = computed(() => profile.value?.identity ?? { gameName: truemainSlugLabel(nameTag.value), tagLine: null })
+const playerLabel = useTruemainPlayerLabel(nameTag, profile)
 </script>
 
 <template>
@@ -58,16 +57,11 @@ const identity = computed(() => profile.value?.identity ?? { gameName: truemainS
       :loading="matchesLoading"
     >
       <template #header>
-        <UBreadcrumb :items="[{ label: 'Truemains', to: '/truemains' }, { label: riotIdLabel(identity.gameName, identity.tagLine) }]" />
+        <UBreadcrumb :items="[{ label: 'Truemains', to: '/truemains' }, { label: playerLabel }]" />
       </template>
 
       <template v-if="profile" #title-actions>
-        <FavoriteToggle
-          :game-name="profile.identity.gameName"
-          :tag-line="profile.identity.tagLine"
-          :region="platformIdToRegion(profile.identity.platformId)"
-          :profile-icon-id="profile.identity.profileIconId"
-        />
+        <ProfileFollowToggle :identity="profile.identity" />
       </template>
 
       <template #history>
@@ -89,39 +83,17 @@ const identity = computed(() => profile.value?.identity ?? { gameName: truemainS
       </template>
 
       <template #aside>
-        <!-- A failed profile is said once, here, instead of four skeletons that never end (#2476). -->
-        <FetchErrorAlert
-          v-if="profileError && !profile"
-          :error="profileError"
-          title="This player's profile could not be loaded"
+        <ProfileAside
+          :name-tag="nameTag"
+          :profile="profile"
+          :profile-loading="profileLoading"
+          :profile-error="profileError"
+          :rank-history="rankHistory?.entries ?? []"
+          :rank-history-loading="rankHistoryLoading"
+          :activity="activity"
+          :activity-loading="activityLoading"
+          :champions="champions"
         />
-        <template v-else>
-          <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
-          <ProfileRankedCard
-            v-else
-            :ranked="profile.ranked"
-            :history="rankHistory?.entries ?? []"
-            :history-loading="rankHistoryLoading || apexCutoffs.loading"
-            :cutoffs="apexCutoffs.cutoffs"
-          />
-          <ProfileActivityHeatmap
-            v-if="profile"
-            :data="activity"
-            :loading="activityLoading"
-          />
-          <ProfileDedicationCardSkeleton v-if="profileLoading || !profile" />
-          <ProfileDedicationCard
-            v-else-if="profile.dedication"
-            :dedication="profile.dedication"
-            :champions="champions"
-            :name-tag="nameTag"
-          />
-          <ProfilePositionBreakdownSkeleton v-if="profileLoading || !profile" />
-          <ProfilePositionBreakdown
-            v-else
-            :positions="profile.positions"
-          />
-        </template>
       </template>
     </PagePlayerProfile>
   </div>

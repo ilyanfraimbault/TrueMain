@@ -3,10 +3,9 @@ import type { ChampionItemContextResponse } from '#shared/types/item-context'
 /**
  * The situational build context of the displayed slice (#1451).
  *
- * Deliberately not built on {@link createChampionPatchSlice}, which forwards
- * `eloBracket`: the verdicts carry no rank dimension, so sending one would be a dead
- * parameter that reads — in the network tab and to the next person here — as if the
- * page's rank filter reached this section. It does not, and the card says so.
+ * No `eloBracket` is sent: the verdicts carry no rank dimension, so one would be a
+ * dead parameter that reads — in the network tab and to the next person here — as
+ * if the page's rank filter reached this section. It does not, and the card says so.
  *
  * `server: false` like every other build panel: the champion page's SSR payload is the
  * build summary alone (#149), and this is hover content nobody sees before hydration.

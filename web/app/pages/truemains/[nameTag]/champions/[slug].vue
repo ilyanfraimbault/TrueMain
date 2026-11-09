@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { isLoadingStatus } from '#common/utils/async-data'
 import { parseRouteParam } from '#common/utils/route-params'
-import { ELO_BRACKET_ALL } from '#shared/utils/elo-brackets'
+import type { ChampionScope } from '#common/utils/champion-scope'
 import { ALL_POSITIONS, type ChampionPosition, type PositionFilter } from '#shared/utils/positions'
-import { platformIdToRegion } from '~~/shared/utils/region'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Player-scoped mirror of pages/champions/[slug].vue: same static fetches,
@@ -13,25 +12,17 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 // profile page keeps Nuxt's patch-keyed caches deduped across navigations.
 const route = useRoute()
 
-// Same slug scheme and the same guard as the global page (#1124) — the two are
-// mirrors, so a URL shape that held on one and not the other would be exactly
-// the kind of half-converted scheme that rots. `nameTag` is read back from the
-// route rather than closed over, since the guard runs before setup.
+// Same slug scheme and the same guard as the global page (#1124).
 definePageMeta({
-  middleware: to => championRouteGuard(
-    to,
-    segment => `/truemains/${encodeURIComponent(String(to.params.nameTag))}/champions/${segment}`,
-  ),
+  middleware: to => championRouteGuard(to, 'player'),
 })
 
-const { resolveParam, pathFor } = useChampionSlugs()
+const { resolveParam, pathFor, truemainPathFor } = useChampionSlugs()
 const championId = computed(() => resolveParam(String(route.params.slug)).championId ?? Number.NaN)
 const nameTag = computed(() => parseRouteParam(route.params.nameTag))
 
-// `ALL`, not the global pages' Master+ default: this page's scope is already
-// one account, and re-slicing a single truemain's games by rank empties the
-// build of everyone below Master. The page renders no rank selector either.
-const { filters, setFilter } = useChampionFilters({ defaultEloBracket: ELO_BRACKET_ALL })
+const scope = computed<ChampionScope>(() => ({ kind: 'player', nameTag: nameTag.value }))
+const { filters, setFilter } = useChampionFilters('player')
 
 const {
   data: champion,
@@ -41,7 +32,7 @@ const {
   status: championStatus,
   notEnoughData,
   ready: championReady,
-} = useChampion(championId, filters, { nameTag })
+} = useChampion(championId, filters, scope)
 
 // A 404 is the "not enough games" empty state below, never an error. A failed
 // first load is inline only (#1661); a failed filter change keeps the slice (#1668).
@@ -57,11 +48,7 @@ const {
   isInitialLoading: rankHistoryLoading,
   ready: rankHistoryReady,
 } = useTruemainRankHistory(nameTag)
-const playerLabel = computed(() => {
-  const identity = profile.value?.identity
-  if (!identity) return truemainSlugLabel(nameTag.value) // pre-fetch: from the route alone (#948)
-  return riotIdLabel(identity.gameName, identity.tagLine)
-})
+const playerLabel = useTruemainPlayerLabel(nameTag, profile)
 // Same identity, without the tag line, for inline copy ("Faker vs mains").
 // Derived from the slug while the profile fetch is in flight, like `playerLabel`.
 const playerName = computed(() => profile.value?.identity?.gameName ?? parseRiotIdSlug(nameTag.value)?.gameName ?? nameTag.value)
@@ -71,13 +58,10 @@ const profilePath = computed(() => truemainProfilePath(nameTag.value))
 // canonical — the route's slug is already canonical, its guard ran (#2335, #2336).
 const indexingReady = useTruemainPageIndexing(
   nameTag,
-  tag => `${truemainProfilePath(tag)}/champions/${parseRouteParam(route.params.slug)}`,
+  tag => truemainPathFor(tag, championId.value),
 )
 
-// Shared static-data plumbing (see useChampionDetailStatics). This page
-// prefers the URL filter over the API-returned patch in `selectedPatch` —
-// the historical behaviour of the player-scoped page, deliberately not
-// unified with the global page's API-first order.
+// Shared static-data plumbing (see useChampionDetailStatics).
 const {
   versions,
   staticData,
@@ -96,7 +80,7 @@ const {
   selectedPatch,
   selectedPosition,
 } = useChampionDetailStatics(championId, champion, filters, {
-  preferFilterPatch: true,
+  scope: 'player',
   championSettled: () => !isLoadingStatus(championStatus.value),
 })
 
@@ -212,12 +196,7 @@ await Promise.all([championReady, profileReady, rankHistoryReady, indexingReady]
         v-if="profile"
         #title-actions
       >
-        <FavoriteToggle
-          :game-name="profile.identity.gameName"
-          :tag-line="profile.identity.tagLine"
-          :region="platformIdToRegion(profile.identity.platformId)"
-          :profile-icon-id="profile.identity.profileIconId"
-        />
+        <ProfileFollowToggle :identity="profile.identity" />
       </template>
 
       <!-- The champion column, resilient by design: with no aggregate for the
