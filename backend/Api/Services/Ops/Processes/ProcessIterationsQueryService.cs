@@ -1,5 +1,6 @@
 using Data.Entities;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops.Processes;
@@ -25,12 +26,10 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProce
     private const int MinPageSize = 1;
     private const int MaxPageSize = 50;
 
-    // The Job:Mode values a lane's passes are recorded under (#1362). A Full pass runs both lanes,
-    // so it belongs to either list; a single-process pass belongs to neither and only shows unfiltered.
-    // FetchWorkers (#1457) is the fetch lane run as permanent workers: its maintenance passes and
-    // its workers' batches are both fetch-lane iterations.
-    private static readonly string[] FetchLaneModes = ["FetchLane", "FetchWorkers", "Full"];
-    private static readonly string[] AggregateLaneModes = ["AggregateLane", "Full"];
+    // The Job:Mode values a lane's passes are recorded under (#1362); a single-process pass belongs
+    // to no lane and only shows unfiltered.
+    private static readonly string[] FetchLaneModes = ModeNames(PipelineLane.Fetch);
+    private static readonly string[] AggregateLaneModes = ModeNames(PipelineLane.Aggregate);
 
     public async Task<ProcessIterationsReadModel> GetAsync(
         int? page, int? pageSize, bool finishedOnly, string? lane, CancellationToken ct)
@@ -122,10 +121,15 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProce
             ? run.LastHeartbeatAtUtc ?? run.StartedAtUtc
             : run.FinishedAtUtc;
 
-    private static string[]? JobModesForLane(string? lane) => lane?.Trim().ToLowerInvariant() switch
-    {
-        "fetch" => FetchLaneModes,
-        "aggregate" => AggregateLaneModes,
-        _ => null
-    };
+    private static string[] ModeNames(PipelineLane lane)
+        => PipelineCatalog.ModesRunning(lane).Select(mode => mode.ToString()).ToArray();
+
+    private static string[]? JobModesForLane(string? lane)
+        => PipelineCatalog.Lanes.FirstOrDefault(
+                candidate => string.Equals(candidate.Id, lane?.Trim(), StringComparison.OrdinalIgnoreCase))?.Lane switch
+            {
+                PipelineLane.Fetch => FetchLaneModes,
+                PipelineLane.Aggregate => AggregateLaneModes,
+                _ => null
+            };
 }

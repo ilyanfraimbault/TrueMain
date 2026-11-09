@@ -1,3 +1,5 @@
+using TrueMain.Configuration;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -13,12 +15,13 @@ namespace TrueMain.Options;
 /// browser even though the API itself answers. It reads as "works locally,
 /// broken in prod" because Development ships real origins while
 /// <c>appsettings.json</c> ships an empty array. Startup therefore validates the
-/// list: empty fails the boot in every non-Development environment (see
-/// <c>Program.cs</c>) and only logs a warning under Development.
+/// list: empty fails the boot in every non-Development environment (<c>AddTrueMainCors</c>) and only logs a warning under Development.
 /// </remarks>
-public sealed class FrontendCorsOptions
+public sealed class FrontendCorsOptions : IApiOptions
 {
     public const string SectionName = "Cors";
+
+    static string IApiOptions.Section => SectionName;
 
     /// <summary>
     /// Exact origins (scheme + host + port) allowed to make cross-origin browser
