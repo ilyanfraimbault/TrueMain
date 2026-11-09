@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { DraftReason } from '~/types/draft'
+import type { DraftReasonReadModel } from '#shared/contract/api'
 import { describeReason, draftPercent, draftPoints } from '~/utils/draft-reasons'
 
 const names: Record<number, string> = { 238: 'Zed', 117: 'Lulu', 103: 'Ahri', 105: 'Fizz' }
 const nameOf = (id: number) => names[id] ?? `#${id}`
 
-function reason(fields: Partial<DraftReason>): DraftReason {
+function reason(fields: Partial<DraftReasonReadModel>): DraftReasonReadModel {
   return {
     kind: 'laneMatchup',
     championId: null,

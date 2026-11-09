@@ -9841,7 +9841,7 @@ export interface components {
             /**
              * @description The facts behind the suggestion, strongest first: `laneThreat` (our
              *     pick is behind into it) or `banRate` (the fallback: how often it is
-             *     banned) — see DraftReasonKinds.
+             *     banned) — see DraftReasonKind.
              */
             reasons: components["schemas"]["DraftReasonReadModel"][];
         };
@@ -10019,11 +10019,16 @@ export interface components {
             pinned: boolean;
         };
         /**
+         * @description What kind of fact a DraftReasonReadModel states.
+         * @enum {unknown}
+         */
+        DraftReasonKind: "laneMatchup" | "lanePhase" | "blindSafety" | "laneStrength" | "enemyTeam" | "synergy" | "teamFit" | "laneThreat" | "banRate";
+        /**
          * @description One measured fact behind a suggestion. Text-free on purpose: the fields a
-         *     kind uses are listed on DraftReasonKinds, the others are null.
+         *     kind uses are listed on DraftReasonKind, the others are null.
          */
         DraftReasonReadModel: {
-            kind: string;
+            kind: components["schemas"]["DraftReasonKind"];
             /** Format: int32 */
             championId: null | number;
             position: null | string;
@@ -14101,6 +14106,7 @@ export type DraftBanResponse = components['schemas']['DraftBanResponse'];
 export type DraftBlindReadModel = components['schemas']['DraftBlindReadModel'];
 export type DraftCandidateReadModel = components['schemas']['DraftCandidateReadModel'];
 export type DraftEnemyLaneReadModel = components['schemas']['DraftEnemyLaneReadModel'];
+export type DraftReasonKind = components['schemas']['DraftReasonKind'];
 export type DraftReasonReadModel = components['schemas']['DraftReasonReadModel'];
 export type DraftRecommendationResponse = components['schemas']['DraftRecommendationResponse'];
 export type DraftRequest = components['schemas']['DraftRequest'];
@@ -14321,6 +14327,7 @@ export const championComparisonStatusValues: ReadonlyArray<FlattenedDeepRequired
 export const dataQualityIssueTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DataQualityIssueType"]> = ["missingTimeline", "wrongParticipantCount", "missingTeamPosition", "zeroDuration", "duplicateChampion"];
 export const dedicationPartValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DedicationPart"]> = ["playRate", "mastery", "masteryRank"];
 export const detectorStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DetectorStatus"]> = ["unknown", "green", "amber", "red"];
+export const draftReasonKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DraftReasonKind"]> = ["laneMatchup", "lanePhase", "blindSafety", "laneStrength", "enemyTeam", "synergy", "teamFit", "laneThreat", "banRate"];
 export const healthAlertChangeKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HealthAlertChangeKind"]> = ["failing", "recovered"];
 export const itemContextClassValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ItemContextClass"]> = ["Core", "Situational", "Preference"];
 export const itemContextSlotValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ItemContextSlot"]> = ["Build", "Boots", "Starter", "BootsTiming"];
