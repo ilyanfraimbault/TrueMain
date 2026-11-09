@@ -38,8 +38,8 @@ use std::time::Duration;
 use lcu::laning::LaneGaps;
 use lcu::record::MatchHistory;
 use lcu::{
-    gaps_at_fifteen, laning_games, GameflowPlayer, LaningForm, LcuClient,
-    FORM_GAMES, LANING_DEPTH, LANING_GAMES,
+    gaps_at_fifteen, laning_games, GameflowPlayer, LaningForm, LcuClient, FORM_GAMES, LANING_DEPTH,
+    LANING_GAMES,
 };
 use shell_state::AppState;
 use tauri::async_runtime::JoinHandle;

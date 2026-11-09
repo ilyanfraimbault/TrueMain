@@ -85,15 +85,24 @@ pub fn builder() -> Builder<tauri::Wry> {
             recording::LibraryChanged,
             recording::RecapReady,
         ])
-        .constant("EMPTY_STATE", shell_state::AppView::from(shell_state::AppState::default()))
+        .constant(
+            "EMPTY_STATE",
+            shell_state::AppView::from(shell_state::AppState::default()),
+        )
         .constant("IDLE_LOADING", loading::LoadingView::default())
         .constant("RECORDING_SCHEME", recording::files::SCHEME)
         .constant("PHASE_GROUPS", phase_groups())
         .constant("OVERLAY_PANEL_TABLE", overlay_panels())
         .constant("OVERLAY_LIMITS", overlay_limits())
         .constant("OVERLAY_GEOMETRY", overlay_geometry())
-        .constant("DEFAULT_OVERLAY_SETTINGS", shell_state::overlay::OverlaySettings::default())
-        .constant("DEFAULT_HUD", shell_state::scoreboard::HudSettings::DEFAULTS)
+        .constant(
+            "DEFAULT_OVERLAY_SETTINGS",
+            shell_state::overlay::OverlaySettings::default(),
+        )
+        .constant(
+            "DEFAULT_HUD",
+            shell_state::scoreboard::HudSettings::DEFAULTS,
+        )
         .constant("GOLD_STEP", live_client::GOLD_STEP)
         .constant("KEY_LABELS", key_labels())
         .error_handling(ErrorHandlingMode::Throw)
@@ -176,7 +185,10 @@ impl<R> From<&str> for Refused<R> {
 fn phase_groups() -> serde_json::Value {
     use lcu::GameflowPhase;
     let of = |test: fn(GameflowPhase) -> bool| -> Vec<GameflowPhase> {
-        GameflowPhase::ALL.into_iter().filter(|phase| test(*phase)).collect()
+        GameflowPhase::ALL
+            .into_iter()
+            .filter(|phase| test(*phase))
+            .collect()
     };
     serde_json::json!({
         "champSelect": of(GameflowPhase::is_champ_select),
@@ -240,7 +252,10 @@ fn key_labels() -> serde_json::Value {
         .iter()
         .map(|key| {
             let code = serde_json::to_value(key).expect("a key code serialises");
-            (code.as_str().unwrap_or_default().to_string(), key.label().into())
+            (
+                code.as_str().unwrap_or_default().to_string(),
+                key.label().into(),
+            )
         })
         .collect::<serde_json::Map<_, _>>()
         .into()
