@@ -80,7 +80,7 @@ const safeYFormatter = computed(() => escapeTickFormatter(props.yFormatter))
       <NcBarChart
         :data="data"
         :categories="resolvedCategories"
-        :y-axis="yAxis"
+        :y-axis="(yAxis as never)"
         :height="height"
         :x-label="xLabel"
         :y-label="yLabel"
