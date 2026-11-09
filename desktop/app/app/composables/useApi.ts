@@ -8,6 +8,7 @@
  */
 import { answerStaticEndpoint } from '~/utils/static-endpoints'
 import { apiAnswer, shell } from '~/utils/shell'
+import { asFetchError } from '~/utils/shell-error'
 
 type QueryValue = string | number | boolean | null | undefined
 /** A list repeats its key, one pair per entry (`?player=a&player=b`). */
@@ -129,7 +130,8 @@ export function useApiFetch() {
     }
     catch (error) {
       if (options.ignoreResponseError && isResponseError(error)) return null as T
-      throw error
+      // The shared pages read the status off an ofetch-shaped error (#2476).
+      throw asFetchError(error)
     }
   }
 }

@@ -41,6 +41,7 @@ const {
   data: profile,
   isInitialLoading: profileLoading,
   notFound: profileNotFound,
+  error: profileError,
   ready: profileReady,
 } = useTruemainProfile(nameTag, { ssr: true })
 
@@ -104,6 +105,7 @@ const {
   pageSize: matchesPageSize,
   isInitialLoading: matchesInitialLoading,
   notFound: matchesNotFound,
+  error: matchesError,
   ready: matchesReady,
 } = useTruemainMatches(nameTag, currentMatchesPage, {
   pageSize: MATCHES_PAGE_SIZE,
@@ -216,51 +218,60 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady, 
           :rune-tree="runeTree"
           :name-tag="nameTag"
           :not-found="matchesNotFound"
+          :error="matchesError"
           :filtered="hasActiveFilters"
           @update:page="setMatchesPage"
         />
       </template>
 
       <template #aside>
-        <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
-        <ProfileRankedCard
-          v-else
-          :ranked="profile.ranked"
-          :history="rankHistory?.entries ?? []"
-          :history-loading="rankHistoryLoading || apexCutoffs.loading"
-          :cutoffs="apexCutoffs.cutoffs"
+        <!-- A failed profile is said once, here, instead of four skeletons that never end (#2476). -->
+        <FetchErrorAlert
+          v-if="profileError && !profile"
+          :error="profileError"
+          title="This player's profile could not be loaded"
         />
+        <template v-else>
+          <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
+          <ProfileRankedCard
+            v-else
+            :ranked="profile.ranked"
+            :history="rankHistory?.entries ?? []"
+            :history-loading="rankHistoryLoading || apexCutoffs.loading"
+            :cutoffs="apexCutoffs.cutoffs"
+          />
 
-        <!-- Under the ranked card: the LP curve says how the climb went, the
-             grid how much was played to get there. Its own loading state is
-             internal, so the window switch is usable while the payload lands. -->
-        <ProfileActivityHeatmap
-          v-if="!profileLoading && profile"
-          :data="activity"
-          :loading="activityLoading"
-        />
+          <!-- Under the ranked card: the LP curve says how the climb went, the
+               grid how much was played to get there. Its own loading state is
+               internal, so the window switch is usable while the payload lands. -->
+          <ProfileActivityHeatmap
+            v-if="!profileLoading && profile"
+            :data="activity"
+            :loading="activityLoading"
+          />
 
-        <ProfileDedicationCardSkeleton v-if="profileLoading || !profile" />
-        <ProfileDedicationCard
-          v-else-if="profile.dedication"
-          :dedication="profile.dedication"
-          :champions="champions"
-          :name-tag="nameTag"
-        />
+          <ProfileDedicationCardSkeleton v-if="profileLoading || !profile" />
+          <ProfileDedicationCard
+            v-else-if="profile.dedication"
+            :dedication="profile.dedication"
+            :champions="champions"
+            :name-tag="nameTag"
+          />
 
-        <ProfileMainChampionsSkeleton v-if="profileLoading || !profile" />
-        <ProfileMainChampions
-          v-else-if="profile.mains.length > 0"
-          :mains="profile.mains"
-          :champions="champions"
-          :name-tag="nameTag"
-        />
+          <ProfileMainChampionsSkeleton v-if="profileLoading || !profile" />
+          <ProfileMainChampions
+            v-else-if="profile.mains.length > 0"
+            :mains="profile.mains"
+            :champions="champions"
+            :name-tag="nameTag"
+          />
 
-        <ProfilePositionBreakdownSkeleton v-if="profileLoading || !profile" />
-        <ProfilePositionBreakdown
-          v-else
-          :positions="profile.positions"
-        />
+          <ProfilePositionBreakdownSkeleton v-if="profileLoading || !profile" />
+          <ProfilePositionBreakdown
+            v-else
+            :positions="profile.positions"
+          />
+        </template>
       </template>
     </PagePlayerProfile>
   </div>

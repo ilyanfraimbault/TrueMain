@@ -62,15 +62,3 @@ export function selectSignatureMain(
   if (!mains?.length) return null
   return mains.reduce((best, main) => (main.games > best.games ? main : best))
 }
-
-/**
- * Champion ids are the one card input that reaches us straight from a URL
- * segment. Anything that is not a plain positive integer is rejected outright
- * rather than coerced, so a hand-crafted OG URL can never turn into a
- * `/champions/NaN` fan-out against the backend.
- */
-export function parseOgChampionId(raw: string | null | undefined): number | null {
-  if (!raw || !/^\d{1,7}$/.test(raw)) return null
-  const id = Number(raw)
-  return id > 0 ? id : null
-}
