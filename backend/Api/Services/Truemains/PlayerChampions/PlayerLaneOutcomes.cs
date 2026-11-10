@@ -2,7 +2,7 @@ using Core.Lol.Lane;
 using Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace TrueMain.Services.Champions.Matchups;
+namespace TrueMain.Services.Truemains.PlayerChampions;
 
 /// <summary>One of the player's games: their row and their lane opponent's, in one match.</summary>
 internal readonly record struct PlayerLanePair(string MatchId, int SelfParticipantId, int OpponentParticipantId, int Opponent);

@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Core.Lol.Map;
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.Http;
 using TrueMain.ReadModels.Champions;
@@ -153,22 +152,14 @@ public sealed class TruemainsController(
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
-        // A blank/absent position resolves to the player's dominant position on the
-        // champion; `ALL` sums every position; only a non-blank value that fails to
-        // canonicalise is a client error.
-        if (!this.TryNormalizePositionOrAll(position, out var normalizedPosition, out var problem))
+        if (!this.TryParseChampionScope(
+                championId, position, patch, eloBracket: null, PositionRule.DominantByDefaultOrAll,
+                out var scope, out var problem))
         {
             return problem;
         }
 
-        var normalizedPatch = PatchParameter.Normalize(patch);
-
-        var response = await playerChampionBuildsQueryService.GetAsync(
-            nameTag,
-            championId,
-            normalizedPatch,
-            normalizedPosition,
-            ct);
+        var response = await playerChampionBuildsQueryService.GetAsync(nameTag, scope, ct);
 
         return response is null ? NotFound() : Ok(response);
     }
@@ -196,28 +187,16 @@ public sealed class TruemainsController(
         [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
-        // Position is required here, unlike the sibling player-scoped endpoints: a
-        // role opponent is only meaningful within a position, so a blank one is a
-        // 400 rather than a silent dominant-position pick. `ALL` is explicit.
-        if (!this.TryNormalizePositionOrAll(position, out var normalizedPosition, out var problem))
+        // A role opponent is only meaningful within a position, so a blank one is a 400
+        // rather than a silent dominant-position pick; `ALL` is explicit.
+        if (!this.TryParseChampionScope(
+                championId, position, patch, eloBracket: null, PositionRule.RequiredOrAll,
+                out var scope, out var problem))
         {
             return problem;
         }
 
-        if (normalizedPosition is null)
-        {
-            return ValidationProblem(PositionParameter.InvalidMessage);
-        }
-
-        var normalizedPatch = PatchParameter.Normalize(patch);
-
-        var response = await playerChampionMatchupQueryService.GetAsync(
-            nameTag,
-            championId,
-            normalizedPosition,
-            normalizedPatch,
-            opponent,
-            ct);
+        var response = await playerChampionMatchupQueryService.GetAsync(nameTag, scope, opponent, ct);
 
         return response is null ? NotFound() : Ok(response);
     }
@@ -246,22 +225,15 @@ public sealed class TruemainsController(
         [FromQuery] string? position,
         CancellationToken ct = default)
     {
-        // A blank/absent position and `ALL` both mean "every position" here — the
-        // score has no dominant-position default; only a non-blank value that fails
-        // to canonicalise is a client error.
-        if (!this.TryNormalizePositionOrAll(position, out var normalizedPosition, out var problem))
+        // The score has no dominant-position default: blank and `ALL` both sum every position.
+        if (!this.TryParseChampionScope(
+                championId, position, patch, eloBracket: null, PositionRule.EveryByDefaultOrAll,
+                out var scope, out var problem))
         {
             return problem;
         }
 
-        var normalizedPatch = PatchParameter.Normalize(patch);
-
-        var response = await playerChampionPerformanceQueryService.GetAsync(
-            nameTag,
-            championId,
-            normalizedPatch,
-            normalizedPosition == LanePositions.AllPositions ? null : normalizedPosition,
-            ct);
+        var response = await playerChampionPerformanceQueryService.GetAsync(nameTag, scope, ct);
 
         return response is null ? NotFound() : Ok(response);
     }

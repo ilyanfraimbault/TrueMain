@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions.Progression;
+using TrueMain.Services.Champions.Scopes;
 using TrueMain.TestKit.EntityBuilders;
 
 namespace TrueMain.IntegrationTests;
@@ -83,7 +84,7 @@ public sealed class ChampionScalingAggregationParityIntegrationTests : IAsyncLif
                     foreach (var bracket in BracketFilters)
                     {
                         var expected = await LiveScalingAsync(db, championId, lane, patch, bracket);
-                        var actual = await service.GetAsync(championId, lane, patch, bracket, CancellationToken.None);
+                        var actual = await service.GetAsync(new ChampionScope(championId, lane, patch, bracket), CancellationToken.None);
 
                         actual.Buckets.Select(b => (b.Bucket, b.Label, b.Games, b.WinRate))
                             .Should().Equal(

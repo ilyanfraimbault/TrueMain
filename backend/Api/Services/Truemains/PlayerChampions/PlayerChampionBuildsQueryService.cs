@@ -17,7 +17,7 @@ namespace TrueMain.Services.Truemains.PlayerChampions;
 public interface IPlayerChampionBuildsQueryService
 {
     /// <summary>
-    /// Returns the player-scoped builds for <paramref name="championId"/>.
+    /// Returns the player-scoped builds for the <paramref name="scope"/>'s champion.
     /// <see langword="null"/> means either the name tag is malformed, no
     /// account matches, or the player has fewer than the configured minimum
     /// games on the champion at the resolved patch + position — all of which
@@ -25,9 +25,7 @@ public interface IPlayerChampionBuildsQueryService
     /// </summary>
     Task<ChampionResponse?> GetAsync(
         string nameTag,
-        int championId,
-        string? patch,
-        string? position,
+        ChampionScope scope,
         CancellationToken ct);
 }
 
@@ -38,9 +36,7 @@ public sealed class PlayerChampionBuildsQueryService(
 {
     public async Task<ChampionResponse?> GetAsync(
         string nameTag,
-        int championId,
-        string? patch,
-        string? position,
+        ChampionScope scope,
         CancellationToken ct)
     {
         var account = await resolver.ResolveAsync(nameTag, ct);
@@ -50,10 +46,8 @@ public sealed class PlayerChampionBuildsQueryService(
         }
 
         return await buildsQueryService.GetAsync(
-            championId,
-            patch,
-            position,
+            scope,
             new ChampionBuildsScope(account.Id, account.PlatformId, championsOptions.Value.MinPlayerBuildGames),
-            ct: ct);
+            ct);
     }
 }
