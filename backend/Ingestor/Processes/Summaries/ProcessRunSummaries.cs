@@ -412,8 +412,9 @@ public sealed record MatchDataRetentionSummary(
     int DeletedIntermediateSnapshots,
     int DeletedAggregateScopes,
     int DeletedMatchupStats,
-    // Pair rows and the baselines they are read against, summed (#922) — they are
-    // deleted together in one transaction, so one counter describes both.
+    // Same-team pair rows and the baselines they are read against, summed (#922) — they are
+    // deleted together in one transaction, so one counter describes both. Before #2481 (F20)
+    // the opposing pairs were counted here too; they have their own counter below.
     int DeletedSynergyStats,
     // The build half of the two-level retention (#1958): patches whose patterns and panel
     // tables this run purged (their scopes and light record stay), and the patterns removed.
@@ -421,4 +422,11 @@ public sealed record MatchDataRetentionSummary(
     int DeletedBuildPatterns,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform,
     // Whether this run deleted enough participants to vacuum the raw match tables (#2444).
-    bool VacuumedAfterPurge) : IProcessRunSummary;
+    bool VacuumedAfterPurge,
+    // The other panel families of the full purge (#2481, F20), counted on their own instead of
+    // folded into the synergy counter or dropped. Appended last so the earlier keys keep their
+    // wire order.
+    int DeletedOpponentStats = 0,
+    int DeletedScalingStats = 0,
+    int DeletedContextStats = 0,
+    int DeletedBenchmarkStats = 0) : IProcessRunSummary;
