@@ -394,7 +394,9 @@ committed: a frontend builds without the .NET SDK and a contract change shows in
 `ProcessRunReadModel`) — no alias layer; hand-written types remain only for shapes the front end builds itself. The
 admin's `useOps` / `opsCall` are typed by path through `contract/routes.ts`, so a renamed route is a type error. An
 ordered list of an enum's values comes from the contract too (`--enum-values`: `performanceComponentKindValues`), never
-a copied array. A wire value the API relays from storage it does not own (log level, link kind), or one with no name for every row
+a copied array. An enum some read model holds as nullable is the exception: the generator lists `null` among
+the component's values, so its union carries `null` (a table keys on `NonNullable<…>`) and no `…Values` array is
+emitted; a test that needs that list keeps a typed copy (`ItemContextAxis`, #2550). A wire value the API relays from storage it does not own (log level, link kind), or one with no name for every row
 (the region slug is `""` on a shard without a region), stays a `string`: the front end narrows it where it keys a
 table, with a fallback. Regenerating:
 `docs/ci.md` → "The API contract" — #2493, #2481.

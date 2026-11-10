@@ -146,8 +146,8 @@ public class DraftTeamFitTests
             [DraftReasonKind.LaneMatchup, DraftReasonKind.Synergy, DraftReasonKind.Synergy, DraftReasonKind.LanePhase, DraftReasonKind.TeamFit],
             stated.Reasons.Select(reason => reason.Kind));
         var reason = stated.Reasons[^1];
-        Assert.Equal("AllyMagicDamage", reason.Axis);
-        Assert.Equal("Low", reason.Bucket);
+        Assert.Equal(ItemContextAxis.AllyMagicDamage, reason.Axis);
+        Assert.Equal(ItemContextBucket.Low, reason.Bucket);
         Assert.Equal(-0.03, reason.Delta!.Value, 9);
         Assert.Equal(1_500, reason.Games);
     }
