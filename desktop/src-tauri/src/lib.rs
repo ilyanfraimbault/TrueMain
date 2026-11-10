@@ -23,6 +23,8 @@ mod sim;
 mod site;
 mod supervisor;
 mod telemetry;
+#[cfg(test)]
+mod pinned_settings;
 mod window_state;
 
 use std::sync::{Arc, Mutex};
