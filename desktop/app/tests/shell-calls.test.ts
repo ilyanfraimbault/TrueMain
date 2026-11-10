@@ -221,3 +221,51 @@ describe('the rune import', () => {
     expect(toasts.map(toast => toast.title)).toEqual(['No free rune page', 'Runes imported'])
   })
 })
+
+describe('the app state', () => {
+  it('follows the shell from mount', async () => {
+    ipc.invoke.mockResolvedValue({ connected: true, phase: 'Lobby', riotId: 'A#B', profileIconId: 1, summonerLevel: 30, championPool: [], draft: null })
+    // `useLcuState` is where `insideTauri` lives: it reads the shell's own marker.
+    Object.assign(window, { __TAURI_INTERNALS__: {} })
+    const { useLcuState } = await import('~/composables/useLcuState')
+    const lcu = useLcuState()
+    await flush()
+    delete (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+    expect(lcu.ready.value).toBe(true)
+    expect(lcu.state.value.phase).toBe('Lobby')
+    ipc.listeners.get('lcu://state')!({ payload: { ...lcu.state.value, phase: 'ChampSelect' } })
+    expect(lcu.state.value.phase).toBe('ChampSelect')
+  })
+
+  it('follows the loading screen\'s players', async () => {
+    ipc.invoke.mockResolvedValue({ status: 'reading', players: [], platformId: 'EUW1' })
+    const { useLoadingPlayers } = await import('~/composables/useLoadingPlayers')
+    const loading = useLoadingPlayers()
+    await flush()
+    expect(loading.view.value.status).toBe('reading')
+  })
+
+  it('reads the player\'s record and older games from the shell', async () => {
+    vi.stubGlobal('trackLoad', (work: Promise<unknown>) => work)
+    vi.stubGlobal('useLcuState', () => ({ state: ref({ connected: true, riotId: 'A#B' }) }))
+    ipc.invoke.mockImplementation(async (name: string) => (name === 'player_record'
+      ? { platformId: 'EUW1', ranked: [], games: Array.from({ length: 20 }, (_, index) => ({ gameId: index })) }
+      : [{ gameId: 100 }]))
+    const { usePlayerRecord } = await import('~/composables/usePlayerRecord')
+    const record = usePlayerRecord()
+    await record.refresh(true)
+    expect(record.status.value).toBe('ready')
+    await record.loadOlder()
+    expect(called().map(([name]) => name)).toEqual(['player_record', 'player_history'])
+  })
+
+  it('writes the recording settings through the shell', async () => {
+    vi.stubGlobal('onMounted', () => {})
+    ipc.invoke.mockImplementation(async (name: string) => (name === 'set_recording_settings' ? { settings: { enabled: false } } : null))
+    const { useRecordings } = await import('~/composables/useRecordings')
+    const recordings = useRecordings()
+    await recordings.saveSettings({ enabled: false } as never)
+    expect(called()[0]).toEqual(['set_recording_settings', { settings: { enabled: false } }])
+    expect(recordings.settings.value).toEqual({ settings: { enabled: false } })
+  })
+})
