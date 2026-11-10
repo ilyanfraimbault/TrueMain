@@ -55,15 +55,13 @@ export function useItemSetImport() {
     try {
       const build = itemSetBuild(subject.build.core, await situational(subject), itemId => itemId in items.value)
       if (!hasItems(build)) throw new Error(EMPTY_BUILD)
-      if (insideTauri()) {
-        await shell.importItemSet(subject.championId, subject.champion, build)
-      }
+      await shell.importItemSet(subject.championId, subject.champion, build)
       done.value = true
       clearTimeout(doneTimer)
       doneTimer = setTimeout(() => (done.value = false), 2500)
       toast.add({
         title: 'Items imported',
-        description: insideTauri() ? `The TrueMain item set is in the shop for ${subject.champion}.` : 'Dev server: nothing was sent to a client.',
+        description: `The TrueMain item set is in the shop for ${subject.champion}.`,
         icon: 'i-lucide-check',
         color: 'success',
       })

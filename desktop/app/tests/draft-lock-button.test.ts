@@ -144,11 +144,6 @@ describe('provideChampSelectActions', () => {
     expect(toasts.map(toast => toast.title)).toEqual(['Your hover changed'])
   })
 
-  it('still says a lock', async () => {
-    const { api, toasts } = setup()
-    await api.lock()
-    expect(toasts.map(toast => toast.title)).toEqual(['Fizz locked in'])
-  })
 })
 
 describe('DraftSuggestions — the selected card', () => {

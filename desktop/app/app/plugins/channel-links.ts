@@ -7,7 +7,6 @@ import { shell } from '~/utils/shell'
  * running `npm run dev` follows the link itself.
  */
 export default defineNuxtPlugin(() => {
-  if (!insideTauri()) return
   document.addEventListener('click', (event) => {
     const url = newTabLinkOf(event.target)
     if (!url) return

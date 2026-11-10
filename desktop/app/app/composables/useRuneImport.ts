@@ -26,15 +26,13 @@ export function useRuneImport() {
     if (pending.value) return
     pending.value = true
     try {
-      if (insideTauri()) {
-        await shell.importRunes(champion, page)
-      }
+      await shell.importRunes(champion, page)
       done.value = true
       clearTimeout(doneTimer)
       doneTimer = setTimeout(() => (done.value = false), 2500)
       toast.add({
         title: 'Runes imported',
-        description: insideTauri() ? 'The TrueMain page is selected in the client.' : 'Dev server: nothing was sent to a client.',
+        description: 'The TrueMain page is selected in the client.',
         icon: 'i-lucide-check',
         color: 'success',
       })

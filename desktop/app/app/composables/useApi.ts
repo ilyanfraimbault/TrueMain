@@ -22,16 +22,6 @@ function pairs(query: Query): [string, string][] {
     .map(([key, value]) => [key, String(value)])
 }
 
-/** The pairs as `$fetch` takes them: a key met twice becomes a list. */
-function fetchQuery(query: Query): Record<string, string | string[]> {
-  const result: Record<string, string | string[]> = {}
-  for (const [key, value] of pairs(query)) {
-    const known = result[key]
-    result[key] = known === undefined ? value : [...(Array.isArray(known) ? known : [known]), value]
-  }
-  return result
-}
-
 /** How a read is sent: a signal, and whether the window's loading bar ignores it. */
 export interface ReadOptions {
   /** Reaches the request in `npm run dev` only: the shell's commands cannot be cancelled. */
@@ -60,12 +50,9 @@ function tracked<T>(work: Promise<T>, options: ReadOptions): Promise<T> {
  */
 export function apiGet<T>(path: string, query: Query = {}, options: ReadOptions = {}): Promise<T> {
   return tracked((async () => {
-    if (insideTauri()) {
-      return await apiAnswer<T>(shell.apiGet(path, pairs(query)).catch((error: unknown) => {
-        throw asFetchError(error)
-      }))
-    }
-    return await $fetch<T>(`/api${path}`, { query: fetchQuery(query), signal: options.signal })
+    return await apiAnswer<T>(shell.apiGet(path, pairs(query)).catch((error: unknown) => {
+      throw asFetchError(error)
+    }))
   })(), options)
 }
 
@@ -75,12 +62,9 @@ export function apiGet<T>(path: string, query: Query = {}, options: ReadOptions 
  */
 export function apiPost<T>(path: string, body: unknown, query: Query = {}, options: ReadOptions = {}): Promise<T> {
   return tracked((async () => {
-    if (insideTauri()) {
-      return await apiAnswer<T>(shell.apiPost(path, pairs(query), body, options.replaces ?? null).catch((error: unknown) => {
-        throw asFetchError(error)
-      }))
-    }
-    return await $fetch<T>(`/api${path}`, { method: 'POST', body: body as Record<string, unknown>, query: fetchQuery(query), signal: options.signal })
+    return await apiAnswer<T>(shell.apiPost(path, pairs(query), body, options.replaces ?? null).catch((error: unknown) => {
+      throw asFetchError(error)
+    }))
   })(), options)
 }
 
@@ -90,11 +74,7 @@ export function apiPost<T>(path: string, body: unknown, query: Query = {}, optio
  * Which site is the shell's to say (`site.rs`): a preprod build opens preprod.
  */
 export async function openOnSite(path: string) {
-  if (insideTauri()) {
-    await shell.openOnSite(path)
-    return
-  }
-  window.open(`${import.meta.env.TRUEMAIN_SITE_URL}${path}`, '_blank', 'noopener')
+  await shell.openOnSite(path)
 }
 
 /** The options the shared pages pass to their fetcher — the site's `ApiFetchOptions`, as far as the app reads them. */

@@ -48,7 +48,7 @@ const builds = { championId: 7, builds: [{ firstItemId: 3078 }] }
 
 describe('useChampionBuilds', () => {
   it('reads a lane\'s builds from the site\'s champion endpoint, once per session', async () => {
-    fetcher.mockResolvedValue(builds)
+    invoke.mockResolvedValue(builds)
     const { useChampionBuilds } = await import('~/composables/useChampionBuilds')
 
     const first = useChampionBuilds(ref(7), ref('TOP'))
@@ -56,8 +56,8 @@ describe('useChampionBuilds', () => {
     useChampionBuilds(ref(7), ref('TOP'))
     await nextTick()
 
-    expect(fetcher).toHaveBeenCalledTimes(1)
-    expect(fetcher).toHaveBeenCalledWith('/api/champions/7', { query: { position: 'TOP' } })
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(invoke).toHaveBeenCalledWith('api_get', { path: '/champions/7', query: [['position', 'TOP']] })
   })
 
   it('asks the shell when it runs', async () => {

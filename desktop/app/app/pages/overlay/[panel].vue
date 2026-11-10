@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { fakeShell } from '~/utils/shell'
 import type { OverlayPanel } from '~/types/overlay'
 import { OVERLAY_PANELS, onScoreboard } from '~/types/overlay'
 import { PANEL_WIDTHS } from '~/utils/overlay-layout'
@@ -59,7 +60,7 @@ const { reference: paceReference } = usePaceBenchmark(computed(() => (panel.valu
 
 const devPreview = ref(false)
 onMounted(async () => {
-  if (!import.meta.dev || insideTauri()) return
+  if (!fakeShell) return
   const query = new URL(window.location.href).searchParams
   devPreview.value = query.has('preview')
   const scenario = query.get('scenario')

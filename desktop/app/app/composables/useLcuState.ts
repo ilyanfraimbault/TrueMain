@@ -16,8 +16,9 @@ export function insideTauri() {
 /**
  * The app's state, pushed from Rust.
  *
- * Runs in a plain browser too: `npm run dev` outside Tauri opens on a dev
- * scenario, which is how the UI is worked on without League installed.
+ * Runs in a plain browser too: on `npm run dev` the fake shell answers with a
+ * dev scenario (`dev-shell/`), which is how the UI is worked on without League
+ * installed.
  */
 export function useLcuState() {
   const state = useState<AppState>('lcu-state', () => ({ ...EMPTY_STATE }))
@@ -32,16 +33,6 @@ export function useLcuState() {
   }
 
   async function subscribe() {
-    if (!insideTauri()) {
-      if (import.meta.dev) {
-        const { load, select } = useDevScenarios()
-        await load()
-        select(new URLSearchParams(window.location.search).get('scenario') ?? '')
-      }
-      ready.value = true
-      return
-    }
-
     onScopeDispose(await follow(shellEvents.lcuState, shell.currentState, next => (state.value = next)))
     ready.value = true
   }
