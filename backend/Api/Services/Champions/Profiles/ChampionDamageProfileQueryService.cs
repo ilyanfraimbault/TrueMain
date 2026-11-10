@@ -165,7 +165,7 @@ public sealed class ChampionDamageProfileQueryService(
             .Select(entry => new ChampionDamageProfileReadModel
             {
                 ChampionId = entry.ChampionId,
-                Source = ChampionDamageProfileSources.Fallback,
+                Source = ChampionDamageProfileSource.Fallback,
                 DamageClass = entry.Class,
             })
             .ToList();

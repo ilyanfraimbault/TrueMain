@@ -125,11 +125,11 @@ internal sealed class RowSanityDetector(TrueMainDbContext db, IOptions<MainAnaly
             Rows = rows,
             Thresholds =
             [
-                DetectorCards.Threshold("impossible rows", settings.InconsistentAggregateRowsAmber, settings.InconsistentAggregateRowsRed, "count"),
-                DetectorCards.Threshold("zero-sample rows", settings.ZeroSampleAggregateRowsAmber, settings.ZeroSampleAggregateRowsRed, "count"),
+                DetectorCards.Threshold("impossible rows", settings.InconsistentAggregateRowsAmber, settings.InconsistentAggregateRowsRed, DetectorThresholdUnit.Count),
+                DetectorCards.Threshold("zero-sample rows", settings.ZeroSampleAggregateRowsAmber, settings.ZeroSampleAggregateRowsRed, DetectorThresholdUnit.Count),
                 // A floor, not a ceiling: a patch is anomalous when its match count falls
                 // *below* this share of the median patch.
-                DetectorCards.Threshold("patch volume vs median", settings.PatchVolumeAnomalyRatio, 0, "ratio", "below")
+                DetectorCards.Threshold("patch volume vs median", settings.PatchVolumeAnomalyRatio, 0, DetectorThresholdUnit.Ratio, DetectorThresholdDirection.Below)
             ]
         };
     }

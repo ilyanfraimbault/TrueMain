@@ -198,5 +198,5 @@ when a step has no process or two. `Data` owns it because both hosts read it and
 
 **What stays where:** the persisted `Name` never follows a code rename (it keys the run history); the Api's
 judgement lists (which processes the health panel watches) stay in the Api but name entries of the catalog, so
-a rename no longer compiles into an empty panel. The Api serves the catalog at `GET /ops/pipeline`; the admin's
-copies (`pipeline-chain.ts`, `pipeline-lanes.ts`) switch to it once the generated contract lands.
+a rename no longer compiles into an empty panel. The Api serves the catalog at `GET /ops/pipeline`, and the admin
+draws the chain, its lanes and its step labels from it (`usePipelineCatalog`, #2556) — it keeps no copy.

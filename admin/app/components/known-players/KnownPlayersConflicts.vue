@@ -15,9 +15,9 @@ import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { nextAfterResolve } from '~~/shared/utils/conflict-shortcuts'
 import { resolutionLabel, resolvedMessage, resolveErrorMessage, riotId } from '~~/shared/utils/persona-conflicts'
 import { autoMergedMessage } from '~~/shared/utils/persona-homonyms'
+import { PERSONA_SOURCES } from '~~/shared/utils/known-players'
 
-const SOURCES = ['Leaguepedia', 'TrackingThePros', 'DeepLol', 'Dpm', 'LoLPros', 'Manual']
-const sourceItems = [{ label: 'All sources', value: ALL }, ...SOURCES.map(s => ({ label: s, value: s }))]
+const sourceItems = [{ label: 'All sources', value: ALL }, ...PERSONA_SOURCES.map(s => ({ label: s, value: s }))]
 
 const status = defineModel<PersonaConflictStatus>('status', { required: true })
 const sourceFilter = ref<string>(ALL)
