@@ -44,7 +44,7 @@ public sealed class ScoringProcessIntegrationTests : IAsyncLifetime
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
             Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var candidates = verifyDb.MainCandidates
@@ -83,7 +83,7 @@ public sealed class ScoringProcessIntegrationTests : IAsyncLifetime
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
             Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var queuedCandidate = verifyDb.MainCandidates

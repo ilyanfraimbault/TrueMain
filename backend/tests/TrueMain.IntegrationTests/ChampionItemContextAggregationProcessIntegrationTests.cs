@@ -64,7 +64,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
     {
         await SeedAsync(magicGames: 12, physicalGames: 12);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -117,7 +117,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
     {
         await SeedAsync(magicGames: 12, physicalGames: 12);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var verdicts = await db.ChampionItemContextVerdicts.AsNoTracking().ToListAsync();
@@ -157,7 +157,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
     {
         await SeedAsync(magicGames: 12, physicalGames: 12);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var orders = await db.ChampionItemComponentOrders.AsNoTracking().ToListAsync();
@@ -173,8 +173,8 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
     {
         await SeedAsync(magicGames: 12, physicalGames: 12);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
-        var second = await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
+        var second = await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         (await db.ChampionItemContextTotals.AsNoTracking()
@@ -204,7 +204,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
         }
 
         // One batch, sized to exactly the newer half of the queue.
-        await CreateProcess(maxMatchesPerRun: 12, batchSize: 12).RunCoreAsync(CancellationToken.None);
+        await CreateProcess(maxMatchesPerRun: 12, batchSize: 12).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var assertions = _fixture.CreateDbContext();
         var folded = await assertions.Matches.AsNoTracking()
@@ -221,7 +221,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
     {
         await SeedAsync(magicGames: 12, physicalGames: 12, seedProfiles: false);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -262,7 +262,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             await db.SaveChangesAsync();
         }
 
-        var summary = (ChampionItemContextAggregationSummary)(await CreateProcess().RunCoreAsync(CancellationToken.None))!;
+        var summary = (ChampionItemContextAggregationSummary)(await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None))!;
 
         await using var assertions = _fixture.CreateDbContext();
         var totals = await assertions.ChampionItemContextTotals.AsNoTracking()

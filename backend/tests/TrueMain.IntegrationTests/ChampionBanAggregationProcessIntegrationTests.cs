@@ -46,7 +46,7 @@ public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifeti
         // Both teams ban Aatrox in every match: two ban rows, one banned match.
         await SeedMatchesAsync(count: 4, bands: [EloBracket.Gold], bans: [(100, Banned), (200, Banned)]);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var stats = await db.ChampionBanStats.AsNoTracking().ToListAsync();
@@ -67,7 +67,7 @@ public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifeti
         await SeedMatchesAsync(count: 3, bands: [EloBracket.Gold], bans: [(100, Banned)]);
         await SeedMatchesAsync(count: 7, bands: [EloBracket.Gold], bans: [], matchPrefix: "clean");
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -90,7 +90,7 @@ public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifeti
         // matches; only the stored ALL row says one.
         await SeedMatchesAsync(count: 1, bands: [EloBracket.Gold, EloBracket.Platinum], bans: [(100, Banned)]);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var totals = await db.BanScopeTotals.AsNoTracking().ToDictionaryAsync(t => t.EloBracket, t => t.Matches);
@@ -109,7 +109,7 @@ public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifeti
         // band blank. Those matches must still be counted, in ALL alone.
         await SeedMatchesAsync(count: 5, bands: [], bans: [(100, Banned)]);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -124,8 +124,8 @@ public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifeti
         await SeedMatchesAsync(count: 6, bands: [EloBracket.Gold], bans: [(100, Banned)]);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -142,10 +142,10 @@ public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifeti
         await SeedMatchesAsync(count: 6, bands: [EloBracket.Gold], bans: [(100, Banned)]);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await SeedMatchesAsync(count: 4, bands: [EloBracket.Gold], bans: [], matchPrefix: "m2");
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -166,7 +166,7 @@ public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifeti
         // branch adds rather than replaces (#1239).
         var process = CreateProcess(new BanAggregationOptions { MatchBatchSize = 2, MaxMatchesPerRun = 5 });
 
-        var first = (BanAggregationSummary)(await process.RunCoreAsync(CancellationToken.None))!;
+        var first = (BanAggregationSummary)(await process.RunCoreAsync(RunInput.Whole, CancellationToken.None))!;
         first.Matches.Should().Be(5);
         first.Batches.Should().Be(3);
 
@@ -175,7 +175,7 @@ public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifeti
             (await db.Matches.CountAsync(m => !m.BansAggregated)).Should().Be(2, "the run cap left the tail pending");
         }
 
-        var second = (BanAggregationSummary)(await process.RunCoreAsync(CancellationToken.None))!;
+        var second = (BanAggregationSummary)(await process.RunCoreAsync(RunInput.Whole, CancellationToken.None))!;
         second.Matches.Should().Be(2);
         second.Batches.Should().Be(1);
 
@@ -193,7 +193,7 @@ public sealed class ChampionBanAggregationProcessIntegrationTests : IAsyncLifeti
     {
         await SeedMatchesAsync(count: 3, bands: [EloBracket.Gold], bans: [(100, Banned)], queueId: 450);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         (await db.BanScopeTotals.CountAsync()).Should().Be(0);

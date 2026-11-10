@@ -19,7 +19,7 @@ public sealed class MainAnalysisProcess(
     TimeProvider timeProvider,
     IOptions<MainAnalysisOptions> analysisOptions) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = analysisOptions.Value;
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;

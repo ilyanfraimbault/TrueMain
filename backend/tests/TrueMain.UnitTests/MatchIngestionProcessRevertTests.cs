@@ -54,7 +54,7 @@ public sealed class MatchIngestionProcessRevertTests
                 BatchSize = 2
             }));
 
-        var act = async () => await process.RunCoreAsync(CancellationToken.None);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await act.Should().NotThrowAsync();
 
@@ -111,7 +111,7 @@ public sealed class MatchIngestionProcessRevertTests
                 BatchSize = 1
             }));
 
-        var act = async () => await process.RunCoreAsync(CancellationToken.None);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         logger.Entries.Should().NotContain(entry => entry.EventId == OpsEvents.MatchRevertFailed);
