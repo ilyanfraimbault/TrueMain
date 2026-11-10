@@ -1,7 +1,7 @@
-import type { ChampionBuildResponse } from '~/types/build'
+import type { ChampionResponse } from '#shared/contract/api'
 
 /** A true main's builds on one champion: `undefined` while unasked, `null` when they have none to show. */
-type Answer = ChampionBuildResponse | null
+type Answer = ChampionResponse | null
 
 /**
  * One true main's own build on a champion — the site's player-scoped champion
@@ -22,7 +22,7 @@ export function useTruemainBuild() {
     (cause as { statusCode?: number } | null)?.statusCode === 404 || /answered 404 /.test(String(cause))
 
   async function ask(nameTag: string, championId: number, position: string | null) {
-    return await apiGet<ChampionBuildResponse>(`/truemains/${encodeURIComponent(nameTag)}/champions/${championId}`, { position })
+    return await apiGet<ChampionResponse>(`/truemains/${encodeURIComponent(nameTag)}/champions/${championId}`, { position })
   }
 
   /** On this lane, else across lanes; `null` when neither has a build, thrown when the ask itself failed. */

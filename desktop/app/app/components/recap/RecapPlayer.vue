@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { fakeShell } from '~/utils/shell'
 import type { Moment } from '~/types/recordings'
 import type { RecapWinProbability } from '~/utils/recording-win-probability'
 import type { MomentCast } from '~/utils/recording-moments'
@@ -63,7 +64,7 @@ let raf = 0
 const length = computed(() => props.lengthMs ?? videoLengthMs.value ?? 0)
 /** In the order a jump lands on them: a marked moment at the start of its 30 s. */
 const sorted = computed(() => [...props.moments].sort((a, b) => momentStart(a, LEAD_MS) - momentStart(b, LEAD_MS)))
-const devHint = import.meta.dev && !insideTauri()
+const devHint = fakeShell
 
 const { immersive, hoveringControls, controlsHidden, wake, exitFullscreen, fullscreen } = useImmersivePlayer(root, playing)
 const { rate, applyRate, setRate, rateItems } = usePlaybackRate(video, () => {

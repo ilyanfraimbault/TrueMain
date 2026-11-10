@@ -21,7 +21,7 @@ public sealed class ProcessRunJobModeTests
     {
         var store = Substitute.For<IProcessRunStore>();
         var context = new IterationContext();
-        var recorder = new ProcessRunRecorder(store, context);
+        var recorder = new ProcessRunRecorder(store, context, TimeProvider.System);
 
         using var iteration = context.BeginIteration(JobMode.AggregateLane);
         await recorder.RecordStartAsync("ChampionPatternAggregation", DateTime.UtcNow, CancellationToken.None);
@@ -39,7 +39,7 @@ public sealed class ProcessRunJobModeTests
     public async Task RecordStartAsync_LeavesTheModeNull_OutsideAnyIteration()
     {
         var store = Substitute.For<IProcessRunStore>();
-        var recorder = new ProcessRunRecorder(store, new IterationContext());
+        var recorder = new ProcessRunRecorder(store, new IterationContext(), TimeProvider.System);
 
         await recorder.RecordStartAsync("MatchDataRetention", DateTime.UtcNow, CancellationToken.None);
 
@@ -65,7 +65,7 @@ public sealed class ProcessRunJobModeTests
             .Returns(ProcessRunFinalizeOutcome.NotFound);
 
         var context = new IterationContext();
-        var recorder = new ProcessRunRecorder(store, context);
+        var recorder = new ProcessRunRecorder(store, context, TimeProvider.System);
 
         using var iteration = context.BeginIteration(JobMode.FetchLane);
         var startedAt = DateTime.UtcNow;

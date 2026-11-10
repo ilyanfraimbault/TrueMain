@@ -1,4 +1,4 @@
-import type { Deployment } from '~~/shared/types/ops'
+import type { DeploymentReadModel } from '#site-shared/contract/api'
 
 // Deploy markers on the time-series charts (#2297): where a version change lands among a
 // chart's buckets. The chart wrappers draw markers by row INDEX — vue-chrts plots every
@@ -28,7 +28,7 @@ export interface ChartMarker {
  */
 export function placeDeployMarkers(
   bucketStarts: readonly string[],
-  deployments: readonly Deployment[],
+  deployments: readonly DeploymentReadModel[],
 ): ChartMarker[] {
   const starts = bucketStarts.map(start => Date.parse(start))
   if (starts.length < 2 || starts.some(Number.isNaN)) {
@@ -37,7 +37,7 @@ export function placeDeployMarkers(
   const last = starts.length - 1
   const end = starts[last]! + (starts[last]! - starts[last - 1]!)
 
-  const byIndex = new Map<number, Deployment[]>()
+  const byIndex = new Map<number, DeploymentReadModel[]>()
   for (const deploy of deployments) {
     const at = Date.parse(deploy.deployedAtUtc)
     if (Number.isNaN(at) || at < starts[0]! || at >= end) {
@@ -60,7 +60,7 @@ function lastIndexAtOrBefore(starts: readonly number[], at: number): number {
   return index
 }
 
-function toMarker(index: number, deploys: readonly Deployment[]): ChartMarker {
+function toMarker(index: number, deploys: readonly DeploymentReadModel[]): ChartMarker {
   const ordered = [...deploys].sort((a, b) => Date.parse(a.deployedAtUtc) - Date.parse(b.deployedAtUtc))
   const versions = [...new Set(ordered.map(deploy => deploy.version))]
   const latest = versions.at(-1)!
@@ -69,7 +69,7 @@ function toMarker(index: number, deploys: readonly Deployment[]): ChartMarker {
   return { index, label, title }
 }
 
-function describeDeploy(deploy: Deployment): string {
+function describeDeploy(deploy: DeploymentReadModel): string {
   const process = deploy.role ? `${deploy.processName} (${deploy.role})` : deploy.processName
   const from = deploy.previousVersion ? ` from ${deploy.previousVersion}` : ''
   const at = new Date(deploy.deployedAtUtc).toISOString().slice(0, 16).replace('T', ' ')

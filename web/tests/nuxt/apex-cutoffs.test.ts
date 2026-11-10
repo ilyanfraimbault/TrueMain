@@ -2,7 +2,7 @@ import { flushPromises } from '@vue/test-utils'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
-import type { ApexCutoff } from '~~/shared/types/apex-cutoffs'
+import type { ApexCutoffReadModel } from '#shared/contract/api'
 import { useApexCutoffs } from '#common/composables/useApexCutoffs'
 
 // The ranked card's apex cutoffs (#2174) and the loading state that keeps its
@@ -13,7 +13,7 @@ mockNuxtImport('useApiFetch', () => () => apiFetch)
 
 afterEach(() => apiFetch.mockReset())
 
-const ENTRY: ApexCutoff = { dateUtc: '2026-10-20', grandmasterMinLp: 1594, challengerMinLp: 2251 }
+const ENTRY: ApexCutoffReadModel = { dateUtc: '2026-10-20', grandmasterMinLp: 1594, challengerMinLp: 2251 }
 
 async function mountWith(platform: { value: string | null }) {
   let state!: ReturnType<typeof useApexCutoffs>

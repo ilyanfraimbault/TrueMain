@@ -105,7 +105,7 @@ impl LcuClient {
     }
 
     /// The player's game keybindings as the client keeps them: sections of
-    /// `evtName → "[Ctrl][q],[F5]"`, parsed by `shell_state::keys`.
+    /// `evtName → "[Ctrl][q],[F5]"`, parsed by the `keys` crate.
     pub async fn input_settings(&self) -> Result<String> {
         self.get_raw("/lol-game-settings/v1/input-settings").await
     }

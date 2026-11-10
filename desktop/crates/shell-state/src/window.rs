@@ -20,7 +20,8 @@ use crate::overlay::Rect;
 
 /// The narrowest and shortest the window gets, in points. Below this width
 /// the draft's two rows of five pick cards stop fitting; the compact layouts
-/// of #1914 will lower it. Mirrors `minWidth` / `minHeight` in `tauri.conf.json`.
+/// of #1914 will lower it. `minWidth` / `minHeight` in `tauri.conf.json` hold it
+/// too (`pinned_settings.rs` checks them).
 pub const MIN_SIZE: (f64, f64) = (960.0, 640.0);
 
 /// How much of the window's top edge must land on a monitor, in pixels, for
@@ -29,7 +30,7 @@ const GRAB_WIDTH: f64 = 120.0;
 const GRAB_HEIGHT: f64 = 24.0;
 
 /// The window as the player left it.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowPlacement {
     /// The outer top-left corner, in pixels.

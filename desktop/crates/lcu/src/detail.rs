@@ -94,7 +94,7 @@ const LANING_MINUTE: i64 = 15;
 
 const ITEM_EVENTS: [&str; 4] = ["ITEM_PURCHASED", "ITEM_SOLD", "ITEM_DESTROYED", "ITEM_UNDO"];
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GameDetail {
     pub match_id: String,
@@ -109,7 +109,7 @@ pub struct GameDetail {
     pub win_probability_timeline: Option<WinProbabilityTimeline>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailParticipant {
     pub participant_id: i64,
@@ -160,7 +160,7 @@ pub struct DetailParticipant {
     pub skill_events: Vec<DetailSkillEvent>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Laning15 {
     pub cs_diff: i64,
@@ -168,7 +168,7 @@ pub struct Laning15 {
     pub xp_diff: i64,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailRune {
     pub style_id: i64,
@@ -176,7 +176,7 @@ pub struct DetailRune {
     pub perk_id: i64,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailItemEvent {
     pub timestamp_ms: i64,
@@ -186,7 +186,7 @@ pub struct DetailItemEvent {
     pub after_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DetailSkillEvent {
     pub timestamp_ms: i64,

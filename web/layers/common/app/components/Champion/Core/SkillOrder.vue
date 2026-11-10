@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { BuildSkillOrder } from '#shared/types/champions'
+import type { BuildSkillOrderReadModel } from '#shared/contract/api'
 import type { ChampionStaticData } from '#shared/types/static-data'
 
 const props = defineProps<{
-  skillOrder: BuildSkillOrder | null
+  skillOrder: BuildSkillOrderReadModel | null
   championStatic: ChampionStaticData
   /**
    * True while the champion's spell icons cannot be resolved yet — forwarded to

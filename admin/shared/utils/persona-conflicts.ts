@@ -1,21 +1,13 @@
 // What the known-players conflict queue (#2253) says about a conflict and the
 // four ways to settle it. Kept under `shared/` so it is importable — and tested —
 // without the Nuxt runtime.
-import type {
-  PersonaConflict,
-  PersonaConflictAccount,
-  PersonaConflictPersona,
-  PersonaConflictResolution,
-  PersonaConflictResolveBody,
-  PersonaConflictResolved,
-} from '~~/shared/types/ops'
-
-export type BadgeColor = 'primary' | 'success' | 'warning' | 'error' | 'info' | 'neutral'
+import type { PersonaConflictAccountReadModel, PersonaConflictPersonaReadModel, PersonaConflictReadModel, PersonaConflictResolution, PersonaConflictResolveRequest, PersonaConflictResolvedResponse } from '#site-shared/contract/api'
+import type { BadgeColor } from './badge-color'
 
 /** One way to settle a conflict, as the detail panel offers it. */
 export interface ConflictActionOption {
   key: string
-  body: PersonaConflictResolveBody
+  body: PersonaConflictResolveRequest
   label: string
   /** What it does, in the operator's words — shown under the button. */
   description: string
@@ -30,8 +22,8 @@ export interface ConflictActionOption {
  * sides carry the same name — the usual case of a duplicate (two "Peng").
  */
 export function personaName(
-  persona: Pick<PersonaConflictPersona, 'displayName' | 'slug'>,
-  other: Pick<PersonaConflictPersona, 'displayName'>,
+  persona: Pick<PersonaConflictPersonaReadModel, 'displayName' | 'slug'>,
+  other: Pick<PersonaConflictPersonaReadModel, 'displayName'>,
 ): string {
   return persona.displayName.toLowerCase() === other.displayName.toLowerCase()
     ? `${persona.displayName} (${persona.slug})`
@@ -44,7 +36,7 @@ export function accountCount(count: number): string {
 }
 
 /** `Name#TAG` as the source published it. */
-export function riotId(account: Pick<PersonaConflictAccount, 'gameName' | 'tagLine'>): string {
+export function riotId(account: Pick<PersonaConflictAccountReadModel, 'gameName' | 'tagLine'>): string {
   return `${account.gameName}#${account.tagLine}`
 }
 
@@ -52,7 +44,7 @@ export function riotId(account: Pick<PersonaConflictAccount, 'gameName' | 'tagLi
  * The tracked account's current Riot ID when it no longer reads like the one the
  * source published (a rename), else null — the list shows it under the claim.
  */
-export function renamedTo(account: PersonaConflictAccount): string | null {
+export function renamedTo(account: PersonaConflictAccountReadModel): string | null {
   if (!account.currentGameName || account.currentTagLine === null) {
     return null
   }
@@ -82,7 +74,7 @@ export function resolutionColor(resolution: PersonaConflictResolution | null): B
 }
 
 /** The four actions, worded for this conflict's two known players. */
-export function conflictActions(conflict: Pick<PersonaConflict, 'claimant' | 'owner'>): ConflictActionOption[] {
+export function conflictActions(conflict: Pick<PersonaConflictReadModel, 'claimant' | 'owner'>): ConflictActionOption[] {
   const claimant = personaName(conflict.claimant, conflict.owner)
   const owner = personaName(conflict.owner, conflict.claimant)
   return [
@@ -135,7 +127,7 @@ export function conflictActions(conflict: Pick<PersonaConflict, 'claimant' | 'ow
 }
 
 /** The toast after a resolution: what happened, and what else it settled. */
-export function resolvedMessage(resolved: PersonaConflictResolved): { title: string, description?: string } {
+export function resolvedMessage(resolved: PersonaConflictResolvedResponse): { title: string, description?: string } {
   const also = resolved.alsoResolved > 0
     ? `${resolved.alsoResolved} other conflict${resolved.alsoResolved === 1 ? '' : 's'} settled with it.`
     : undefined

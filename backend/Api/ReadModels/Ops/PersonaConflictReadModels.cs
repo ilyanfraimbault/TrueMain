@@ -1,3 +1,4 @@
+using Data.Entities;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -29,12 +30,12 @@ public sealed record PersonaConflictReadModel
 {
     public Guid Id { get; init; }
 
-    public string Status { get; init; } = string.Empty;
+    public PersonaConflictStatus Status { get; init; }
 
-    public string? Resolution { get; init; }
+    public PersonaConflictResolution? Resolution { get; init; }
 
     /// <summary>The source of the claim.</summary>
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     public DateTime FirstSeenAtUtc { get; init; }
 
@@ -102,7 +103,7 @@ public sealed record PersonaConflictPersonaReadModel
 
     public string DisplayName { get; init; } = string.Empty;
 
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     /// <summary>When the persona was created: the older one is the one a bulk merge keeps (#2295).</summary>
     public DateTime CreatedAtUtc { get; init; }
@@ -134,7 +135,7 @@ public sealed record PersonaOpsReadModel
 
     public string DisplayName { get; init; } = string.Empty;
 
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     public DateTime CreatedAtUtc { get; init; }
 
@@ -151,7 +152,7 @@ public sealed record PersonaOpsAccountReadModel
 
     public string PlatformId { get; init; } = string.Empty;
 
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     public Guid? RiotAccountId { get; init; }
 
@@ -166,7 +167,7 @@ public sealed record PersonaOpsLinkReadModel
 
     public string Url { get; init; } = string.Empty;
 
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 }
 
 /// <summary>What <c>POST /ops/personas/conflicts/{id}/resolve</c> did.</summary>
@@ -174,7 +175,7 @@ public sealed record PersonaConflictResolvedResponse
 {
     public Guid Id { get; init; }
 
-    public string Resolution { get; init; } = string.Empty;
+    public PersonaConflictResolution Resolution { get; init; }
 
     /// <summary>The persona that holds the account now; null when it was detached.</summary>
     public string? HolderSlug { get; init; }

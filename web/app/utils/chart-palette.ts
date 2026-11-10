@@ -1,3 +1,5 @@
+import { THEME_HEX } from '~~/shared/utils/theme-tokens'
+
 // Default chart series colors.
 //
 // The first slot is the app primary (rosegold-400) so single-series charts pick
@@ -8,10 +10,10 @@
 // something. Callers needing genuinely categorical series should pass
 // `categories[key].color` explicitly rather than padding this list.
 export const CHART_SERIES_PALETTE = [
-  '#e58f83', // rosegold-400
-  '#8b8b95', // ink-400
-  '#6a6a74', // ink-500
-  '#3a3a42', // ink-700
+  THEME_HEX['rosegold-400'],
+  THEME_HEX['ink-400'],
+  THEME_HEX['ink-500'],
+  THEME_HEX['ink-700'],
 ] as const
 
 // Crosshair / grid / axis stroke. One step lighter than `--ui-border`

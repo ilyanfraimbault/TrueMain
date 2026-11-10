@@ -62,7 +62,7 @@ public sealed class ChampionProfileAggregationProcess(
 {
     private const int EarlyMinute = 10;
     private const int LaneMinute = 15;
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;
@@ -330,7 +330,7 @@ public sealed class ChampionProfileAggregationProcess(
     {
         if (!cache.TryGetValue(patch, out var metadata))
         {
-            metadata = await itemMetadataProvider.GetItemsAsync(gameVersion, ct);
+            metadata = (await itemMetadataProvider.GetItemsAsync(gameVersion, ct)).Require("Item metadata");
             cache[patch] = metadata;
         }
 
@@ -349,19 +349,10 @@ public sealed class ChampionProfileAggregationProcess(
             return ranged;
         }
 
-        try
-        {
-            var statics = await championStaticsProvider.GetChampionsAsync(gameVersion, ct);
-            ranged = statics.ToDictionary(kv => kv.Key, kv => kv.Value.AttackRange >= rangedThreshold);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            // A static attribute must never abort a fold: the flag is COALESCEd on write,
-            // so the next batch or run that can reach Data Dragon fills it in.
-            logger.LogWarning(exception,
-                "Champion statics unavailable for patch {Patch}; the ranged flag is left for a later run.", patch);
-            ranged = null;
-        }
+        // A static attribute must never abort a fold: the flag is COALESCEd on write, so the
+        // next batch or run that can reach Data Dragon fills it in.
+        var statics = await championStaticsProvider.GetChampionsAsync(gameVersion, ct);
+        ranged = statics.Value?.ToDictionary(kv => kv.Key, kv => kv.Value.AttackRange >= rangedThreshold);
 
         cache[patch] = ranged;
         return ranged;

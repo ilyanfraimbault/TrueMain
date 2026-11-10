@@ -1,3 +1,5 @@
+import type { KeyCode } from '~/generated/shell'
+import { KEY_LABELS as SHELL_KEY_LABELS } from '~/generated/shell'
 import type { Chord, OverlayPanel, PanelTrigger } from '~/types/overlay'
 
 /**
@@ -6,32 +8,13 @@ import type { Chord, OverlayPanel, PanelTrigger } from '~/types/overlay'
  * `overlay_check_trigger`); this only turns key presses into a chord.
  */
 
-/** Mirrors `KeyCode`: the `KeyboardEvent.code`s a chord can use, each with its US label. */
-const KEY_LABELS: Record<string, string> = {
-  ...Object.fromEntries('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(letter => [`Key${letter}`, letter])),
-  ...Object.fromEntries('0123456789'.split('').map(digit => [`Digit${digit}`, digit])),
-  ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`F${i + 1}`, `F${i + 1}`])),
-  Backquote: '`',
-  Minus: '-',
-  Equal: '=',
-  BracketLeft: '[',
-  BracketRight: ']',
-  Backslash: '\\',
-  IntlBackslash: '<',
-  Semicolon: ';',
-  Quote: '\'',
-  Comma: ',',
-  Period: '.',
-  Slash: '/',
-  Space: 'Space',
-  Escape: 'Esc',
-  Enter: 'Enter',
-}
+/** The `KeyboardEvent.code`s a chord can use, each with its US label (`KeyCode::label`). */
+const KEY_LABELS: Record<KeyCode, string> = SHELL_KEY_LABELS
 
 const MODIFIERS = new Set(['AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight'])
 
 export const isModifier = (code: string) => MODIFIERS.has(code)
-export const isKnownKey = (code: string) => code in KEY_LABELS
+export const isKnownKey = (code: string): code is KeyCode => code in KEY_LABELS
 
 /** The chord a key press makes: its modifiers, TAB if held, and the key. */
 export function chordOf(event: Pick<KeyboardEvent, 'altKey' | 'shiftKey' | 'ctrlKey' | 'metaKey' | 'code'>, tab: boolean): Chord {
@@ -41,7 +24,7 @@ export function chordOf(event: Pick<KeyboardEvent, 'altKey' | 'shiftKey' | 'ctrl
     ctrl: event.ctrlKey,
     meta: event.metaKey,
     tab,
-    key: event.code === 'Tab' ? null : event.code,
+    key: isKnownKey(event.code) ? event.code : null,
   }
 }
 
@@ -56,7 +39,7 @@ export const TAB_CHORD: Chord = { alt: false, shift: false, ctrl: false, meta: f
 export function suggestedChord(panel: OverlayPanel, kind: 'whileHeld' | 'toggle'): Chord {
   if ((panel === 'item-value' || panel === 'lane-gold') && kind === 'whileHeld') return TAB_CHORD
   const digit = { 'next-item': 1, 'win-probability': 2, 'stats': 3, 'item-value': 4, 'objectives': 5, 'lane-gold': 6 }[panel]
-  return { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: `Digit${digit}` }
+  return { alt: true, shift: true, ctrl: false, meta: false, tab: false, key: `Digit${digit}` as KeyCode }
 }
 
 /** A chord as the player presses it — what the shell answers with, written here for a browser-only `npm run dev`. */

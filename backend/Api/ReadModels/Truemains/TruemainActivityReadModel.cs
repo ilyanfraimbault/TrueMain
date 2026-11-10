@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TrueMain.ReadModels.Truemains;
 
 /// <summary>
@@ -55,12 +57,7 @@ public sealed class TruemainActivityReadModel
 /// </summary>
 public sealed class TruemainActivitySeriesReadModel
 {
-    /// <summary>
-    /// Window id — one of <see cref="TruemainActivityKinds.PatchMode"/>,
-    /// <see cref="TruemainActivityKinds.WeekMode"/>,
-    /// <see cref="TruemainActivityKinds.DayMode"/>.
-    /// </summary>
-    public required string Mode { get; init; }
+    public required ActivityMode Mode { get; init; }
 
     /// <summary>
     /// The <c>major.minor</c> patch the window covers, on the patch series only;
@@ -141,22 +138,22 @@ public sealed class TruemainActivityBucketReadModel
     public int? ChampionId { get; init; }
 }
 
-/// <summary>
-/// Wire values for the activity series' <c>mode</c> discriminator. Named
-/// constants rather than an enum so the JSON stays the plain lowercase strings
-/// the rest of the API uses, with no converter to keep in sync.
-/// </summary>
-public static class TruemainActivityKinds
+/// <summary>Which window an activity series covers.</summary>
+public enum ActivityMode
 {
     /// <summary>The last thirty UTC days.</summary>
-    public const string MonthMode = "month";
+    [JsonStringEnumMemberName("month")]
+    Month,
 
     /// <summary>Every UTC day of the current patch.</summary>
-    public const string PatchMode = "patch";
+    [JsonStringEnumMemberName("patch")]
+    Patch,
 
     /// <summary>The last seven UTC days.</summary>
-    public const string WeekMode = "week";
+    [JsonStringEnumMemberName("week")]
+    Week,
 
     /// <summary>Today's games, one cell each.</summary>
-    public const string DayMode = "day";
+    [JsonStringEnumMemberName("day")]
+    Day
 }

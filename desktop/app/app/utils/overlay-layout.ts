@@ -1,18 +1,19 @@
 import type { OverlayPanel, OverlayPanelSettings } from '~/types/overlay'
+import { OVERLAY_GEOMETRY } from '~/generated/shell'
 
 /**
- * Where the overlay panels sit on the screen, for the layout editor (#1819):
- * the same rule the shell places their windows by (`OverlaySettings::origin`
- * in `crates/shell-state/src/overlay.rs`), in screen points.
+ * Where the overlay panels sit on the screen, for the layout editor (#1819),
+ * which answers while a panel is dragged and in a browser with no shell: the
+ * shell's rule (`OverlaySettings::origin`, `point_at`) with the shell's
+ * measures, checked against what the shell computes by
+ * `tests/overlay-geometry.test.ts` (`desktop/fixtures/overlay-geometry.json`).
  */
 
 export interface Size { width: number, height: number }
 export interface Point { x: number, y: number }
 export interface Box extends Point, Size {}
 
-/** Mirrors `EDGE_MARGIN` and `TOP_MARGIN`. */
-const EDGE_MARGIN = 16
-const TOP_MARGIN = 56
+const { edgeMargin: EDGE_MARGIN, topMargin: TOP_MARGIN } = OVERLAY_GEOMETRY
 
 /** Each panel's width, as its window (`pages/overlay/[panel].vue`) and the editor lay it out. */
 export const PANEL_WIDTHS: Record<OverlayPanel, number> = {

@@ -2,13 +2,13 @@
 // The operator-action trail as a timeline (#2288): when, who, what in plain words,
 // the target as a link to where it lives, and the context as chips. Shared by the
 // Audit page and the known-player History, which hides the target (it is the player).
-import type { AuditEvent } from '~~/shared/types/ops'
+import type { AuditEventReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import { auditChips, auditTarget } from '~~/shared/utils/audit'
 import { formatDateTime, formatTimeAgo } from '~~/shared/utils/format'
 
 const props = withDefaults(defineProps<{
-  events: AuditEvent[]
+  events: AuditEventReadModel[]
   pending: boolean
   emptyText: string
   showTarget?: boolean

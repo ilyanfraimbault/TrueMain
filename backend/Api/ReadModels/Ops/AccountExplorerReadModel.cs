@@ -1,3 +1,4 @@
+using Data.Entities;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -29,7 +30,7 @@ public sealed record AccountExplorerReadModel
     /// and what each value means. The booleans behind it stay exposed in the
     /// sections below — the state is a headline, not the source of truth.
     /// </summary>
-    public string State { get; init; } = string.Empty;
+    public AccountPipelineState State { get; init; }
 
     /// <summary>
     /// The state in a sentence, built server-side so every consumer explains a
@@ -180,7 +181,7 @@ public sealed record AccountExplorerIdentityReadModel
     public int SummonerLevel { get; init; }
 
     /// <summary>The <c>RiotAccountStatus</c> name: "Active" or "Invalid".</summary>
-    public string Status { get; init; } = string.Empty;
+    public RiotAccountStatus Status { get; init; }
 
     public DateTime CreatedAtUtc { get; init; }
 
@@ -228,7 +229,7 @@ public sealed record AccountExplorerAccountRefReadModel
 
     public string PlatformId { get; init; } = string.Empty;
 
-    public string Status { get; init; } = string.Empty;
+    public RiotAccountStatus Status { get; init; }
 
     public DateTime? LastMatchIngestAtUtc { get; init; }
 }
@@ -256,7 +257,7 @@ public sealed record AccountExplorerTrackingReadModel
     /// Which arm: "EstablishedMain", "QueuedCandidate", "Both", or null when
     /// neither — i.e. the account is never selected for ingestion.
     /// </summary>
-    public string? TrackedVia { get; init; }
+    public AccountTrackingArm? TrackedVia { get; init; }
 
     /// <summary>True when an <c>IsMain</c> + <c>IsActive</c> row exists.</summary>
     public bool HasActiveMain { get; init; }
@@ -268,7 +269,7 @@ public sealed record AccountExplorerTrackingReadModel
     public bool HasQueuedCandidate { get; init; }
 
     /// <summary>The <c>MatchIngestStatus</c> name: "Idle" or "Processing".</summary>
-    public string MatchIngestStatus { get; init; } = string.Empty;
+    public MatchIngestStatus MatchIngestStatus { get; init; }
 
     /// <summary>When the current lease was taken; null while Idle.</summary>
     public DateTime? MatchIngestClaimedAtUtc { get; init; }

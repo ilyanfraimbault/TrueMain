@@ -54,7 +54,7 @@ public sealed class CandidateFunnelQueryService(
     /// MatchIngestion run recorded before the deploy has no such key, and reporting that
     /// as a validated count of zero would claim a stall the pipeline never had.
     /// </summary>
-    private const string ValidatedCounter = "accountsValidated";
+    private const string ValidatedCounter = RunSummaryFields.MatchIngestion.AccountsValidated;
 
     private const int DefaultWindowDays = 30;
 
@@ -171,20 +171,20 @@ public sealed class CandidateFunnelQueryService(
         switch (PipelineCatalog.Find(processName)?.Mode)
         {
             case JobMode.DiscoveryOnly:
-                counters.IntakeLadder += SumOverPlatforms(summary, "candidatesInserted");
+                counters.IntakeLadder += SumOverPlatforms(summary, RunSummaryFields.Discovery.Platforms, RunSummaryFields.Discovery.CandidatesInserted);
                 break;
 
             case JobMode.HarvestOnly:
-                counters.IntakeHarvest += ProcessRunSummaryParsing.ReadInt64(summary, "candidatesInserted");
+                counters.IntakeHarvest += ProcessRunSummaryParsing.ReadInt64(summary, RunSummaryFields.Harvest.CandidatesInserted);
                 break;
 
             case JobMode.ManualSeedOnly:
-                counters.IntakeManual += ProcessRunSummaryParsing.ReadInt64(summary, "candidatesQueued");
+                counters.IntakeManual += ProcessRunSummaryParsing.ReadInt64(summary, RunSummaryFields.ManualSeed.CandidatesQueued);
                 break;
 
             case JobMode.ScoringOnly:
-                counters.Scored += SumOverPlatforms(summary, "scored");
-                counters.Promoted += SumOverPlatforms(summary, "queued");
+                counters.Scored += SumOverPlatforms(summary, RunSummaryFields.Scoring.Platforms, RunSummaryFields.Scoring.Scored);
+                counters.Promoted += SumOverPlatforms(summary, RunSummaryFields.Scoring.Platforms, RunSummaryFields.Scoring.Queued);
                 break;
 
             case JobMode.MatchIngestionOnly:
@@ -202,7 +202,7 @@ public sealed class CandidateFunnelQueryService(
                 break;
 
             case JobMode.MainAnalysisOnly:
-                counters.Demoted += ProcessRunSummaryParsing.ReadInt64(summary, "demotedAccounts");
+                counters.Demoted += ProcessRunSummaryParsing.ReadInt64(summary, RunSummaryFields.MainAnalysis.DemotedAccounts);
                 break;
         }
     }
@@ -212,9 +212,9 @@ public sealed class CandidateFunnelQueryService(
     /// report per platform and have no run-level total, so the platform array <em>is</em>
     /// the number — an absent or non-array <c>platforms</c> (a no-work pass) sums to 0.
     /// </summary>
-    private static long SumOverPlatforms(JsonElement summary, string property)
+    private static long SumOverPlatforms(JsonElement summary, string platformsKey, string property)
     {
-        if (!summary.TryGetProperty("platforms", out var platforms)
+        if (!summary.TryGetProperty(platformsKey, out var platforms)
             || platforms.ValueKind != JsonValueKind.Array)
         {
             return 0;

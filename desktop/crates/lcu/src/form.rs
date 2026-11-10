@@ -18,7 +18,7 @@ const SUMMONERS_RIFT: i64 = 11;
 /// A game this short was a remake: neither a win nor a loss for anyone.
 const REMAKE_SECONDS: i64 = 300;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerForm {
     /// Summoner's Rift games read, remakes left out.
@@ -41,7 +41,7 @@ pub struct PlayerForm {
 }
 
 /// How many of a player's games were played in one role.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PositionGames {
     pub position: &'static str,
@@ -50,7 +50,7 @@ pub struct PositionGames {
 
 /// One of a player's latest games, as the loading screen's bar and its
 /// tooltip show it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RecentGame {
     pub champion_id: i64,

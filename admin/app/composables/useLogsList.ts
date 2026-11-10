@@ -1,4 +1,4 @@
-import type { LogLevel } from '~~/shared/types/logs'
+import type { LogLevel } from '~/utils/log-level'
 
 /**
  * The Logs tab of `/logs`: its filters, the server-paginated `GET /api/ops/logs`

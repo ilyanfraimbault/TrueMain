@@ -1,4 +1,4 @@
-import type { MatchDetailResponse } from '#shared/types/match-detail'
+import type { MatchDetail } from '#shared/types/match-detail'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { isNotFoundError } from '#common/utils/remote-read'
 
@@ -22,13 +22,13 @@ export function useMatchDetail(
 
   const apiFetch = useApiFetch()
 
-  const { data, status, error, refresh } = useLazyAsyncData<MatchDetailResponse | null>(
+  const { data, status, error, refresh } = useLazyAsyncData<MatchDetail | null>(
     key,
     async (_nuxtApp, { signal }) => {
       if (!nameTagRef.value || !matchIdRef.value) return null
 
       try {
-        const response = await apiFetch<MatchDetailResponse | null>(
+        const response = await apiFetch<MatchDetail | null>(
           `/truemains/${encodeURIComponent(nameTagRef.value)}/matches/${encodeURIComponent(matchIdRef.value)}`,
           { signal },
         )

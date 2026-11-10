@@ -1,7 +1,8 @@
 import { isChampSelect } from '~/utils/gameflow'
-import type { Kit } from '#shared/types/kit'
-import { itemSetFailureToast } from '~/composables/useItemSetImport'
+import type { Kit } from '~/types/kit'
+import { EMPTY_BUILD, itemSetFailureToast } from '~/composables/useItemSetImport'
 import { kitItemSetBlocks } from '~/utils/item-set'
+import { shell } from '~/utils/shell'
 
 /** What the shell answers outside champion select (`lcu::Refusal::NotYourTurn`). */
 const NOT_IN_CHAMP_SELECT = 'not-your-turn'
@@ -24,20 +25,15 @@ export function useKitImport() {
   /** Spells can only be written while a champion select runs. */
   const inChampSelect = computed(() => state.value.connected && isChampSelect(state.value.phase))
 
-  const dev = () => (insideTauri() ? null : 'Dev server: nothing was sent to a client.')
-
   async function importItems(kit: Kit, champion: string) {
     if (pending.value) return
     pending.value = 'items'
     try {
       const name = (itemId: number) => items.value[itemId]?.name ?? `Item ${itemId}`
       const blocks = kitItemSetBlocks(kit, name, itemId => itemId in items.value)
-      if (blocks.length === 0) throw new Error('empty-build')
-      if (insideTauri()) {
-        const { invoke } = await import('@tauri-apps/api/core')
-        await invoke('import_kit_item_set', { championId: kit.championId, champion, blocks })
-      }
-      toast.add({ title: 'Items imported', description: dev() ?? `Your kit is the TrueMain item set for ${champion}.`, icon: 'i-lucide-check', color: 'success' })
+      if (blocks.length === 0) throw new Error(EMPTY_BUILD)
+      await shell.importKitItemSet(kit.championId, champion, blocks)
+      toast.add({ title: 'Items imported', description: `Your kit is the TrueMain item set for ${champion}.`, icon: 'i-lucide-check', color: 'success' })
     }
     catch (error) {
       toast.add(itemSetFailureToast(error instanceof Error ? error.message : String(error)))
@@ -51,11 +47,8 @@ export function useKitImport() {
     if (pending.value) return
     pending.value = 'spells'
     try {
-      if (insideTauri()) {
-        const { invoke } = await import('@tauri-apps/api/core')
-        await invoke('champ_select_spells', { spell1Id: kit.spells[0], spell2Id: kit.spells[1] })
-      }
-      toast.add({ title: 'Spells set', description: dev() ?? 'Your kit\'s summoner spells are set in champion select.', icon: 'i-lucide-check', color: 'success' })
+      await shell.champSelectSpells(kit.spells[0], kit.spells[1])
+      toast.add({ title: 'Spells set', description: 'Your kit\'s summoner spells are set in champion select.', icon: 'i-lucide-check', color: 'success' })
     }
     catch (error) {
       const message = String(error)

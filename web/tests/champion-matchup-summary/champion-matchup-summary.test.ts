@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChampionBuildSummary, ChampionBuildSummaryMatchups } from '~~/shared/types/champion-build-summary'
-import type { ChampionMatchupEntry } from '~~/shared/types/champions'
+import type { ChampionMatchupEntry } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { buildSummarySentenceText } from '~~/shared/utils/champion-build-summary'
 import {

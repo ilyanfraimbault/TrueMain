@@ -567,11 +567,6 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   browser dev scenarios hold the feed's state at two of its readings (checked by `live-client/tests/scenarios.rs`).
   Under its controls, a small 1920 × 1080 screen draws the lane-gold plates of the reading just sent on the
   scoreboard's outline (`OverlayScoreboardPreview.vue`, `utils/sim-reading.ts`).
-- **Capture spike** (development only, #1745) — `truemain-capture-spike` records one League game through the
-  platform capture helper (`desktop/capture/macos`: ScreenCaptureKit + VideoToolbox, a separate process speaking
-  JSON lines) and `game-recording`'s session, then writes the video, its highlights, a `report.md` of what it measured
-  and a `player.html` that jumps to each moment. Built by CI as a downloadable macOS artifact; not part of the app.
-  How to run it: `docs/desktop-capture-spike.md`.
 - **Game recording** (macOS and Windows, #1744, #1797) — off until the player turns it on. A game of a recorded
   queue is captured by the helper bundled in the app (`desktop/capture/macos`, ScreenCaptureKit; `desktop/capture/windows`,
   Windows.Graphics.Capture + Media Foundation — driven by the `capture-helper` crate from `src-tauri/src/recording/`),

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
+import type { ChampionSummaryReadModel } from '#shared/contract/api'
 import { championLastmodById, toSitemapDay } from '~~/shared/utils/sitemap-lastmod'
 
-function row(championId: number, lastUpdatedAtUtc: string, position = 'MIDDLE'): ChampionSummaryResponse {
+function row(championId: number, lastUpdatedAtUtc: string, position = 'MIDDLE'): ChampionSummaryReadModel {
   return {
     championId,
     position,

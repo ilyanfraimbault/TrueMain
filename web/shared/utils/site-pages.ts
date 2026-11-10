@@ -64,6 +64,6 @@ export function sitePageGlob(path: string): string {
 
 /** A route as a matcher for a request path: one dynamic segment matches any non-empty segment. */
 export function sitePageMatcher(path: string): RegExp {
-  const pattern = path.split('/').map(segment => (segment.startsWith(':') ? '[^/]+' : segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).join('/')
+  const pattern = path.split('/').map(segment => (segment.startsWith(':') ? '[^/]+' : segment.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`))).join('/')
   return new RegExp(`^${pattern}$`)
 }

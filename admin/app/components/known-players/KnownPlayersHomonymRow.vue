@@ -3,12 +3,12 @@
 // top-down: who it is (name, slug, source, created), its accounts as Riot ID chips
 // (untracked ones dimmed) and its channels as labelled chips — the ones another
 // player of the group lists too marked, the strongest hint the two are one person.
-import type { PersonaOps } from '~~/shared/types/ops'
+import type { PersonaOpsReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import { linkHandle, linkKey } from '~~/shared/utils/persona-homonyms'
 
 const props = defineProps<{
-  persona: PersonaOps
+  persona: PersonaOpsReadModel
   kept: boolean
   included: boolean
   busy: boolean

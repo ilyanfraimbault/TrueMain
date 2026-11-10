@@ -1,4 +1,4 @@
-import type { ProcessIteration, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { PipelineCatalogReadModel, ProcessIterationReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 import { laneForProcess } from '~~/shared/utils/pipeline-lanes'
 
 /**
@@ -32,13 +32,16 @@ const KIND_BY_MODE: Readonly<Record<string, IterationKind>> = {
  * lane of its processes, and to `single` under its first process name when they span
  * no single lane.
  */
-export function iterationKind(iteration: Pick<ProcessIteration, 'jobMode' | 'runs'>): IterationKind {
+export function iterationKind(
+  catalog: PipelineCatalogReadModel | null,
+  iteration: Pick<ProcessIterationReadModel, 'jobMode' | 'runs'>,
+): IterationKind {
   const mode = iteration.jobMode ?? iteration.runs.find(run => run.jobMode)?.jobMode ?? null
   if (mode) {
     return KIND_BY_MODE[mode] ?? { id: 'single', label: mode }
   }
 
-  const lanes = new Set(iteration.runs.map(run => laneForProcess(run.processName)))
+  const lanes = new Set(iteration.runs.map(run => laneForProcess(catalog, run.processName)))
   if (lanes.size === 1) {
     const lane = [...lanes][0]
     if (lane) {
@@ -58,7 +61,7 @@ export interface IterationSpan {
   durationMs: number
 }
 
-export function iterationSpan(iteration: Pick<ProcessIteration, 'startedAtUtc' | 'lastActivityAtUtc'>): IterationSpan {
+export function iterationSpan(iteration: Pick<ProcessIterationReadModel, 'startedAtUtc' | 'lastActivityAtUtc'>): IterationSpan {
   const startMs = Date.parse(iteration.startedAtUtc)
   const endMs = Math.max(startMs, Date.parse(iteration.lastActivityAtUtc))
   return { startMs, endMs, durationMs: endMs - startMs }
@@ -69,14 +72,14 @@ export function iterationSpan(iteration: Pick<ProcessIteration, 'startedAtUtc' |
  * skipped step decided in milliseconds that it had nothing to do; drawing it would
  * add a hairline to every bar and say nothing.
  */
-export function timedRuns(runs: readonly ProcessRun[]): ProcessRun[] {
+export function timedRuns(runs: readonly ProcessRunReadModel[]): ProcessRunReadModel[] {
   return runs
     .filter(run => run.status !== 'Skipped' && run.durationMs > 0)
     .sort((a, b) => a.startedAtUtc.localeCompare(b.startedAtUtc))
 }
 
 /** How many of the pass's runs ended in each status. */
-export function statusCounts(runs: readonly ProcessRun[]): Partial<Record<ProcessRunStatus, number>> {
+export function statusCounts(runs: readonly ProcessRunReadModel[]): Partial<Record<ProcessRunStatus, number>> {
   const counts: Partial<Record<ProcessRunStatus, number>> = {}
   for (const run of runs) {
     counts[run.status] = (counts[run.status] ?? 0) + 1

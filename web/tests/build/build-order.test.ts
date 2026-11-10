@@ -1,9 +1,9 @@
-import type { MatchDetailItemEvent } from '~~/shared/types/match-detail'
+import type { MatchDetailItemEventReadModel } from '#shared/contract/api'
 import type { StaticItemData } from '~~/shared/types/static-data'
 import { describe, expect, it } from 'vitest'
 import { isBuildOrderEvent, isNonBuildItem, resolveEventItemId } from '~~/shared/utils/build'
 
-function ev(partial: Partial<MatchDetailItemEvent> & { eventType: string }): MatchDetailItemEvent {
+function ev(partial: Partial<MatchDetailItemEventReadModel> & { eventType: string }): MatchDetailItemEventReadModel {
   return { timestampMs: 0, itemId: 0, beforeId: null, afterId: null, ...partial }
 }
 

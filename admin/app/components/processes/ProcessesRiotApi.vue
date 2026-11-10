@@ -10,12 +10,8 @@
 //
 // This component owns every fetch and the filters; the cards below it
 // (`ProcessesRiot*`, `ProcessesIngestorMeter`) only draw what they are handed.
-import type {
-  RiotCallerUsage,
-  RiotEndpointUsage,
-  RiotStatusCount,
-  RiotUsageWindow,
-} from '~~/shared/types/ops'
+import type { RiotUsageWindow } from '~~/shared/types/ops/riot-usage'
+import type { RiotApiCallerUsageReadModel, RiotApiEndpointUsageReadModel, RiotApiStatusCountReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 
 const WINDOW_ITEMS: { label: string, value: RiotUsageWindow }[] = [
@@ -51,9 +47,9 @@ const quota = useLastGoodPayload(quotaData, () => selectedWindow.value)
 const { data: meterData, pending: meterPending, error: meterError, refresh: refreshMeter } = useIngestorMetrics(selectedWindow)
 const meter = useLastGoodPayload(meterData, () => selectedWindow.value)
 
-const endpoints = computed<RiotEndpointUsage[]>(() => usage.value?.endpoints ?? [])
-const statusCodes = computed<RiotStatusCount[]>(() => usage.value?.statusCodes ?? [])
-const callerBreakdown = computed<RiotCallerUsage[]>(() => usage.value?.callerBreakdown ?? [])
+const endpoints = computed<RiotApiEndpointUsageReadModel[]>(() => usage.value?.endpoints ?? [])
+const statusCodes = computed<RiotApiStatusCountReadModel[]>(() => usage.value?.statusCodes ?? [])
+const callerBreakdown = computed<RiotApiCallerUsageReadModel[]>(() => usage.value?.callerBreakdown ?? [])
 const timeSeries = computed(() => usage.value?.timeSeries ?? [])
 const headroom = computed(() => usage.value?.headroom ?? null)
 

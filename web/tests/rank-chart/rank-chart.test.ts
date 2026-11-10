@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import { lpDeltaSince, rankChartPoints } from '#common/utils/rank-chart'
 
 const NOW = Date.parse('2026-10-13T12:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
 
-function snapshot(daysAgo: number, tier: string, division: string, leaguePoints: number): RankHistoryEntry {
+function snapshot(daysAgo: number, tier: string, division: string, leaguePoints: number): RankHistoryEntryReadModel {
   return { capturedAtUtc: new Date(NOW - daysAgo * DAY).toISOString(), tier, division, leaguePoints }
 }
 

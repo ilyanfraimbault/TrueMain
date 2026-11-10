@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { PersonaChannelConflict } from '~~/shared/types/ops'
+import type { PersonaChannelConflictReadModel } from '#site-shared/contract/api'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
@@ -32,13 +32,13 @@ const ui = {
   FetchErrorAlert: stub('aside', p => String(p.title ?? '')),
 }
 
-const irelking: PersonaChannelConflict = {
+const irelking: PersonaChannelConflictReadModel = {
   older: persona({ id: 'p1', slug: 'irelking', displayName: 'IRELKING', source: 'DeepLol', links: [{ kind: 'chzzk', url: 'https://chzzk.naver.com/993db7ed', source: 'DeepLol' }] }),
   newer: persona({ id: 'p2', slug: 'kasumi', displayName: 'Kasumi', source: 'Dpm', accounts: [], links: [{ kind: 'chzzk', url: 'https://chzzk.naver.com/993db7ed', source: 'Dpm' }] }),
   sharedChannels: [{ kind: 'chzzk', url: 'https://chzzk.naver.com/993db7ed' }],
 }
 
-function stubPanel(conflicts: PersonaChannelConflict[]) {
+function stubPanel(conflicts: PersonaChannelConflictReadModel[]) {
   const refresh = vi.fn()
   const toast = { success: vi.fn(), warning: vi.fn(), failure: vi.fn() }
   const usePersonaChannelConflicts = vi.fn(() => ({

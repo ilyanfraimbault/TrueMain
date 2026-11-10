@@ -6,7 +6,7 @@
 // never be read as two views of one series. Bars, not an area (#1218): a stall has
 // to read as a bucket that dropped to the floor, which is what this card exists for,
 // and a filled area slopes into the gap instead.
-import type { IngestionTimeGranularity } from '~~/shared/types/ops'
+import type { IngestionTimeGranularity } from '~~/shared/types/ops/stats'
 import { formatNumber } from '~~/shared/utils/format'
 
 const ingestedGranularityItems: { label: string, value: IngestionTimeGranularity }[] = [

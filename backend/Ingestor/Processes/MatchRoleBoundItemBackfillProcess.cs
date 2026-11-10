@@ -32,7 +32,7 @@ public sealed class MatchRoleBoundItemBackfillProcess(
     // 20-minute cycles.
     private const int BatchSize = 2000;
     private const int MaxBatchesPerRun = 25;
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 
@@ -68,7 +68,7 @@ public sealed class MatchRoleBoundItemBackfillProcess(
             var idsByValue = new Dictionary<int, List<Guid>>();
             foreach (var row in rows)
             {
-                var metadata = await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct);
+                var metadata = (await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct)).Require("Item metadata");
                 var value = RoleBoundBootsInference.Infer(row.ItemEvents, row.InventorySlots, metadata);
                 if (!idsByValue.TryGetValue(value, out var ids))
                 {

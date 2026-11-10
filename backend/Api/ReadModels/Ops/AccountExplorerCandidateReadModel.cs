@@ -1,3 +1,4 @@
+using Data.Entities;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -11,7 +12,7 @@ public sealed record AccountExplorerCandidateReadModel
     public int ChampionId { get; init; }
 
     /// <summary>The <c>MainCandidateStatus</c> name.</summary>
-    public string Status { get; init; } = string.Empty;
+    public MainCandidateStatus Status { get; init; }
 
     /// <summary>
     /// The <c>MainCandidateSource</c> name. Note that <c>ManualSeed</c> is never
@@ -19,7 +20,7 @@ public sealed record AccountExplorerCandidateReadModel
     /// upsert, so a manually seeded candidate reads <c>Ladder</c>. Read
     /// <see cref="AccountExplorerReadModel.SeedRequest"/> for the manual trail.
     /// </summary>
-    public string Source { get; init; } = string.Empty;
+    public MainCandidateSource Source { get; init; }
 
     /// <summary>The 0–100 blend computed by <c>ScoringProcess</c>.</summary>
     public double Score { get; init; }

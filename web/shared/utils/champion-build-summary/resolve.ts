@@ -1,5 +1,5 @@
 import type { ChampionBuildSummary, ChampionBuildSummaryBuild, SummaryEntity } from '../../types/champion-build-summary'
-import type { ChampionResponse } from '../../types/champions'
+import type { ChampionResponse } from '../../contract/api'
 import type { ChampionStaticData, RuneTreeResponse, StaticItemData, StaticSummonerSpellData } from '../../types/static-data'
 
 // Resolution half of the build summary: the champion response and the static

@@ -1,6 +1,7 @@
 using Data.Ops.Mongo;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
+using TrueMain.ReadModels;
 
 namespace TrueMain.Services.Ops.Alerting;
 
@@ -112,7 +113,7 @@ internal sealed class PipelineHealthAlerter(
         var alert = new HealthAlertDocument
         {
             SentAtUtc = now,
-            Kind = message.Kind == HealthAlertChangeKind.Failing ? "failing" : "recovered",
+            Kind = message.Kind.WireName(),
             Title = message.Title,
             Verdict = message.Verdict,
             Channel = notifier.Channel,
@@ -163,7 +164,7 @@ internal sealed class PipelineHealthAlerter(
     {
         Key = change.Key,
         Title = change.Title,
-        Change = change.Kind == HealthAlertChangeKind.Failing ? "failing" : "recovered",
+        Change = change.Kind.WireName(),
         Status = change.Status,
         Headline = change.Headline
     };

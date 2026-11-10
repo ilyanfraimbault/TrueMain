@@ -83,7 +83,7 @@ public sealed class ChampionSynergyAggregationProcess(
             .Key("elo_bracket", "text", r => r.Key.EloBracket)
             .Sum("Games", "integer", r => r.Value.Games)
             .Sum("Wins", "integer", r => r.Value.Wins);
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;
