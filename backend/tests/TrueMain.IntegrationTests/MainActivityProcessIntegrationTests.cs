@@ -260,7 +260,6 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
             NullLogger<MainActivityProcess>.Instance,
             platformClient,
             _fixture.CreateSessionFactory(),
-            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new MainActivityOptions
             {
