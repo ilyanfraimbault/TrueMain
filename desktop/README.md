@@ -267,11 +267,15 @@ With that file, `npm run tauri dev`, `npm run tauri:sim` and a local
 Those calls go through **Rust**, not the webview's `fetch`. From the webview
 they would be subject to CORS against an origin the site was never configured
 for, and would force the content-security policy open to a remote host. From
-Rust neither applies and the CSP stays closed. The draft and build calls have a
-command each; the pages' reads go through `api_get`, which forwards a short
-allow-list of read-only paths (tier list, truemains leaderboard and search, and
-one true main's build on a champion — `/truemains/{nameTag}/champions/{id}`,
-checked segment by segment) and nothing else.
+Rust neither applies and the CSP stays closed. Every read goes through `api_get`
+or `api_post`, which forward the routes of `src-tauri/api-routes.json` and
+nothing else — each path named as the API's OpenAPI document names it, each
+`{parameter}` checked as one segment of its own shape (`src/api/routes.rs`),
+with a longer deadline for the reads the API computes slowly. Two tests hold
+the table to the code around it: every route is one the API serves, and every
+read the app and the shared pages make is a route. A read a newer one replaces
+(the draft's build) passes a `replaces` key, and the shell aborts the older
+one.
 
 Static game data is the exception: the webview fetches Data Dragon and Community
 Dragon itself (the CSP lets those two hosts through), the same files the site's
