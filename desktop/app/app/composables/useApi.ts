@@ -8,7 +8,9 @@
  */
 import { answerStaticEndpoint } from '~/utils/static-endpoints'
 import { apiAnswer, shell } from '~/utils/shell'
-import { asFetchError } from '~/utils/shell-error'
+import { asFetchError, isSuperseded } from '~/utils/shell-error'
+
+export { isSuperseded }
 
 type QueryValue = string | number | boolean | null | undefined
 /** A list repeats its key, one pair per entry (`?player=a&player=b`). */
@@ -41,6 +43,12 @@ export interface ReadOptions {
    * moves. Every other read runs the loading bar while it is out (#1788).
    */
   background?: boolean
+  /**
+   * A key a newer request under the same key replaces this one by, inside the
+   * app: the shell aborts this one and it rejects as superseded
+   * (`isSuperseded`) — champion select moves faster than the API answers.
+   */
+  replaces?: string
 }
 
 /** A read counted by the loading bar, unless it runs in the background. */
@@ -49,26 +57,30 @@ function tracked<T>(work: Promise<T>, options: ReadOptions): Promise<T> {
 }
 
 /**
- * A read-only GET. Inside Tauri only the paths `api_get` lists are reachable —
- * the shell is not a general proxy onto the API.
+ * A read-only GET. Inside Tauri only the routes the shell lists are reachable
+ * (`src-tauri/api-routes.json`) — it is not a general proxy onto the API.
  */
 export function apiGet<T>(path: string, query: Query = {}, options: ReadOptions = {}): Promise<T> {
   return tracked((async () => {
     if (insideTauri()) {
-      return await apiAnswer<T>(shell.apiGet(path, pairs(query)))
+      return await apiAnswer<T>(shell.apiGet(path, pairs(query)).catch((error: unknown) => {
+        throw asFetchError(error)
+      }))
     }
     return await $fetch<T>(`/api${path}`, { query: fetchQuery(query), signal: options.signal })
   })(), options)
 }
 
 /**
- * A POST read — the composition build and its games, which take the draft as
- * a body. Inside Tauri only the paths `api_post` lists are reachable.
+ * A POST read — a read that takes a draft or a game as its body. Inside Tauri
+ * only the routes the shell lists are reachable.
  */
 export function apiPost<T>(path: string, body: unknown, query: Query = {}, options: ReadOptions = {}): Promise<T> {
   return tracked((async () => {
     if (insideTauri()) {
-      return await apiAnswer<T>(shell.apiPost(path, pairs(query), body))
+      return await apiAnswer<T>(shell.apiPost(path, pairs(query), body, options.replaces ?? null).catch((error: unknown) => {
+        throw asFetchError(error)
+      }))
     }
     return await $fetch<T>(`/api${path}`, { method: 'POST', body: body as Record<string, unknown>, query: fetchQuery(query), signal: options.signal })
   })(), options)
@@ -101,11 +113,9 @@ export interface ApiFetchOptions {
  * Whether a failed read got an answer from TrueMain — an HTTP error status —
  * rather than none at all. Only the first is what `ignoreResponseError` turns
  * into `null`: an offline app must say it cannot reach TrueMain, not that a
- * player does not exist. The shell reports a status as `TrueMain answered …`
- * (`api.rs`); in `npm run dev` the error is ofetch's, carrying the status.
+ * player does not exist.
  */
 function isResponseError(error: unknown): boolean {
-  if (typeof error === 'string') return error.startsWith('TrueMain answered')
   return typeof (error as { statusCode?: unknown } | null)?.statusCode === 'number'
 }
 
@@ -130,8 +140,7 @@ export function useApiFetch() {
     }
     catch (error) {
       if (options.ignoreResponseError && isResponseError(error)) return null as T
-      // The shared pages read the status off an ofetch-shaped error (#2476).
-      throw asFetchError(error)
+      throw error
     }
   }
 }

@@ -728,12 +728,15 @@ corners. The screenshots, a JSON per step and the app's log
 are uploaded as an artifact.
 
 A `changes` job gates each of these jobs on what it compiles (#2218), as in
-`ci.yml`: the `Rust crates` job on the workspace manifests, `desktop/crates/`
-and `desktop/capture/windows/`; the Windows shell job on those and
-`desktop/src-tauri/`; the macOS spike on those and `desktop/capture/macos/`;
-the Windows overlay on the shell's paths and `desktop/app/`, its smoke script
-and the fixtures it replays; the `Nuxt app` job on `desktop/app/` and the
-site's two shared paths. A change to the site's shared layer therefore runs the
+`ci.yml`: the `Rust crates` job on the workspace manifests, `desktop/crates/`,
+`desktop/capture/windows/` and the fixtures their tests read (`desktop/fixtures/`,
+the app's dev scenarios); the Windows shell job on those, `desktop/src-tauri/`
+and the API's OpenAPI document its route table is checked against; the macOS
+spike on those and `desktop/capture/macos/`; the Windows overlay on the shell's
+paths and `desktop/app/`, its smoke script and the fixtures it replays; the
+`Nuxt app` job on `desktop/app/`, the site's two shared paths, the shell's route
+table (`src-tauri/api-routes.json`, checked against the reads the app makes) and
+`desktop/fixtures/` (the overlay geometry vectors). A change to the site's shared layer therefore runs the
 `Nuxt app` job alone: the Windows and macOS jobs build Rust, which it never
 reaches. A change to `desktop.yml`, a push and a draft marked ready behave as
 in `ci.yml`.

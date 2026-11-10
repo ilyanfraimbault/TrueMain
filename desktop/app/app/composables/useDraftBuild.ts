@@ -1,6 +1,6 @@
 import type { BuildCoreView, CompositionBuildRequest } from '~/types/build'
 import type { BuildTreeNodeReadModel, ChampionResponse, CompositionBuildResponse, CompositionLaneReadModel } from '#shared/contract/api'
-import { apiAnswer, shell } from '~/utils/shell'
+import { apiGet, apiPost, isSuperseded } from '~/composables/useApi'
 
 /** Whose build to show: a champion on its lane, and the draft around it from its side. */
 export interface BuildSubject {
@@ -44,9 +44,6 @@ export function draftBuildOf(championId: number, answer: CompositionBuildRespons
  */
 const DEBOUNCE_MS = 150
 
-/** What Rust answers for a request a newer one replaced. */
-const SUPERSEDED = 'superseded'
-
 /**
  * The build for one champion against the draft as it stands — the endpoint
  * behind the site's matchup page, fed every locked pick of both teams.
@@ -73,21 +70,11 @@ export function useDraftBuild(subject: Ref<BuildSubject | null>) {
   let timer: ReturnType<typeof setTimeout> | undefined
 
   async function post(champion: number, body: CompositionBuildRequest, signal: AbortSignal) {
-    if (insideTauri()) {
-      return await apiAnswer<CompositionBuildResponse>(shell.compositionBuild(champion, body))
-    }
-    // `npm run dev` in a browser: the dev server proxies `/api` (nuxt.config).
-    return await $fetch<CompositionBuildResponse>(`/api/champions/${champion}/composition-build`, {
-      method: 'POST',
-      body,
-      signal,
-    })
+    return await apiPost<CompositionBuildResponse>(`/champions/${champion}/composition-build`, body, {}, { background: true, signal, replaces: 'draft-build' })
   }
 
   async function standard(champion: number, position: string, signal: AbortSignal): Promise<DraftBuild | null> {
-    const answer = insideTauri()
-      ? await apiAnswer<ChampionResponse>(shell.championBuild(champion, position, null))
-      : await $fetch<ChampionResponse>(`/api/champions/${champion}`, { query: { position }, signal })
+    const answer = await apiGet<ChampionResponse>(`/champions/${champion}`, { position }, { background: true, signal })
     const first = answer.builds[0]
     if (!first) return null
     return {
@@ -123,7 +110,7 @@ export function useDraftBuild(subject: Ref<BuildSubject | null>) {
       if (id === latest) build.value = next
     }
     catch (cause) {
-      if (id !== latest || String(cause).includes(SUPERSEDED) || signal.aborted) return
+      if (id !== latest || isSuperseded(cause) || signal.aborted) return
       error.value = String(cause)
     }
     finally {

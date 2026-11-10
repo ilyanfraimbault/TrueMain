@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tauri_specta::{collect_commands, collect_events, Builder, ErrorHandlingMode, Event};
 
 use crate::{
-    champselect, game, itemsets, kits, loading, menu, overlay, record, recording, runes,
+    api, champselect, game, itemsets, kits, loading, menu, overlay, record, recording, runes,
     supervisor, telemetry,
 };
 
@@ -22,12 +22,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             crate::current_state,
             game::current_game,
-            crate::draft_recommendation,
-            crate::draft_bans,
-            crate::champion_build,
-            crate::composition_build,
-            crate::api_get,
-            crate::api_post,
+            api::commands::api_get,
+            api::commands::api_post,
             crate::open_on_site,
             crate::open_channel,
             record::player_record,

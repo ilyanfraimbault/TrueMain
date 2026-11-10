@@ -1,6 +1,6 @@
 import type { DraftBanResponse } from '#shared/contract/api'
 import type { DraftState } from '~/types/lcu'
-import { apiAnswer, shell } from '~/utils/shell'
+import { apiPost } from '~/composables/useApi'
 
 /** Bans and hovers landing together collapse into one request. */
 const DEBOUNCE_MS = 120
@@ -33,11 +33,7 @@ export function useDraftBans(
   let timer: ReturnType<typeof setTimeout> | undefined
 
   async function ask(request: object): Promise<DraftBanResponse> {
-    if (insideTauri()) {
-      return await apiAnswer<DraftBanResponse>(shell.draftBans(request))
-    }
-    // `npm run dev` in a browser: the dev server proxies `/api` (nuxt.config).
-    return await $fetch<DraftBanResponse>('/api/champions/draft/bans', { method: 'POST', body: request })
+    return await apiPost<DraftBanResponse>('/champions/draft/bans', request, {}, { background: true })
   }
 
   /** Our hover, not yet locked: the pick the bans protect. */

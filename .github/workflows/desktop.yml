@@ -46,8 +46,11 @@ jobs:
             crates:
               - "desktop/crates/**"
               - "desktop/capture/windows/**"
+              - "desktop/fixtures/**"
+              - "desktop/app/app/fixtures/scenarios.json"
             shell:
               - "desktop/src-tauri/**"
+              - "web/shared/contract/openapi.json"
             macos:
               - "desktop/capture/macos/**"
             overlay:
@@ -56,6 +59,8 @@ jobs:
               - "desktop/fixtures/**"
             app:
               - "desktop/app/**"
+              - "desktop/fixtures/**"
+              - "desktop/src-tauri/api-routes.json"
               - "web/layers/common/**"
               - "web/shared/**"
 
