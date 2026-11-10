@@ -1,5 +1,5 @@
-//! One game recorded from start to recap: the same steps the capture spike
-//! measured (`crates/capture-spike`), run by the app.
+//! One game recorded from start to recap: the steps the #1745 capture spike
+//! measured (`docs/desktop-capture-spike.md`), run by the app.
 //!
 //! When the phase enters a game and the player turned recording on for its
 //! queue, the helper is started — retried every few seconds, since it can fail
