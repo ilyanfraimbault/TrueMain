@@ -338,33 +338,27 @@ public sealed class PersonaConflictResolutionService(
             AlsoResolved = alsoResolved,
         });
 
-    private async Task AuditAsync(Guid id, PersonaConflictResolvedResponse resolved, string actor, CancellationToken ct)
+    // Best effort, like the seed intake's: the resolution is committed; a Mongo outage must not 500 it.
+    private Task AuditAsync(Guid id, PersonaConflictResolvedResponse resolved, string actor, CancellationToken ct)
     {
-        // Best effort, like the seed intake's: the resolution is committed; a Mongo outage must not 500 it.
-        try
+        var metadata = new Dictionary<string, string> { ["resolution"] = resolved.Resolution.ToString() };
+        if (resolved.HolderSlug is { } holder)
         {
-            var metadata = new Dictionary<string, string> { ["resolution"] = resolved.Resolution.ToString() };
-            if (resolved.HolderSlug is { } holder)
-            {
-                metadata["holder"] = holder;
-            }
-
-            if (resolved.MergedSlug is { } merged)
-            {
-                metadata["merged"] = merged;
-            }
-
-            await auditLog.RecordAsync(
-                action: AuditActions.ResolvePersonaConflict,
-                actor: actor,
-                targetType: AuditTargets.PersonaAccountConflict,
-                targetId: id.ToString(),
-                metadata: metadata,
-                ct: ct);
+            metadata["holder"] = holder;
         }
-        catch (Exception ex)
+
+        if (resolved.MergedSlug is { } merged)
         {
-            logger.LogWarning(ex, "Audit write failed for persona conflict {ConflictId}; the resolution was committed.", id);
+            metadata["merged"] = merged;
         }
+
+        return auditLog.TryRecordAsync(
+            logger,
+            action: AuditActions.ResolvePersonaConflict,
+            actor: actor,
+            targetType: AuditTargets.PersonaAccountConflict,
+            targetId: id.ToString(),
+            metadata: metadata,
+            ct: ct);
     }
 }
