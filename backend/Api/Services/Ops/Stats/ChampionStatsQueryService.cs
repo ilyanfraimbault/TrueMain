@@ -32,14 +32,7 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db, IMemoryCache
     // pile a retry onto every one of them while short enough to recover on its own.
     internal static readonly TimeSpan FailureBackoffWindow = TimeSpan.FromMinutes(1);
 
-    // Single-flight for the miss path (#870): every concurrent caller that misses
-    // together — the first request, or any request landing right after a TTL
-    // expiry — joins one computation instead of each running it. Static for the same
-    // reason as ChampionReadCache's coalescers: the point is to share across
-    // concurrent *requests*, which each get their own scoped service instance.
-    private static readonly RequestCoalescer<IReadOnlyList<ChampionStatRow>> ResponseCoalescer = new();
-
-    public async Task<IReadOnlyList<ChampionStatRow>> GetAsync(
+    public Task<IReadOnlyList<ChampionStatRow>> GetAsync(
         string? region,
         string? patch,
         string? position,
@@ -53,36 +46,13 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db, IMemoryCache
         // Cache key is the full filter tuple: a filtered call must never read
         // (or overwrite) the unfiltered entry, so every one of the four
         // independent filters — including the ones left unset — has to appear
-        // in the key (see CacheKeyDisciplineTests).
-        var cacheKey = BuildCacheKey(normalizedRegion, normalizedPatch, normalizedPosition, queue);
-        if (cache.TryGetValue<IReadOnlyList<ChampionStatRow>>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        return await ResponseCoalescer.GetOrJoinAsync(
-            cacheKey,
-            async () =>
-            {
-                // Re-check under the coalescer: this caller may have queued behind a
-                // pass that has since finished and cached its answer.
-                if (cache.TryGetValue<IReadOnlyList<ChampionStatRow>>(cacheKey, out var justCached) && justCached is not null)
-                {
-                    return justCached;
-                }
-
-                var computed = await FailureBackoff.RunAsync(
-                    cache,
-                    cacheKey,
-                    FailureBackoffWindow,
-                    () => ComputeAsync(normalizedRegion, normalizedPatch, normalizedPosition, queue, CancellationToken.None));
-                return cache.Store(cacheKey, computed, ResponseCacheTtl);
-            },
+        // in the key.
+        return cache.GetOrComputeAsync(
+            BuildCacheKey(normalizedRegion, normalizedPatch, normalizedPosition, queue),
+            ResponseCacheTtl,
+            token => ComputeAsync(normalizedRegion, normalizedPatch, normalizedPosition, queue, token),
             ct,
-            // This factory reads through the request-scoped db above, so the shared
-            // pass must not outlive the request that started it — same reasoning as
-            // ChampionReadCache.GetOrComputeAsync.
-            ownerAwaitsToCompletion: true);
+            failureBackoff: FailureBackoffWindow);
     }
 
     private async Task<IReadOnlyList<ChampionStatRow>> ComputeAsync(

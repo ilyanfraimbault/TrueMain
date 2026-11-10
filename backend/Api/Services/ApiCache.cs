@@ -18,6 +18,80 @@ namespace TrueMain.Services;
 /// </remarks>
 internal static class ApiCache
 {
+    // Static because the reads are scoped: the point is to coalesce across concurrent
+    // *requests*, which each get their own instance. Non-generic payload so one instance
+    // serves every response type.
+    private static readonly RequestCoalescer<object?> Reads = new();
+
+    /// <summary>
+    /// The one read-through door of the Api: answers <paramref name="key"/> from the cache,
+    /// joins the pass already computing it, or runs <paramref name="compute"/> once for
+    /// everyone waiting and caches its answer for <paramref name="lifetime"/>, sized.
+    /// </summary>
+    /// <param name="cache">The shared response cache.</param>
+    /// <param name="key">Carries every input that changes the answer, a version included.</param>
+    /// <param name="lifetime">How long the answer stands.</param>
+    /// <param name="compute">
+    /// The read. Run with a token that is never a single caller's: the pass is shared, so one
+    /// request walking away must not cancel it for the others. The pass runs on the owning
+    /// request's scoped services (its <c>DbContext</c>), so the owner waits for it to finish
+    /// even when its own caller leaves (see <see cref="RequestCoalescer{TValue}"/>).
+    /// </param>
+    /// <param name="ct">The calling request's token: bounds its wait, not the pass.</param>
+    /// <param name="size">What the entry charges against the cache's <c>SizeLimit</c>.</param>
+    /// <param name="failureBackoff">
+    /// When set, a failed read is not run again for this long: callers get a
+    /// <see cref="ReadBackoffException"/> at once (see <see cref="FailureBackoff"/>). For reads
+    /// too long to repeat.
+    /// </param>
+    /// <param name="backoffKey">
+    /// What a failure is remembered under, when not <paramref name="key"/>: a versioned read
+    /// passes its unversioned key, so a read that failed is not retried just because the version
+    /// moved on.
+    /// </param>
+    /// <remarks>
+    /// Presence, not truthiness: a read may answer a legitimate "nothing here" with null, and a
+    /// cached null is still an answer, not a miss to recompute on every visit.
+    /// </remarks>
+    public static async Task<T> GetOrComputeAsync<T>(
+        this IMemoryCache cache,
+        string key,
+        TimeSpan lifetime,
+        Func<CancellationToken, Task<T>> compute,
+        CancellationToken ct,
+        int size = 1,
+        TimeSpan? failureBackoff = null,
+        string? backoffKey = null)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(compute);
+
+        if (cache.TryGetValue(key, out var cached))
+        {
+            return (T)cached!;
+        }
+
+        var computed = await Reads.GetOrJoinAsync(
+            key,
+            async () =>
+            {
+                // Re-check under the coalescer: this caller may have queued behind a pass
+                // that has since finished and cached its answer.
+                if (cache.TryGetValue(key, out var justCached))
+                {
+                    return justCached;
+                }
+
+                var value = failureBackoff is { } backoff
+                    ? await FailureBackoff.RunAsync(cache, backoffKey ?? key, backoff, () => compute(CancellationToken.None))
+                    : await compute(CancellationToken.None);
+                return cache.Store(key, (object?)value, lifetime, size);
+            },
+            ct,
+            ownerAwaitsToCompletion: true);
+        return (T)computed!;
+    }
+
     /// <summary>
     /// Cache entry options expiring <paramref name="ttl"/> from now and
     /// charging <paramref name="size"/> units (one by default).

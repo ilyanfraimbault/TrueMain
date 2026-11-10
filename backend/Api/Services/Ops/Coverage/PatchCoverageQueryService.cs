@@ -59,10 +59,11 @@ public sealed class PatchCoverageQueryService(
     IOptions<DataQualityDetectorOptions> detectorOptions,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     TimeProvider timeProvider,
+    Measurements measurements,
     ILogger<PatchCoverageQueryService> logger) : IPatchCoverageQueryService
 {
     private readonly PatchCoverageMeasurements _measurements = new(db);
-    private readonly PatchFoldMeasurements _folds = new(db, logger);
+    private readonly PatchFoldMeasurements _folds = new(db, measurements, logger);
 
     public async Task<PatchCoverageReadModel> GetAsync(CancellationToken ct)
     {
@@ -125,13 +126,15 @@ public sealed class PatchCoverageQueryService(
         var patchArray = coveredPatches.ToArray();
 
         var expectedParticipants = QueueDataQualityProfile.ForQueue(queueId).ExpectedParticipants;
-        var ingestion = await SafeAsync(
-            "ingestion",
+        var ingestion = await measurements.TryAsync(
+            "Patch-coverage measurement ingestion",
             () => _measurements.LoadIngestionAsync(queueId, patchArray, expectedParticipants, ct),
+            logger,
             ct);
-        var coverage = await SafeAsync(
-            "coverage",
+        var coverage = await measurements.TryAsync(
+            "Patch-coverage measurement coverage",
             () => _measurements.LoadCoverageAsync(queueId, coveredPatches, scopeVersionsByPatch, floor, settings, ct),
+            logger,
             ct);
 
         // Unlike a single fold, these two are the page's question. Without the ingestion
@@ -139,7 +142,7 @@ public sealed class PatchCoverageQueryService(
         // the coverage rollup a thin patch is indistinguishable from an unaggregated one —
         // so a failure here has to read as "not measured", never as either of the answers
         // it could no longer tell apart.
-        if (ingestion.Error is not null || coverage.Error is not null)
+        if (!ingestion.IsMeasured || !coverage.IsMeasured)
         {
             return new PatchCoverageReadModel
             {
@@ -150,13 +153,13 @@ public sealed class PatchCoverageQueryService(
                 Verdict = PatchVerdict.Unknown,
                 Status = DetectorStatus.Unknown,
                 Headline = "Patch coverage could not be measured, so no patch has a verdict.",
-                UnknownReason = ingestion.Error ?? coverage.Error,
+                UnknownReason = ingestion.UnknownReason ?? coverage.UnknownReason,
                 SourceNote = PatchCoverageRows.SourceNote,
                 EvaluatedAtUtc = now
             };
         }
 
-        var folds = await _folds.LoadAsync(coverage.Value, ct);
+        var folds = await _folds.LoadAsync(coverage.Value!, ct);
 
         // The bar every patch is judged against, taken from the patches strictly OLDER
         // than the one being served. Those are the settled ones: the served patch and
@@ -169,7 +172,7 @@ public sealed class PatchCoverageQueryService(
                 || (PatchVersion.TryParse(patch, out var candidate)
                     && PatchVersion.TryParse(currentPatch, out var served)
                     && candidate < served))
-            .Select(patch => coverage.Value.GetValueOrDefault(patch))
+            .Select(patch => coverage.Value!.GetValueOrDefault(patch))
             .Where(value => value is { Lines: > 0 })
             .Select(value => value!.LinesPastFloor)
             .ToList();
@@ -184,8 +187,8 @@ public sealed class PatchCoverageQueryService(
             .Select(patch => PatchCoverageRows.BuildPatchRow(
                 patch,
                 patch == currentPatch,
-                ingestion.Value.GetValueOrDefault(patch),
-                coverage.Value.GetValueOrDefault(patch),
+                ingestion.Value!.GetValueOrDefault(patch),
+                coverage.Value!.GetValueOrDefault(patch),
                 folds,
                 bar,
                 floor,
@@ -211,34 +214,4 @@ public sealed class PatchCoverageQueryService(
             EvaluatedAtUtc = now
         };
     }
-
-    /// <summary>
-    /// Runs one measurement, keeping any failure as a <em>reason</em> rather than turning
-    /// it into an empty result. An empty dictionary and a failed query produce the same
-    /// zeros, and the caller has to be able to tell them apart.
-    /// </summary>
-    private async Task<Measured<IReadOnlyDictionary<string, T>>> SafeAsync<T>(
-        string what,
-        Func<Task<IReadOnlyDictionary<string, T>>> measure,
-        CancellationToken ct)
-    {
-        try
-        {
-            return new Measured<IReadOnlyDictionary<string, T>>(await measure(), null);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Patch-coverage measurement {Measurement} failed", what);
-            return new Measured<IReadOnlyDictionary<string, T>>(
-                new Dictionary<string, T>(StringComparer.Ordinal),
-                ex.Message);
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
-    }
-
-    /// <summary>A measurement and, when it failed, why — so zeros are never mistaken for an answer.</summary>
-    private sealed record Measured<T>(T Value, string? Error);
 }

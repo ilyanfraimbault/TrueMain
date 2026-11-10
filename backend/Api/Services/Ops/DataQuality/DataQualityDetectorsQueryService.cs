@@ -68,6 +68,7 @@ public sealed class DataQualityDetectorsQueryService(
     IOptions<DataQualityDetectorOptions> options,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     TimeProvider timeProvider,
+    Measurements measurements,
     ILogger<DataQualityDetectorsQueryService> logger) : IDataQualityDetectorsQueryService
 {
     private readonly AggregateFreshnessDetector _aggregateFreshness = new(db, processRunStore);
@@ -123,30 +124,20 @@ public sealed class DataQualityDetectorsQueryService(
         Func<Task<DataQualityDetectorReadModel>> build,
         CancellationToken ct)
     {
-        try
-        {
-            return await build();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // One detector's broken query must not blind the other four, and must not
-            // read as green either.
-            logger.LogWarning(ex, "Data-quality detector {Detector} failed to measure", key);
-
-            return new DataQualityDetectorReadModel
+        // One detector's broken query must not blind the other four, and must not read as
+        // green either.
+        var detector = await measurements.TryAsync($"Data-quality detector {key}", build, logger, ct);
+        return detector.IsMeasured
+            ? detector.Value!
+            : new DataQualityDetectorReadModel
             {
                 Key = key,
                 Title = title,
                 Status = DetectorStatus.Unknown,
                 CountLabel = string.Empty,
                 Headline = "This detector could not be measured.",
-                UnknownReason = ex.Message,
+                UnknownReason = detector.UnknownReason,
                 SourceNote = "The measurement failed; the panel reports unknown rather than a pass."
             };
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
     }
 }

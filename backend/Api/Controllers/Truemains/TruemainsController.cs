@@ -111,14 +111,12 @@ public sealed class TruemainsController(
             sort,
             ct);
 
-        // Let shared caches (CDN / reverse proxy) serve the leaderboard for the
-        // same window the service caches it in-memory: s-maxage mirrors the 30s
-        // response TTL, and stale-while-revalidate lets an edge keep serving a
-        // ~30s-stale page for another 60s while it refreshes in the background,
-        // so a cache expiry never lands a request on the cold DB path. Scoped
-        // to the LIST action only — the profile / matches / rank-history routes
-        // are per-player and keep their default (uncached) behaviour.
-        Response.Headers.CacheControl = "public, s-maxage=30, stale-while-revalidate=60";
+        // Shared caches (CDN / reverse proxy) serve the leaderboard for the window the
+        // service caches it in memory, and stale-while-revalidate keeps an edge serving
+        // it another 60s while it refreshes, so an expiry never lands on the cold DB
+        // path. The LIST action only: the per-player routes stay uncached.
+        Response.Headers.CacheControl =
+            $"public, s-maxage={(int)TruemainsLeaderboardQueryService.ResponseCacheTtl.TotalSeconds}, stale-while-revalidate=60";
 
         return Ok(response);
     }

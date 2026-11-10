@@ -1,5 +1,6 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TrueMain.Configuration;
+using TrueMain.ReadModels.Ops;
 using TrueMain.Options;
 
 namespace TrueMain.Services.Ops.Coverage;
@@ -14,17 +15,14 @@ public static class PatchCoverageServiceCollectionExtensions
     public static IServiceCollection AddTrueMainPatchCoverage(this IServiceCollection services)
     {
         services.AddMainAnalysisOptions();
+        services.TryAddSingleton<Measurements>();
         services.AddApiOptions<ChampionsListOptions>();
         services.AddApiOptions<DataQualityDetectorOptions>();
         services.AddApiOptions<PatchCoverageOptions>();
-        services.AddScoped<PatchCoverageQueryService>();
-        services.AddScoped<IPatchCoverageQueryService>(provider => new CachedPatchCoverageQueryService(
-            provider.GetRequiredService<PatchCoverageQueryService>(),
-            provider.GetRequiredService<IMemoryCache>(),
-            provider.GetRequiredService<TimeProvider>()));
-        services.AddWarmPayload(
+        services.AddWarmCachedRead<IPatchCoverageQueryService, PatchCoverageQueryService, PatchCoverageReadModel>(
             CachedPatchCoverageQueryService.Payload,
-            provider => provider.GetRequiredService<PatchCoverageQueryService>().GetAsync(CancellationToken.None));
+            (inner, cache, clock) => new CachedPatchCoverageQueryService(inner, cache, clock),
+            inner => inner.GetAsync(CancellationToken.None));
         return services;
     }
 }
