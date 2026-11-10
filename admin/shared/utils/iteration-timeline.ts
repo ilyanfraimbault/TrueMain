@@ -1,4 +1,4 @@
-import type { ProcessIterationReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
+import type { PipelineCatalogReadModel, ProcessIterationReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 import { laneForProcess } from '~~/shared/utils/pipeline-lanes'
 
 /**
@@ -32,13 +32,16 @@ const KIND_BY_MODE: Readonly<Record<string, IterationKind>> = {
  * lane of its processes, and to `single` under its first process name when they span
  * no single lane.
  */
-export function iterationKind(iteration: Pick<ProcessIterationReadModel, 'jobMode' | 'runs'>): IterationKind {
+export function iterationKind(
+  catalog: PipelineCatalogReadModel | null,
+  iteration: Pick<ProcessIterationReadModel, 'jobMode' | 'runs'>,
+): IterationKind {
   const mode = iteration.jobMode ?? iteration.runs.find(run => run.jobMode)?.jobMode ?? null
   if (mode) {
     return KIND_BY_MODE[mode] ?? { id: 'single', label: mode }
   }
 
-  const lanes = new Set(iteration.runs.map(run => laneForProcess(run.processName)))
+  const lanes = new Set(iteration.runs.map(run => laneForProcess(catalog, run.processName)))
   if (lanes.size === 1) {
     const lane = [...lanes][0]
     if (lane) {
