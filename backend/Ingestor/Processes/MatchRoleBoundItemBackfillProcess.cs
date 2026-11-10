@@ -1,8 +1,9 @@
 using Data;
-using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.Pipeline;
+using Ingestor.BuildFacts;
+using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 

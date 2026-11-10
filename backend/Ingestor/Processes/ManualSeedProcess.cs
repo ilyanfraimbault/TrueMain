@@ -6,7 +6,7 @@ using Data.Logging;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Processes.Summaries;

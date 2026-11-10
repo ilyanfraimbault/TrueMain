@@ -3,7 +3,7 @@ using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Ops.Mongo;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.LadderSync;

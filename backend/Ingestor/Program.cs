@@ -2,7 +2,7 @@ using Data;
 using Data.Configuration;
 using Data.Logging.Crash;
 using Data.Logging.Mongo;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Data.Statics;
 using Ingestor;
 using Ingestor.BuildFacts;

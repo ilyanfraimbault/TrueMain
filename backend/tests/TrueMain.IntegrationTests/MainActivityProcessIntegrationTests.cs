@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Data.Ops.Mongo;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;

@@ -2,7 +2,6 @@ using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
-using Data.Queries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Champions;
@@ -11,6 +10,7 @@ using TrueMain.RequestLogging;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Scopes;
+using TrueMain.Services.Sql;
 
 namespace TrueMain.Services.Champions.Matchups;
 

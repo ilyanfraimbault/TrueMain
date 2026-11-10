@@ -1,7 +1,7 @@
 using Core.Options;
 using Data.Entities;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
 using Ingestor.Processes.Summaries;

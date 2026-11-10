@@ -2,7 +2,7 @@ using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Logging;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
 using Ingestor.Riot;
