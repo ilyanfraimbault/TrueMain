@@ -1,6 +1,6 @@
-import type { ProfileIdentity } from '#shared/types/profile'
+import type { ProfileIdentityReadModel } from '#shared/contract/api'
 import type { BuildOption, CompositionBuildRequest } from '~/types/build'
-import { positionLabel } from '#common/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 
 /**
  * A true main's own build on the champion, for `BuildView`: the main clicked in
@@ -16,7 +16,7 @@ export function useMainBuildOption(options: {
   /** The row on screen: a build's key, or `main` for the true main picked in the list. */
   selected: Ref<string | null>
   /** The true main picked in the list. */
-  main: Ref<{ identity: ProfileIdentity } | null>
+  main: Ref<{ identity: ProfileIdentityReadModel } | null>
 }) {
   const { championId, position, draftRequest, selected, main } = options
 
@@ -24,7 +24,7 @@ export function useMainBuildOption(options: {
   const mainNameTag = computed(() => (main.value ? favoriteNameTag(main.value.identity.gameName, main.value.identity.tagLine) : null))
   const onMain = computed(() => selected.value === 'main' && mainNameTag.value !== null)
 
-  function selectMain(row: { identity: ProfileIdentity }) {
+  function selectMain(row: { identity: ProfileIdentityReadModel }) {
     main.value = row
     selected.value = 'main'
     truemainBuilds.load(mainNameTag.value!, championId.value, position.value)

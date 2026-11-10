@@ -1,8 +1,9 @@
 import type { TruemainOgCard } from '~~/shared/types/og-card'
-import type { ProfileResponse } from '~~/shared/types/profile'
+import type { ProfileReadModel } from '#shared/contract/api'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
 import { selectSignatureMain } from '~~/shared/utils/og-card'
 import { riotIdLabel } from '~~/shared/utils/truemain-path'
+import { RIOT_ID_MAX_LENGTH } from '~~/shared/utils/riot-id'
 import { defineCachedRead, readOrAbsent, visitorAddress } from '~~/server/utils/upstream'
 
 /**
@@ -16,14 +17,6 @@ import { defineCachedRead, readOrAbsent, visitorAddress } from '~~/server/utils/
  * public profile, exactly what the page shows to any visitor. Nothing here is
  * viewer-specific, so serving it from a shared cache is safe.
  */
-
-// The `[nameTag]` route param is the `{gameName}-{tagLine}` slug the app links
-// with, passed opaque to the backend (which resolves it). A Riot ID is at most
-// 16 + 1 + 5 characters, so this is deliberate headroom for percent-encoding
-// rather than the Riot limit itself. The point is only to bound the input
-// before it can become a cache key or an upstream call, this route being
-// publicly reachable.
-const MAX_NAME_TAG_LENGTH = 80
 
 const EMPTY_CARD: TruemainOgCard = {
   riotId: null,
@@ -41,7 +34,7 @@ const EMPTY_CARD: TruemainOgCard = {
  */
 const loadTruemainOgCard = defineCachedRead<TruemainOgCard, [string, string?]>(
   async (nameTag: string, forwardedFor?: string): Promise<TruemainOgCard> => {
-    const profile = await readOrAbsent<ProfileResponse>(
+    const profile = await readOrAbsent<ProfileReadModel>(
       `/api/truemains/${encodeURIComponent(nameTag)}/profile`,
       { forwardedFor },
     )
@@ -101,8 +94,11 @@ const loadTruemainOgCard = defineCachedRead<TruemainOgCard, [string, string?]>(
 )
 
 export default defineEventHandler(async (event): Promise<TruemainOgCard> => {
-  const nameTag = getRouterParam(event, 'nameTag') ?? ''
-  if (!nameTag || nameTag.length > MAX_NAME_TAG_LENGTH) {
+  // Decoded once here and encoded once in the read: the raw param is already
+  // percent-encoded, so a name with a space used to reach the API encoded twice.
+  // Bounded before it becomes a cache key or an upstream call.
+  const nameTag = getRouterParam(event, 'nameTag', { decode: true })?.trim() ?? ''
+  if (!nameTag || nameTag.length > RIOT_ID_MAX_LENGTH) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid nameTag' })
   }
   return loadTruemainOgCard(nameTag, visitorAddress(event))

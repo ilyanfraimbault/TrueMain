@@ -2,10 +2,10 @@
 // Riot API tab: consumption by caller (#1035), a horizontal categorical bar chart of
 // who is spending the budget. Follows the same `horizontalBarProps`/`barChartHeight`
 // pattern as the top-tables / top-champions charts elsewhere in the admin.
-import type { RiotCallerUsage } from '~~/shared/types/ops'
+import type { RiotApiCallerUsageReadModel } from '#site-shared/contract/api'
 
 const props = defineProps<{
-  callerBreakdown: RiotCallerUsage[]
+  callerBreakdown: RiotApiCallerUsageReadModel[]
   pending: boolean
 }>()
 

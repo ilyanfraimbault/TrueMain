@@ -1,6 +1,5 @@
 import { computed, toValue } from 'vue'
 import type { MaybeRefOrGetter } from 'vue'
-import type { Deployments } from '~~/shared/types/ops'
 import { placeDeployMarkers } from '~/utils/deploy-markers'
 
 /**
@@ -19,7 +18,7 @@ function lookbackStart(): string {
 
 /** `GET /api/ops/deployments` (#2297) — every backend version change over the lookback. */
 export function useDeployments() {
-  return useOps<Deployments>('/deployments', { from: lookbackStart() })
+  return useOps('/deployments', { from: lookbackStart() })
 }
 
 /**

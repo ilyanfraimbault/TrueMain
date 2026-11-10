@@ -5,6 +5,7 @@ using Data.Entities;
 using Data.Logging;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
@@ -27,6 +28,7 @@ namespace Ingestor.Processes;
 /// (#411). The queue lives in Mongo with the rest of the admin-portal data; the
 /// account/candidate writes stay in SQL.
 /// </summary>
+[PipelineStep(JobMode.ManualSeedOnly)]
 public sealed class ManualSeedProcess(
     ILogger<ManualSeedProcess> logger,
     IRiotAccountClient riotAccountClient,
@@ -47,9 +49,6 @@ public sealed class ManualSeedProcess(
     // none are requeued here.
     private static readonly MainCandidateStatus[] RequeueableStatuses =
         [MainCandidateStatus.New, MainCandidateStatus.Scored];
-
-    public string Name => "ManualSeed";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var options = manualSeedOptions.Value;

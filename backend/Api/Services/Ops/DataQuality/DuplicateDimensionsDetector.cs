@@ -64,7 +64,7 @@ internal sealed class DuplicateDimensionsDetector(TrueMainDbContext db)
             rows.Add(new DataQualityDetectorRowReadModel
             {
                 Label = audit.TableName,
-                Status = DataQualityDetectorEvaluator.Worst(statuses).ToWireName(),
+                Status = DataQualityDetectorEvaluator.Worst(statuses),
                 Value = duplicates,
                 ValueLabel = string.Create(CultureInfo.InvariantCulture, $"{duplicates} duplicate group(s)"),
                 Note = note
@@ -75,13 +75,13 @@ internal sealed class DuplicateDimensionsDetector(TrueMainDbContext db)
             " ",
             ChampionDimensionCanonicalKeys.ExemptTables.Select(table => $"{table.TableName}: {table.Reason}"));
 
-        var duplicateCardStatus = DataQualityDetectorEvaluator.Worst(rows.Select(DetectorCards.ParseStatus));
+        var duplicateCardStatus = DataQualityDetectorEvaluator.Worst(rows.Select(row => row.Status));
 
         return new DataQualityDetectorReadModel
         {
             Key = "duplicateDimensionRows",
             Title = "Duplicate dimension rows",
-            Status = duplicateCardStatus.ToWireName(),
+            Status = duplicateCardStatus,
             Count = duplicateGroups,
             CountLabel = "canonical-key groups holding more than one row",
             // Worded from the verdict. A table holding rows outside canonical order but

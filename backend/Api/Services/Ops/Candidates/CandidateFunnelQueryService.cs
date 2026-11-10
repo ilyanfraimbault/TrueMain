@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.Processes;
@@ -32,13 +33,6 @@ public sealed class CandidateFunnelQueryService(
     IOptions<MongoLoggingOptions> mongoOptions,
     TimeProvider timeProvider) : ICandidateFunnelQueryService
 {
-    private const string Discovery = "Discovery";
-    private const string Harvest = "Harvest";
-    private const string ManualSeed = "ManualSeed";
-    private const string Scoring = "Scoring";
-    private const string MatchIngestion = "MatchIngestion";
-    private const string MainAnalysis = "MainAnalysis";
-
     /// <summary>
     /// Every process that moves a candidate between statuses. <c>MatchDataRetention</c>
     /// is deliberately absent: it deletes stale candidates rather than advancing them, so
@@ -46,7 +40,14 @@ public sealed class CandidateFunnelQueryService(
     /// reads left-to-right.
     /// </summary>
     private static readonly string[] ContributingProcesses =
-        [Discovery, Harvest, ManualSeed, Scoring, MatchIngestion, MainAnalysis];
+        [
+            PipelineCatalog.Discovery.Name,
+            PipelineCatalog.Harvest.Name,
+            PipelineCatalog.ManualSeed.Name,
+            PipelineCatalog.Scoring.Name,
+            PipelineCatalog.MatchIngestion.Name,
+            PipelineCatalog.MainAnalysis.Name
+        ];
 
     /// <summary>
     /// The forward-only counter (#1024). Its <em>presence</em> is the signal: a
@@ -167,26 +168,26 @@ public sealed class CandidateFunnelQueryService(
         DateTime startedAtUtc,
         ref DateTime? validatedFirstMeasuredAt)
     {
-        switch (processName)
+        switch (PipelineCatalog.Find(processName)?.Mode)
         {
-            case Discovery:
+            case JobMode.DiscoveryOnly:
                 counters.IntakeLadder += SumOverPlatforms(summary, "candidatesInserted");
                 break;
 
-            case Harvest:
+            case JobMode.HarvestOnly:
                 counters.IntakeHarvest += ProcessRunSummaryParsing.ReadInt64(summary, "candidatesInserted");
                 break;
 
-            case ManualSeed:
+            case JobMode.ManualSeedOnly:
                 counters.IntakeManual += ProcessRunSummaryParsing.ReadInt64(summary, "candidatesQueued");
                 break;
 
-            case Scoring:
+            case JobMode.ScoringOnly:
                 counters.Scored += SumOverPlatforms(summary, "scored");
                 counters.Promoted += SumOverPlatforms(summary, "queued");
                 break;
 
-            case MatchIngestion:
+            case JobMode.MatchIngestionOnly:
                 if (summary.TryGetProperty(ValidatedCounter, out var validated)
                     && validated.ValueKind == JsonValueKind.Number
                     && validated.TryGetInt64(out var validatedCount))
@@ -200,7 +201,7 @@ public sealed class CandidateFunnelQueryService(
 
                 break;
 
-            case MainAnalysis:
+            case JobMode.MainAnalysisOnly:
                 counters.Demoted += ProcessRunSummaryParsing.ReadInt64(summary, "demotedAccounts");
                 break;
         }

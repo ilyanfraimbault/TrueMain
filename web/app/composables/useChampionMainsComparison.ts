@@ -1,5 +1,5 @@
-import type { ChampionMainsComparison } from '~~/shared/types/champions'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionMainsComparisonResponse } from '#shared/contract/api'
+import type { ChampionPosition } from '#shared/utils/positions'
 import { fetchErrorStatus } from '#common/utils/errors'
 
 export interface UseChampionMainsComparisonOptions {
@@ -45,7 +45,7 @@ export function useChampionMainsComparison(
 
   const apiFetch = useApiFetch()
 
-  return useLazyAsyncData<ChampionMainsComparison | null>(
+  return useLazyAsyncData<ChampionMainsComparisonResponse | null>(
     () => [
       'champion-mains-comparison',
       championIdRef.value,
@@ -62,7 +62,7 @@ export function useChampionMainsComparison(
       if (positionRef.value) query.position = positionRef.value
 
       try {
-        return await apiFetch<ChampionMainsComparison>(
+        return await apiFetch<ChampionMainsComparisonResponse>(
           `/champions/${championIdRef.value}/mains-comparison`,
           { query, signal },
         )

@@ -1,11 +1,5 @@
-import type {
-  BuildCoreView,
-  BuildTreeNode,
-  ChampionBuildResponse,
-  CompositionBuildRequest,
-  CompositionBuildResponse,
-  CompositionLane,
-} from '~/types/build'
+import type { BuildCoreView, CompositionBuildRequest } from '~/types/build'
+import type { BuildTreeNodeReadModel, ChampionResponse, CompositionBuildResponse, CompositionLaneReadModel } from '#shared/contract/api'
 import { apiAnswer, shell } from '~/utils/shell'
 
 /** Whose build to show: a champion on its lane, and the draft around it from its side. */
@@ -20,11 +14,11 @@ export interface DraftBuild {
   championId: number
   core: BuildCoreView
   firstItemId: number
-  buildTree: BuildTreeNode[]
+  buildTree: BuildTreeNodeReadModel[]
   games: number
   wins: number
   /** The lane at 15 over the sampled games; null on the standard fallback. */
-  lane: CompositionLane | null
+  lane: CompositionLaneReadModel | null
   /** `draft` — computed for this composition; `standard` — the lane build, the matchup never having been recorded. */
   source: 'draft' | 'standard'
 }
@@ -92,8 +86,8 @@ export function useDraftBuild(subject: Ref<BuildSubject | null>) {
 
   async function standard(champion: number, position: string, signal: AbortSignal): Promise<DraftBuild | null> {
     const answer = insideTauri()
-      ? await apiAnswer<ChampionBuildResponse>(shell.championBuild(champion, position, null))
-      : await $fetch<ChampionBuildResponse>(`/api/champions/${champion}`, { query: { position }, signal })
+      ? await apiAnswer<ChampionResponse>(shell.championBuild(champion, position, null))
+      : await $fetch<ChampionResponse>(`/api/champions/${champion}`, { query: { position }, signal })
     const first = answer.builds[0]
     if (!first) return null
     return {

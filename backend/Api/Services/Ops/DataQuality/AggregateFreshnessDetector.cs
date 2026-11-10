@@ -2,6 +2,7 @@ using System.Globalization;
 using Core.Lol.Patches;
 using Data;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
@@ -21,12 +22,7 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
     /// a process that legitimately runs rarely would sit permanently amber here.
     /// </summary>
     private static readonly string[] AggregationProcessNames =
-    [
-        "ChampionPatternAggregation",
-        "ChampionMatchupLeadAggregation",
-        "ChampionBanAggregation",
-        "ChampionSynergyAggregation", "ChampionOpponentAggregation", "ChampionScalingAggregation", "ChampionProfileAggregation", "ChampionItemContextAggregation"
-    ];
+        PipelineCatalog.Steps.Where(step => step.IsMatchFold).Select(step => step.Name).ToArray();
 
     public async Task<DataQualityDetectorReadModel> BuildAsync(
         DataQualityDetectorOptions settings,
@@ -63,7 +59,7 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
             rows.Add(new DataQualityDetectorRowReadModel
             {
                 Label = processName,
-                Status = status.ToWireName(),
+                Status = status,
                 Value = age,
                 ValueLabel = DataQualityDetectorEvaluator.FormatAge(age),
                 Note = last is null
@@ -72,13 +68,13 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
             });
         }
 
-        var freshnessStatus = DataQualityDetectorEvaluator.Worst(rows.Select(DetectorCards.ParseStatus));
+        var freshnessStatus = DataQualityDetectorEvaluator.Worst(rows.Select(row => row.Status));
 
         return new DataQualityDetectorReadModel
         {
             Key = "aggregateFreshness",
             Title = "Aggregate freshness",
-            Status = freshnessStatus.ToWireName(),
+            Status = freshnessStatus,
             Count = stale,
             CountLabel = "aggregations past their staleness line",
             // Worded from the verdict, not from the count: a card that says "every
@@ -179,7 +175,7 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
                     ScopeRows = group.Sum(row => row.ScopeRows),
                     Status = DataQualityDetectorEvaluator
                         .Classify(age, settings.AggregationStaleAmberHours, settings.AggregationStaleRedHours)
-                        .ToWireName()
+                        
                 };
             })
             .OrderByDescending(row => row.AgeHours)

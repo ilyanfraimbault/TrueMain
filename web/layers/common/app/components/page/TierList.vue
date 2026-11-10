@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { championSliceQuery } from '#common/utils/champion-slice-query'
 import { championDisplayName } from '#shared/utils/champion-name'
 // The tier list, as the site and the desktop app both render it (#1732): each
 // app's route file wraps this with its own head tags and nothing else.
-import type { ChampionTierListResponse } from '#shared/types/champions'
-import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
+import type { ChampionTierListReadModel } from '#shared/contract/api'
+import { isChampionPosition, type ChampionPosition } from '#shared/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { describeStaleFetchError } from '#common/utils/errors'
 
@@ -21,18 +22,17 @@ const selectedPosition = computed<ChampionPosition | null>(() => {
 // elo bracket and the backend does the per-role tiering. Rendered on the server
 // (#2425), like the /champions directory: the first HTML holds the tiers.
 const apiFetch = useApiFetch()
-const tierListFetch = useAsyncData<ChampionTierListResponse>(
+const tierListFetch = useAsyncData<ChampionTierListReadModel>(
   () => `champion-tierlist-${filters.value.patch ?? 'latest'}-${selectedPosition.value ?? 'all'}`
     + `-${filters.value.eloBracket ?? 'all'}-${filters.value.truemainsOnly ? 'truemains' : 'everyone'}`,
   (_nuxtApp, { signal }) => {
-    const query: Record<string, string> = {}
-    if (filters.value.patch) query.patch = filters.value.patch
-    if (selectedPosition.value) query.position = selectedPosition.value
-    if (filters.value.eloBracket) query.eloBracket = filters.value.eloBracket
-    // Sent only when off: true is the API default, so pinning it would just make
-    // every resting request carry a redundant param.
-    if (!filters.value.truemainsOnly) query.truemainsOnly = 'false'
-    return apiFetch<ChampionTierListResponse>('/champions/tierlist', { query, signal })
+    const query = championSliceQuery({
+      patch: filters.value.patch,
+      position: selectedPosition.value,
+      eloBracket: filters.value.eloBracket,
+      truemainsOnly: filters.value.truemainsOnly,
+    })
+    return apiFetch<ChampionTierListReadModel>('/champions/tierlist', { query, signal })
   },
   {
     watch: [

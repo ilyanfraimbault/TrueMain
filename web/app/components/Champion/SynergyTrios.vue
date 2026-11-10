@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatCount } from '~~/shared/utils/counts'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import type { ChampionTrioSynergyEntry } from '~~/shared/types/champions'
+import type { ChampionTrioSynergyEntry } from '#shared/contract/api'
 
 // The synergies panel's trio completions for the chosen duo: the best third
 // pick alongside the champion and the selected partner. The panel owns the

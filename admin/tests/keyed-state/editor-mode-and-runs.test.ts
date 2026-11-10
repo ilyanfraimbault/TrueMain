@@ -1,4 +1,4 @@
-import type { ProcessRun } from '~~/shared/types/ops'
+import type { ProcessRunReadModel } from '#site-shared/contract/api'
 import { describe, expect, it } from 'vitest'
 import { panelPhase } from '~/composables/useLastGoodPayload'
 import { modeFor, settleSaving, startSaving, VIEW_MODE } from '~/utils/persona-editor-mode'
@@ -32,7 +32,7 @@ describe('persona editor mode', () => {
 })
 
 describe('liveRun', () => {
-  const run = (over: Partial<ProcessRun>) => ({ id: 1, processName: 'persona-scraper', status: 'Running', ...over }) as ProcessRun
+  const run = (over: Partial<ProcessRunReadModel>) => ({ id: 1, processName: 'persona-scraper', status: 'Running', ...over }) as ProcessRunReadModel
 
   it('reads the clicked run back from the live feeds', () => {
     const clicked = run({})

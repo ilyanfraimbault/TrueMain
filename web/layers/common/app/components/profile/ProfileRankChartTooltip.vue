@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import { rankChartDateLabel } from '#common/utils/rank-chart'
-import { formatLeaguePoints } from '#common/utils/tiers'
+import { formatLeaguePoints } from '#shared/utils/ranks'
 
 // The LP curve's hover card: the snapshot's crest, LP and day.
-defineProps<{ entry: RankHistoryEntry }>()
+defineProps<{ entry: RankHistoryEntryReadModel }>()
 </script>
 
 <template>

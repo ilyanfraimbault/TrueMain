@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatCount } from '~~/shared/utils/counts'
-import type { ChampionScalingBucket } from '~~/shared/types/champions'
+import type { ChampionScalingBucket } from '#shared/contract/api'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = withDefaults(defineProps<{

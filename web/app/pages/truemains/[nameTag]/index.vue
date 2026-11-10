@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import { parseRouteParam } from '#common/utils/route-params'
 import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
-import { platformIdToRegion } from '~~/shared/utils/region'
 
 const route = useRoute()
 
@@ -50,8 +49,6 @@ const {
   isInitialLoading: rankHistoryLoading,
   ready: rankHistoryReady,
 } = useTruemainRankHistory(nameTag)
-// The region's GM / Challenger lines on the LP curve (#2174).
-const apexCutoffs = useApexCutoffs(() => profile.value?.identity.platformId)
 
 // Activity grid under the LP curve (#927). One request covers all four
 // granularities — the mode switch inside the card is local, so no refetch and no
@@ -62,14 +59,9 @@ const {
   ready: activityReady,
 } = useTruemainActivity(nameTag)
 
-// Human label for the breadcrumb / SEO title — `gameName#tagLine`. The profile
-// rides the SSR payload (#2359), so both renders read the fetched identity; the
-// route slug's label (#948) only stands in while a client navigation loads it.
-const playerLabel = computed(() => {
-  const identity = profile.value?.identity
-  if (!identity) return truemainSlugLabel(nameTag.value)
-  return riotIdLabel(identity.gameName, identity.tagLine)
-})
+// Human label for the breadcrumb / SEO title. The profile rides the SSR payload
+// (#2359), so both renders read the fetched identity.
+const playerLabel = useTruemainPlayerLabel(nameTag, profile)
 
 // Truemains > {player}. Rendered even in the loading / not-found states so the
 // page always has a way back up to the leaderboard.
@@ -187,12 +179,7 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady, 
         v-if="profile"
         #title-actions
       >
-        <FavoriteToggle
-          :game-name="profile.identity.gameName"
-          :tag-line="profile.identity.tagLine"
-          :region="platformIdToRegion(profile.identity.platformId)"
-          :profile-icon-id="profile.identity.profileIconId"
-        />
+        <ProfileFollowToggle :identity="profile.identity" />
       </template>
 
       <template #actions>
@@ -225,53 +212,26 @@ await Promise.all([profileReady, rankHistoryReady, activityReady, matchesReady, 
       </template>
 
       <template #aside>
-        <!-- A failed profile is said once, here, instead of four skeletons that never end (#2476). -->
-        <FetchErrorAlert
-          v-if="profileError && !profile"
-          :error="profileError"
-          title="This player's profile could not be loaded"
-        />
-        <template v-else>
-          <ProfileRankedCardSkeleton v-if="profileLoading || !profile" />
-          <ProfileRankedCard
-            v-else
-            :ranked="profile.ranked"
-            :history="rankHistory?.entries ?? []"
-            :history-loading="rankHistoryLoading || apexCutoffs.loading"
-            :cutoffs="apexCutoffs.cutoffs"
-          />
-
-          <!-- Under the ranked card: the LP curve says how the climb went, the
-               grid how much was played to get there. Its own loading state is
-               internal, so the window switch is usable while the payload lands. -->
-          <ProfileActivityHeatmap
-            v-if="!profileLoading && profile"
-            :data="activity"
-            :loading="activityLoading"
-          />
-
-          <ProfileDedicationCardSkeleton v-if="profileLoading || !profile" />
-          <ProfileDedicationCard
-            v-else-if="profile.dedication"
-            :dedication="profile.dedication"
-            :champions="champions"
-            :name-tag="nameTag"
-          />
-
-          <ProfileMainChampionsSkeleton v-if="profileLoading || !profile" />
-          <ProfileMainChampions
-            v-else-if="profile.mains.length > 0"
-            :mains="profile.mains"
-            :champions="champions"
-            :name-tag="nameTag"
-          />
-
-          <ProfilePositionBreakdownSkeleton v-if="profileLoading || !profile" />
-          <ProfilePositionBreakdown
-            v-else
-            :positions="profile.positions"
-          />
-        </template>
+        <ProfileAside
+          :name-tag="nameTag"
+          :profile="profile"
+          :profile-loading="profileLoading"
+          :profile-error="profileError"
+          :rank-history="rankHistory?.entries ?? []"
+          :rank-history-loading="rankHistoryLoading"
+          :activity="activity"
+          :activity-loading="activityLoading"
+          :champions="champions"
+        >
+          <template #mains="{ profile: loaded }">
+            <ProfileMainChampions
+              v-if="loaded.mains.length > 0"
+              :mains="loaded.mains"
+              :champions="champions"
+              :name-tag="nameTag"
+            />
+          </template>
+        </ProfileAside>
       </template>
     </PagePlayerProfile>
   </div>

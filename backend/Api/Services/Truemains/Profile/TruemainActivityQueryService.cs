@@ -123,7 +123,7 @@ public sealed class TruemainActivityQueryService(
         return new TruemainActivityReadModel
         {
             Month = Series(
-                TruemainActivityKinds.MonthMode,
+                ActivityMode.Month,
                 patch: null,
                 TruemainActivityBuckets.ByDay(
                     games,
@@ -133,20 +133,20 @@ public sealed class TruemainActivityQueryService(
                 // A database with no parseable patch yet: there is no window to draw,
                 // and inventing one from this player's games would answer a different
                 // question. The UI states the empty series.
-                ? EmptySeries(TruemainActivityKinds.PatchMode, patch: null)
+                ? EmptySeries(ActivityMode.Patch, patch: null)
                 : Series(
-                    TruemainActivityKinds.PatchMode,
+                    ActivityMode.Patch,
                     bounds.Patch,
                     TruemainActivityBuckets.ByDay(
                         games,
                         patchFirstDay.Value,
                         Later(TruemainActivityBuckets.FloorToDayUtc(bounds.PatchLastGameUtc), lastDay))),
             Week = Series(
-                TruemainActivityKinds.WeekMode,
+                ActivityMode.Week,
                 patch: null,
                 TruemainActivityBuckets.ByDay(games, lastDay.AddDays(-(TruemainActivityBuckets.WeekWindowDays - 1)), lastDay)),
             Day = Series(
-                TruemainActivityKinds.DayMode,
+                ActivityMode.Day,
                 patch: null,
                 TruemainActivityBuckets.ByGame(games, lastDay)),
         };
@@ -261,7 +261,7 @@ public sealed class TruemainActivityQueryService(
     }
 
     private static TruemainActivitySeriesReadModel Series(
-        string mode,
+        ActivityMode mode,
         string? patch,
         IReadOnlyList<TruemainActivityBucketReadModel> buckets)
     {
@@ -284,7 +284,7 @@ public sealed class TruemainActivityQueryService(
         };
     }
 
-    private static TruemainActivitySeriesReadModel EmptySeries(string mode, string? patch)
+    private static TruemainActivitySeriesReadModel EmptySeries(ActivityMode mode, string? patch)
         => Series(mode, patch, []);
 
     private static DateTime Later(DateTime left, DateTime right) => left > right ? left : right;

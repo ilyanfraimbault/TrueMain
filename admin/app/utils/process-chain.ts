@@ -1,7 +1,7 @@
 // Presentation helpers shared by the Processes page's chain, iteration and run
 // components (split out of `pages/processes.vue`, #1436). One copy so the lane
 // tree, the iteration list and the slide-overs cannot drift apart again.
-import type { ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 import type { ChainLink, ChainOutcome } from '~~/shared/utils/pipeline-lanes'
 import { PROCESS_META } from '~~/shared/types/pipeline-chain'
 import { processStatusIcon } from '~~/shared/utils/pipeline-health'
@@ -111,7 +111,7 @@ export function statusBadgeUi(s: ProcessRunStatus): { leadingIcon: string } | un
 // arrays of per-platform rows). `ProcessSummaryView` renders any of those shapes
 // as readable fields/tables; the raw JSON stays available as a collapsible
 // fallback, which is what this produces.
-export function summaryJson(summary: ProcessRun['summary']): string | null {
+export function summaryJson(summary: ProcessRunReadModel['summary']): string | null {
   if (summary === null || summary === undefined) {
     return null
   }
@@ -123,7 +123,7 @@ export function summaryJson(summary: ProcessRun['summary']): string | null {
  * it now, so a Running run settles in place on the next refresh; the click's
  * snapshot only when the run has left every feed (paged out of a short history).
  */
-export function liveRun(selected: ProcessRun | null, feeds: readonly (readonly ProcessRun[])[]): ProcessRun | null {
+export function liveRun(selected: ProcessRunReadModel | null, feeds: readonly (readonly ProcessRunReadModel[])[]): ProcessRunReadModel | null {
   if (!selected) {
     return null
   }

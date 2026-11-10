@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { championDisplayName } from '~~/shared/utils/champion-name'
-import type { ChampionOverviewRow } from '~~/shared/types/champions'
+import type { ChampionOverviewRowReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { winRateTone } from '#common/utils/rate-tone'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 // Homepage teaser of the champion tier list: the top rows of the active
 // patch, tier first — a presence ranking (pick and ban rate lead), so it is
@@ -16,7 +16,7 @@ import { POSITION_BY_VALUE } from '#common/utils/positions'
 // the page instead of by this component, so there is exactly one place that
 // decides "is this ready yet".
 const props = defineProps<{
-  topRows: ChampionOverviewRow[]
+  topRows: ChampionOverviewRowReadModel[]
   championsById: Map<number, ChampionStaticListItem>
 }>()
 

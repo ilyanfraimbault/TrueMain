@@ -1,4 +1,4 @@
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { PlayerGame, PlayerRecord } from '~/types/record'
 import { readRankHistory, recordRankSnapshot } from '~/utils/lp-history'
 import { shell } from '~/utils/shell'
@@ -31,7 +31,7 @@ export function usePlayerRecord() {
   const owner = useState<string | null>('player-record-owner', () => null)
   const readAt = useState<number>('player-record-read-at', () => 0)
   const status = useState<'idle' | 'pending' | 'ready' | 'error'>('player-record-status', () => 'idle')
-  const rankHistory = useState<RankHistoryEntry[]>('player-rank-history', () => [])
+  const rankHistory = useState<RankHistoryEntryReadModel[]>('player-rank-history', () => [])
   const older = useState<PlayerGame[]>('player-record-older', () => [])
   const hasOlder = useState<boolean>('player-record-has-older', () => false)
   // The client's own index of the next older page. Kept apart from the number of
@@ -79,7 +79,7 @@ export function usePlayerRecord() {
     }
   }
 
-  function noteStanding(riotId: string, answer: PlayerRecord | null): RankHistoryEntry[] {
+  function noteStanding(riotId: string, answer: PlayerRecord | null): RankHistoryEntryReadModel[] {
     if (!insideTauri()) return import.meta.dev ? useDevScenarios().rankHistory.value : []
     const solo = answer?.ranked.find(queue => queue.queueType === 'RANKED_SOLO_5x5') ?? null
     return answer ? recordRankSnapshot(riotId, solo) : readRankHistory(riotId)

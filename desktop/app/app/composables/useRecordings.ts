@@ -7,6 +7,7 @@ import type {
 import type { Chord } from '~/types/overlay'
 import { RECORDING_SCHEME } from '~/generated/shell'
 import type { ShellAnswer, ShellCommand, ShellCommands } from '~/utils/shell'
+import { shell, shellEvents } from '~/utils/shell'
 
 /** The shell's recording commands (`src-tauri/src/recording`). */
 export type RecordingCommand = Extract<ShellCommand,

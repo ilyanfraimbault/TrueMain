@@ -136,7 +136,7 @@ public sealed record PersonaAdminExclusionReadModel
     public string PlatformId { get; init; } = string.Empty;
 
     /// <summary><c>conflict</c> (a resolution), <c>unlinked</c> (an operator's unlink) or <c>takedown</c>.</summary>
-    public string Reason { get; init; } = string.Empty;
+    public PersonaExclusionReason Reason { get; init; }
 
     public DateTime CreatedAtUtc { get; init; }
 }
@@ -154,7 +154,7 @@ public sealed record PersonaAdminConflictReadModel
     public Guid Id { get; init; }
 
     /// <summary><c>claimant</c> when this persona claims an account another holds, <c>owner</c> when it holds one another claims.</summary>
-    public string Role { get; init; } = string.Empty;
+    public PersonaConflictSide Role { get; init; }
 
     public string GameName { get; init; } = string.Empty;
 

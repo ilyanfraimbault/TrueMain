@@ -1,8 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { pageParams, resolveDevApiMock, tierFor } from '~~/server/utils/dev-api-mock'
-import type { ChampionDirectoryResponse } from '~~/shared/types/champion-directory'
-import type { ChampionMainsComparison, ChampionSynergies, ChampionTrioSynergies } from '~~/shared/types/champions'
-import type { LeaderboardResponse, LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import { resolveDevApiMock } from '~~/server/dev/api-mock'
+import type { ChampionDirectoryPageReadModel, ChampionMainsComparisonResponse, ChampionSynergiesResponse, ChampionTrioSynergiesResponse, LeaderboardResponse, LeaderboardRowReadModel } from '#shared/contract/api'
 
 // `resolveDevApiMock` reaches two auto-imported server globals: `$fetch`
 // (via latestShortPatch, for the DDragon version list) and `createError`
@@ -12,38 +10,6 @@ beforeAll(() => {
   vi.stubGlobal('$fetch', vi.fn(async () => ['15.13.1', '15.12.1']))
   vi.stubGlobal('createError', (opts: { statusCode: number, statusMessage?: string }) =>
     Object.assign(new Error(opts.statusMessage ?? 'error'), opts))
-})
-
-describe('tierFor', () => {
-  it('buckets by win-rate percentile, S at the top through D at the bottom', () => {
-    expect(tierFor(0, 100)).toBe('S')
-    expect(tierFor(20, 100)).toBe('A')
-    expect(tierFor(50, 100)).toBe('B')
-    expect(tierFor(80, 100)).toBe('C')
-    expect(tierFor(99, 100)).toBe('D')
-  })
-})
-
-describe('pageParams', () => {
-  it('defaults to page 1 and the fallback size', () => {
-    expect(pageParams({}, 25, 100)).toEqual({ page: 1, pageSize: 25 })
-  })
-
-  it('clamps page up to 1 and pageSize down to the max', () => {
-    expect(pageParams({ page: '-3', pageSize: '999' }, 25, 100)).toEqual({ page: 1, pageSize: 100 })
-  })
-
-  it('clamps a negative pageSize up to 1', () => {
-    expect(pageParams({ page: '2', pageSize: '-5' }, 25, 100)).toEqual({ page: 2, pageSize: 1 })
-  })
-
-  it('clamps an explicit pageSize=0 up to 1 (not the fallback)', () => {
-    expect(pageParams({ pageSize: '0' }, 25, 100)).toEqual({ page: 1, pageSize: 1 })
-  })
-
-  it('falls back on non-numeric input', () => {
-    expect(pageParams({ page: 'x', pageSize: 'y' }, 25, 100)).toEqual({ page: 1, pageSize: 25 })
-  })
 })
 
 describe('resolveDevApiMock', () => {
@@ -59,7 +25,7 @@ describe('resolveDevApiMock', () => {
   })
 
   it('routes /champions/directory to one ordered, paged envelope', async () => {
-    const page = await resolveDevApiMock('/champions/directory', { pageSize: '10' }) as ChampionDirectoryResponse
+    const page = await resolveDevApiMock('/champions/directory', { pageSize: '10' }) as ChampionDirectoryPageReadModel
     expect(page.rows).toHaveLength(10)
     expect(page.page).toBe(1)
     expect(page.total).toBeGreaterThan(10)
@@ -69,21 +35,21 @@ describe('resolveDevApiMock', () => {
   })
 
   it('orders the directory by the requested column and direction', async () => {
-    const page = await resolveDevApiMock('/champions/directory', { sort: 'games', order: 'asc', pageSize: '100' }) as ChampionDirectoryResponse
+    const page = await resolveDevApiMock('/champions/directory', { sort: 'games', order: 'asc', pageSize: '100' }) as ChampionDirectoryPageReadModel
     const games = page.rows.map(row => row.games)
     expect(games).toEqual([...games].sort((a, b) => a - b))
   })
 
   it('narrows the directory to a lane before paging', async () => {
-    const page = await resolveDevApiMock('/champions/directory', { position: 'JUNGLE', pageSize: '100' }) as ChampionDirectoryResponse
+    const page = await resolveDevApiMock('/champions/directory', { position: 'JUNGLE', pageSize: '100' }) as ChampionDirectoryPageReadModel
     expect(page.rows.length).toBe(page.total)
     expect(page.rows.every(row => row.position === 'JUNGLE')).toBe(true)
   })
 
   it.each([
-    ['games', (row: LeaderboardRowResponse) => row.stats.games],
-    ['kda', (row: LeaderboardRowResponse) => row.stats.kda ?? -1],
-    ['winRate', (row: LeaderboardRowResponse) => row.stats.winRate ?? -1],
+    ['games', (row: LeaderboardRowReadModel) => row.stats.games],
+    ['kda', (row: LeaderboardRowReadModel) => row.stats.kda ?? -1],
+    ['winRate', (row: LeaderboardRowReadModel) => row.stats.winRate ?? -1],
   ] as const)('orders the whole truemains board by %s, then pages it', async (sort, figure) => {
     const first = await resolveDevApiMock('/truemains', { sort, pageSize: '10' }) as LeaderboardResponse
     const second = await resolveDevApiMock('/truemains', { sort, pageSize: '10', page: '2' }) as LeaderboardResponse
@@ -120,11 +86,11 @@ describe('resolveDevApiMock', () => {
 // panel keeps its rows.
 describe('resolveDevApiMock: /champions/{id}/synergies', () => {
   async function synergies(id: number, query: Record<string, string> = {}) {
-    return await resolveDevApiMock(`/champions/${id}/synergies`, query) as ChampionSynergies
+    return await resolveDevApiMock(`/champions/${id}/synergies`, query) as ChampionSynergiesResponse
   }
 
   async function trio(id: number, partner: number, partnerPosition: string) {
-    return await resolveDevApiMock(`/champions/${id}/synergies/trios`, { partner: String(partner), partnerPosition }) as ChampionTrioSynergies
+    return await resolveDevApiMock(`/champions/${id}/synergies/trios`, { partner: String(partner), partnerPosition }) as ChampionTrioSynergiesResponse
   }
 
   it('stages the no-partner state on champions whose id is divisible by 13', async () => {
@@ -170,7 +136,7 @@ describe('resolveDevApiMock: /champions/{id}/mains-comparison', () => {
   const path = '/champions/157/mains-comparison'
 
   async function comparison(query: Record<string, string>) {
-    return await resolveDevApiMock(path, query) as ChampionMainsComparison
+    return await resolveDevApiMock(path, query) as ChampionMainsComparisonResponse
   }
 
   it('400s on a malformed Riot ID, rather than reporting it as unknown', async () => {

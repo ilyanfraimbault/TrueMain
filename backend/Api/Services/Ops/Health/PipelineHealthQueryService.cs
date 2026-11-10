@@ -3,12 +3,13 @@ using Core.Options;
 using Data;
 using Data.Entities;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
-using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
+using TrueMain.Services.Ops.Database;
 
 namespace TrueMain.Services.Ops.Health;
 
@@ -48,15 +49,15 @@ public sealed class PipelineHealthQueryService(
 
     private static readonly string[] ProcessNames =
     [
-        "Discovery",
-        "Scoring",
-        "MatchIngestion",
-        "MainAnalysis",
-        "MatchParticipantEloBracketEnrichment",
-        "ChampionPatternAggregation",
-        "ChampionMatchupLeadAggregation",
-        "AccountRefresh",
-        "MatchDataRetention"
+        PipelineCatalog.Discovery.Name,
+        PipelineCatalog.Scoring.Name,
+        PipelineCatalog.MatchIngestion.Name,
+        PipelineCatalog.MainAnalysis.Name,
+        PipelineCatalog.EloBracketEnrichment.Name,
+        PipelineCatalog.PatternAggregation.Name,
+        PipelineCatalog.MatchupAggregation.Name,
+        PipelineCatalog.AccountRefresh.Name,
+        PipelineCatalog.MatchDataRetention.Name
     ];
 
     public async Task<PipelineHealthReadModel> GetAsync(CancellationToken ct)
@@ -135,8 +136,7 @@ public sealed class PipelineHealthQueryService(
             {
                 processes.Add(new ProcessHealthReadModel
                 {
-                    ProcessName = processName,
-                    Status = PipelineHealthEvaluator.MissingStatus
+                    ProcessName = processName
                 });
                 continue;
             }
@@ -163,7 +163,7 @@ public sealed class PipelineHealthQueryService(
             processes.Add(new ProcessHealthReadModel
             {
                 ProcessName = run.ProcessName,
-                Status = effectiveStatus.ToString(),
+                Status = effectiveStatus,
                 LastStartedAtUtc = run.StartedAtUtc,
                 LastFinishedAtUtc = run.FinishedAtUtc,
                 LastSuccessAtUtc = rollup?.LastSuccessAtUtc,
@@ -291,15 +291,15 @@ public sealed class PipelineHealthQueryService(
         // The newest *successful* finish of each side, not the newest run: a failed
         // MatchIngestion says nothing about how far MainAnalysis trails the data it has.
         var successes = await processRunStore.GetLatestPerProcessAsync(
-            ["MatchIngestion", "MainAnalysis"], onlySuccesses: true, ct);
+            [PipelineCatalog.MatchIngestion.Name, PipelineCatalog.MainAnalysis.Name], onlySuccesses: true, ct);
 
         var latestMatchIngestionSuccess = successes
-            .Where(run => run.ProcessName == "MatchIngestion")
+            .Where(run => run.ProcessName == PipelineCatalog.MatchIngestion.Name)
             .Select(run => (DateTime?)run.FinishedAtUtc)
             .FirstOrDefault();
 
         var latestMainAnalysisSuccess = successes
-            .Where(run => run.ProcessName == "MainAnalysis")
+            .Where(run => run.ProcessName == PipelineCatalog.MainAnalysis.Name)
             .Select(run => (DateTime?)run.FinishedAtUtc)
             .FirstOrDefault();
 
@@ -408,7 +408,7 @@ public sealed class PipelineHealthQueryService(
         {
             Key = key,
             Title = title,
-            Status = "unknown",
+            Status = DetectorStatus.Unknown,
             Headline = "This signal could not be measured.",
             UnknownReason = reason,
             DetailPath = detailPath

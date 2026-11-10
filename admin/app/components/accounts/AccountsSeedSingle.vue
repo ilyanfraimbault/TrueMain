@@ -5,7 +5,7 @@
 // `useSeedTracking`; split out of `AccountsSeed.vue` (#1436).
 import type { FormError, FormSubmitEvent } from '@nuxt/ui'
 import { TRACKED_REGION_ITEMS, TRACKED_REGIONS_LABEL } from '~~/shared/utils/regions'
-import { formatRiotId, parseRiotIdOrSlug } from '~~/shared/utils/riot-id'
+import { formatRiotId, parseRiotIdOrSlug } from '#site-shared/utils/riot-id'
 import { SEED_POLL_TIMEOUT_MS } from '~/composables/useSeedTracking'
 import { SEED_STEP_STYLE, SEED_STEPS, seedStepStates } from '~/utils/seed-tracking'
 

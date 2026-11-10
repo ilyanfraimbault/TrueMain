@@ -279,6 +279,7 @@ Last verified against `develop` on 2026-09-02.
 - Configuration defaults live in the class, and the two champion games floors are two keys — #1034, #860, #889
 - A unit of work covers the writes and nothing else (2026-08-28) — #264, #1229
 - `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07) — #1520, #1451
+- Api registration is owned by the feature: `Program.cs` only composes `AddTrueMain<Area>()`; options carry their section, rules and configuration-page entry (2026-11-08) — #2489
 - A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541, #124
 - Ingestor options: bounds are attributes checked by a generated validator, cross-field rules stay lambdas (2026-10-04) — #271
 - A role is a string from `LanePositions` (no enum, `MID`/`BOT` accepted on input); timeline marks live once in `Data` (2026-10-04) — #1232
@@ -287,6 +288,7 @@ Last verified against `develop` on 2026-09-02.
 - Threading + Roslynator analyzers run on every project: async-correctness rules are errors, JTF-only and false-positive rules are off, Roslynator style stays IDE hints (2026-10-05) — #294
 - `riot_accounts` carries no concurrency token; a process's own timestamp is stamped set-based (2026-11-04) — #2046, #231, #2448
 - Benchmark counters are upserted once per transaction, in conflict-key order (2026-11-04) — #2448
+- The API's TypeScript types are generated from its committed OpenAPI document; enums travel by name (2026-11-08) — #2493
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
@@ -321,6 +323,7 @@ Last verified against `develop` on 2026-09-02.
 - A redeploy is an outcome the pipeline records, not an accident it absorbs (2026-09-07) — #1513
 - Jungle first-clear tracking was built, then removed entirely (2026-08-24) — #1186, #1195, #535
 - A shell match (`endOfGameResult` ≠ `GameComplete`) is refused at ingest; a remake is Riot's flag *or* the 5-minute floor (2026-10-06) — #1364, #1365
+- The pipeline is one catalog in `Data`: every step's mode, persisted name, lane, order and prerequisites, read by the ingestor, the Api and the admin (2026-11-08) — #2488
 
 ## Performance, caching and incidents — [`decisions/performance-and-incidents.md`](decisions/performance-and-incidents.md)
 

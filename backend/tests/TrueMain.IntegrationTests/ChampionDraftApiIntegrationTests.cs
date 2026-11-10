@@ -93,7 +93,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
         var json = await response.Content.ReadAsStringAsync();
         AssertShippedRecommendationFields(json);
 
-        var draft = JsonSerializer.Deserialize<DraftRecommendationResponse>(json, JsonSerializerOptions.Web)!;
+        var draft = JsonSerializer.Deserialize<DraftRecommendationResponse>(json, ApiJson.Options)!;
         draft.Position.Should().Be(Position);
         draft.LaneOpponentChampionId.Should().Be(Zed);
         draft.LaneOpponentProbability.Should().BeGreaterThan(0.99, "Zed is only ever played MIDDLE");
@@ -113,7 +113,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
 
         // The matchup carries the pick; with no ally on the board, the lane phase into
         // the likely opponent fills the card (150 of 250 decided lanes won at 15 min).
-        ahri.Reasons.Select(r => r.Kind).Should().Equal(DraftReasonKinds.LaneMatchup, DraftReasonKinds.LanePhase);
+        ahri.Reasons.Select(r => r.Kind).Should().Equal(DraftReasonKind.LaneMatchup, DraftReasonKind.LanePhase);
         var matchup = ahri.Reasons[0];
         matchup.ChampionId.Should().Be(Zed);
         matchup.Delta.Should().BeApproximately(0.10, 1e-9);
@@ -158,12 +158,12 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
         ahri.Blind.LosingInto.Should().Be(2);
         ahri.Blind.LikelyOpponents.Should().Be(6);
 
-        var blind = ahri.Reasons.Should().ContainSingle(r => r.Kind == DraftReasonKinds.BlindSafety).Subject;
+        var blind = ahri.Reasons.Should().ContainSingle(r => r.Kind == DraftReasonKind.BlindSafety).Subject;
         blind.Delta.Should().BeApproximately(-140d / 5_600d, 1e-9);
         blind.Games.Should().Be(1_200);
         blind.Count.Should().Be(2);
         blind.Of.Should().Be(6);
-        ahri.Reasons.Should().NotContain(r => r.Kind == DraftReasonKinds.LaneMatchup);
+        ahri.Reasons.Should().NotContain(r => r.Kind == DraftReasonKind.LaneMatchup);
 
         var leblanc = draft.Candidates.Single(c => c.ChampionId == LeBlanc);
         leblanc.Blind.Delta.Should().BeApproximately(200d / 5_000d, 1e-9);
@@ -205,13 +205,13 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
 
         // Three score terms, then the lane phase into Zed, which is never one.
         ahri.Reasons.Select(r => r.Kind).Should().Equal(
-            DraftReasonKinds.LaneMatchup, DraftReasonKinds.Synergy, DraftReasonKinds.Synergy, DraftReasonKinds.LanePhase);
-        var lulu = ahri.Reasons.Single(r => r.Kind == DraftReasonKinds.Synergy && r.ChampionId == Lulu);
+            DraftReasonKind.LaneMatchup, DraftReasonKind.Synergy, DraftReasonKind.Synergy, DraftReasonKind.LanePhase);
+        var lulu = ahri.Reasons.Single(r => r.Kind == DraftReasonKind.Synergy && r.ChampionId == Lulu);
         lulu.Position.Should().Be("UTILITY");
         lulu.Delta.Should().BeApproximately(0.10, 1e-9);
         lulu.Games.Should().Be(400);
         lulu.Tentative.Should().BeFalse();
-        var leeSin = ahri.Reasons.Single(r => r.Kind == DraftReasonKinds.Synergy && r.ChampionId == LeeSin);
+        var leeSin = ahri.Reasons.Single(r => r.Kind == DraftReasonKind.Synergy && r.ChampionId == LeeSin);
         leeSin.Position.Should().Be("JUNGLE");
         leeSin.Delta.Should().BeApproximately(0.15, 1e-9);
         leeSin.Tentative.Should().BeTrue();
@@ -239,7 +239,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var json = await response.Content.ReadAsStringAsync();
         AssertTextFreeReasons(json);
-        var draft = JsonSerializer.Deserialize<DraftRecommendationResponse>(json, JsonSerializerOptions.Web)!;
+        var draft = JsonSerializer.Deserialize<DraftRecommendationResponse>(json, ApiJson.Options)!;
 
         // Three mostly physical allies, Garen the one frontline: AllyMagicDamage Low and
         // AllyFrontline Mid. Ahri wins 65% of 400 games with a physical team against 50%
@@ -249,7 +249,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
         ahri.TeamFitDelta.Should().BeApproximately(0.075, 1e-9);
         ahri.TeamFitGames.Should().Be(500);
         var fit = ahri.Reasons[^1];
-        fit.Kind.Should().Be(DraftReasonKinds.TeamFit);
+        fit.Kind.Should().Be(DraftReasonKind.TeamFit);
         fit.Axis.Should().Be("AllyMagicDamage");
         fit.Bucket.Should().Be("Low");
         fit.Delta.Should().BeApproximately(0.15, 1e-9);
@@ -258,7 +258,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
 
         // The composition is stated, not scored (weight 0 until the back-test sets it):
         // it comes after the terms that are.
-        ahri.Reasons.Take(ahri.Reasons.Count - 1).Should().NotContain(r => r.Kind == DraftReasonKinds.TeamFit);
+        ahri.Reasons.Take(ahri.Reasons.Count - 1).Should().NotContain(r => r.Kind == DraftReasonKind.TeamFit);
         draft.Candidates.Single(c => c.ChampionId == LeBlanc).TeamFitGames
             .Should().Be(0, "LeBlanc has no item-context totals");
     }
@@ -321,7 +321,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
 
         var json = await response.Content.ReadAsStringAsync();
         AssertTextFreeReasons(json);
-        var bans = JsonSerializer.Deserialize<DraftBanResponse>(json, JsonSerializerOptions.Web)!;
+        var bans = JsonSerializer.Deserialize<DraftBanResponse>(json, ApiJson.Options)!;
 
         bans.Position.Should().Be(Position);
         bans.Patch.Should().Be(Current);
@@ -335,7 +335,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
         bans.Candidates.Should().OnlyContain(c => c.Score > 0);
 
         var fizz = bans.Candidates[0].Reasons.Should().ContainSingle().Subject;
-        fizz.Kind.Should().Be(DraftReasonKinds.LaneThreat);
+        fizz.Kind.Should().Be(DraftReasonKind.LaneThreat);
         fizz.ChampionId.Should().Be(Ahri);
         fizz.Delta.Should().BeApproximately(-0.10, 1e-9);
         fizz.Games.Should().Be(400);
@@ -401,7 +401,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
         nothing.Candidates.Select(c => c.ChampionId).Should().Equal(Fizz, Ahri, Kassadin, Syndra, LeBlanc);
         nothing.Candidates.Should().OnlyContain(c => c.Score == 0);
         var fizz = nothing.Candidates[0].Reasons.Should().ContainSingle().Subject;
-        fizz.Kind.Should().Be(DraftReasonKinds.BanRate);
+        fizz.Kind.Should().Be(DraftReasonKind.BanRate);
         fizz.ChampionId.Should().Be(Fizz);
         fizz.Rate.Should().BeApproximately(0.4, 1e-9);
         fizz.Games.Should().Be(1_000);
@@ -419,7 +419,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
 
         cleared.Target.Should().Be(DraftBanTargets.Pick);
         cleared.Candidates.Select(c => c.ChampionId).Should().Equal(Zed, Syndra, LeBlanc, Annie);
-        cleared.Candidates.Should().OnlyContain(c => c.Reasons.All(r => r.Kind == DraftReasonKinds.BanRate));
+        cleared.Candidates.Should().OnlyContain(c => c.Reasons.All(r => r.Kind == DraftReasonKind.BanRate));
     }
 
     /// <summary>
@@ -488,14 +488,14 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
     {
         var response = await client.PostAsJsonAsync("/champions/draft", request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<DraftRecommendationResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<DraftRecommendationResponse>(ApiJson.Options))!;
     }
 
     private static async Task<DraftBanResponse> PostBansAsync(HttpClient client, object request)
     {
         var response = await client.PostAsJsonAsync("/champions/draft/bans", request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<DraftBanResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<DraftBanResponse>(ApiJson.Options))!;
     }
 
     /// <summary>

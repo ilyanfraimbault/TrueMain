@@ -1,6 +1,6 @@
-import type { PersonaConflict, PersonaOps } from '~~/shared/types/ops'
+import type { PersonaConflictReadModel, PersonaOpsReadModel } from '#site-shared/contract/api'
 
-export function conflict(over: Partial<PersonaConflict> = {}): PersonaConflict {
+export function conflict(over: Partial<PersonaConflictReadModel> = {}): PersonaConflictReadModel {
   return {
     id: 'c1',
     status: 'Open',
@@ -25,7 +25,7 @@ export function conflict(over: Partial<PersonaConflict> = {}): PersonaConflict {
   }
 }
 
-export function persona(over: Partial<PersonaOps> = {}): PersonaOps {
+export function persona(over: Partial<PersonaOpsReadModel> = {}): PersonaOpsReadModel {
   return {
     id: 'p1',
     slug: 'peng',

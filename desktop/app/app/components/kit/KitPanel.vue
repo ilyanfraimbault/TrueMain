@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Kit } from '~/types/kit'
-import { positionLabel } from '#common/utils/positions'
+import { positionLabel } from '#shared/utils/positions'
 import { cloneKit, freeName, kitFromBuild } from '~/utils/kit'
 import { defaultRunePage } from '~/utils/kit-runes'
 

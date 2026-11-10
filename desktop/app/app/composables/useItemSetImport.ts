@@ -1,5 +1,5 @@
+import type { ChampionItemContextResponse } from '#shared/contract/api'
 import type { ItemSetRefusal } from '~/generated/shell'
-import type { ChampionItemContextResponse } from '#shared/types/item-context'
 import type { BuildOption } from '~/types/build'
 import { hasItems, itemSetBuild, situationalFromContext, situationalFromTree } from '~/utils/item-set'
 import { shell } from '~/utils/shell'

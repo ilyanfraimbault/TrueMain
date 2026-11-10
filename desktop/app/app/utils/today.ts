@@ -1,6 +1,7 @@
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { PlayerGame } from '~/types/record'
 import { lpDeltaOf } from '~/utils/lp-history'
+import { RANKED_SOLO_QUEUE_ID } from '#shared/utils/queues'
 
 /**
  * The player's session so far: the games they started since local midnight,
@@ -11,7 +12,6 @@ import { lpDeltaOf } from '~/utils/lp-history'
  * games that covers.
  */
 
-const SOLO_QUEUE = 420
 
 export interface DaySummary {
   games: number
@@ -41,7 +41,7 @@ export function startOfDay(now: Date): number {
 export function todayOf(
   games: PlayerGame[],
   allGames: PlayerGame[],
-  history: RankHistoryEntry[],
+  history: RankHistoryEntryReadModel[],
   now = new Date(),
 ): DaySummary | null {
   const since = startOfDay(now)
@@ -49,7 +49,7 @@ export function todayOf(
   if (today.length === 0) return null
 
   const wins = today.filter(game => game.win).length
-  const solo = today.filter(game => game.queueId === SOLO_QUEUE)
+  const solo = today.filter(game => game.queueId === RANKED_SOLO_QUEUE_ID)
   const deltas = solo
     .map(game => lpDeltaOf(game, allGames, history))
     .filter((delta): delta is number => delta !== null)

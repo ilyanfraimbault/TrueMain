@@ -5,20 +5,17 @@
 // rather than a queue-and-age slice. Grouped by issue type in an accordion so one
 // table shows at a time. The page owns the filters (its overview fetch and the
 // verdict read them) and the match slide-over this section asks it to open.
-import type {
-  BadgeColor,
-  DataQualityIssueType,
-  IncompleteMatchesFilters,
-  DataQualityIssueGroup,
-} from '~~/shared/types/ops'
+import type { OpsQueryOf } from '~/composables/useOps'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
+import type { DataQualityIssueGroupReadModel, DataQualityIssueType } from '#site-shared/contract/api'
 
 const props = defineProps<{
-  groups: DataQualityIssueGroup[]
+  groups: DataQualityIssueGroupReadModel[]
   pending: boolean
   error: unknown
   staleHours: number
   hasActiveFilters: boolean
-  baseFilters: Omit<IncompleteMatchesFilters, 'issue' | 'page'>
+  baseFilters: Omit<OpsQueryOf<'/data-quality/incomplete-matches'>, 'issue' | 'page'>
   pageSize: number
 }>()
 
@@ -37,11 +34,7 @@ const issueItems = [
 // Queues that have a data-quality profile on the backend (count/position rules).
 const queueItems = [
   { label: 'All queues', value: ALL },
-  { label: 'Ranked Solo (420)', value: '420' },
-  { label: 'Ranked Flex (440)', value: '440' },
-  { label: 'Normal (430)', value: '430' },
-  { label: 'ARAM (450)', value: '450' },
-  { label: 'Clash (700)', value: '700' },
+  ...[420, 440, 430, 450, 700].map(id => ({ label: `${dataQualityQueueLabel(id)} (${id})`, value: String(id) })),
 ]
 
 const ageItems = [

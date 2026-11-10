@@ -1,11 +1,20 @@
 // Presentation shared by the Data Quality page and its cards (split out of
 // `pages/data-quality.vue`, #1436).
-import type { DataQualityIssueType, IssueMeta } from '~~/shared/types/ops'
+import type { DataQualityIssueType } from '#site-shared/contract/api'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
+import { getQueueLabel } from '#site-shared/utils/queues'
 
-// Issue-type metadata: label, icon, badge color — drives the filter select and
-// the group headers/badges so presentation stays consistent across the panel.
-// `IssueMeta` / `BadgeColor` live in shared/types/ops so the page and
-// DataQualityGroupTable share one definition.
+/**
+ * How one issue type reads — label, icon and badge colour. Drives the filter select,
+ * the group headers and the badges, so the panel names a check the same way everywhere.
+ */
+export interface IssueMeta {
+  label: string
+  icon: string
+  color: BadgeColor
+  description: string
+}
+
 export const DATA_QUALITY_ISSUE_META: Record<DataQualityIssueType, IssueMeta> = {
   missingTimeline: {
     label: 'Missing timeline',
@@ -39,21 +48,9 @@ export const DATA_QUALITY_ISSUE_META: Record<DataQualityIssueType, IssueMeta> = 
   },
 }
 
-export const DATA_QUALITY_ISSUE_ORDER: DataQualityIssueType[] = [
-  'missingTimeline',
-  'wrongParticipantCount',
-  'missingTeamPosition',
-  'zeroDuration',
-  'duplicateChampion',
-]
+/** The checks in the order the API declares them. */
+export { dataQualityIssueTypeValues as DATA_QUALITY_ISSUE_ORDER } from '#site-shared/contract/api'
 
-const QUEUE_LABELS: Record<number, string> = {
-  420: 'Ranked Solo',
-  430: 'Normal',
-  440: 'Ranked Flex',
-  450: 'ARAM',
-  700: 'Clash',
-}
 
 export function dataQualityQueueLabel(queueId: number): string {
   // Queue id 0 isn't a real queue: Riot returns a stub payload (no queue id,
@@ -62,7 +59,7 @@ export function dataQualityQueueLabel(queueId: number): string {
   if (queueId === 0) {
     return 'Unknown queue'
   }
-  return QUEUE_LABELS[queueId] ?? `Queue ${queueId}`
+  return getQueueLabel(queueId)
 }
 
 export function pluralize(count: number, one: string, many: string): string {

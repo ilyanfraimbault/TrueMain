@@ -6,7 +6,7 @@
 // Below the open queue, the known players sharing a social channel (#2286).
 // The open queue is worked from the keyboard (#2293, `useConflictTriage`): settling
 // one conflict opens the next. Its most certain top is merged in bulk (#2295).
-import type { PersonaConflict, PersonaConflictDetail, PersonaConflictResolveBody, PersonaConflictStatus } from '~~/shared/types/ops'
+import type { PersonaConflictDetailReadModel, PersonaConflictReadModel, PersonaConflictResolveRequest, PersonaConflictStatus } from '#site-shared/contract/api'
 import { useConflictTriage } from '~/composables/useConflictTriage'
 import { useKeyedFetch } from '~/composables/useKeyedFetch'
 import { keyedId } from '~/utils/keyed-fetch'
@@ -58,14 +58,14 @@ const emptyText = computed(() => hasFilters.value
 // conflict (#2471): keyboard triage opens one after the other, and a slow answer for
 // the previous one never lands under the next.
 const detailOpen = ref(false)
-const { state: detailState, load: loadDetail } = useKeyedFetch<string, PersonaConflictDetail>(id => getPersonaConflict(id))
+const { state: detailState, load: loadDetail } = useKeyedFetch<string, PersonaConflictDetailReadModel>(id => getPersonaConflict(id))
 const detail = computed(() => detailState.value.s === 'ready' ? detailState.value.value : null)
 const detailError = computed(() => detailState.value.s === 'error' ? detailState.value.error : null)
 const busy = ref(false)
 const toast = useActionToast()
 const actions = ref<{ choose: (key: string) => void, confirm: () => void, armed: string | null } | null>(null)
 
-async function open(conflict: Pick<PersonaConflict, 'id'>) {
+async function open(conflict: Pick<PersonaConflictReadModel, 'id'>) {
   triage.select(conflict)
   detailOpen.value = true
   await loadDetail(conflict.id)
@@ -102,7 +102,7 @@ watch(detailOpen, (isOpen) => {
   }
 })
 
-async function resolve(body: PersonaConflictResolveBody) {
+async function resolve(body: PersonaConflictResolveRequest) {
   if (!detail.value) {
     return
   }

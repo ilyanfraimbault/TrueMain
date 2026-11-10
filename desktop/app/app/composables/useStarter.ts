@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { BuildItemSet, ChampionBuildResponse, CompositionBuildResponse } from '~/types/build'
+import type { BuildItemSetReadModel, ChampionResponse, CompositionBuildResponse } from '#shared/contract/api'
 import type { GameState } from '~/types/game'
 import { compositionStarter, starterBought, starterRequest } from '~/utils/next-item'
 import { apiAnswer, shell } from '~/utils/shell'
@@ -28,12 +28,12 @@ export function useStarter(game: Ref<GameState>) {
   const bought = computed(() => starterBought(held.value, statics.value))
   const request = computed(() => starterRequest(game.value, alias => idByAlias.value.get(alias.toLowerCase()) ?? null))
 
-  const answer = ref<BuildItemSet | null>(null)
+  const answer = ref<BuildItemSetReadModel | null>(null)
 
   async function laneStarter(championId: number, position: string) {
     const build = insideTauri()
-      ? await apiAnswer<ChampionBuildResponse>(shell.championBuild(championId, position, null))
-      : await $fetch<ChampionBuildResponse>(`/api/champions/${championId}`, { query: { position } })
+      ? await apiAnswer<ChampionResponse>(shell.championBuild(championId, position, null))
+      : await $fetch<ChampionResponse>(`/api/champions/${championId}`, { query: { position } })
     return build.builds[0]?.core.starterItems ?? null
   }
 

@@ -1,4 +1,4 @@
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
+import type { ChampionSummaryReadModel } from '#shared/contract/api'
 import type { ChampionOgCard } from '~~/shared/types/og-card'
 import type { ChampionStaticData } from '~~/shared/types/static-data'
 import { selectChampionSummaryRow } from '~~/shared/utils/og-card'
@@ -30,7 +30,7 @@ const loadChampionOgCard = defineCachedRead<ChampionOgCard, [number, ChampionSli
   async (championId: number, query: ChampionSliceQuery, forwardedFor?: string): Promise<ChampionOgCard> => {
     const [staticData, summaries] = await Promise.all([
       readOrAbsent<ChampionStaticData>(`/api/static/${championId}`, { forwardedFor }),
-      readOrAbsent<ChampionSummaryResponse[]>('/api/champions', {
+      readOrAbsent<ChampionSummaryReadModel[]>('/api/champions', {
         query: {
           patch: query.patch ?? undefined,
           eloBracket: query.eloBracket ?? undefined,

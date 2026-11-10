@@ -45,7 +45,7 @@ which downstream jobs are worth a runner:
 
 | Output | Paths | Gates |
 | ------ | ----- | ----- |
-| `backend` | `backend/**`, `global.json`, `web/shared/fixtures/performance-score-vectors.json` | backend build + unit + integration tests — the vectors are linked into the unit tests, which pin the C# score to the desktop app's port (#2075) |
+| `backend` | `backend/**`, `global.json`, `web/shared/fixtures/performance-score-vectors.json`, `web/shared/contract/openapi.json` | backend build + unit + integration tests — the vectors are linked into the unit tests, which pin the C# score to the desktop app's port (#2075); the contract is compared with the API's OpenAPI document (below) |
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` | `web/**` | the site's frontend job |
 | `admin` | `admin/**`, and from the site `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's frontend job |
@@ -130,6 +130,39 @@ Nuxt runtime through `@nuxt/test-utils` to mount components and exercise
 hydration paths. They live under `web/**`, so the `web` path filter already
 covers them.
 
+### The API contract
+
+The TypeScript the site, the admin and the desktop app read the API with is
+generated, not hand-copied (#2493). Two files are committed under
+`web/shared/contract/`, and each has a check that fails when it no longer
+follows from the one before it:
+
+| File | Produced from | Checked by |
+| ---- | ------------- | ---------- |
+| `openapi.json` | the API's OpenAPI document (`AddTrueMainContract` in `backend/Api/OpenApi`) | `OpenApiContractTests` in the backend job |
+| `api.ts` | `openapi.json`, by `openapi-typescript` (`npm run contract` in `web/`) | the web job's `Contract types up to date` step (`--check`) |
+
+After changing a read model, a request type or an endpoint, regenerate both:
+
+```bash
+TRUEMAIN_UPDATE_CONTRACT=1 dotnet test --project backend/tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --filter-class TrueMain.IntegrationTests.OpenApiContractTests
+```
+
+```bash
+npm --prefix web run contract
+```
+
+The test boots the API host without a database and without its hosted
+services, so it needs no Docker. The document lives in `web/shared` because
+every app already reaches that folder (`#shared`, `#site-shared` in the
+admin), and a change to it also runs the admin's job through its
+`web/shared/**` filter. Both files are committed rather than built in CI so a
+frontend builds without the .NET SDK, and so a contract change shows up in the
+PR diff.
+
+`openapi-typescript` declares a `typescript@^5` peer; `web/package.json`
+overrides it to the site's TypeScript.
+
 ### File sizes
 
 The frontends had no linter before #1440, and neither ESLint nor the backend
@@ -151,7 +184,7 @@ the baseline still runs the check — otherwise loosening an entry would be the 
 It also runs `deploy-scripts` for eight seconds, which is cheaper than a second filter output.
 
 Generated code (migrations, the compiled model, build output), every test tree
-and `web/server/utils/dev-api-mock.ts` are excluded — a long test file costs far
+and `web/server/dev/` (the dev mock) are excluded — a long test file costs far
 less to read than a long production file. The job runs its own test suite
 (`check-file-size.test.sh`) first, because the check is shell walking a
 directory tree and its failure mode is silently passing.
@@ -948,9 +981,10 @@ build costs runner minutes, not wall time, since it runs beside CI.
   where Dependabot's NuGet watch sees it, also analyses every non-MSBuild file
   under the repo (`sonar.scanner.scanAll`), which is how the TypeScript and Vue
   code is read without a second scanner. Generated code (EF migrations, the
-  compiled model, `.nuxt`), tests, the dev API mock and `.claude/` are
-  excluded: the agent's skills under `.claude/skills` never ship, and analysed,
-  they read as uncovered new code and fail the gate (#2068).
+  compiled model, `.nuxt`, the API contract under `web/shared/contract`), tests, the dev API mock (`web/server/dev`), the
+  `/dev/*` playground pages and their components (stripped from every build) and `.claude/` are
+  excluded: none of them ships, and analysed, they read as uncovered new code
+  and fail the gate (#2068).
 - `Download the lcov reports` downloads by pattern, and `download-artifact`
   puts a lone match straight into `path` instead of a directory named after
   it: a PR touching one frontend (the usual case since #2218) left its report

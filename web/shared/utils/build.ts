@@ -1,4 +1,4 @@
-import type { MatchDetailItemEvent } from '../types/match-detail'
+import type { MatchDetailItemEventReadModel } from '../contract/api'
 import type { StaticItemData } from '../types/static-data'
 
 /**
@@ -6,7 +6,7 @@ import type { StaticItemData } from '../types/static-data'
  * `ITEM_UNDO` and carries the affected item in `beforeId` / `afterId`, so fall
  * back to those. Returns 0 when nothing resolves.
  */
-export function resolveEventItemId(ev: MatchDetailItemEvent): number {
+export function resolveEventItemId(ev: MatchDetailItemEventReadModel): number {
   return ev.itemId || ev.beforeId || ev.afterId || 0
 }
 
@@ -75,7 +75,7 @@ function isNonShopItem(itemId: number, items: Record<number, StaticItemData>): b
  *    `ITEM_PURCHASED`, so keeping it would leave a ghost icon at the transform
  *    minute for the very cases we filter on the purchase side.
  */
-export function isBuildOrderEvent(ev: MatchDetailItemEvent, items: Record<number, StaticItemData>): boolean {
+export function isBuildOrderEvent(ev: MatchDetailItemEventReadModel, items: Record<number, StaticItemData>): boolean {
   switch (ev.eventType) {
     case 'ITEM_PURCHASED':
       return !isNonShopItem(resolveEventItemId(ev), items)

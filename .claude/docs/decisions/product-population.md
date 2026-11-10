@@ -42,7 +42,7 @@ must see all of it. A default of `truemainsOnly: true` on the shared `WhereChamp
 choice the one you get by saying nothing.
 
 **The widened population is gated on a flag, because "a separate ops step" was not true otherwise**
-(#1346, #1349). `ChampionPatternAggregationProcess` sits in `JobModeSequence.FullPipeline`, which the worker
+(#1346, #1349). `ChampionPatternAggregationProcess` sits in the `Full` pipeline (`Data/Pipeline/PipelineCatalog.cs`), which the worker
 runs continuously — so dropping the `IsMain` filter at the source did not create an ops decision, it created
 a change that lands on the next cycle after a deploy. On production that is ~4.3x the source rows (438k →
 1.87M) on the one process that once reached ~6 GB of managed heap and got OOM-killed with the VPS attached

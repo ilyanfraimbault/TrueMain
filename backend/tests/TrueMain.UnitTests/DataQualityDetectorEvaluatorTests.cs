@@ -1,10 +1,11 @@
 using AwesomeAssertions;
+using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Ops.Candidates;
 using TrueMain.Services.Ops.Configuration;
 using TrueMain.Services.Ops.Coverage;
-using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
+using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.Diagnostics;
 using TrueMain.Services.Ops.Health;
 using TrueMain.Services.Ops.Processes;
@@ -209,14 +210,6 @@ public sealed class DataQualityDetectorEvaluatorTests
         reading.Verdicts.Should().OnlyContain(verdict => !verdict.Judged && !verdict.Thin);
     }
 
-    [Fact]
-    public void ToWireName_MapsEveryStatusToItsCamelCaseWireValue()
-    {
-        DetectorStatus.Green.ToWireName().Should().Be("green");
-        DetectorStatus.Amber.ToWireName().Should().Be("amber");
-        DetectorStatus.Red.ToWireName().Should().Be("red");
-        DetectorStatus.Unknown.ToWireName().Should().Be("unknown");
-    }
 
     [Theory]
     [InlineData(0.5, "30 min ago")]

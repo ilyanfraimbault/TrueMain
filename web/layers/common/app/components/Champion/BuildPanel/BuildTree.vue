@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { BuildTreeNode } from '#shared/types/champions'
+import type { BuildTreeNodeReadModel } from '#shared/contract/api'
 import { layoutBuildTree } from '#common/utils/build-tree-layout'
 import type { StaticItemData } from '#shared/types/static-data'
 import type { ItemContextCard } from '#shared/utils/item-context'
 import { resolveItemContext } from '#shared/utils/item-context'
 
 const props = defineProps<{
-  tree: BuildTreeNode[]
+  tree: BuildTreeNodeReadModel[]
   firstItemId: number
   /** The backend's core "Build path" (itemIds, starting at firstItemId). The
    * solid main-edge highlight traces this exactly, so it stops where the core

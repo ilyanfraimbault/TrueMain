@@ -110,7 +110,7 @@ public sealed class CachedPipelineHealthQueryServiceTests
                 throw new InvalidOperationException("57014: canceling statement due to statement timeout");
             }
 
-            return new PipelineHealthReadModel { Status = "ok", Headline = "All good.", EvaluatedAtUtc = DateTime.UtcNow };
+            return new PipelineHealthReadModel { Status = DetectorStatus.Green, Headline = "All good.", EvaluatedAtUtc = DateTime.UtcNow };
         }
     }
 }
