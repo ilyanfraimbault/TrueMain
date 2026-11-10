@@ -7,7 +7,6 @@ import { shell } from '~/utils/shell'
  * running `npm run dev` has no shell to count in.
  */
 export default defineNuxtPlugin(() => {
-  if (!insideTauri()) return
   const router = useRouter()
   router.afterEach((to, from, failure) => {
     if (failure) return

@@ -7,7 +7,7 @@ import type {
 import type { Chord } from '~/types/overlay'
 import { RECORDING_SCHEME } from '~/generated/shell'
 import type { ShellAnswer, ShellCommand, ShellCommands } from '~/utils/shell'
-import { shell, shellEvents } from '~/utils/shell'
+import { fakeShell, shell, shellEvents } from '~/utils/shell'
 
 /** The shell's recording commands (`src-tauri/src/recording`). */
 export type RecordingCommand = Extract<ShellCommand,
@@ -15,18 +15,10 @@ export type RecordingCommand = Extract<ShellCommand,
   | 'setRecordingSettings' | 'requestCapturePermission' | 'revealRecordingFile' | 'openYoutubeUpload'>
 
 /**
- * Ask the shell to run one recording command (#1744). In `npm run dev` outside
- * Tauri the dev fixtures answer instead (`utils/recordings-dev.ts`), mutating
- * an in-memory library so the pages can be exercised; in a production build
- * outside Tauri there is nothing to ask.
+ * Ask the shell to run one recording command (#1744).
  */
 export async function recordingCall<K extends RecordingCommand>(command: K, ...args: Parameters<ShellCommands[K]>): Promise<ShellAnswer<K>> {
-  if (insideTauri()) return await (shell[command] as (...args: unknown[]) => Promise<ShellAnswer<K>>)(...args)
-  if (import.meta.dev) {
-    const { devRecordingCall } = await import('~/utils/recordings-dev')
-    return await devRecordingCall(command, ...args)
-  }
-  throw new Error('Recording is only available in the desktop app.')
+  return await (shell[command] as (...args: unknown[]) => Promise<ShellAnswer<K>>)(...args)
 }
 
 /** The shell's `convertFileSrc`, loaded once: a file on disk as a URL the webview may load. */
@@ -100,21 +92,18 @@ export function useRecordings() {
   }
 
   async function subscribe() {
-    if (!insideTauri()) {
-      if (import.meta.dev) {
-        // No shell to send the recap event: the console stands in for it.
-        (window as unknown as Record<string, unknown>).__devRecordingRecap = (id: string) => {
-          void refreshLibrary()
-          openRecap(id)
-        }
-        await load()
+    if (fakeShell) {
+      // No shell to send the recap event: the console stands in for it.
+      (window as unknown as Record<string, unknown>).__devRecordingRecap = (id: string) => {
+        void refreshLibrary()
+        openRecap(id)
       }
-      return
     }
-
-    const core = await import('@tauri-apps/api/core')
-    convertFileSrc = core.convertFileSrc
-    fileApiReady.value = true
+    else {
+      const core = await import('@tauri-apps/api/core')
+      convertFileSrc = core.convertFileSrc
+      fileApiReady.value = true
+    }
 
     // Subscribed once, from app.vue, for the app's lifetime: there is no
     // scope to tie them to after the awaits above, and nothing to unsubscribe.
@@ -139,7 +128,7 @@ export function useRecordings() {
   function fileSrc(path: string | null): string | null {
     if (!path) return null
     if (fileApiReady.value && convertFileSrc) return convertFileSrc(path, RECORDING_SCHEME)
-    if (import.meta.dev && !insideTauri()) return `/__dev/recording-file?path=${encodeURIComponent(path)}`
+    if (fakeShell) return `/__dev/recording-file?path=${encodeURIComponent(path)}`
     return null
   }
 

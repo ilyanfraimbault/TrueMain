@@ -1043,3 +1043,10 @@ each route against the OpenAPI document and another every read the app and `web/
 table. Superseding is the caller's (`replaces`), not the route's: two features post to the same route (2026-11-10) —
 #2551.
 
+**`npm run dev` runs the app against a fake shell, not against per-feature fallbacks.** Every composable had carried
+a second, browser path behind `insideTauri()` (~48 branches): `$fetch` through the dev proxy, fixtures, `localStorage`,
+dev-only toasts — each feature written twice, the stand-ins drifting from the shell. `app/app/dev-shell/` now
+implements the generated commands once, typed by them, and `utils/shell.ts` installs it on the dev server only; the
+composables keep the shell's path. `insideTauri()` remains for the platform APIs the shell does not wrap (window,
+app version, updater) (2026-11-10) — #2553.
+

@@ -75,8 +75,6 @@ export function useLiveGame() {
   }
 
   async function subscribe() {
-    if (!insideTauri()) return
-
     // Bumped by every event: a read that an event overtook is older than what
     // is already on screen, and is dropped.
     let epoch = 0

@@ -90,5 +90,5 @@ export function useDevScenarios() {
     }
   }
 
-  return { scenarios, current, recommendation, record, rankHistory, nextItem, load, select }
+  return { scenarios, current, state, game, recommendation, record, rankHistory, nextItem, load, select }
 }

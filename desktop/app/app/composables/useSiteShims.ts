@@ -1,6 +1,5 @@
 import type { MatchDetail } from '#shared/types/match-detail'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
-import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 import { gradeDetail } from '~/utils/match-summary'
 import { shell } from '~/utils/shell'
 
@@ -68,18 +67,7 @@ async function readTruemainDetail(nameTag: string, platformId: string | null, ma
 }
 
 async function readClientDetail(matchId: string): Promise<MatchDetail | null> {
-  if (insideTauri()) {
-    return gradeDetail(await shell.playerGame(Number(matchId)))
-  }
-  if (import.meta.dev) {
-    const fixtures = await import('~/fixtures/match-details.json')
-    const detail = (fixtures.default as unknown as Record<string, MatchDetail>)[matchId]
-    if (!detail) return null
-    // The shared model's fixture game stands in for every game's timeline, so the curve shows in dev.
-    const { default: winProbability } = await import('#shared/fixtures/win-probability-timeline.json')
-    return gradeDetail({ ...detail, winProbabilityTimeline: winProbability.timeline as WinProbabilityTimeline })
-  }
-  return null
+  return gradeDetail(await shell.playerGame(Number(matchId)))
 }
 
 /**
@@ -118,7 +106,7 @@ export function usePlayerGameDetail(nameTag: MaybeRefOrGetter<string>, matchId: 
     }
     notFound.value = !data.value
     isLoading.value = false
-    if (data.value && !data.value.winProbabilityTimeline && insideTauri()) {
+    if (data.value && !data.value.winProbabilityTimeline) {
       const client = await readClientDetail(id).catch(() => null)
       if (client?.winProbabilityTimeline && toValue(matchId) === id && data.value) {
         data.value = { ...data.value, winProbabilityTimeline: client.winProbabilityTimeline }

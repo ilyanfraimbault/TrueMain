@@ -8,26 +8,20 @@ import { follow, shell, shellEvents } from '~/utils/shell'
  * the app's; click-through and never focused.
  *
  * The text comes with each press; a page just built asks for the press that
- * built it, emitted before it listened. In a browser-only `npm run dev`, a sample line shows.
+ * built it, emitted before it listened.
  */
-const SAMPLE = 'Last 30 s saved'
-
 const text = ref<string | null>(null)
 const content = ref<HTMLElement | null>(null)
 
 async function fit() {
   const element = content.value
-  if (!element || !insideTauri()) return
+  if (!element) return
   await shell.overlayFit('confirmation', element.offsetWidth, element.offsetHeight)
 }
 
 let stopListening: (() => void) | undefined
 onBeforeUnmount(() => stopListening?.())
 onMounted(async () => {
-  if (!insideTauri()) {
-    text.value = SAMPLE
-    return
-  }
   stopListening = await follow(shellEvents.overlayConfirmation, shell.overlayConfirmation, (next) => {
     if (next !== null) text.value = next
   })
