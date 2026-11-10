@@ -14,24 +14,17 @@ public sealed class PersonaAudit(IAuditLog auditLog, ILogger<PersonaAudit> logge
         RecordAsync(action, personaId, slug, metadata, AuditActors.Operator, ct);
 
     /// <summary>The same, under <paramref name="actor"/>: <c>auto</c> for the same-name merges (#2271, #2286).</summary>
-    public async Task RecordAsync(
+    public Task RecordAsync(
         string action, Guid personaId, string slug, Dictionary<string, string> metadata, string actor, CancellationToken ct)
     {
-        try
-        {
-            metadata["slug"] = slug;
-            await auditLog.RecordAsync(
-                action: action,
-                actor: actor,
-                targetType: AuditTargets.Persona,
-                targetId: personaId.ToString(),
-                metadata: metadata,
-                ct: ct);
-        }
-        catch (Exception ex)
-        {
-            // The persona id, not the slug: nothing a request carried reaches the log line.
-            logger.LogWarning(ex, "Audit write failed for {Action} on persona {PersonaId}; the edit was committed.", action, personaId);
-        }
+        metadata["slug"] = slug;
+        return auditLog.TryRecordAsync(
+            logger,
+            action: action,
+            actor: actor,
+            targetType: AuditTargets.Persona,
+            targetId: personaId.ToString(),
+            metadata: metadata,
+            ct: ct);
     }
 }

@@ -149,28 +149,19 @@ public sealed class SeedRequestService(
         // re-auditing). "Lossless" here means the audit channel is synchronous and
         // unbatched vs the lossy batched diagnostic channel — it is not a
         // guarantee against a Mongo outage.
-        try
-        {
-            await auditLog.RecordAsync(
-                action: AuditActions.SeedAccount,
-                actor: AuditActors.Operator,
-                targetType: AuditTargets.SeedRequest,
-                targetId: seedRequest.Id.ToString(),
-                metadata: new Dictionary<string, string>
-                {
-                    ["gameName"] = gameName,
-                    ["tagLine"] = tagLine,
-                    ["platformId"] = platform
-                },
-                ct: ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(
-                ex,
-                "Audit write failed for seed request {SeedRequestId}; the request was persisted, audit event missed.",
-                seedRequest.Id);
-        }
+        await auditLog.TryRecordAsync(
+            logger,
+            action: AuditActions.SeedAccount,
+            actor: AuditActors.Operator,
+            targetType: AuditTargets.SeedRequest,
+            targetId: seedRequest.Id.ToString(),
+            metadata: new Dictionary<string, string>
+            {
+                ["gameName"] = gameName,
+                ["tagLine"] = tagLine,
+                ["platformId"] = platform
+            },
+            ct: ct);
 
         return new SeedRequestCreateResult
         {
