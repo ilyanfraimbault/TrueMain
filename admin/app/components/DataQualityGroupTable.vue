@@ -10,9 +10,7 @@
 // makes the fetch lazy, one table's worth of rows instead of five on arrival.
 import type { OpsQueryOf } from '~/composables/useOps'
 import type { TableColumn } from '@nuxt/ui'
-import type {
-  IssueMeta,
-} from '~~/shared/types/ops'
+import type { IssueMeta } from '~/utils/data-quality'
 import type { DataQualityIssueType, FlaggedMatchReadModel } from '#site-shared/contract/api'
 import { formatDateTime } from '~~/shared/utils/format'
 

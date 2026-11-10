@@ -1,4 +1,4 @@
-import type { BadgeColor } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
 import type { HealthAlertReadModel, HealthAlertsReadModel } from '#site-shared/contract/api'
 
 /** How one sent alert is drawn: a refused delivery reads as such before its kind. */

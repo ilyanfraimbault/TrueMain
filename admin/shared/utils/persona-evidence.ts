@@ -1,7 +1,7 @@
 // Why a conflict sits where it does in the open queue (#2277): the links its two
 // known players share — a social channel above all — or the social kinds they
 // list with different channels.
-import type { BadgeColor } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
 import type { PersonaConflictEvidenceReadModel } from '#site-shared/contract/api'
 
 export interface EvidenceBadge {

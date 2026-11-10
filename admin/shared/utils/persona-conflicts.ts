@@ -2,8 +2,7 @@
 // four ways to settle it. Kept under `shared/` so it is importable — and tested —
 // without the Nuxt runtime.
 import type { PersonaConflictAccountReadModel, PersonaConflictPersonaReadModel, PersonaConflictReadModel, PersonaConflictResolution, PersonaConflictResolveRequest, PersonaConflictResolvedResponse } from '#site-shared/contract/api'
-
-export type BadgeColor = 'primary' | 'success' | 'warning' | 'error' | 'info' | 'neutral'
+import type { BadgeColor } from './badge-color'
 
 /** One way to settle a conflict, as the detail panel offers it. */
 export interface ConflictActionOption {

@@ -1,5 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type { RiotUsageWindow } from '~~/shared/types/ops'
+import type { RiotUsageWindow } from '~~/shared/types/ops/riot-usage'
 
 /**
  * `GET /api/ops/ingestor-metrics` (#1636) — the Ingestor's own meter (run failures, Riot

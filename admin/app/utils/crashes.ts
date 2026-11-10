@@ -1,6 +1,6 @@
 // Crash-report presentation shared by the Crashes tab of `/logs` (`CrashesPanel.vue`)
 // and its detail slide-over (`CrashDetail.vue`), split out in #1436.
-import type { BadgeColor } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
 import type { CrashReportReadModel } from '#site-shared/contract/api'
 import { formatElapsed, humanizeBytes } from '~~/shared/utils/format'
 

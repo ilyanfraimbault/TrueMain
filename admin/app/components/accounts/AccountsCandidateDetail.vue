@@ -3,7 +3,7 @@
 // pipeline stage, timestamps, ingested match count and the linked manual seed
 // request. Split out of `AccountsPipeline.vue` (#1436); the tab owns the
 // deep-linked fetch (`?candidate=`).
-import type { CandidateDetailReadModel, MainCandidateStatus } from '#site-shared/contract/api'
+import type { CandidateDetailReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { truemainPath } from '~~/shared/utils/site-link'
 
@@ -24,26 +24,15 @@ const title = computed(() =>
     : 'Candidate detail',
 )
 
-// Ordered pipeline stages for the detail stepper, with the timestamp that marks
-// each one. Processing has no dedicated timestamp on the entity, so it inherits
-// the discovered floor for ordering only.
-const PIPELINE_ORDER: MainCandidateStatus[] = [
-  'New',
-  'Scored',
-  'Queued',
-  'Processing',
-  'Validated',
-]
-
-// Index of the open candidate's stage in `PIPELINE_ORDER`, and the derived
+// Index of the open candidate's stage in `CANDIDATE_STATUSES`, and the derived
 // reached/not-reached flag per stage. Computed once per detail instead of
 // re-scanning the array four times per rendered step.
 const currentStageIndex = computed(() => {
   const status = props.detail?.status
-  return status ? PIPELINE_ORDER.indexOf(status) : -1
+  return status ? CANDIDATE_STATUSES.indexOf(status) : -1
 })
 const pipelineStages = computed(() =>
-  PIPELINE_ORDER.map((stage, index) => ({ stage, reached: index <= currentStageIndex.value })),
+  CANDIDATE_STATUSES.map((stage, index) => ({ stage, reached: index <= currentStageIndex.value })),
 )
 </script>
 

@@ -1,5 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type { IngestionTimeGranularity } from '~~/shared/types/ops'
+import type { IngestionTimeGranularity } from '~~/shared/types/ops/stats'
 import type { SeedAccountRequest } from '#site-shared/contract/api'
 import type { OpsQueryOf } from './useOps'
 

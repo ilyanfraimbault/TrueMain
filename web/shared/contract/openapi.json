@@ -7477,6 +7477,15 @@
         },
         "description": "Work waiting on the aggregation side of the pipeline. Every counter reads\nzero when aggregations are caught up with ingestion."
       },
+      "AggregationFamilyKey": {
+        "enum": [
+          "builds",
+          "matchups",
+          "synergies",
+          "mains"
+        ],
+        "description": "The aggregate families the Aggregation panel reports, one per producing process."
+      },
       "AggregationFamilyReadModel": {
         "required": [
           "key",
@@ -7489,8 +7498,8 @@
         "type": "object",
         "properties": {
           "key": {
-            "type": "string",
-            "description": "Stable identifier for the frontend (\"builds\", \"matchups\", ...)."
+            "description": "Which family this is.",
+            "$ref": "#/components/schemas/AggregationFamilyKey"
           },
           "processName": {
             "type": "string",

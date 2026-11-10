@@ -17,6 +17,7 @@ import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
 // dozen as phantom "Not run" chips. `pickCurrentLanes` owns that grouping; the
 // cards themselves live in `components/processes/` (#1436).
 import { pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
+import { processRunStatusValues } from '#site-shared/contract/api'
 
 // --- Tabs (#1410) ------------------------------------------------------------
 // `runs` is the default and stays out of the URL; `/riot-api` redirects here with
@@ -63,12 +64,7 @@ const sinceWindow = ref<SinceWindow>(ALL)
 
 const statusItems = [
   { label: 'All statuses', value: ALL },
-  { label: 'Running', value: 'Running' },
-  { label: 'Success', value: 'Success' },
-  { label: 'Failed', value: 'Failed' },
-  { label: 'Abandoned', value: 'Abandoned' },
-  { label: 'Cancelled', value: 'Cancelled' },
-  { label: 'Skipped', value: 'Skipped' },
+  ...processRunStatusValues.map(status => ({ label: status, value: status })),
 ]
 
 // Default view = the most recent runs regardless of recency: send NO `since`
