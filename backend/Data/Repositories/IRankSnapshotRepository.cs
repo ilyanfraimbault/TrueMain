@@ -4,6 +4,11 @@ namespace Data.Repositories;
 
 public interface IRankSnapshotRepository
 {
+    /// <summary>
+    /// Stages <paramref name="snapshot"/> for the session's next save, which writes it as an
+    /// upsert on the account's UTC day: when another writer already stored that day, the newer
+    /// of the two readings is kept instead of the save failing on the one-row-per-day index.
+    /// </summary>
     void Add(RankSnapshot snapshot);
 
     void Update(RankSnapshot snapshot);

@@ -3,6 +3,7 @@ namespace Data.Repositories;
 public sealed class DataSession : IDataSession
 {
     private readonly TrueMainDbContext _db;
+    private readonly RankSnapshotRepository _rankSnapshots;
 
     public DataSession(TrueMainDbContext db)
     {
@@ -15,7 +16,7 @@ public sealed class DataSession : IDataSession
         MatchParticipants = new MatchParticipantRepository(_db);
         MatchParticipantTimelineSnapshots = new MatchParticipantTimelineSnapshotRepository(_db);
         MatchBans = new MatchBanRepository(_db);
-        RankSnapshots = new RankSnapshotRepository(_db);
+        _rankSnapshots = new RankSnapshotRepository(_db);
         DiscoveryCursors = new DiscoveryCursorRepository(_db);
         LadderSyncCursors = new LadderSyncCursorRepository(_db);
         ApexCutoffSnapshots = new ApexCutoffSnapshotRepository(_db);
@@ -31,7 +32,7 @@ public sealed class DataSession : IDataSession
     public IMatchParticipantRepository MatchParticipants { get; }
     public IMatchParticipantTimelineSnapshotRepository MatchParticipantTimelineSnapshots { get; }
     public IMatchBanRepository MatchBans { get; }
-    public IRankSnapshotRepository RankSnapshots { get; }
+    public IRankSnapshotRepository RankSnapshots => _rankSnapshots;
     public IDiscoveryCursorRepository DiscoveryCursors { get; }
     public ILadderSyncCursorRepository LadderSyncCursors { get; }
     public IApexCutoffSnapshotRepository ApexCutoffSnapshots { get; }
@@ -39,14 +40,20 @@ public sealed class DataSession : IDataSession
     public IPaceSampledMatchRepository PaceSampledMatches { get; }
     public IFormBenchmarkStatRepository FormBenchmarkStats { get; }
 
-    public Task<int> SaveChangesAsync(CancellationToken ct)
-        => _db.SaveChangesAsync(ct);
+    public async Task<int> SaveChangesAsync(CancellationToken ct)
+    {
+        var saved = await _db.SaveChangesAsync(ct);
+        return saved + await _rankSnapshots.SaveStagedAsync(ct);
+    }
 
     public async Task<IDataTransaction> BeginTransactionAsync(CancellationToken ct)
         => new DataTransaction(await _db.Database.BeginTransactionAsync(ct));
 
     public void ClearTracking()
-        => _db.ChangeTracker.Clear();
+    {
+        _db.ChangeTracker.Clear();
+        _rankSnapshots.DiscardStaged();
+    }
 
     public ValueTask DisposeAsync()
         => _db.DisposeAsync();
