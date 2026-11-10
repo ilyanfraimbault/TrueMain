@@ -49,7 +49,7 @@ public sealed class ProcessRunSummaryJsonTests
             [new RetainedPatchesSummary("KR", ["16.3", "16.4"])], true))
             .Should().Be(
                 """
-                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"demotedQueuedCandidates":42,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedSynergyStats":8,"buildPurgedPatches":["16.1"],"deletedBuildPatterns":700,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}],"vacuumedAfterPurge":true}
+                {"retainedPatchCount":3,"queueId":420,"deletedMatches":10,"deletedParticipants":100,"deletedNonRankedMatches":4,"prunedCandidates":7,"demotedQueuedCandidates":42,"prunedSnapshotMatches":5,"deletedIntermediateSnapshots":900,"deletedAggregateScopes":1,"deletedMatchupStats":2,"deletedSynergyStats":8,"buildPurgedPatches":["16.1"],"deletedBuildPatterns":700,"retainedPatchesByPlatform":[{"platformId":"KR","patches":["16.3","16.4"]}],"vacuumedAfterPurge":true,"deletedOpponentStats":0,"deletedScalingStats":0,"deletedContextStats":0,"deletedBenchmarkStats":0}
                 """);
     }
 
@@ -350,7 +350,12 @@ public sealed class ProcessRunSummaryJsonTests
                 {
                     new { platformId = "KR", patches = new[] { "16.3", "16.4" } }
                 },
-                vacuumedAfterPurge = true
+                vacuumedAfterPurge = true,
+                // Appended by #2481 (F20): the panel families retention used to fold or drop.
+                deletedOpponentStats = 0,
+                deletedScalingStats = 0,
+                deletedContextStats = 0,
+                deletedBenchmarkStats = 0
             });
     }
 }

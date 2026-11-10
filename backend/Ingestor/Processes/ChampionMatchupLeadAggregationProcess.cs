@@ -1,5 +1,4 @@
 using Core.Lol.Lane;
-using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Data.Aggregation;
@@ -170,31 +169,12 @@ public sealed class ChampionMatchupLeadAggregationProcess(
         DateTime aggregatedAtUtc,
         CancellationToken ct)
     {
-        var patchByMatch = await db.Matches
-            .AsNoTracking()
-            .Where(m => matchIds.Contains(m.Id))
-            .Select(m => new { m.Id, m.GameVersion })
-            .ToDictionaryAsync(m => m.Id, m => PatchVersion.Normalize(m.GameVersion), ct);
-
-        // Who may contribute a champion-side row. Every participant below is loaded
-        // regardless — an off-cohort player is still somebody's lane opponent — and
-        // membership is tested per row against this set. See ChampionCohort for why the
-        // gate is "main of this champion" rather than "account we know", and why a
-        // remake is not a game.
-        var cohort = await ChampionCohort.LoadAsync(db, matchIds, ct);
-
-        var participants = await db.MatchParticipants
-            .AsNoTracking()
-            .Where(p => matchIds.Contains(p.MatchId) && ChampionCohort.CanonicalPositions.Contains(p.TeamPosition))
-            .Select(p => new ParticipantRow(
-                p.MatchId,
-                p.ParticipantId,
-                p.ChampionId,
-                p.TeamId,
-                p.TeamPosition,
-                p.EloBracket,
-                p.Win))
-            .ToListAsync(ct);
+        // See PairFoldBatch for why every seat is loaded and the cohort tested per row: an
+        // off-cohort player is still somebody's lane opponent, and see ChampionCohort for why
+        // the gate is "main of this champion" rather than "account we know", and why a remake
+        // is not a game.
+        var batch = await PairFoldBatch.LoadAsync(db, matchIds, ct);
+        var cohort = batch.Cohort;
 
         // The gold and XP reading both sides are compared on. Keyed per (match,
         // participant); a game that ended before the 15-minute mark simply has no rows
@@ -206,21 +186,11 @@ public sealed class ChampionMatchupLeadAggregationProcess(
             .Select(s => new { s.MatchId, s.ParticipantId, s.TotalGold, s.Xp })
             .ToDictionaryAsync(s => (s.MatchId, s.ParticipantId), s => new Reading(s.TotalGold, s.Xp), ct);
 
-        var participantsByMatch = participants
-            .GroupBy(p => p.MatchId)
-            .ToDictionary(g => g.Key, g => g.ToList());
-
         var matchups = new Dictionary<MatchupKey, MatchupAccumulator>();
         var judgedLanes = 0;
 
-        foreach (var (matchId, parts) in participantsByMatch)
+        foreach (var (matchId, patch, parts) in batch.Matches())
         {
-            var patch = patchByMatch.GetValueOrDefault(matchId);
-            if (string.IsNullOrEmpty(patch))
-            {
-                continue;
-            }
-
             foreach (var self in parts)
             {
                 // The asymmetry of the pairing: the (champion, position) side is a main
@@ -307,15 +277,6 @@ public sealed class ChampionMatchupLeadAggregationProcess(
 
         return new WrittenRows(judgedLanes, matchups.Count);
     }
-
-    private sealed record ParticipantRow(
-        string MatchId,
-        int ParticipantId,
-        int ChampionId,
-        int TeamId,
-        string TeamPosition,
-        string EloBracket,
-        bool Win);
 
     private readonly record struct MatchupKey(int ChampionId, string TeamPosition, int OpponentChampionId, string Patch, string EloBracket);
 
