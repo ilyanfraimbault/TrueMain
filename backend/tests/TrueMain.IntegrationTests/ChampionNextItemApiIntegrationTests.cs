@@ -285,7 +285,7 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
             base.ConfigureWebHost(builder);
             builder.ConfigureTestServices(services =>
             {
-                services.AddHttpClient(nameof(CommunityDragonItemMetadataProvider))
+                services.AddHttpClient(StaticGameDataServiceCollectionExtensions.ClientName)
                     .ConfigurePrimaryHttpMessageHandler(() => communityDragon);
                 services.RemoveAll<IItemStatsProvider>();
                 services.AddSingleton<IItemStatsProvider>(new ArmourStatsProvider());
