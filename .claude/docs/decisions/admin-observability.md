@@ -268,19 +268,18 @@ lanes are what run concurrently.
 
 Three details. **A `Full` iteration lights up both branches**, so prod's current topology renders under the
 same code path rather than a special case — the branches are the pipeline's shape, not the deployment's.
-**The top block asks for several iterations, not one**: the lanes have different cadences (preprod runs about
-three fetch passes per aggregate pass), so the slower lane's newest iteration sits a few positions down a
-newest-first list, and showing "the newest iteration" would hide whichever lane started earlier. **A branch's
-duration comes from its runs' statuses, not their timestamps** — the API mirrors a running run's start into
-`finishedAtUtc` so the iteration's last-activity stamp advances, so measuring from the timestamps alone
-reports a lane that has been running for minutes as `0ms`.
+**The top block reads each lane's newest pass** (`GET /ops/process-iterations/latest`, #2547): the lanes have
+different cadences (preprod runs about three fetch passes per aggregate pass), so the slower lane's newest
+iteration sits a few positions down a newest-first list, and showing "the newest iteration" would hide whichever
+lane started earlier. **A branch still in flight has no duration**: a running run's `finishedAtUtc` is `null`
+(#2547; the store mirrors its start there so the iteration's last-activity stamp advances, which used to make a
+lane running for minutes read as `0ms`).
 
-`PIPELINE_LANES` is a hand-maintained copy of the catalog's two lanes (`Data/Pipeline/PipelineCatalog.cs`), exactly as
-`PIPELINE_CHAIN` is one of its steps (the Api serves both at `GET /ops/pipeline` since #2488; the admin switches to it with the
-generated contract), and pinned by the same kind of test — a partition of the chain, in the chain's order.
-The drift is worse than the flat chain's was: a step in neither lane is not misplaced, it stops being drawn
-at all. A run whose process no lane declares therefore still renders, in a trailing branch under its raw
-name — #1399, #1362, #1314.
+The lanes and their steps come from the API's pipeline catalog (`GET /ops/pipeline`, `Data/Pipeline/PipelineCatalog.cs`,
+#2488), read once per session (`usePipelineCatalog`, #2556) — the admin used to keep a copy of each, and a step
+missing from a copied lane was not misplaced, it stopped being drawn at all. A run whose process no lane declares
+(an older pass of a retired step, or every run while the catalog has not loaded) still renders, in a trailing
+branch under its raw name — #1399, #1362, #1314.
 
 ## An admin number is either actionable or it is not printed (2026-09-03)
 

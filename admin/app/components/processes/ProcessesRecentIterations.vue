@@ -8,10 +8,10 @@
 // a successful one. A row now says what kind of pass it was, where its time went and
 // how its steps ended, and expands into the step timeline.
 import type { ProcessIterationReadModel, ProcessRunReadModel } from '#site-shared/contract/api'
-import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
 // Explicit imports so the component tests can mount it without Nuxt's auto-imports.
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import ProcessesIterationRow from './ProcessesIterationRow.vue'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
 
 defineProps<{
   iterations: ProcessIterationReadModel[]
@@ -24,18 +24,20 @@ defineProps<{
 }>()
 
 const page = defineModel<number>('page', { required: true })
-const lane = defineModel<'all' | PipelineLaneId>('lane', { required: true })
+const lane = defineModel<string>('lane', { required: true })
 
 defineEmits<{
   openIteration: [iteration: ProcessIterationReadModel]
   openRun: [run: ProcessRunReadModel]
 }>()
 
-const laneTabs = [
+// One tab per lane the API's pipeline catalog declares; the icons are this view's own.
+const LANE_ICON: Readonly<Record<string, string>> = { fetch: 'i-lucide-globe', aggregate: 'i-lucide-layers' }
+const catalog = usePipelineCatalog()
+const laneTabs = computed(() => [
   { label: 'All', value: 'all' },
-  { label: 'Fetch', value: 'fetch', icon: 'i-lucide-globe' },
-  { label: 'Aggregate', value: 'aggregate', icon: 'i-lucide-layers' },
-]
+  ...(catalog.value?.lanes ?? []).map(entry => ({ label: entry.label, value: entry.id, icon: LANE_ICON[entry.id] })),
+])
 
 // Expanded rows survive a page change only by id, so a row from another page never
 // opens by accident; a filter or page change simply starts collapsed.

@@ -1,9 +1,13 @@
 import type { ProcessIterationReadModel, ProcessRunReadModel } from '#site-shared/contract/api'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import ProcessesIterationRow from '~~/app/components/processes/ProcessesIterationRow.vue'
 import ProcessesIterationSteps from '~~/app/components/processes/ProcessesIterationSteps.vue'
 import ProcessesRecentIterations from '~~/app/components/processes/ProcessesRecentIterations.vue'
+import { CATALOG } from '../pipeline-chain/catalog'
+
+vi.mock('~/composables/usePipelineCatalog', () => ({ usePipelineCatalog: () => ref(CATALOG) }))
 
 // Pins what an operator reads off the recent-iterations list: the one-line row (kind,
 // span, duration, icon tallies and their wording), the hover recap of the step under
@@ -202,11 +206,12 @@ describe('ProcessesRecentIterations', () => {
       .toContain('Failed to load recent iterations.')
   })
 
-  it('switches lane from the tabs and pages only when there is more than a page', async () => {
+  it('offers a tab per lane of the pipeline catalog, switches lane from them, and pages only when there is more than a page', async () => {
     const wrapper = mount(ProcessesRecentIterations, { props: base, global })
+    expect(wrapper.findAll('.tab').map(tab => tab.text())).toEqual(['All', 'Fetch lane', 'Aggregate lane'])
     expect(wrapper.find('.pagination').exists()).toBe(false)
 
-    await wrapper.findAll('.tab').find(tab => tab.text() === 'Aggregate')!.trigger('click')
+    await wrapper.findAll('.tab').find(tab => tab.text() === 'Aggregate lane')!.trigger('click')
     expect(wrapper.emitted('update:lane')).toEqual([['aggregate']])
 
     const paged = mount(ProcessesRecentIterations, { props: { ...base, total: 20 }, global })

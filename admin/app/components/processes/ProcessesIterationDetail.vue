@@ -8,10 +8,13 @@ import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
 import { processStatusColor, runTally } from '~~/shared/utils/pipeline-health'
 import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
 import { hasSummary } from '~~/shared/utils/process-summary'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
 
 const props = defineProps<{
   iteration: ProcessIterationReadModel | null
 }>()
+
+const catalog = usePipelineCatalog()
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -21,7 +24,7 @@ const open = defineModel<boolean>('open', { required: true })
 // view is a list of what ran, not a topology.
 const links = computed<ChainLink[]>(() =>
   props.iteration
-    ? buildLaneBranches(props.iteration.runs)
+    ? buildLaneBranches(catalog.value, props.iteration.runs)
       .flatMap(branch => branch.links)
       .filter(link => link.run)
     : [],
@@ -100,7 +103,7 @@ const tally = computed(() => runTally((props.iteration?.runs ?? []).map(run => r
               />
               <UTooltip :ui="PROCESS_TOOLTIP_UI">
                 <span class="text-sm font-medium text-highlighted truncate">
-                  {{ chainLabel(entry.link.processName) }}
+                  {{ chainLabel(catalog, entry.link.processName) }}
                 </span>
                 <template #content>
                   <ProcessTooltipContent :process-name="entry.link.processName" :context="entry.link.processName" />

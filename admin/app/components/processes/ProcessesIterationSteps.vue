@@ -12,10 +12,13 @@ import { chainLabel, outcomeIcon, outcomeLabel } from '~/utils/process-chain'
 import { formatClock, formatElapsed } from '~~/shared/utils/format'
 import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
 import { summaryRecap } from '~~/shared/utils/process-summary'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
 
 const props = defineProps<{
   iteration: ProcessIterationReadModel
 }>()
+
+const catalog = usePipelineCatalog()
 
 const emit = defineEmits<{
   openRun: [run: ProcessRunReadModel]
@@ -54,7 +57,7 @@ function toItem(link: ChainLink): StepItem {
   const ran = link.run !== null && link.outcome !== 'Skipped'
   return {
     value: link.processName,
-    title: chainLabel(link.processName),
+    title: chainLabel(catalog.value, link.processName),
     // Beside the title rather than in the item's own date line: one line less per
     // step, and the durations line up in a column a reader can scan down.
     meta: ran
@@ -73,7 +76,7 @@ function toItem(link: ChainLink): StepItem {
 
 // One timeline per lane the pass ran: one for a lane pass, two for a `Full` one.
 const groups = computed(() =>
-  buildLaneBranches(props.iteration.runs).map(branch => ({
+  buildLaneBranches(catalog.value, props.iteration.runs).map(branch => ({
     id: branch.id,
     label: branch.label,
     items: branch.links.map(toItem),

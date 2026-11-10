@@ -8,12 +8,15 @@
 import type { ProcessRunReadModel } from '#site-shared/contract/api'
 import type { CurrentLane } from '~~/shared/utils/pipeline-lanes'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
 
 defineProps<{
   lanes: CurrentLane[]
   running: boolean
   error: unknown
 }>()
+
+const catalog = usePipelineCatalog()
 
 defineEmits<{
   openRun: [run: ProcessRunReadModel]
@@ -107,7 +110,7 @@ defineEmits<{
                   class="text-xs font-medium whitespace-nowrap"
                   :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-highlighted'"
                 >
-                  {{ chainLabel(link.processName) }}
+                  {{ chainLabel(catalog, link.processName) }}
                 </span>
               </button>
               <template #content>

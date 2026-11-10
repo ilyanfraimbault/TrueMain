@@ -1,9 +1,9 @@
-import type { ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
-import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
-import { PIPELINE_LANES } from '~~/shared/types/pipeline-chain'
+import type { PipelineCatalogReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 
 /**
- * Grouping an iteration's runs into the lanes that produced them.
+ * Grouping an iteration's runs into the lanes the API's pipeline catalog declares
+ * (`usePipelineCatalog`); `null` while it has not loaded, every run then lands in the
+ * catch-all branch under its raw name.
  *
  * The chain used to be one flat list of the 20 steps, annotating everything the
  * iteration did not contain as `notRun`. That was right while a pass ran every
@@ -29,10 +29,11 @@ export interface ChainLink {
 /** A lane's steps within one iteration, plus what the lane as a whole did. */
 export interface LaneBranch {
   /**
-   * `other` is the catch-all for a run whose process is in no lane; `workers` is a batch of
-   * the permanent match-fetch workers a `FetchWorkers` host runs beside its fetch lane.
+   * A lane's id from the catalog (`fetch`, `aggregate`); `other` is the catch-all for a run
+   * whose process is in no lane; `workers` is a batch of the permanent match-fetch workers a
+   * `FetchWorkers` host runs beside its fetch lane.
    */
-  id: PipelineLaneId | 'workers' | 'other'
+  id: string
   label: string
   description: string
   links: ChainLink[]
@@ -70,13 +71,9 @@ const OUTCOME_PRECEDENCE: readonly ChainOutcome[] = [
   'notRun',
 ]
 
-const LANE_BY_PROCESS: ReadonlyMap<string, PipelineLaneId> = new Map(
-  PIPELINE_LANES.flatMap(lane => lane.steps.map(step => [step, lane.id] as const)),
-)
-
 /** The lane a process belongs to, or null for a name no lane declares. */
-export function laneForProcess(processName: string): PipelineLaneId | null {
-  return LANE_BY_PROCESS.get(processName) ?? null
+export function laneForProcess(catalog: PipelineCatalogReadModel | null, processName: string): string | null {
+  return catalog?.lanes.find(lane => lane.steps.includes(processName))?.id ?? null
 }
 
 /**
@@ -88,10 +85,11 @@ export function laneForProcess(processName: string): PipelineLaneId | null {
  * so the panel still shows the shape of the pipeline instead of a blank box.
  *
  * A run whose process is in no lane lands in a trailing `other` branch rather
- * than being dropped: an ingestor step added without its entry here must still
- * be visible, under its raw name, the way the flat chain used to append it.
+ * than being dropped: a run the catalog does not place (an older pass of a retired
+ * step, or every run while the catalog has not loaded) is still visible, under its
+ * raw name.
  */
-export function buildLaneBranches(runs: readonly ProcessRunReadModel[]): LaneBranch[] {
+export function buildLaneBranches(catalog: PipelineCatalogReadModel | null, runs: readonly ProcessRunReadModel[]): LaneBranch[] {
   // Latest run wins for a process that ran twice in the pass (a retry), matching
   // what the flat chain did.
   const byName = new Map(runs.map(run => [run.processName, run]))
@@ -101,12 +99,12 @@ export function buildLaneBranches(runs: readonly ProcessRunReadModel[]): LaneBra
   // ingestor records the mode it opened the pass with. Drawing such a run against a
   // whole lane would put eleven "Not run" chips beside it and claim they were
   // skipped, the same misreading the lane split was made to remove, just narrower.
-  const fetchWorkers = fetchWorkersBranches(runs)
+  const fetchWorkers = fetchWorkersBranches(catalog, runs)
   if (fetchWorkers) {
     return fetchWorkers
   }
 
-  const singleProcessMode = singleProcessModeOf(runs)
+  const singleProcessMode = singleProcessModeOf(catalog, runs)
   if (singleProcessMode) {
     const links: ChainLink[] = runs.map(run => ({
       processName: run.processName,
@@ -114,14 +112,14 @@ export function buildLaneBranches(runs: readonly ProcessRunReadModel[]): LaneBra
       run,
     }))
     return [toBranch(
-      laneForProcess(runs[0]!.processName) ?? 'other',
+      laneForProcess(catalog, runs[0]!.processName) ?? 'other',
       singleProcessMode,
       'A single process run on its own, outside the lane cadences.',
       links,
     )]
   }
 
-  const branches = PIPELINE_LANES.map((lane) => {
+  const branches = (catalog?.lanes ?? []).map((lane) => {
     const links: ChainLink[] = lane.steps.map((processName) => {
       const run = byName.get(processName) ?? null
       return { processName, outcome: run?.status ?? 'notRun', run }
@@ -129,7 +127,7 @@ export function buildLaneBranches(runs: readonly ProcessRunReadModel[]): LaneBra
     return toBranch(lane.id, lane.label, lane.description, links)
   })
 
-  const unknown = runs.filter(run => laneForProcess(run.processName) === null)
+  const unknown = runs.filter(run => laneForProcess(catalog, run.processName) === null)
   if (unknown.length > 0) {
     const seen = new Set<string>()
     const links: ChainLink[] = []
@@ -144,7 +142,7 @@ export function buildLaneBranches(runs: readonly ProcessRunReadModel[]): LaneBra
     branches.push(toBranch(
       'other',
       'Unassigned steps',
-      'Steps this admin build does not know a lane for — they ran, so they are shown under their raw name.',
+      'Steps the pipeline catalog puts in no lane — they ran, so they are shown under their raw name.',
       links,
     ))
   }
@@ -160,20 +158,24 @@ export function buildLaneBranches(runs: readonly ProcessRunReadModel[]): LaneBra
  * one process, and a pass with no recorded mode (written before the ingestor
  * stamped it) is left to the lane rendering rather than guessed at.
  */
-function singleProcessModeOf(runs: readonly ProcessRunReadModel[]): string | null {
-  if (runs.length === 0) {
+function singleProcessModeOf(catalog: PipelineCatalogReadModel | null, runs: readonly ProcessRunReadModel[]): string | null {
+  // Without the catalog no mode is known to be composite: leave the pass to the catch-all.
+  if (catalog === null || runs.length === 0) {
     return null
   }
 
   const mode = runs.find(run => run.jobMode)?.jobMode
-  if (!mode || COMPOSITE_JOB_MODES.has(mode)) {
+  if (!mode || compositeModes(catalog).has(mode)) {
     return null
   }
 
   return mode
 }
 
-const COMPOSITE_JOB_MODES: ReadonlySet<string> = new Set(['Full', 'FetchLane', 'AggregateLane', 'FetchWorkers'])
+/** The modes that run a sequence of steps: every mode some lane lists as running it. */
+function compositeModes(catalog: PipelineCatalogReadModel | null): ReadonlySet<string> {
+  return new Set<string>(catalog?.lanes.flatMap(lane => lane.jobModes) ?? [])
+}
 
 /** The fetch-lane step `FetchWorkers` runs as permanent workers rather than in its pass. */
 const WORKER_STEP = 'MatchIngestion'
@@ -186,7 +188,7 @@ const WORKER_STEP = 'MatchIngestion'
  * far more frequent, would push the maintenance pass out of the live tree. So a batch gets
  * its own `workers` branch.
  */
-function fetchWorkersBranches(runs: readonly ProcessRunReadModel[]): LaneBranch[] | null {
+function fetchWorkersBranches(catalog: PipelineCatalogReadModel | null, runs: readonly ProcessRunReadModel[]): LaneBranch[] | null {
   if (runs.length === 0 || runs.find(run => run.jobMode)?.jobMode !== 'FetchWorkers') {
     return null
   }
@@ -201,7 +203,8 @@ function fetchWorkersBranches(runs: readonly ProcessRunReadModel[]): LaneBranch[
     )]
   }
 
-  const fetchLane = PIPELINE_LANES.find(lane => lane.id === 'fetch')!
+  const fetchLane = catalog?.lanes.find(lane => lane.id === 'fetch')
+  if (!fetchLane) return null
   const byName = new Map(runs.map(run => [run.processName, run]))
   const links: ChainLink[] = fetchLane.steps.filter(step => step !== WORKER_STEP).map((processName) => {
     const run = byName.get(processName) ?? null
@@ -266,14 +269,15 @@ export interface CurrentLane {
  * it stays on screen, marked not-run, instead of vanishing.
  */
 export function pickCurrentLanes(
+  catalog: PipelineCatalogReadModel | null,
   iterations: readonly { runs: ProcessRunReadModel[] }[],
 ): CurrentLane[] {
   const byLane = new Map<string, CurrentLane>(
-    buildLaneBranches([]).map(branch => [branch.id, { branch, isRunning: false }]),
+    buildLaneBranches(catalog, []).map(branch => [branch.id, { branch, isRunning: false }]),
   )
 
   for (const iteration of iterations) {
-    for (const branch of buildLaneBranches(iteration.runs)) {
+    for (const branch of buildLaneBranches(catalog, iteration.runs)) {
       // First iteration that ran the lane wins — the list is newest-first.
       if (!branch.ran || byLane.get(branch.id)?.branch.ran) {
         continue
@@ -290,8 +294,7 @@ export function pickCurrentLanes(
 
   // Lanes assembled from different iterations still read in pipeline order,
   // with the catch-all branch last.
-  const rank = new Map<string, number>(PIPELINE_LANES.map((lane, index) => [lane.id, index]))
-  return [...byLane.values()].sort(
-    (a, b) => (rank.get(a.branch.id) ?? PIPELINE_LANES.length) - (rank.get(b.branch.id) ?? PIPELINE_LANES.length),
-  )
+  const lanes = catalog?.lanes ?? []
+  const rank = (id: string) => lanes.findIndex(lane => lane.id === id) + 1 || lanes.length + 1
+  return [...byLane.values()].sort((a, b) => rank(a.branch.id) - rank(b.branch.id))
 }
