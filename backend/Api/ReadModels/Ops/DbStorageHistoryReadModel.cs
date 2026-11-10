@@ -46,6 +46,12 @@ public sealed record DbStorageHistoryReadModel
     /// placeholder — the panel shows why instead.
     /// </summary>
     public DbStorageForecast? Forecast { get; init; }
+
+    /// <summary>Why <see cref="Forecast"/> is null; null when there is one.</summary>
+    public DbStorageForecastAbsence? ForecastAbsence { get; init; }
+
+    /// <summary>How many comparable days a forecast needs.</summary>
+    public int ForecastMinimumDays { get; init; }
 }
 
 /// <summary>One day's totals across the whole database.</summary>
@@ -151,4 +157,23 @@ public sealed record DbStorageThresholdCrossing
     /// in the past means the level is already breached.
     /// </summary>
     public DateTime? ProjectedAtUtc { get; init; }
+}
+
+/// <summary>Why the storage history carries no forecast.</summary>
+public enum DbStorageForecastAbsence
+{
+    /// <summary>No snapshot recorded yet: the ingestor writes one per pipeline run.</summary>
+    NoSnapshots,
+
+    /// <summary>The measured engines changed within the minimum window: the trend restarts after the step.</summary>
+    EnginesChanged,
+
+    /// <summary>Fewer days of history than a trend needs.</summary>
+    TooFewDays,
+
+    /// <summary>No disk capacity (or no threshold) is configured to forecast against.</summary>
+    NoCapacityConfigured,
+
+    /// <summary>Storage is flat or shrinking over the window.</summary>
+    NotGrowing
 }
