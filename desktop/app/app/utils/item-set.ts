@@ -1,5 +1,5 @@
 import type { BuildTreeNodeReadModel, ChampionItemContextItemReadModel } from '#shared/contract/api'
-import type { Kit } from '#shared/types/kit'
+import type { Kit } from '~/types/kit'
 import type { BuildCoreView } from '~/types/build'
 import { kitPaths } from '~/utils/kit-tree'
 

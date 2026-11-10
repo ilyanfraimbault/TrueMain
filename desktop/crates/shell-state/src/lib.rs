@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 /// One payload rather than several events: the frontend renders a *state*, and
 /// three separately-arriving events would let it paint a champ select with no
 /// draft in it for a frame.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppState {
     /// False means no client is running — the normal state, not an error.
@@ -175,7 +175,7 @@ impl AppState {
 /// The screens the shell can show. `InGame` is the game page (`/game`, #1748),
 /// and the only screen during which the running game is read: the shell's game
 /// feed follows this rule rather than a second test of the phase.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum Screen {
     NoClient,

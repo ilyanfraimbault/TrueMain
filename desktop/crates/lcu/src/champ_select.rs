@@ -15,7 +15,8 @@ use crate::model::{ChampSelectAction, ChampSelectSession};
 
 /// The two kinds of action the app writes. Every other action type the client
 /// lists (`ten_bans_reveal`, …) is not a turn of the player's and is ignored.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "lowercase")]
 pub enum ActionKind {
     Pick,
     Ban,
@@ -44,7 +45,7 @@ impl ActionKind {
 pub const PLANNING: &str = "PLANNING";
 
 /// One of the local player's actions, as the draft panel shows it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DraftAction {
     pub id: i64,
@@ -80,9 +81,10 @@ pub struct Turn {
     pub turns_until_next: Option<i64>,
 }
 
-/// Why a click wrote nothing. Each is a distinct string the frontend matches
-/// to tell the player why (`useChampSelectActions.ts`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Why a click wrote nothing, each told to the player in their own words
+/// (`useChampSelectActions.ts`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "kebab-case")]
 pub enum Refusal {
     /// No action of that kind is open for the local player.
     NotYourTurn,
@@ -95,23 +97,15 @@ pub enum Refusal {
     /// On a lock, the action does not carry the champion the player
     /// confirmed: the lock only ever commits what the client shows hovered.
     HoverMismatch,
-}
-
-impl Refusal {
-    pub fn code(self) -> &'static str {
-        match self {
-            Self::NotYourTurn => "not-your-turn",
-            Self::NotPickable => "not-pickable",
-            Self::NotBannable => "not-bannable",
-            Self::HoverMismatch => "hover-mismatch",
-        }
-    }
+    /// The client answered an error status to the write: the timer ran out
+    /// between the read and the write, or the phase moved on.
+    ClientRefused,
 }
 
 /// A kit's two summoner spells as `my-selection` takes them (#2185). Built
 /// only from two distinct spells: the client would take a pair of the same
 /// spell and leave the player to find out at load.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SpellSelection {
     spell1_id: i64,

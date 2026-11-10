@@ -1,5 +1,6 @@
 import type { DraftCandidateReadModel, DraftRecommendationResponse } from '#shared/contract/api'
 import type { DraftState } from '~/types/lcu'
+import { apiAnswer, shell } from '~/utils/shell'
 
 /** Our allies' champions keyed by lane, locked ones or hovered ones. */
 export function alliesByLane(draft: DraftState | null, locked: boolean): Record<string, number> {
@@ -57,8 +58,7 @@ export function useDraftRecommendation(
 
   async function ask(request: object): Promise<DraftRecommendationResponse> {
     if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<DraftRecommendationResponse>('draft_recommendation', { request })
+      return await apiAnswer<DraftRecommendationResponse>(shell.draftRecommendation(request))
     }
     // `npm run dev` in a browser: the dev server proxies `/api` (nuxt.config).
     return await $fetch<DraftRecommendationResponse>('/api/champions/draft', { method: 'POST', body: request })

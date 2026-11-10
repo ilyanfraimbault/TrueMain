@@ -8,6 +8,7 @@
 mod api;
 mod champselect;
 mod channels;
+mod contract;
 mod game;
 mod itemsets;
 mod kits;
@@ -40,6 +41,7 @@ use supervisor::SharedState;
 /// already published; without this it would sit on a default state until the
 /// player's next action changed something.
 #[tauri::command]
+#[specta::specta]
 fn current_state(shared: tauri::State<'_, SharedState>) -> AppState {
     shared.lock().expect("state mutex poisoned").clone()
 }
@@ -47,6 +49,7 @@ fn current_state(shared: tauri::State<'_, SharedState>) -> AppState {
 /// Which screen the current state calls for. Derived in Rust so the rule has
 /// exactly one implementation.
 #[tauri::command]
+#[specta::specta]
 fn current_screen(shared: tauri::State<'_, SharedState>) -> Screen {
     shared.lock().expect("state mutex poisoned").screen()
 }
@@ -57,21 +60,29 @@ fn current_screen(shared: tauri::State<'_, SharedState>) -> Screen {
 /// why (CORS against an origin the site never expected, and a CSP that would
 /// have to be opened to a remote host).
 #[tauri::command]
+#[specta::specta]
 async fn draft_recommendation(
     client: tauri::State<'_, ApiClient>,
-    request: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    client.post("/champions/draft", &request).await
+    request: contract::ApiJson,
+) -> Result<contract::ApiJson, String> {
+    client
+        .post("/champions/draft", &request)
+        .await
+        .map(contract::ApiJson)
 }
 
 /// Ask TrueMain which champions to ban in one champion-select state (#1906):
 /// the threats to the player's declared pick, or to their pool.
 #[tauri::command]
+#[specta::specta]
 async fn draft_bans(
     client: tauri::State<'_, ApiClient>,
-    request: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    client.post("/champions/draft/bans", &request).await
+    request: contract::ApiJson,
+) -> Result<contract::ApiJson, String> {
+    client
+        .post("/champions/draft/bans", &request)
+        .await
+        .map(contract::ApiJson)
 }
 
 /// The composition build request currently in flight, if any.
@@ -87,12 +98,13 @@ struct BuildInFlight(Mutex<Option<tokio::task::AbortHandle>>);
 /// one before it rather than queueing behind it, and the superseded call
 /// returns an error the frontend recognises and drops.
 #[tauri::command]
+#[specta::specta]
 async fn composition_build(
     client: tauri::State<'_, ApiClient>,
     in_flight: tauri::State<'_, BuildInFlight>,
     champion_id: i64,
-    request: serde_json::Value,
-) -> Result<serde_json::Value, String> {
+    request: contract::ApiJson,
+) -> Result<contract::ApiJson, String> {
     let client = client.inner().clone();
     let path = format!("/champions/{champion_id}/composition-build");
     let task = tokio::spawn(async move {
@@ -111,7 +123,7 @@ async fn composition_build(
     }
 
     match task.await {
-        Ok(answer) => answer,
+        Ok(answer) => answer.map(contract::ApiJson),
         Err(error) if error.is_cancelled() => Err(SUPERSEDED.to_string()),
         Err(error) => Err(format!("the build request failed: {error}")),
     }
@@ -133,12 +145,13 @@ const SUPERSEDED: &str = "superseded";
 /// Answered by the same endpoint as the site's champion page, so the desktop
 /// shows the build the site shows.
 #[tauri::command]
+#[specta::specta]
 async fn champion_build(
     client: tauri::State<'_, ApiClient>,
     champion_id: i64,
     position: String,
     opponent_champion_id: Option<i64>,
-) -> Result<serde_json::Value, String> {
+) -> Result<contract::ApiJson, String> {
     let mut query = vec![("position", position)];
     if let Some(opponent) = opponent_champion_id {
         query.push(("opponentChampionId", opponent.to_string()));
@@ -146,6 +159,7 @@ async fn champion_build(
     client
         .get(&format!("/champions/{champion_id}"), &query)
         .await
+        .map(contract::ApiJson)
 }
 
 /// The reads the pages outside the draft make — the tier list, the champion
@@ -260,22 +274,24 @@ fn postable(path: &str) -> bool {
 /// query the API runs, hence its deadline rather than the client-wide one.
 /// Asked identically by two webviews at once, it is sent once (`SharedReads`).
 #[tauri::command]
+#[specta::specta]
 async fn api_post(
     client: tauri::State<'_, ApiClient>,
     reads: tauri::State<'_, SharedReads>,
     path: String,
     query: Vec<(String, String)>,
-    request: serde_json::Value,
-) -> Result<serde_json::Value, String> {
+    request: contract::ApiJson,
+) -> Result<contract::ApiJson, String> {
     if !postable(&path) {
         return Err(format!("{path} is not readable from the app"));
     }
-    let key = format!("POST {path} {query:?} {request}");
+    let key = format!("POST {path} {query:?} {}", request.0);
     reads
         .read(key, || {
             client.post_query_within(&path, &query, &request, COMPOSITION_TIMEOUT)
         })
         .await
+        .map(contract::ApiJson)
 }
 
 /// The tier list is computed on the first read after the API starts — about
@@ -286,12 +302,13 @@ const TIER_LIST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30
 /// One read-only GET of a `readable` path, with its query as key/value pairs.
 /// Shared like `api_post`'s.
 #[tauri::command]
+#[specta::specta]
 async fn api_get(
     client: tauri::State<'_, ApiClient>,
     reads: tauri::State<'_, SharedReads>,
     path: String,
     query: Vec<(String, String)>,
-) -> Result<serde_json::Value, String> {
+) -> Result<contract::ApiJson, String> {
     if !readable(&path) {
         return Err(format!("{path} is not readable from the app"));
     }
@@ -305,12 +322,14 @@ async fn api_get(
             }
         })
         .await
+        .map(contract::ApiJson)
 }
 
 /// Open one of the site's pages in the player's browser — the site this build
 /// belongs to (`site.rs`), so a preprod build never sends a player to
 /// production. The webview names the path only; the host is the shell's.
 #[tauri::command]
+#[specta::specta]
 fn open_on_site(app: tauri::AppHandle, path: String) -> Result<(), String> {
     use tauri_plugin_shell::ShellExt;
 
@@ -329,6 +348,7 @@ fn open_on_site(app: tauri::AppHandle, path: String) -> Result<(), String> {
 /// Open a known player's channel in the player's browser — Twitch, YouTube or X,
 /// nothing else (`channels.rs`).
 #[tauri::command]
+#[specta::specta]
 fn open_channel(app: tauri::AppHandle, url: String) -> Result<(), String> {
     use tauri_plugin_shell::ShellExt;
 
@@ -387,60 +407,7 @@ pub fn run() {
                 });
             },
         )
-        .invoke_handler(tauri::generate_handler![
-            current_state,
-            current_screen,
-            game::current_game,
-            draft_recommendation,
-            draft_bans,
-            champion_build,
-            composition_build,
-            api_get,
-            api_post,
-            open_on_site,
-            open_channel,
-            record::player_record,
-            record::player_history,
-            record::player_game,
-            recording::recording_settings,
-            recording::set_recording_settings,
-            recording::recording_check_mark_key,
-            recording::recording_status,
-            recording::request_capture_permission,
-            recording::recording_library,
-            recording::recording_get,
-            recording::recording_win_probability,
-            recording::recording_set_kept,
-            recording::recording_delete,
-            recording::clip_save,
-            recording::clip_update,
-            recording::clip_delete,
-            recording::reveal_recording_file,
-            recording::open_youtube_upload,
-            recording::clip_open_youtube,
-            recording::clip_set_youtube_url,
-            recording::clip_start_drag,
-            recording::clip_delete_video,
-            recording::clip_youtube_embed,
-            overlay::overlay_view,
-            overlay::set_overlay_settings,
-            overlay::overlay_check_trigger,
-            overlay::overlay_read_binds,
-            overlay::overlay_preview,
-            overlay::overlay_fit,
-            overlay::overlay_confirmation,
-            loading::loading_players,
-            runes::import_runes,
-            itemsets::import_item_set,
-            itemsets::import_kit_item_set,
-            kits::kits_get,
-            kits::kits_set,
-            champselect::champ_select_hover,
-            champselect::champ_select_lock,
-            champselect::champ_select_choices,
-            champselect::champ_select_spells,
-            telemetry::telemetry_page
-        ])
+        .invoke_handler(contract::builder().invoke_handler())
         // The overlay's panel is a window too: without this, closing the
         // app's window would leave the app running with no window to show.
         .on_window_event(|window, event| {

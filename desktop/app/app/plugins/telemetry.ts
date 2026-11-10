@@ -1,3 +1,4 @@
+import { shell } from '~/utils/shell'
 /**
  * Counts the pages the player opens (#1805) — a view per page reached, not per
  * filter change on it. The shell keeps the counts and sends them, and does
@@ -14,8 +15,6 @@ export default defineNuxtPlugin(() => {
     if (from.matched.length > 0 && to.path === from.path) return
     const page = telemetryPage(to.name)
     if (!page) return
-    void import('@tauri-apps/api/core')
-      .then(({ invoke }) => invoke('telemetry_page', { page }))
-      .catch(() => {})
+    void shell.telemetryPage(page).catch(() => {})
   })
 })
