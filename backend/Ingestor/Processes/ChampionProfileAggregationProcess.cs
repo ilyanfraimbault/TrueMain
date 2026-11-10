@@ -75,10 +75,10 @@ public sealed class ChampionProfileAggregationProcess(
         var participants = 0;
         var rows = 0;
 
-        // Per-run caches: one metadata and one statics lookup per patch, however many
-        // batches touch it. Statics failures are remembered per patch too, so an outage
-        // costs one warning per patch per run rather than one per batch.
-        var itemMetadataByPatch = new Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>>(StringComparer.Ordinal);
+        // The item metadata is cached per patch by its provider (#2574). What is cached here is
+        // derived: the ranged flag per champion, built once per patch per run, and the patches
+        // whose statics were unavailable — so an outage costs one warning per patch per run
+        // rather than one per match, since the provider does not remember a failed load.
         var rangedByPatch = new Dictionary<string, IReadOnlyDictionary<int, bool>?>(StringComparer.Ordinal);
 
         while (maxPerRun == 0 || processedMatches < maxPerRun)
@@ -107,7 +107,7 @@ public sealed class ChampionProfileAggregationProcess(
             }
 
             var written = await ProcessBatchAsync(
-                db, matchIds, itemMetadataByPatch, rangedByPatch, rangedThreshold, aggregatedAtUtc, ct);
+                db, matchIds, rangedByPatch, rangedThreshold, aggregatedAtUtc, ct);
 
             processedMatches += matchIds.Count;
             participants += written.Participants;
@@ -134,7 +134,6 @@ public sealed class ChampionProfileAggregationProcess(
     private async Task<WrittenRows> ProcessBatchAsync(
         TrueMainDbContext db,
         List<string> matchIds,
-        Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>> itemMetadataByPatch,
         Dictionary<string, IReadOnlyDictionary<int, bool>?> rangedByPatch,
         int rangedThreshold,
         DateTime aggregatedAtUtc,
@@ -208,7 +207,7 @@ public sealed class ChampionProfileAggregationProcess(
                 continue;
             }
 
-            var itemMetadata = await GetItemMetadataAsync(itemMetadataByPatch, patch, match.GameVersion, ct);
+            var itemMetadata = (await itemMetadataProvider.GetItemsAsync(match.GameVersion, ct)).Require("Item metadata");
             var ranged = await GetRangedAsync(rangedByPatch, patch, match.GameVersion, rangedThreshold, ct);
 
             var parts = participantsByMatch[matchId];
@@ -320,21 +319,6 @@ public sealed class ChampionProfileAggregationProcess(
         await transaction.CommitAsync(ct);
 
         return new WrittenRows(folded, profiles.Count);
-    }
-
-    private async Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemMetadataAsync(
-        Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>> cache,
-        string patch,
-        string gameVersion,
-        CancellationToken ct)
-    {
-        if (!cache.TryGetValue(patch, out var metadata))
-        {
-            metadata = (await itemMetadataProvider.GetItemsAsync(gameVersion, ct)).Require("Item metadata");
-            cache[patch] = metadata;
-        }
-
-        return metadata;
     }
 
     private async Task<IReadOnlyDictionary<int, bool>?> GetRangedAsync(

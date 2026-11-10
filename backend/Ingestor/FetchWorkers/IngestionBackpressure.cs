@@ -135,6 +135,18 @@ public sealed class IngestionBackpressure(
             (null, _) => "memory",
             _ => "disk"
         };
+
+        // A host that has the resource but failed to read it has lost a safety brake (#600,
+        // #680): an error, which the logs page and the alerts see, not a quiet warning (#2481, F27).
+        if (reading.Failure is { } failure)
+        {
+            logger.LogError(
+                "Ingestion backpressure failed to read {Resources} ({Failure}); no backpressure applies to it while the read fails.",
+                unreadable,
+                failure);
+            return;
+        }
+
         logger.LogWarning(
             "Ingestion backpressure cannot read {Resources} on this host; no backpressure applies to it.",
             unreadable);
