@@ -39,7 +39,7 @@ const BOARD_WIDTH_AT_ZERO: f64 = 996.5;
 pub const MAX_NUDGE: f64 = 60.0;
 
 /// The client's HUD settings the scoreboard depends on.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HudSettings {
     /// League's "HUD scale", 0 – 1.

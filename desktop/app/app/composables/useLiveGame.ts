@@ -1,4 +1,5 @@
-import type { GameChange, GameState, GameUpdate } from '~/types/game'
+import type { GameChange, GameState } from '~/types/game'
+import { shell, shellEvents } from '~/utils/shell'
 
 /**
  * Apply one reading's changes. The same rule as `GameState::apply` in
@@ -76,23 +77,20 @@ export function useLiveGame() {
   async function subscribe() {
     if (!insideTauri()) return
 
-    const { invoke } = await import('@tauri-apps/api/core')
-    const { listen } = await import('@tauri-apps/api/event')
-
     // Bumped by every event: a read that an event overtook is older than what
     // is already on screen, and is dropped.
     let epoch = 0
     async function resync() {
       const at = epoch
-      const read = await invoke<GameState | null>('current_game')
+      const read = await shell.currentGame()
       if (at === epoch) set(read)
     }
 
-    const stopSnapshot = await listen<GameState | null>('game://snapshot', (event) => {
+    const stopSnapshot = await shellEvents.gameSnapshot.listen((event) => {
       epoch++
       set(event.payload)
     })
-    const stopUpdate = await listen<GameUpdate>('game://update', (event) => {
+    const stopUpdate = await shellEvents.gameUpdate.listen((event) => {
       const update = event.payload
       const current = game.value
       if (current && update.revision <= current.revision) return
