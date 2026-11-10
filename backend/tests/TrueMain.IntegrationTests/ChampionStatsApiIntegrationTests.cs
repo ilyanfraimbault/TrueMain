@@ -49,7 +49,7 @@ public sealed class ChampionStatsApiIntegrationTests : IAsyncLifetime
         document.RootElement[0].EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["championId", "games", "mains", "otps", "extendedSamples"]);
 
-        var rows = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionStatRowTestContract>>();
+        var rows = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionStatRowTestContract>>(ApiJson.Options);
         rows.Should().NotBeNull();
 
         // Champion 22: 3 participants total (EUW1 16.4 MIDDLE soloq, KR 16.4
@@ -88,7 +88,7 @@ public sealed class ChampionStatsApiIntegrationTests : IAsyncLifetime
             "/ops/stats/champions?region=EUW1&patch=16.4&position=MIDDLE&queue=420");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var rows = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionStatRowTestContract>>();
+        var rows = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionStatRowTestContract>>(ApiJson.Options);
         rows.Should().NotBeNull();
 
         var champion22 = rows!.Single(row => row.ChampionId == 22);
@@ -182,7 +182,7 @@ public sealed class ChampionStatsApiIntegrationTests : IAsyncLifetime
                 new TestDbContextFactory(_fixture),
                 new FakeProcessRunStore(),
                 TimeProvider.System)
-            .RunCoreAsync(CancellationToken.None);
+            .RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private static Match BuildMatch(string id, string platformId, string gameVersion, int queueId, DateTime startUtc)

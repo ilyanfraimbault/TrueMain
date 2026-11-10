@@ -57,7 +57,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
                 RecomputeAfterHours = 24
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var account = verifyDb.RiotAccounts.Single(a => a.PlatformId == "KR" && a.Puuid == "puuid-main-1");
@@ -112,7 +112,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
                 RecomputeAfterHours = 24
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // The account became a main of 22 and not of 51 (asserted above). A mains-only
         // pattern run folds nothing of a non-main, so its 22 games have to be rebuilt
@@ -158,7 +158,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
                 RecomputeAfterHours = 24
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var stat = verifyDb.MainChampionStats
@@ -490,7 +490,7 @@ public sealed class MainAnalysisProcessIntegrationTests : IAsyncLifetime
                 RecomputeAfterHours = 24
             }));
 
-        return process.RunCoreAsync(CancellationToken.None);
+        return process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private async Task SeedEstablishedMainAsync(

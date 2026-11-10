@@ -3,11 +3,11 @@
 // never used before), and optionally a first account and link — the edit panel
 // adds the rest. Everything it writes carries the source `manual`, and the name is
 // the operator's from then on. Emits `created` with the API's answer.
-import type { PersonaCreateBody, PersonaEdited } from '~~/shared/types/ops'
+import type { PersonaCreateRequest, PersonaEditedResponse } from '#site-shared/contract/api'
 import { computed, ref, watch } from 'vue'
 import { ACCOUNT_PLATFORMS, accountInput, displayNameError, editErrorMessage, LINK_KINDS, linkUrlError, slugError, slugify } from '~~/shared/utils/known-players'
 
-const emit = defineEmits<{ created: [edited: PersonaEdited], cancel: [] }>()
+const emit = defineEmits<{ created: [edited: PersonaEditedResponse], cancel: [] }>()
 
 const displayName = ref('')
 const slug = ref('')
@@ -38,7 +38,7 @@ const ready = computed(() => !displayNameError(displayName.value) && !slugError(
 const busy = ref(false)
 const failure = ref<string | null>(null)
 
-function body(): PersonaCreateBody {
+function body(): PersonaCreateRequest {
   const account = riotId.value.trim() ? accountInput(riotId.value, platformId.value) : null
   return {
     slug: slug.value,

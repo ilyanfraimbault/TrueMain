@@ -1,4 +1,5 @@
-import type { EnemyLane, Lane } from '~/types/draft'
+import type { Lane } from '~/types/draft'
+import type { DraftEnemyLaneReadModel } from '#shared/contract/api'
 import { POSITIONS } from '#shared/utils/positions'
 
 /** One lane row, as the panel renders it. */
@@ -17,7 +18,7 @@ export interface LaneSlot {
  * so the remaining lanes re-solve around it. That is what lets one gesture fix
  * several wrong slots instead of one.
  */
-export function useLaneAssignment(lanes: Ref<EnemyLane[]>) {
+export function useLaneAssignment(lanes: Ref<DraftEnemyLaneReadModel[]>) {
   /** Champion id → lane, for every slot the user set by hand. */
   const pinned = ref<Record<number, string>>({})
 

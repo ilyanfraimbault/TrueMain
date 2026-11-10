@@ -3,7 +3,6 @@ using Data.Pipeline;
 using Ingestor.FetchWorkers;
 using Ingestor.Options;
 using Ingestor.Processes;
-using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
@@ -14,29 +13,19 @@ public sealed class Worker(
     IServiceScopeFactory scopeFactory,
     IOptions<JobOptions> jobOptions,
     IIterationContext iterationContext,
-    ICallerContext callerContext,
+    ProcessRunner runner,
     IHostApplicationLifetime applicationLifetime,
     IngestorMetrics metrics,
     TimeProvider timeProvider,
     IHeartbeatFile heartbeatFile) : BackgroundService
 {
-
-    /// <summary>
-    /// How often the liveness file is rewritten. Same cadence as
-    /// <see cref="Processes.RecordedProcess{TInner}"/>'s <c>process_runs</c> heartbeat, for
-    /// the same reason: a signal that only ticks at pass boundaries cannot distinguish a
-    /// wedged process from a slow one (#1229).
-    /// </summary>
-    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var options = jobOptions.Value;
         var mode = JobModeParser.Parse(options.Mode);
 
         await ReconcileOrphanedRunsAsync(mode, stoppingToken);
-        await ReleaseOrphanedClaimsAsync(mode, stoppingToken);
-        await ReturnOrphanedSeedClaimsAsync(mode, stoppingToken);
+        await RecoverOwnedStepsAsync(mode, stoppingToken);
 
         // The heartbeat used to be touched once per iteration, at the top. A Full pass runs
         // for many minutes and the wait between passes for a whole Job:IntervalMinutes, so
@@ -135,7 +124,7 @@ public sealed class Worker(
                 // is precisely that this cadence is independent of how long a pass
                 // takes. Only this loop needs it — the between-passes wait below is
                 // driven by configuration a test sets directly.
-                await Task.Delay(HeartbeatInterval, timeProvider, ct);
+                await Task.Delay(ProcessRunStaleness.HeartbeatInterval, timeProvider, ct);
                 await TouchHeartbeatAsync(ct);
             }
         }
@@ -181,73 +170,40 @@ public sealed class Worker(
         }
     }
 
-    private async Task ReleaseOrphanedClaimsAsync(JobMode mode, CancellationToken stoppingToken)
+    private async Task RecoverOwnedStepsAsync(JobMode mode, CancellationToken stoppingToken)
     {
-        // Only the lane that claims (#1513). The claim rows belong to MatchIngestion, and a
-        // release from the aggregate lane would free whatever the fetch lane is holding
-        // right now — every one of its accounts, on every restart of a container that has
-        // nothing to do with them.
-        if (!PipelineCatalog.StepsOwnedBy(mode).Contains(PipelineCatalog.MatchIngestion))
-        {
-            return;
-        }
+        // Only the steps this lane owns (#1513): the other lane's claims sit in the same tables
+        // and are live right now. A single-instance lane cannot hold a live claim at boot, so
+        // whatever its own steps still hold was stranded by the incarnation that died.
+        var owned = PipelineCatalog.StepsOwnedBy(mode);
 
-        // Same reasoning as the run reconciliation above, applied to the claims those runs
-        // were holding: a single-instance lane cannot have a live claim at boot. Without
-        // this, the accounts a redeploy interrupted stayed Processing until the rest of
-        // MatchIngestion:ClaimLeaseMinutes had elapsed, so the deploy cost the pipeline the
-        // pass it interrupted plus whatever was left of the lease.
+        await using var scope = scopeFactory.CreateAsyncScope();
+        IEnumerable<IStepBootRecovery> recoveries;
         try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var claimService = scope.ServiceProvider.GetRequiredService<IMatchClaimService>();
-
-            var released = await claimService.ReleaseOrphanedClaimsAsync(stoppingToken);
-            if (!released.IsEmpty)
-            {
-                logger.LogWarning(
-                    "Released {Candidates} candidate(s) and {Accounts} account claim(s) orphaned by the previous incarnation at startup.",
-                    released.Candidates,
-                    released.Accounts);
-            }
+            recoveries = scope.ServiceProvider.GetServices<IStepBootRecovery>().ToList();
         }
         catch (Exception ex)
         {
-            // Never block the boot: the lease-based reap at the top of the next
-            // MatchIngestion pass is the fallback that was doing this job on its own.
-            logger.LogError(ex, "Startup release of orphaned claims failed; continuing to start the worker.");
-        }
-    }
-
-    private async Task ReturnOrphanedSeedClaimsAsync(JobMode mode, CancellationToken stoppingToken)
-    {
-        // Only the lane that runs the manual seed: a Resolving seed request is that
-        // process's claim, and another lane's boot has no business releasing it.
-        if (!PipelineCatalog.StepsOwnedBy(mode).Contains(PipelineCatalog.ManualSeed))
-        {
+            logger.LogError(ex, "Startup recovery could not be set up; continuing to start the worker.");
             return;
         }
 
-        // A single-instance lane cannot hold a live seed claim at boot, so every Resolving
-        // request was stranded by a predecessor killed between claim and terminal write
-        // (#2474). Without this it never reaches GetPendingAsync again and keeps answering
-        // the create endpoint as "already queued", so its Riot ID could never be re-seeded.
-        try
+        foreach (var recovery in recoveries.Where(recovery => owned.Contains(recovery.Step)))
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var store = scope.ServiceProvider.GetRequiredService<ISeedRequestStore>();
-
-            var returned = await store.ReturnOrphanedClaimsAsync(stoppingToken);
-            if (returned > 0)
+            try
             {
-                logger.LogWarning(
-                    "Returned {SeedRequests} seed request(s) left Resolving by the previous incarnation to Pending at startup.",
-                    returned);
+                await recovery.RecoverAsync(stoppingToken);
             }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Startup return of orphaned seed-request claims failed; continuing to start the worker.");
+            catch (Exception ex)
+            {
+                // Never block the boot: each step's own fallback (the claim lease, the reap at
+                // the top of its next run) still covers what this leaves behind.
+                logger.LogError(
+                    ex,
+                    "Startup recovery of {ProcessName} failed; continuing to start the worker.",
+                    recovery.Step.Name);
+            }
         }
     }
 
@@ -263,7 +219,7 @@ public sealed class Worker(
 
         try
         {
-            await File.WriteAllTextAsync(path, DateTimeOffset.UtcNow.ToString("O"), ct);
+            await File.WriteAllTextAsync(path, timeProvider.GetUtcNow().ToString("O"), ct);
         }
         // A cancelled write is shutdown, not a heartbeat failure: let it propagate
         // so it is handled where every other OperationCanceledException in this
@@ -307,7 +263,7 @@ public sealed class Worker(
 
             // ...but a log line alone is not alertable, so the failure is also
             // published as a counter (#260). Failures escaping this far are not
-            // attributable to one process (those are counted in RunModeAsync).
+            // attributable to one process (those are counted by the ProcessRunner).
             metrics.RecordRunFailure(IngestorMetrics.WholeRunProcess, mode);
         }
     }
@@ -327,80 +283,9 @@ public sealed class Worker(
 
         foreach (var step in sequence)
         {
-            // A fresh scope per process gives each one its own DbContext and
-            // scoped repositories. A single shared scope would let the
-            // ChangeTracker accumulate every entity touched across the whole
-            // sequence and leak cached scoped state from one process into the
-            // next. The scope is disposed before moving on to the next process.
-            await using var scope = scopeFactory.CreateAsyncScope();
-
-            // Resolve from THIS scope's provider (never the root one, see #256) so
-            // the process and its scoped dependencies die with the scope.
-            // GetRequiredKeyedService names only the key TYPE in its message, so
-            // resolve leniently and throw one that names the offending mode. The
-            // throw aborts this pass but is caught by RunOnceAsync, so a bad
-            // registration is loud in the logs instead of crash-looping the host.
-            var process = scope.ServiceProvider.GetKeyedService<IIngestorProcess>(step.Mode)
-                ?? throw new InvalidOperationException(
-                    $"No IIngestorProcess is registered for {nameof(JobMode)}.{step.Mode} "
-                    + $"(reached while running Job:Mode '{mode}'). "
-                    + $"Registered modes: {DescribeRegisteredModes(scope.ServiceProvider)}. "
-                    + "Mark its class with [PipelineStep] so AddIngestorProcesses registers it.");
-
-            // Ambient caller attribution (#1035): every Riot call the process makes
-            // while this scope is open is tagged with its name in the usage rollups,
-            // so /riot-api can attribute consumption per caller. Scoped to just the
-            // RunCoreAsync call so it never leaks into the next process below.
-            using var callerScope = callerContext.BeginCall(step.Name);
-
-            try
-            {
-                await process.RunCoreAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                // Shutdown, not a failure (#255) — propagate without counting it.
-                throw;
-            }
-            catch (Exception ex)
-            {
-                // One failing process must not starve the rest of the sequence: before
-                // issue #443 a Discovery failure aborted every cycle here, so nothing
-                // downstream (Scoring, MatchIngestion, ...) ever ran. The RecordedProcess
-                // decorator has already persisted the Failed run for this process; log
-                // and move on to the next one.
-                logger.LogError(
-                    ex,
-                    "Process {ProcessName} failed; continuing with the next process in the sequence.",
-                    step.Name);
-
-                // This is the catch that hides the failures worth alerting on: a dead
-                // Riot key or schema drift surfaces here, per process, and never reaches
-                // RunOnceAsync. Counting only the outer catch would leave the counter at
-                // zero in exactly the scenario it exists for (#260).
-                metrics.RecordRunFailure(step.Name, mode);
-            }
+            // A failed step is logged and counted by the runner and the pass moves on: one
+            // failing process must not starve the rest of the sequence (#443).
+            await runner.RunAsync(step, mode, RunInput.Whole, stoppingToken);
         }
-    }
-
-    private static string DescribeRegisteredModes(IServiceProvider serviceProvider)
-    {
-        // Keyed DI has no equivalent of the old name-indexed dictionary to read the
-        // registrations off, but IServiceProviderIsKeyedService answers "is this key
-        // registered?" without constructing anything. Enumerating
-        // GetKeyedServices(AnyKey) instead would instantiate every process — each
-        // with its DbContext and scoped dependencies — just to format an error
-        // message, and could throw while doing so and mask the real fault.
-        var probe = serviceProvider.GetService<IServiceProviderIsKeyedService>();
-        if (probe is null)
-        {
-            return "unavailable (this container cannot be probed for keyed registrations)";
-        }
-
-        var registered = Enum.GetValues<JobMode>()
-            .Where(candidate => probe.IsKeyedService(typeof(IIngestorProcess), candidate))
-            .ToArray();
-
-        return registered.Length == 0 ? "none" : string.Join(", ", registered);
     }
 }

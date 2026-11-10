@@ -1,4 +1,4 @@
-import type { ChampionOverviewResponse } from '~~/shared/types/champions'
+import type { ChampionOverviewReadModel } from '#shared/contract/api'
 
 /**
  * Homepage-sized champion snapshot (#972): the lifetime "games analyzed" total
@@ -14,7 +14,7 @@ import type { ChampionOverviewResponse } from '~~/shared/types/champions'
  * hydration — and keeps its skeleton.
  */
 export function useChampionOverview() {
-  return useApi<ChampionOverviewResponse>('/champions/overview', {
+  return useApi<ChampionOverviewReadModel>('/champions/overview', {
     key: 'home-champion-overview',
     server: false,
   })

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
-import type { ProfileMainChampion } from '~~/shared/types/profile'
+import type { ChampionSummaryReadModel, ProfileMainChampionReadModel } from '#shared/contract/api'
 import {
   selectChampionSummaryRow,
   selectSignatureMain,
@@ -14,7 +13,7 @@ import {
  * selections that could produce one.
  */
 
-function summary(overrides: Partial<ChampionSummaryResponse>): ChampionSummaryResponse {
+function summary(overrides: Partial<ChampionSummaryReadModel>): ChampionSummaryReadModel {
   return {
     championId: 103,
     games: 1000,
@@ -34,7 +33,7 @@ function summary(overrides: Partial<ChampionSummaryResponse>): ChampionSummaryRe
   }
 }
 
-function main(overrides: Partial<ProfileMainChampion>): ProfileMainChampion {
+function main(overrides: Partial<ProfileMainChampionReadModel>): ProfileMainChampionReadModel {
   return {
     championId: 103,
     games: 100,

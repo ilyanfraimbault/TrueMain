@@ -31,7 +31,7 @@ const METADATA_TEMPORARY: &str = "recording.json.tmp";
 /// alone rather than misread.
 pub const METADATA_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum RecordingStatus {
     /// Being written — or, for a folder no session owns, cut short by a crash:
@@ -43,7 +43,7 @@ pub enum RecordingStatus {
     Ready,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingMeta {
     pub version: u32,

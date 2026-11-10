@@ -1,3 +1,4 @@
+using Data.Entities;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -25,7 +26,7 @@ public sealed record PersonaListRowReadModel
     public string DisplayName { get; init; } = string.Empty;
 
     /// <summary>The source that first published the persona.</summary>
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     /// <summary>True when an operator set the name, which the sources then no longer overwrite.</summary>
     public bool DisplayNameLocked { get; init; }
@@ -61,7 +62,7 @@ public sealed record PersonaAdminDetailReadModel
 
     public string DisplayName { get; init; } = string.Empty;
 
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     public bool DisplayNameLocked { get; init; }
 
@@ -100,7 +101,7 @@ public sealed record PersonaAdminAccountReadModel
 
     public string PlatformId { get; init; } = string.Empty;
 
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     /// <summary>The tracked account it answers to; null while untracked.</summary>
     public Guid? RiotAccountId { get; init; }
@@ -122,7 +123,7 @@ public sealed record PersonaAdminLinkReadModel
 
     public string Url { get; init; } = string.Empty;
 
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     public DateTime CreatedAtUtc { get; init; }
 }
@@ -136,7 +137,7 @@ public sealed record PersonaAdminExclusionReadModel
     public string PlatformId { get; init; } = string.Empty;
 
     /// <summary><c>conflict</c> (a resolution), <c>unlinked</c> (an operator's unlink) or <c>takedown</c>.</summary>
-    public string Reason { get; init; } = string.Empty;
+    public PersonaExclusionReason Reason { get; init; }
 
     public DateTime CreatedAtUtc { get; init; }
 }
@@ -154,7 +155,7 @@ public sealed record PersonaAdminConflictReadModel
     public Guid Id { get; init; }
 
     /// <summary><c>claimant</c> when this persona claims an account another holds, <c>owner</c> when it holds one another claims.</summary>
-    public string Role { get; init; } = string.Empty;
+    public PersonaConflictSide Role { get; init; }
 
     public string GameName { get; init; } = string.Empty;
 
@@ -167,7 +168,7 @@ public sealed record PersonaAdminConflictReadModel
     public string OtherDisplayName { get; init; } = string.Empty;
 
     /// <summary>The source of the claim.</summary>
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     public DateTime LastSeenAtUtc { get; init; }
 }

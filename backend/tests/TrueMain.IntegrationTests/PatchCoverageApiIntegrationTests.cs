@@ -217,7 +217,7 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture) : 
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<PatchCoverageContract>("/ops/patch-coverage");
+        var payload = await client.GetFromJsonAsync<PatchCoverageContract>("/ops/patch-coverage", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.Verdict.Should().Be("unknown", "an unmeasured corpus is not a passing one");
@@ -249,7 +249,7 @@ public sealed class PatchCoverageApiIntegrationTests(PostgresFixture fixture) : 
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<PatchCoverageContract>("/ops/patch-coverage");
+        var payload = await client.GetFromJsonAsync<PatchCoverageContract>("/ops/patch-coverage", ApiJson.Options);
 
         payload.Should().NotBeNull();
         return payload!;

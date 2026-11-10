@@ -331,20 +331,20 @@ public sealed class PersonaHomonymsApiIntegrationTests : IAsyncLifetime
             },
         });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>())!.Personas.Single();
+        return (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>(ApiJson.Options))!.Personas.Single();
     }
 
-    private static async Task<T> GetAsync<T>(HttpClient client, string url) => (await client.GetFromJsonAsync<T>(url))!;
+    private static async Task<T> GetAsync<T>(HttpClient client, string url) => (await client.GetFromJsonAsync<T>(url, ApiJson.Options))!;
 
     private static async Task<T> PostAsync<T>(HttpClient client, string url, object body)
     {
         var response = await client.PostAsJsonAsync(url, body);
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-        return (await response.Content.ReadFromJsonAsync<T>())!;
+        return (await response.Content.ReadFromJsonAsync<T>(ApiJson.Options))!;
     }
 
     private static async Task<PersonaReadModel> PlayerAsync(HttpClient client, string slug) =>
-        (await client.GetFromJsonAsync<PersonaReadModel>($"/players/{slug}"))!;
+        (await client.GetFromJsonAsync<PersonaReadModel>($"/players/{slug}", ApiJson.Options))!;
 
     private ApiWebApplicationFactory CreateFactory() => new(_fixture, _mongo);
 

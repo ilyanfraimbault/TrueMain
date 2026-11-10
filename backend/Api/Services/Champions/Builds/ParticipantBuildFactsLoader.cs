@@ -23,8 +23,7 @@ namespace TrueMain.Services.Champions.Builds;
 /// </summary>
 public sealed class ParticipantBuildFactsLoader(
     TrueMainDbContext db,
-    IItemMetadataProvider itemMetadataProvider,
-    ILogger<ParticipantBuildFactsLoader> logger)
+    IItemMetadataProvider itemMetadataProvider)
 {
     /// <summary>
     /// Loads facts for <paramref name="keys"/>, keeping the caller's order.
@@ -171,7 +170,8 @@ public sealed class ParticipantBuildFactsLoader(
                 continue;
             }
 
-            metadataByGameVersion[row.GameVersion] = await GetItemMetadataAsync(row.GameVersion, ct);
+            // Item-less facts when the item data is down: the read degrades, it does not fail.
+            metadataByGameVersion[row.GameVersion] = (await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct)).Value;
         }
 
         return metadataByGameVersion;
@@ -274,27 +274,6 @@ public sealed class ParticipantBuildFactsLoader(
             perksOffense,
             perksFlex,
             perksDefense);
-    }
-
-    /// <summary>
-    /// Item metadata for the game's patch, or null when CommunityDragon has nothing for
-    /// it (stale patches age out of the CDN) — the caller degrades to item-less facts
-    /// instead of failing the whole read.
-    /// </summary>
-    private async Task<IReadOnlyDictionary<int, ItemMetadata>?> GetItemMetadataAsync(
-        string gameVersion,
-        CancellationToken ct)
-    {
-        try
-        {
-            return await itemMetadataProvider.GetItemsAsync(gameVersion, ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(
-                ex, "Item metadata unavailable for game version {GameVersion}; skipping item facts.", gameVersion);
-            return null;
-        }
     }
 
     private sealed record ParticipantBuildRow(

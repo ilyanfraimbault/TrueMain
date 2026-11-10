@@ -20,7 +20,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "tokens": "node scripts/theme-tokens.mjs",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "contract": "openapi-typescript shared/contract/openapi.json -o shared/contract/api.ts --root-types --root-types-no-schema-prefix --empty-objects-unknown --enum-values"
   },
   "dependencies": {
     "@nuxt/image": "^2.2.1",
@@ -42,10 +43,16 @@
     "eslint": "^10.14.0",
     "eslint-plugin-vuejs-accessibility": "^2.6.3",
     "happy-dom": "^21.0.4",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4.3.4",
     "typescript": "^6.0.3",
     "vitest": "^5.0.3",
     "vue-chrts": "2.2.3",
     "vue-tsc": "^3.3.14"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "^6.0.3"
+    }
   }
 }

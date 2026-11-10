@@ -25,7 +25,7 @@ public sealed class MatchDataRetentionProcess(
     IOptions<IntakeOptions> intakeOptions,
     IItemMetadataProvider itemMetadataProvider) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         // Prune stale never-promoted candidates first (#487) — independent of match
         // retention, so it runs even when there is nothing to delete below.
@@ -373,7 +373,9 @@ public sealed class MatchDataRetentionProcess(
         var deletedMatches = 0;
         var deletedParticipants = 0;
         var truncatedSeats = 0;
-        var itemMetadata = TruncatedMatchRetention.ItemMetadataReader(itemMetadataProvider, logger);
+        // Item data down: the truncated seats keep every fact but the items rather than failing the batch.
+        Func<string, CancellationToken, Task<IReadOnlyDictionary<int, ItemMetadata>?>> itemMetadata =
+            async (gameVersion, token) => (await itemMetadataProvider.GetItemsAsync(gameVersion, token)).Value;
 
         foreach (var batchIds in deletableMatchIds.Chunk(batchSize))
         {

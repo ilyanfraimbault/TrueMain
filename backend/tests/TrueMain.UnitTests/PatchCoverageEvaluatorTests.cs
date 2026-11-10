@@ -1,10 +1,11 @@
 using AwesomeAssertions;
+using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Ops.Candidates;
 using TrueMain.Services.Ops.Configuration;
 using TrueMain.Services.Ops.Coverage;
-using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
+using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.Diagnostics;
 using TrueMain.Services.Ops.Health;
 using TrueMain.Services.Ops.Processes;
@@ -29,8 +30,8 @@ public sealed class PatchCoverageEvaluatorTests
         var unaggregated = PatchCoverageEvaluator.ReadVerdict(matches: 500, aggregateRows: 0, lines: 0, linesPastFloor: 0, bar: 100, isServed: false);
         var thin = PatchCoverageEvaluator.ReadVerdict(matches: 500, aggregateRows: 900, lines: 40, linesPastFloor: 3, bar: 100, isServed: false);
 
-        unaggregated.Verdict.Should().Be("notAggregated");
-        thin.Verdict.Should().Be("thin");
+        unaggregated.Verdict.Should().Be(PatchVerdict.NotAggregated);
+        thin.Verdict.Should().Be(PatchVerdict.Thin);
     }
 
     [Fact]
@@ -44,7 +45,7 @@ public sealed class PatchCoverageEvaluatorTests
         var verdict = PatchCoverageEvaluator.ReadVerdict(
             matches: 500, aggregateRows: 900, lines: 0, linesPastFloor: 0, bar: 100, isServed: true);
 
-        verdict.Verdict.Should().Be("thin");
+        verdict.Verdict.Should().Be(PatchVerdict.Thin);
         verdict.Judged.Should().BeTrue();
     }
 
@@ -55,7 +56,7 @@ public sealed class PatchCoverageEvaluatorTests
 
         // Nothing was ingested and nothing was aggregated, so there is no reading. Green
         // here would be a dashboard reporting health on a patch it never measured.
-        verdict.Verdict.Should().Be("unknown");
+        verdict.Verdict.Should().Be(PatchVerdict.Unknown);
         verdict.Status.Should().Be(DetectorStatus.Unknown);
         verdict.Judged.Should().BeFalse("an unjudged patch must not print a bar it was never compared against");
     }
@@ -79,7 +80,7 @@ public sealed class PatchCoverageEvaluatorTests
         // off-by-one here reads as "one line short" on a patch that is exactly at the bar.
         PatchCoverageEvaluator
             .ReadVerdict(matches: 500, aggregateRows: 900, lines: 200, linesPastFloor: 100, bar: 100, isServed: true)
-            .Verdict.Should().Be("servable");
+            .Verdict.Should().Be(PatchVerdict.Servable);
     }
 
     [Fact]

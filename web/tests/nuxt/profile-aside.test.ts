@@ -1,7 +1,7 @@
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
-import type { ProfileResponse } from '~~/shared/types/profile'
+import type { ProfileReadModel } from '#shared/contract/api'
 import { FavoriteToggle, ProfileAside, ProfileFollowToggle, UApp } from '#components'
 
 // A player profile's column, shared by the site and the app.
@@ -10,14 +10,14 @@ mockNuxtImport('useApiFetch', () => () => apiFetch)
 
 afterEach(() => apiFetch.mockReset())
 
-const PROFILE: ProfileResponse = {
+const PROFILE: ProfileReadModel = {
   identity: { gameName: 'Faker', tagLine: 'KR1', platformId: 'KR', profileIconId: 6, summonerLevel: 700 },
   ranked: { tier: 'CHALLENGER', division: 'I', leaguePoints: 1204, wins: 120, losses: 80, winRate: 0.6 },
   mains: [],
   dedication: null,
   persona: null,
   positions: [{ position: 'MIDDLE', games: 180, rate: 0.9 }],
-} as unknown as ProfileResponse
+} as unknown as ProfileReadModel
 
 function mountAside(props: Record<string, unknown>, slots: Record<string, () => unknown> = {}) {
   apiFetch.mockResolvedValue({ entries: [] })
@@ -72,7 +72,7 @@ describe('ProfileFollowToggle', () => {
 
 describe('useTruemainPlayerLabel', () => {
   it('reads the stored Riot ID, and the slug before the profile lands', async () => {
-    const profile = ref<ProfileResponse | null>(null)
+    const profile = ref<ProfileReadModel | null>(null)
     let label!: Ref<string>
     await mountSuspended(defineComponent({
       setup() {

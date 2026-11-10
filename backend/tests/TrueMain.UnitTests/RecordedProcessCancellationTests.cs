@@ -35,7 +35,7 @@ public sealed class RecordedProcessCancellationTests
             return null;
         });
 
-        var act = async () => await process.RunCoreAsync(shutdown.Token);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, shutdown.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>(
             "cancellation is the host's business and must keep propagating to the worker");
@@ -90,7 +90,7 @@ public sealed class RecordedProcessCancellationTests
         });
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            async () => await process.RunCoreAsync(shutdown.Token));
+            async () => await process.RunCoreAsync(RunInput.Whole, shutdown.Token));
 
         tokens.Should().ContainSingle().Which.IsCancellationRequested.Should().BeFalse();
     }
@@ -121,7 +121,7 @@ public sealed class RecordedProcessCancellationTests
             return null;
         });
 
-        var act = async () => await process.RunCoreAsync(shutdown.Token);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, shutdown.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
@@ -138,6 +138,6 @@ public sealed class RecordedProcessCancellationTests
 
     private sealed class StubProcess(Func<IProcessRunSummary?> body) : IIngestorProcess
     {
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult(body());
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct) => Task.FromResult(body());
     }
 }

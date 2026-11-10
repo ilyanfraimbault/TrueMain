@@ -24,7 +24,7 @@ public sealed class MainActivityCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: FixedNow.AddMinutes(-20));
 
-        var summary = await harness.Process(TimeSpan.FromHours(1)).RunCoreAsync(CancellationToken.None);
+        var summary = await harness.Process(TimeSpan.FromHours(1)).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<SkippedSummary>().Which.Skipped.Should().BeTrue();
         await harness.RiotAccounts.DidNotReceive().GetAccountsForActivityCheckAsync(
@@ -36,7 +36,7 @@ public sealed class MainActivityCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: FixedNow.AddHours(-2));
 
-        var summary = await harness.Process(TimeSpan.FromHours(1)).RunCoreAsync(CancellationToken.None);
+        var summary = await harness.Process(TimeSpan.FromHours(1)).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<NoWorkSummary>();
         await harness.RiotAccounts.Received(1).GetAccountsForActivityCheckAsync(
@@ -48,7 +48,7 @@ public sealed class MainActivityCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: FixedNow);
 
-        await harness.Process(TimeSpan.Zero).RunCoreAsync(CancellationToken.None);
+        await harness.Process(TimeSpan.Zero).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await harness.RiotAccounts.Received(1).GetAccountsForActivityCheckAsync(
             Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>());

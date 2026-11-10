@@ -123,7 +123,7 @@ public sealed class TruemainActivityQueryService(
         return new TruemainActivityReadModel
         {
             Month = Series(
-                TruemainActivityKinds.MonthMode,
+                ActivityMode.Month,
                 patch: null,
                 TruemainActivityBuckets.ByDay(
                     games,
@@ -133,20 +133,20 @@ public sealed class TruemainActivityQueryService(
                 // A database with no parseable patch yet: there is no window to draw,
                 // and inventing one from this player's games would answer a different
                 // question. The UI states the empty series.
-                ? EmptySeries(TruemainActivityKinds.PatchMode, patch: null)
+                ? EmptySeries(ActivityMode.Patch, patch: null)
                 : Series(
-                    TruemainActivityKinds.PatchMode,
+                    ActivityMode.Patch,
                     bounds.Patch,
                     TruemainActivityBuckets.ByDay(
                         games,
                         patchFirstDay.Value,
                         Later(TruemainActivityBuckets.FloorToDayUtc(bounds.PatchLastGameUtc), lastDay))),
             Week = Series(
-                TruemainActivityKinds.WeekMode,
+                ActivityMode.Week,
                 patch: null,
                 TruemainActivityBuckets.ByDay(games, lastDay.AddDays(-(TruemainActivityBuckets.WeekWindowDays - 1)), lastDay)),
             Day = Series(
-                TruemainActivityKinds.DayMode,
+                ActivityMode.Day,
                 patch: null,
                 TruemainActivityBuckets.ByGame(games, lastDay)),
         };
@@ -223,14 +223,17 @@ public sealed class TruemainActivityQueryService(
     /// cannot fool it) and the retention floor is the earliest first-game across all
     /// of them. Cached — see <see cref="TrackedBoundsTtl"/>.
     /// </remarks>
-    private async Task<TrackedBounds?> GetTrackedBoundsAsync(int queueId, CancellationToken ct)
-    {
-        var key = (nameof(TruemainActivityQueryService), nameof(GetTrackedBoundsAsync), queueId);
-        if (cache.TryGetValue(key, out TrackedBounds? cached))
-        {
-            return cached;
-        }
+    // Cached even when null, so a fresh database does not re-run the group-by on every
+    // profile view.
+    private Task<TrackedBounds?> GetTrackedBoundsAsync(int queueId, CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"{nameof(TruemainActivityQueryService)}:tracked-bounds:{queueId}",
+            TrackedBoundsTtl,
+            token => ReadTrackedBoundsAsync(queueId, token),
+            ct);
 
+    private async Task<TrackedBounds?> ReadTrackedBoundsAsync(int queueId, CancellationToken ct)
+    {
         // Projected into an anonymous type, not straight into the record: EF cannot
         // translate a grouping aggregate into a user type's constructor and throws
         // at query time rather than at build time.
@@ -247,21 +250,17 @@ public sealed class TruemainActivityQueryService(
             .ToListAsync(ct);
 
         var current = rows.MaxBy(patch => patch.FirstGameUtc);
-        var bounds = current is null
+        return current is null
             ? null
             : new TrackedBounds(
                 current.Patch,
                 current.FirstGameUtc,
                 current.LastGameUtc,
                 rows.Min(patch => patch.FirstGameUtc));
-
-        // Cached even when null, so a fresh database does not re-run the group-by on
-        // every profile view.
-        return cache.Store(key, bounds, TrackedBoundsTtl);
     }
 
     private static TruemainActivitySeriesReadModel Series(
-        string mode,
+        ActivityMode mode,
         string? patch,
         IReadOnlyList<TruemainActivityBucketReadModel> buckets)
     {
@@ -284,7 +283,7 @@ public sealed class TruemainActivityQueryService(
         };
     }
 
-    private static TruemainActivitySeriesReadModel EmptySeries(string mode, string? patch)
+    private static TruemainActivitySeriesReadModel EmptySeries(ActivityMode mode, string? patch)
         => Series(mode, patch, []);
 
     private static DateTime Later(DateTime left, DateTime right) => left > right ? left : right;

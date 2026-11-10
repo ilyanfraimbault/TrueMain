@@ -34,7 +34,7 @@ public sealed class NavSummaryHealthTests : IDisposable
     public async Task PeekValue_ReturnsTheHeldValue_WithoutMarkingItRead()
     {
         var payload = NewPayload();
-        var held = await payload.GetAsync(_cache, () => Task.FromResult(Health("red", Now)), _clock, CancellationToken.None, ownerAwaitsToCompletion: true);
+        var held = await payload.GetAsync(_cache, () => Task.FromResult(Health(DetectorStatus.Red, Now)), _clock, CancellationToken.None, ownerAwaitsToCompletion: true);
         var readAt = payload.Peek(_cache)!.LastReadAtUtc;
 
         _clock.Advance(TimeSpan.FromMinutes(5));
@@ -50,7 +50,7 @@ public sealed class NavSummaryHealthTests : IDisposable
     [Fact]
     public void CurrentHealth_KeepsAnEvaluationWithinTheRefresherIdleWindow()
     {
-        var held = Health("amber", Now - CockpitCacheRefresher.IdleWindow);
+        var held = Health(DetectorStatus.Amber, Now - CockpitCacheRefresher.IdleWindow);
 
         NavSummaryQueryService.CurrentHealth(held, Now).Should().BeSameAs(held);
     }
@@ -58,7 +58,7 @@ public sealed class NavSummaryHealthTests : IDisposable
     [Fact]
     public void CurrentHealth_DropsAnEvaluationOlderThanTheIdleWindow()
     {
-        var held = Health("red", Now - CockpitCacheRefresher.IdleWindow - TimeSpan.FromSeconds(1));
+        var held = Health(DetectorStatus.Red, Now - CockpitCacheRefresher.IdleWindow - TimeSpan.FromSeconds(1));
 
         NavSummaryQueryService.CurrentHealth(held, Now).Should().BeNull();
     }
@@ -66,6 +66,6 @@ public sealed class NavSummaryHealthTests : IDisposable
     private static WarmPayload<PipelineHealthReadModel> NewPayload()
         => new($"test:nav-health:{Guid.NewGuid():N}", TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
 
-    private static PipelineHealthReadModel Health(string status, DateTime evaluatedAtUtc)
-        => new() { Status = status, Headline = status, EvaluatedAtUtc = evaluatedAtUtc };
+    private static PipelineHealthReadModel Health(DetectorStatus status, DateTime evaluatedAtUtc)
+        => new() { Status = status, Headline = status.ToString(), EvaluatedAtUtc = evaluatedAtUtc };
 }
