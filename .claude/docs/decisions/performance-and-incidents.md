@@ -452,5 +452,5 @@ production — the patch-coverage and data-quality panels used to echo `ex.Messa
 **Why.** Five caching primitives and four services hand-composing them, each restating the "request-scoped
 `DbContext` inside a detached task" caveat; seven more reads with no single flight; the decorator + warm-payload
 pair wired by hand four times; eight "measurement unavailable" catch blocks with eight result shapes. — #2575 (F15
-of #2481, part A; the warm pass's ambient version is part B)
+of #2481; the warm pass's ambient version is #2577)
 
