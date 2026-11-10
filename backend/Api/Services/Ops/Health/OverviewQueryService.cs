@@ -34,8 +34,7 @@ public interface IOverviewQueryService
 /// </summary>
 public sealed class OverviewQueryService(
     IDbContextFactory<TrueMainDbContext> dbFactory,
-    Measurements measurements,
-    ILogger<OverviewQueryService> logger) : IOverviewQueryService
+    Measurements<OverviewQueryService> measurements) : IOverviewQueryService
 {
     internal const string EstimatesUnavailable = "The planner estimates could not be read.";
 
@@ -124,7 +123,7 @@ public sealed class OverviewQueryService(
     /// </summary>
     private async Task<OverviewEstimates> SafeEstimatesAsync(CancellationToken ct)
     {
-        var estimates = await measurements.TryAsync("Overview planner estimates", () => ReadEstimatesAsync(ct), logger, ct);
+        var estimates = await measurements.TryAsync("Overview planner estimates", () => ReadEstimatesAsync(ct), ct);
         return estimates.IsMeasured ? estimates.Value! : new OverviewEstimates(null, null, null, null, EstimatesUnavailable);
     }
 

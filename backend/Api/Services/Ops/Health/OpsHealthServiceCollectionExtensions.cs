@@ -23,7 +23,7 @@ public static class OpsHealthServiceCollectionExtensions
     public static IServiceCollection AddTrueMainOpsHealth(this IServiceCollection services)
     {
         services.AddMainAnalysisOptions();
-        services.TryAddSingleton<Measurements>();
+        services.TryAddSingleton(typeof(Measurements<>));
         services.AddApiOptions<PipelineHealthOptions>();
         services.AddApiOptions<StorageHistoryOptions>();
         services.AddWarmCachedRead<IPipelineHealthQueryService, PipelineHealthQueryService, PipelineHealthReadModel>(

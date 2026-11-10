@@ -10,7 +10,7 @@ namespace TrueMain.Services.Ops.Coverage;
 /// broken table yields <c>unknown</c> with the reason attached rather than blinding the
 /// others.
 /// </summary>
-internal sealed class PatchFoldMeasurements(TrueMainDbContext db, Measurements measurements, ILogger logger)
+internal sealed class PatchFoldMeasurements(TrueMainDbContext db, Measurements<PatchCoverageQueryService> measurements)
 {
     /// <summary>
     /// One grouped rollup per fold table, over every patch rather than only the covered
@@ -21,7 +21,7 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, Measurements m
         IReadOnlyDictionary<string, PatchCoverage> coverage,
         CancellationToken ct)
     {
-        var measurements = new List<FoldMeasurement>
+        var folds = new List<FoldMeasurement>
         {
             // Builds ride the coverage rollup that has already been read: it is the same
             // table on the same filter, so re-scanning it would buy nothing.
@@ -30,10 +30,10 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, Measurements m
 
         foreach (var fold in DerivedFolds)
         {
-            measurements.Add(await MeasureFoldAsync(fold, ct));
+            folds.Add(await MeasureFoldAsync(fold, ct));
         }
 
-        return measurements;
+        return folds;
     }
 
     private static FoldMeasurement BuildsFold(IReadOnlyDictionary<string, PatchCoverage> coverage)
@@ -60,7 +60,7 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, Measurements m
         // Same rule as the detector panel: one fold's broken or unaffordable rollup must not
         // blind the other six, and must not read as an empty fold either.
         var measured = await measurements.TryAsync(
-            $"Patch-coverage fold {fold.Spec.Key}", () => ReadFoldAsync(fold, ct), logger, ct);
+            $"Patch-coverage fold {fold.Spec.Key}", () => ReadFoldAsync(fold, ct), ct);
         return measured.IsMeasured
             ? measured.Value!
             : new FoldMeasurement(

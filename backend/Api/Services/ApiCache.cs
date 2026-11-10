@@ -16,6 +16,13 @@ namespace TrueMain.Services;
 /// cardinality, not payload bytes). A read whose value is not "roughly one
 /// response" passes its own <c>size</c> rather than open-coding the options.
 /// </remarks>
+/// <summary>
+/// How long a failed read is not run again, and what the failure is remembered under when not the
+/// read's own key: a versioned read passes its unversioned key, so a read that failed is not
+/// retried just because the version moved on.
+/// </summary>
+internal readonly record struct ReadBackoff(TimeSpan Window, string? Key = null);
+
 internal static class ApiCache
 {
     // Static because the reads are scoped: the point is to coalesce across concurrent
@@ -40,14 +47,9 @@ internal static class ApiCache
     /// <param name="ct">The calling request's token: bounds its wait, not the pass.</param>
     /// <param name="size">What the entry charges against the cache's <c>SizeLimit</c>.</param>
     /// <param name="failureBackoff">
-    /// When set, a failed read is not run again for this long: callers get a
+    /// When set, a failed read is not run again for its window: callers get a
     /// <see cref="ReadBackoffException"/> at once (see <see cref="FailureBackoff"/>). For reads
     /// too long to repeat.
-    /// </param>
-    /// <param name="backoffKey">
-    /// What a failure is remembered under, when not <paramref name="key"/>: a versioned read
-    /// passes its unversioned key, so a read that failed is not retried just because the version
-    /// moved on.
     /// </param>
     /// <remarks>
     /// Presence, not truthiness: a read may answer a legitimate "nothing here" with null, and a
@@ -60,8 +62,7 @@ internal static class ApiCache
         Func<CancellationToken, Task<T>> compute,
         CancellationToken ct,
         int size = 1,
-        TimeSpan? failureBackoff = null,
-        string? backoffKey = null)
+        ReadBackoff? failureBackoff = null)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(compute);
@@ -83,7 +84,7 @@ internal static class ApiCache
                 }
 
                 var value = failureBackoff is { } backoff
-                    ? await FailureBackoff.RunAsync(cache, backoffKey ?? key, backoff, () => compute(CancellationToken.None))
+                    ? await FailureBackoff.RunAsync(cache, backoff.Key ?? key, backoff.Window, () => compute(CancellationToken.None))
                     : await compute(CancellationToken.None);
                 return cache.Store(key, (object?)value, lifetime, size);
             },

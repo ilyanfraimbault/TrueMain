@@ -42,8 +42,7 @@ public sealed class PipelineHealthQueryService(
     IOptions<StorageHistoryOptions> storageHistoryOptions,
     TimeProvider timeProvider,
     IHostEnvironment environment,
-    Measurements measurements,
-    ILogger<PipelineHealthQueryService> logger) : IPipelineHealthQueryService
+    Measurements<PipelineHealthQueryService> measurements) : IPipelineHealthQueryService
 {
     private static readonly string[] ProcessNames =
     [
@@ -252,7 +251,7 @@ public sealed class PipelineHealthQueryService(
     private async Task<RawCorpusEstimates> SafeRawCorpusEstimatesAsync(CancellationToken ct)
     {
         var estimates = await measurements.TryAsync(
-            "Pipeline-health raw-corpus estimates", () => RawCorpusEstimates.ReadAsync(db, ct), logger, ct);
+            "Pipeline-health raw-corpus estimates", () => RawCorpusEstimates.ReadAsync(db, ct), ct);
         return estimates.IsMeasured ? estimates.Value! : new RawCorpusEstimates(null, null, estimates.UnknownReason);
     }
 
@@ -305,7 +304,7 @@ public sealed class PipelineHealthQueryService(
         CancellationToken ct)
     {
         var detectors = await measurements.TryAsync(
-            "Pipeline-health data-quality signals", () => dataQualityDetectors.GetDetectorsAsync(ct), logger, ct);
+            "Pipeline-health data-quality signals", () => dataQualityDetectors.GetDetectorsAsync(ct), ct);
         if (!detectors.IsMeasured)
         {
             return
@@ -333,7 +332,7 @@ public sealed class PipelineHealthQueryService(
     private async Task<RegionBalanceReadModel> SafeRegionBalanceAsync(DateTime nowUtc, CancellationToken ct)
     {
         var balance = await measurements.TryAsync(
-            "Pipeline-health region balance", () => regionBalance.GetAsync(nowUtc, ct), logger, ct);
+            "Pipeline-health region balance", () => regionBalance.GetAsync(nowUtc, ct), ct);
         return balance.IsMeasured ? balance.Value! : new RegionBalanceReadModel { UnknownReason = balance.UnknownReason };
     }
 
@@ -344,7 +343,7 @@ public sealed class PipelineHealthQueryService(
         Func<Task<PipelineHealthSignalReadModel>> build,
         CancellationToken ct)
     {
-        var signal = await measurements.TryAsync($"Pipeline-health signal {key}", build, logger, ct);
+        var signal = await measurements.TryAsync($"Pipeline-health signal {key}", build, ct);
         return signal.IsMeasured ? signal.Value! : UnmeasurableSignal(key, title, detailPath, signal.UnknownReason);
     }
 

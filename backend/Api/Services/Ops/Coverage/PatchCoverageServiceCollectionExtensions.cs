@@ -15,7 +15,7 @@ public static class PatchCoverageServiceCollectionExtensions
     public static IServiceCollection AddTrueMainPatchCoverage(this IServiceCollection services)
     {
         services.AddMainAnalysisOptions();
-        services.TryAddSingleton<Measurements>();
+        services.TryAddSingleton(typeof(Measurements<>));
         services.AddApiOptions<ChampionsListOptions>();
         services.AddApiOptions<DataQualityDetectorOptions>();
         services.AddApiOptions<PatchCoverageOptions>();

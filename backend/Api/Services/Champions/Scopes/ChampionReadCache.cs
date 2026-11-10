@@ -137,8 +137,7 @@ public sealed class ChampionReadCache(
             compute,
             ct,
             size,
-            failureBackoff,
-            backoffKey: key);
+            failureBackoff is { } window ? new ReadBackoff(window, key) : null);
     }
 
     /// <summary>

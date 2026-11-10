@@ -68,8 +68,7 @@ public sealed class DataQualityDetectorsQueryService(
     IOptions<DataQualityDetectorOptions> options,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     TimeProvider timeProvider,
-    Measurements measurements,
-    ILogger<DataQualityDetectorsQueryService> logger) : IDataQualityDetectorsQueryService
+    Measurements<DataQualityDetectorsQueryService> measurements) : IDataQualityDetectorsQueryService
 {
     private readonly AggregateFreshnessDetector _aggregateFreshness = new(db, processRunStore);
 
@@ -126,7 +125,7 @@ public sealed class DataQualityDetectorsQueryService(
     {
         // One detector's broken query must not blind the other four, and must not read as
         // green either.
-        var detector = await measurements.TryAsync($"Data-quality detector {key}", build, logger, ct);
+        var detector = await measurements.TryAsync($"Data-quality detector {key}", build, ct);
         return detector.IsMeasured
             ? detector.Value!
             : new DataQualityDetectorReadModel

@@ -23,16 +23,10 @@ public readonly record struct Measured<T>(T? Value, string? UnknownReason)
 /// connection-string fragments or internal type names; operators reach for the log line. Outside
 /// production it is the exception's message, so a broken query is diagnosable from the page.
 /// </remarks>
-public sealed class Measurements(IHostEnvironment environment)
+/// <typeparam name="TCategory">The reading service, the category its failures are logged under.</typeparam>
+public sealed class Measurements<TCategory>(IHostEnvironment environment, ILogger<TCategory> logger)
 {
-    /// <summary>The reason shown in production, whatever failed.</summary>
-    public const string InternalError = "internal error";
-
-    public async Task<Measured<T>> TryAsync<T>(
-        string what,
-        Func<Task<T>> measure,
-        ILogger logger,
-        CancellationToken ct)
+    public async Task<Measured<T>> TryAsync<T>(string what, Func<Task<T>> measure, CancellationToken ct)
     {
         try
         {
@@ -52,6 +46,13 @@ public sealed class Measurements(IHostEnvironment environment)
     /// <summary>What a failed measurement says about its failure.</summary>
     public string ReasonFor(Exception exception)
         => environment.IsProduction() || string.IsNullOrWhiteSpace(exception.Message)
-            ? InternalError
+            ? Measurements.InternalError
             : exception.Message;
+}
+
+/// <summary>What every unavailable measurement says in production.</summary>
+public static class Measurements
+{
+    /// <summary>The reason shown in production, whatever failed.</summary>
+    public const string InternalError = "internal error";
 }

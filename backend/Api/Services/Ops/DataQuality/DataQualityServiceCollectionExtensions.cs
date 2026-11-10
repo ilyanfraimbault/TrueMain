@@ -15,7 +15,7 @@ public static class DataQualityServiceCollectionExtensions
     public static IServiceCollection AddTrueMainDataQuality(this IServiceCollection services)
     {
         services.AddMainAnalysisOptions();
-        services.TryAddSingleton<Measurements>();
+        services.TryAddSingleton(typeof(Measurements<>));
         services.AddApiOptions<DataQualityDetectorOptions>();
         services.AddScoped<IIncompleteMatchesQueryService, IncompleteMatchesQueryService>();
         services.AddScoped<IMatchDataQualityDetailQueryService, MatchDataQualityDetailQueryService>();

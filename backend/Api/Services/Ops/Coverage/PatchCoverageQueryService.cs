@@ -59,11 +59,10 @@ public sealed class PatchCoverageQueryService(
     IOptions<DataQualityDetectorOptions> detectorOptions,
     IOptions<MainAnalysisOptions> mainAnalysisOptions,
     TimeProvider timeProvider,
-    Measurements measurements,
-    ILogger<PatchCoverageQueryService> logger) : IPatchCoverageQueryService
+    Measurements<PatchCoverageQueryService> measurements) : IPatchCoverageQueryService
 {
     private readonly PatchCoverageMeasurements _measurements = new(db);
-    private readonly PatchFoldMeasurements _folds = new(db, measurements, logger);
+    private readonly PatchFoldMeasurements _folds = new(db, measurements);
 
     public async Task<PatchCoverageReadModel> GetAsync(CancellationToken ct)
     {
@@ -128,14 +127,10 @@ public sealed class PatchCoverageQueryService(
         var expectedParticipants = QueueDataQualityProfile.ForQueue(queueId).ExpectedParticipants;
         var ingestion = await measurements.TryAsync(
             "Patch-coverage measurement ingestion",
-            () => _measurements.LoadIngestionAsync(queueId, patchArray, expectedParticipants, ct),
-            logger,
-            ct);
+            () => _measurements.LoadIngestionAsync(queueId, patchArray, expectedParticipants, ct), ct);
         var coverage = await measurements.TryAsync(
             "Patch-coverage measurement coverage",
-            () => _measurements.LoadCoverageAsync(queueId, coveredPatches, scopeVersionsByPatch, floor, settings, ct),
-            logger,
-            ct);
+            () => _measurements.LoadCoverageAsync(queueId, coveredPatches, scopeVersionsByPatch, floor, settings, ct), ct);
 
         // Unlike a single fold, these two are the page's question. Without the ingestion
         // counts an unaggregated patch is indistinguishable from an empty one, and without

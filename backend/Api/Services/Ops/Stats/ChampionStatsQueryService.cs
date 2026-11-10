@@ -52,7 +52,7 @@ public sealed class ChampionStatsQueryService(TrueMainDbContext db, IMemoryCache
             ResponseCacheTtl,
             token => ComputeAsync(normalizedRegion, normalizedPatch, normalizedPosition, queue, token),
             ct,
-            failureBackoff: FailureBackoffWindow);
+            failureBackoff: new ReadBackoff(FailureBackoffWindow));
     }
 
     private async Task<IReadOnlyList<ChampionStatRow>> ComputeAsync(
