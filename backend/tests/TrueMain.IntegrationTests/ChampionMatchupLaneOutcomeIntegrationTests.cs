@@ -50,7 +50,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
     {
         await SeedGamesAsync(games: 4, selfGold: 6000, opponentGold: 5000);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var stat = await SingleStatAsync();
         stat.LaneGames.Should().Be(4);
@@ -65,7 +65,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
     {
         await SeedGamesAsync(games: 3, selfGold: 5000, opponentGold: 6000);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var stat = await SingleStatAsync();
         stat.LaneGames.Should().Be(3);
@@ -87,7 +87,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
         // inferable as losses from LaneGames - LaneWins.
         await SeedGamesAsync(games: 5, selfGold: 5000 + lead, opponentGold: 5000);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var stat = await SingleStatAsync();
         stat.LaneGames.Should().Be(5, "the lane was judgeable — both sides had a 15-min reading");
@@ -114,7 +114,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
             games: 4, selfGold: 6_000, opponentGold: 5_000,
             selfXp: 7_400, opponentXp: 8_000);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var stat = await SingleStatAsync();
         stat.LaneGoldDiffSum.Should().Be(4_000, "the gold gap is unchanged by the XP one");
@@ -133,7 +133,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
         // normal reading of a row.
         await SeedGamesAsync(games: 6, selfGold: 9000, opponentGold: 1000, withSnapshots: false);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var stat = await SingleStatAsync();
         stat.Games.Should().Be(6, "the game side does not need a timeline");
@@ -158,7 +158,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
             withSnapshots: false, timelineIngested: false);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using (var afterFirstRun = _fixture.CreateDbContext())
         {
@@ -181,7 +181,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
             await timelineArrival.SaveChangesAsync();
         }
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var stat = await SingleStatAsync();
         stat.LaneGames.Should().Be(3, "the fold picks the match up on the run after its timeline arrives");
@@ -215,7 +215,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
             await seed.SaveChangesAsync();
         }
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var stat = await SingleStatAsync();
         stat.Games.Should().Be(8, "the four seeded games plus the four just folded");
@@ -236,7 +236,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
         await SeedGamesAsync(games: 2, selfGold: 6000, opponentGold: 5000, eloBracket: "");
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // Enrichment stamps the band, and two more games of the same matchup arrive.
         await using (var stamping = _fixture.CreateDbContext())
@@ -250,7 +250,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
             games: 2, selfGold: 6000, opponentGold: 5000,
             eloBracket: EloBracket.Master, idPrefix: "stamped", seedAccount: false);
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var stats = await db.ChampionMatchupStats.AsNoTracking().ToListAsync();
@@ -268,8 +268,8 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
         await SeedGamesAsync(games: 4, selfGold: 6000, opponentGold: 5000);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var stat = await SingleStatAsync();
         stat.LaneGames.Should().Be(4, "the second run has nothing pending");

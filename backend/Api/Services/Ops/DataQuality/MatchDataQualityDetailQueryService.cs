@@ -99,7 +99,7 @@ public sealed class MatchDataQualityDetailQueryService(TrueMainDbContext db) : I
             ExpectedParticipantCount = profile.IsKnown ? profile.ExpectedParticipants : null,
             QueueKnown = profile.IsKnown,
             HasLanes = profile.HasLanes,
-            Issues = issues.Select(i => MatchDataQualityRules.ToWireName(i)).ToList(),
+            Issues = issues,
             Teams = teams
         };
     }

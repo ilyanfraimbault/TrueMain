@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
@@ -13,7 +13,7 @@ import { resultTone } from '#common/utils/result-tone'
 // totals (no fabricated objective/score data), then one `MatchDetailScoreboardRow`
 // per player.
 const props = defineProps<{
-  participants: MatchDetailParticipant[]
+  participants: MatchDetailParticipantReadModel[]
   teamId: number
   win: boolean
   champions: ChampionStaticListItem[]

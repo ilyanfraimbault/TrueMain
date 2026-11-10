@@ -3,7 +3,6 @@ using Data.Pipeline;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
-using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,14 +27,15 @@ public sealed class WorkerResilienceTests
             RunOnce = true
         });
 
+        var workerMetrics = TestIngestorMetrics.Create();
         using var worker = new Worker(
             NullLogger<Worker>.Instance,
             serviceProvider,
             jobOptions,
             new IterationContext(),
-            new CallerContext(),
+            new ProcessRunner(serviceProvider, new CallerContext(), workerMetrics, NullLogger<ProcessRunner>.Instance),
             lifetime,
-            TestIngestorMetrics.Create(),
+            workerMetrics,
             TimeProvider.System,
             NoHeartbeatFile.Instance);
 
@@ -63,8 +63,6 @@ public sealed class WorkerResilienceTests
             services.AddKeyedSingleton<IIngestorProcess>(step, new NamedProcess(step.ToString()));
         }
 
-        // The full sequence claims, so the startup claim release resolves this (#1513).
-        services.AddSingleton(Substitute.For<IMatchClaimService>());
 
         await using var provider = services.BuildServiceProvider();
         var countingScopeFactory = new CountingScopeFactory(
@@ -76,25 +74,25 @@ public sealed class WorkerResilienceTests
             RunOnce = true
         });
 
+        var workerMetrics = TestIngestorMetrics.Create();
         using var worker = new Worker(
             NullLogger<Worker>.Instance,
             countingScopeFactory,
             jobOptions,
             new IterationContext(),
-            new CallerContext(),
+            new ProcessRunner(countingScopeFactory, new CallerContext(), workerMetrics, NullLogger<ProcessRunner>.Instance),
             lifetime,
-            TestIngestorMetrics.Create(),
+            workerMetrics,
             TimeProvider.System,
             NoHeartbeatFile.Instance);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
 
-        // One scope is created and disposed per process in the sequence, plus the three
+        // One scope is created and disposed per process in the sequence, plus the two
         // startup steps that each run once before the main loop in a scope of their own:
-        // the orphaned-run reconciliation, the orphaned-claim release (#1513) and the
-        // return of orphaned seed-request claims (#2474).
-        const int startupScopes = 3;
+        // the orphaned-run reconciliation and the steps' boot recoveries (#1513, #2474).
+        const int startupScopes = 2;
         countingScopeFactory.ScopesCreated.Should().Be(steps.Count + startupScopes);
         countingScopeFactory.ScopesDisposed.Should().Be(steps.Count + startupScopes);
         lifetime.Received(1).StopApplication();
@@ -123,8 +121,17 @@ public sealed class WorkerResilienceTests
             RunOnce = true
         });
 
+        var workerMetrics = TestIngestorMetrics.Create();
         using var worker = new Worker(
-            logger, scopeFactory, jobOptions, new IterationContext(), new CallerContext(), lifetime, TestIngestorMetrics.Create(), TimeProvider.System, NoHeartbeatFile.Instance);
+            logger,
+            scopeFactory,
+            jobOptions,
+            new IterationContext(),
+            new ProcessRunner(scopeFactory, new CallerContext(), workerMetrics, NullLogger<ProcessRunner>.Instance),
+            lifetime,
+            workerMetrics,
+            TimeProvider.System,
+            NoHeartbeatFile.Instance);
 
         await worker.StartAsync(CancellationToken.None);
         await worker.ExecuteTask!;
@@ -152,14 +159,15 @@ public sealed class WorkerResilienceTests
             IntervalMinutes = 60
         });
 
+        var workerMetrics = TestIngestorMetrics.Create();
         using var worker = new Worker(
             NullLogger<Worker>.Instance,
             serviceProvider,
             jobOptions,
             new IterationContext(),
-            new CallerContext(),
+            new ProcessRunner(serviceProvider, new CallerContext(), workerMetrics, NullLogger<ProcessRunner>.Instance),
             lifetime,
-            TestIngestorMetrics.Create(),
+            workerMetrics,
             TimeProvider.System,
             NoHeartbeatFile.Instance);
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
@@ -188,7 +196,7 @@ public sealed class WorkerResilienceTests
     {
         public string Name => name;
 
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult<IProcessRunSummary?>(null);
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct) => Task.FromResult<IProcessRunSummary?>(null);
     }
 
     // Wraps the real scope factory so the test can assert that the worker
@@ -249,7 +257,7 @@ public sealed class WorkerResilienceTests
 
         public int CallCount { get; private set; }
 
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             CallCount++;
             if (CallCount <= throwOnCall)

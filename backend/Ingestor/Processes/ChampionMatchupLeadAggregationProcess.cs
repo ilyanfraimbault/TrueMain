@@ -115,7 +115,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
             .Sum("LaneGoldDiffGames", "integer", r => r.Value.LaneGoldDiffGames)
             .Sum("LaneXpDiffSum", "bigint", r => r.Value.LaneXpDiffSum)
             .Sum("LaneXpDiffGames", "integer", r => r.Value.LaneXpDiffGames);
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;

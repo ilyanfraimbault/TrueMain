@@ -2,11 +2,11 @@
 // The Data Quality page's verdict: the one line the panel exists to produce,
 // answering "is the database healthy right now?" from the automated detectors,
 // with the flagged-match count under the active filters next to it.
-import type { DataQualityDetectorsResponse } from '~~/shared/types/ops'
+import type { DataQualityDetectorsReadModel } from '#site-shared/contract/api'
 import { formatDateTime } from '~~/shared/utils/format'
 
 const props = defineProps<{
-  detectorsData: DataQualityDetectorsResponse | null | undefined
+  detectorsData: DataQualityDetectorsReadModel | null | undefined
   pending: boolean
   failed: boolean
   /** The flagged-match total, or `null` while that list is loading or failed. */

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using Data.Entities;
 
 namespace TrueMain.ReadModels.Ops;
 
@@ -34,8 +36,8 @@ public sealed record AggregationsReadModel
 /// </summary>
 public sealed record AggregationFamilyReadModel
 {
-    /// <summary>Stable identifier for the frontend ("builds", "matchups", ...).</summary>
-    public string Key { get; init; } = string.Empty;
+    /// <summary>Which family this is.</summary>
+    public AggregationFamilyKey Key { get; init; }
 
     /// <summary>The recorded ingestor process producing this family.</summary>
     public string ProcessName { get; init; } = string.Empty;
@@ -75,7 +77,7 @@ public sealed record AggregationTableCountReadModel
 /// </summary>
 public sealed record AggregationRunReadModel
 {
-    public string Status { get; init; } = string.Empty;
+    public ProcessRunStatus Status { get; init; }
 
     public DateTime? LastStartedAtUtc { get; init; }
 
@@ -111,4 +113,20 @@ public sealed record AggregationBacklogReadModel
     /// the account's first snapshot arrives.
     /// </summary>
     public long PendingEloBracketParticipants { get; init; }
+}
+
+/// <summary>The aggregate families the Aggregation panel reports, one per producing process.</summary>
+public enum AggregationFamilyKey
+{
+    [JsonStringEnumMemberName("builds")]
+    Builds,
+
+    [JsonStringEnumMemberName("matchups")]
+    Matchups,
+
+    [JsonStringEnumMemberName("synergies")]
+    Synergies,
+
+    [JsonStringEnumMemberName("mains")]
+    Mains
 }

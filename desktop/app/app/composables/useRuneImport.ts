@@ -1,7 +1,8 @@
-import type { KitRunePage } from '#shared/types/kit'
+import type { RuneImportRefusal } from '~/generated/shell'
+import type { KitRunePage } from '~/types/kit'
+import { shell } from '~/utils/shell'
 
-/** What the shell answers when every rune page is the player's own (`runes.rs`). */
-const NO_SLOT = 'no-slot'
+const NO_SLOT: RuneImportRefusal = 'no-slot'
 
 /**
  * The rune import button's one call (#1678): the page on screen pushed into
@@ -25,16 +26,13 @@ export function useRuneImport() {
     if (pending.value) return
     pending.value = true
     try {
-      if (insideTauri()) {
-        const { invoke } = await import('@tauri-apps/api/core')
-        await invoke('import_runes', { champion, page })
-      }
+      await shell.importRunes(champion, page)
       done.value = true
       clearTimeout(doneTimer)
       doneTimer = setTimeout(() => (done.value = false), 2500)
       toast.add({
         title: 'Runes imported',
-        description: insideTauri() ? 'The TrueMain page is selected in the client.' : 'Dev server: nothing was sent to a client.',
+        description: 'The TrueMain page is selected in the client.',
         icon: 'i-lucide-check',
         color: 'success',
       })

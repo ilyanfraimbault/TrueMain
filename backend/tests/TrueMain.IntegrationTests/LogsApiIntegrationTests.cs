@@ -60,7 +60,7 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
                 "traceId", "requestMethod", "requestPath", "statusCode", "durationMs"
             ]);
 
-        var payload = await response.Content.ReadFromJsonAsync<LogsTestContract>();
+        var payload = await response.Content.ReadFromJsonAsync<LogsTestContract>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         // Five documents seeded; the diagnostic sink is muted in the test host
@@ -87,7 +87,7 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
 
         // level=Error is a minimum threshold: Error + Critical, not the two
         // Warning rows and not Information.
-        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?level=Error");
+        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?level=Error", ApiJson.Options);
         payload.Should().NotBeNull();
 
         payload!.Total.Should().Be(2);
@@ -105,7 +105,7 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
         // "timeout" appears in one message; the search is a case-insensitive regex
         // and also scans the exception text, where "TimeoutException" lives on a
         // different (Error) row — so both rows match.
-        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?search=TIMEOUT");
+        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?search=TIMEOUT", ApiJson.Options);
         payload.Should().NotBeNull();
 
         payload!.Total.Should().Be(2);
@@ -124,7 +124,7 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
         // Prefix match, case-insensitive: "ingestor" matches the two
         // "TrueMain.Ingestor.*" warning categories (not the "Ingestor.Worker" one,
         // which does not share the prefix).
-        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?category=TrueMain.Ingestor");
+        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?category=TrueMain.Ingestor", ApiJson.Options);
         payload.Should().NotBeNull();
 
         payload!.Total.Should().Be(2);
@@ -147,7 +147,7 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
         var since = DateTime.UtcNow.AddMinutes(-25);
         var sinceQuery = Uri.EscapeDataString(since.ToString("o"));
 
-        var payload = await client.GetFromJsonAsync<LogsTestContract>($"/ops/logs?since={sinceQuery}");
+        var payload = await client.GetFromJsonAsync<LogsTestContract>($"/ops/logs?since={sinceQuery}", ApiJson.Options);
         payload.Should().NotBeNull();
 
         // Only the Error (-20m) and Critical (-10m) rows are newer than the cutoff;
@@ -167,8 +167,8 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var firstPage = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?page=1&pageSize=2");
-        var secondPage = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?page=2&pageSize=2");
+        var firstPage = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?page=1&pageSize=2", ApiJson.Options);
+        var secondPage = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?page=2&pageSize=2", ApiJson.Options);
         firstPage.Should().NotBeNull();
         secondPage.Should().NotBeNull();
 
@@ -216,7 +216,7 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         // Lowercase on purpose: eventType is an exact match but case-insensitive.
-        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?eventType=seedrequestresolved");
+        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?eventType=seedrequestresolved", ApiJson.Options);
         payload.Should().NotBeNull();
 
         payload!.Total.Should().Be(1);
@@ -229,7 +229,7 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
         payload.EventTypes.Should().BeEquivalentTo(OpsEvents.KnownEventTypes);
 
         // Plain diagnostic rows keep a null eventType.
-        var unfiltered = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs");
+        var unfiltered = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs", ApiJson.Options);
         unfiltered!.Total.Should().Be(7);
         unfiltered.Entries.Where(e => e.EventType is not null).Should().HaveCount(2);
     }
@@ -245,7 +245,7 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
         // Only the "Ingestor.Worker" row is stamped Ingestor by the seed; the
         // filter is an exact match resolved case-insensitively against the
         // static catalog (#722).
-        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?process=ingestor");
+        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?process=ingestor", ApiJson.Options);
         payload.Should().NotBeNull();
 
         payload!.Total.Should().Be(1);
@@ -268,12 +268,12 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
 
         // hasException=true keeps only rows with a formatted exception — one in
         // the seed; hasException=false is a no-op (same as omitting it).
-        var filtered = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?hasException=true");
+        var filtered = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?hasException=true", ApiJson.Options);
         filtered.Should().NotBeNull();
         filtered!.Total.Should().Be(1);
         filtered.Entries.Should().ContainSingle().Which.Exception.Should().Contain("TimeoutException");
 
-        var unfiltered = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?hasException=false");
+        var unfiltered = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?hasException=false", ApiJson.Options);
         unfiltered!.Total.Should().Be(5);
     }
 
@@ -286,7 +286,7 @@ public sealed class LogsApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         // Above the 200 ceiling clamps to 200.
-        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?pageSize=10000");
+        var payload = await client.GetFromJsonAsync<LogsTestContract>("/ops/logs?pageSize=10000", ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.PageSize.Should().Be(200);
     }

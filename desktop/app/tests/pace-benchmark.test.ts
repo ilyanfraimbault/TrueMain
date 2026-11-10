@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PaceBenchmarkResponse } from '~/utils/pace-benchmark'
+import type { PaceBenchmarkResponse } from '#shared/contract/api'
 import { paceReference } from '~/utils/pace-benchmark'
 
 const quartiles = (p25: number, median: number, p75: number) => ({ p25, median, p75 })

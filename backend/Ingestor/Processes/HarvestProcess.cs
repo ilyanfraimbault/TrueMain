@@ -31,7 +31,7 @@ public sealed class HarvestProcess(
     IOptions<MatchIngestionOptions> matchIngestionOptions,
     IOptions<IntakeOptions> intakeOptions) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var configured = harvestOptions.Value;
         var options = ApplyIntakeBudget(configured);

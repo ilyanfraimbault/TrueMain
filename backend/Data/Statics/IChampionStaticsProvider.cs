@@ -6,9 +6,8 @@ namespace Data.Statics;
 public interface IChampionStaticsProvider
 {
     /// <summary>
-    /// The champions of the patch <paramref name="gameVersion"/> belongs to. Throws when
-    /// the source is unreachable — callers that can live without the data catch and
-    /// carry on, as the profile fold does for its ranged flag.
+    /// The champions of the patch <paramref name="gameVersion"/> belongs to, or why there are
+    /// none (<see cref="StaticData{T}"/>). Never throws but on cancellation.
     /// </summary>
-    Task<IReadOnlyDictionary<int, ChampionStatics>> GetChampionsAsync(string gameVersion, CancellationToken ct);
+    Task<StaticData<IReadOnlyDictionary<int, ChampionStatics>>> GetChampionsAsync(string gameVersion, CancellationToken ct);
 }

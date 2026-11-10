@@ -66,7 +66,7 @@ public sealed class ChampionItemContextAggregationProcess(
     TimeProvider timeProvider) : IIngestorProcess
 {
     private const int LaneLeadMinute = 15;
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var settings = options.Value;
         var queueId = (int)analysisOptions.Value.QueueId;

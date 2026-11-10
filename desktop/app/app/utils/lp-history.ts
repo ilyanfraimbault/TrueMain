@@ -1,4 +1,4 @@
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { PlayerGame, RankedQueue } from '~/types/record'
 import { RANKED_SOLO_QUEUE_ID } from '#shared/utils/queues'
 
@@ -18,7 +18,7 @@ const DAY_MS = 86_400_000
 
 const storageKey = (riotId: string) => `truemain:rank-history:${riotId}`
 
-export function readRankHistory(riotId: string): RankHistoryEntry[] {
+export function readRankHistory(riotId: string): RankHistoryEntryReadModel[] {
   try {
     const raw = localStorage.getItem(storageKey(riotId))
     const parsed = raw ? JSON.parse(raw) : []
@@ -30,14 +30,14 @@ export function readRankHistory(riotId: string): RankHistoryEntry[] {
 }
 
 /** The standing in the site's snapshot shape; apex tiers carry division `I`, as on the site. */
-export function toSnapshot(queue: RankedQueue, at: Date): RankHistoryEntry | null {
+export function toSnapshot(queue: RankedQueue, at: Date): RankHistoryEntryReadModel | null {
   if (!queue.tier || queue.tier === 'NONE') return null
   const division = queue.division && queue.division !== 'NA' ? queue.division : 'I'
   return { capturedAtUtc: at.toISOString(), tier: queue.tier, division, leaguePoints: queue.leaguePoints }
 }
 
 /** Append the current standing when it moved, drop what is past the window, and return the history. */
-export function recordRankSnapshot(riotId: string, solo: RankedQueue | null, now = new Date()): RankHistoryEntry[] {
+export function recordRankSnapshot(riotId: string, solo: RankedQueue | null, now = new Date()): RankHistoryEntryReadModel[] {
   const history = readRankHistory(riotId)
   const snapshot = solo ? toSnapshot(solo, now) : null
   const last = history.at(-1)
@@ -65,7 +65,7 @@ export function recordRankSnapshot(riotId: string, solo: RankedQueue | null, now
  * one side, or a promotion or demotion in between, the same rule the site's
  * match rows follow.
  */
-export function lpDeltaOf(game: PlayerGame, games: PlayerGame[], history: RankHistoryEntry[]): number | null {
+export function lpDeltaOf(game: PlayerGame, games: PlayerGame[], history: RankHistoryEntryReadModel[]): number | null {
   if (game.queueId !== RANKED_SOLO_QUEUE_ID || game.remake) return null
   const start = game.playedAt
   const end = start + game.durationSeconds * 1000
@@ -79,7 +79,7 @@ export function lpDeltaOf(game: PlayerGame, games: PlayerGame[], history: RankHi
     .filter(other => other.playedAt < start)
     .reduce((latest, other) => Math.max(latest, other.playedAt + other.durationSeconds * 1000), Number.NEGATIVE_INFINITY)
 
-  const at = (entry: RankHistoryEntry) => new Date(entry.capturedAtUtc).getTime()
+  const at = (entry: RankHistoryEntryReadModel) => new Date(entry.capturedAtUtc).getTime()
   const before = history.filter(entry => at(entry) <= start && at(entry) >= previousEnd).at(-1)
   const after = history.filter(entry => at(entry) >= end && at(entry) < nextStart).at(-1)
   if (!before || !after || before.tier !== after.tier || before.division !== after.division) return null
@@ -97,7 +97,7 @@ export interface LpMove {
  * curve: only the games `lpDeltaOf` could measure, so an unmeasured game is
  * skipped rather than guessed, and at most `limit` of them.
  */
-export function latestLpMoves(games: PlayerGame[], history: RankHistoryEntry[], limit = 8): LpMove[] {
+export function latestLpMoves(games: PlayerGame[], history: RankHistoryEntryReadModel[], limit = 8): LpMove[] {
   const moves: LpMove[] = []
   for (const game of [...games].sort((a, b) => b.playedAt - a.playedAt)) {
     if (moves.length === limit) break
@@ -113,8 +113,8 @@ export function latestLpMoves(games: PlayerGame[], history: RankHistoryEntry[], 
  * from it), the curve would zigzag game by game instead of following the
  * trend; the per-game moves are read from the full history.
  */
-export function dailyStandings(history: RankHistoryEntry[]): RankHistoryEntry[] {
-  const lastOfDay = new Map<string, RankHistoryEntry>()
+export function dailyStandings(history: RankHistoryEntryReadModel[]): RankHistoryEntryReadModel[] {
+  const lastOfDay = new Map<string, RankHistoryEntryReadModel>()
   for (const entry of history) lastOfDay.set(new Date(entry.capturedAtUtc).toDateString(), entry)
   return [...lastOfDay.values()]
 }

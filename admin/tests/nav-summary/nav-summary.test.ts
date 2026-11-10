@@ -1,5 +1,5 @@
 import type { NavigationMenuItem } from '@nuxt/ui'
-import type { NavSummary } from '~~/shared/types/ops'
+import type { NavSummaryReadModel } from '#site-shared/contract/api'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref } from 'vue'
 import { NAV_SUMMARY_REFRESH_MS, useNavSummary } from '~~/app/composables/useNavSummary'
@@ -9,7 +9,7 @@ import { navBadges, withNavBadges } from '~/utils/nav-badges'
 // verdict's colour, nothing for a zero, a green verdict, an unmeasured one, or a
 // failed fetch.
 
-function summary(overrides: Partial<NavSummary> = {}): NavSummary {
+function summary(overrides: Partial<NavSummaryReadModel> = {}): NavSummaryReadModel {
   return {
     openConflicts: 0,
     homonymGroups: 0,
@@ -69,7 +69,7 @@ describe('useNavSummary', () => {
   })
 
   function setup() {
-    const data = ref<NavSummary | undefined>(summary({ openConflicts: 1, healthStatus: 'amber' }))
+    const data = ref<NavSummaryReadModel | undefined>(summary({ openConflicts: 1, healthStatus: 'amber' }))
     const error = ref<Error | null>(null)
     const fetched = { data, error, refresh: vi.fn() }
     const useOps = vi.fn(() => fetched)

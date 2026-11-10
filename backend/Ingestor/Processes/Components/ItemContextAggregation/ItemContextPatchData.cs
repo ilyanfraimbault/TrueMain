@@ -24,7 +24,7 @@ public sealed class ItemContextPatchData(
     {
         if (!_metadata.TryGetValue(patch, out var metadata))
         {
-            metadata = await itemMetadataProvider.GetItemsAsync(gameVersion, ct);
+            metadata = (await itemMetadataProvider.GetItemsAsync(gameVersion, ct)).Require("Item metadata");
             _metadata[patch] = metadata;
         }
 
@@ -53,7 +53,7 @@ public sealed class ItemContextPatchData(
         if (!_catalogs.TryGetValue(patch, out var catalog))
         {
             var metadata = await MetadataAsync(patch, gameVersion, ct);
-            var stats = await itemStatsProvider.GetItemsAsync(gameVersion, ct);
+            var stats = (await itemStatsProvider.GetItemsAsync(gameVersion, ct)).Require("Item stats");
             catalog = BuiltItemCatalog.From(metadata, stats);
             _catalogs[patch] = catalog;
         }

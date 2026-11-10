@@ -14,6 +14,12 @@ public interface IProcessRunsQueryService
         int? page,
         int? pageSize,
         CancellationToken ct);
+
+    /// <summary>
+    /// Per-process health over the window that starts at <paramref name="since"/> (unbounded when
+    /// null), with the verdict a panel colours by.
+    /// </summary>
+    Task<IReadOnlyList<ProcessRunRollupReadModel>> GetRollupAsync(string? processName, DateTime? since, CancellationToken ct);
 }
 
 public sealed class ProcessRunsQueryService(IProcessRunStore store, IProcessRunBaselineService baselines)
@@ -42,20 +48,8 @@ public sealed class ProcessRunsQueryService(IProcessRunStore store, IProcessRunB
         // simply return an empty slice.
         var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? limit ?? DefaultPageSize, MinPageSize, MaxPageSize);
-        // The runs list and the rollup's failure window share the SAME `since`.
-        //
-        // Runs: return the requested page of runs ordered newest-first with NO
-        // default time lower bound, so the admin panel can always show the last N
-        // runs even when nothing ran recently. A `since` lower bound is applied to
-        // the runs list ONLY when the caller explicitly provides it.
-        //
-        // Failure window: the rollup's in-window counts follow the same `since`,
-        // with NO hidden default. When `since` is omitted the window is unbounded,
-        // so FailureCountInWindow is a true all-time total (≥ any narrower window)
-        // rather than a secret 7-day count that could be smaller than a wider
-        // explicit window. When `since` is provided it narrows the runs list and
-        // the in-window counts consistently.
-        var windowStart = since;
+        // No default time lower bound: the panel always shows the last N runs, even when
+        // nothing ran recently. `since` narrows the list only when the caller sends it.
         var normalizedProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName.Trim();
         var statusFilter = ParseStatus(status);
 
@@ -69,53 +63,85 @@ public sealed class ProcessRunsQueryService(IProcessRunStore store, IProcessRunB
 
         var runs = await baselines.AttachAsync(pageResult.Runs, now, ct);
 
-        var rollupRows = await store.GetRollupsAsync(normalizedProcessName, windowStart, now, ct);
-
-        var rollup = rollupRows
-            .Select(row => new ProcessRunRollupReadModel
-            {
-                ProcessName = row.ProcessName,
-                // Map the latest run's raw status through the staleness policy so a
-                // stale Running latest-run shows as Abandoned, consistent with the
-                // runs list.
-                LastStatus = ProcessRunStaleness
-                    .EffectiveStatus(row.LatestStatus, row.LatestHeartbeatAtUtc, now)
-                    .ToString(),
-                LastRunAtUtc = row.LastRunAtUtc,
-                LastSuccessAtUtc = row.LastSuccessAtUtc,
-                FailureCountInWindow = (int)row.FailureCountInWindow,
-                RunCountInWindow = (int)row.RunCountInWindow,
-                FailureRateInWindow = row.RunCountInWindow == 0
-                    ? 0d
-                    : (double)row.FailureCountInWindow / row.RunCountInWindow
-            })
-            .ToList();
-
         return new ProcessRunsReadModel
         {
             Runs = runs,
-            Rollup = rollup,
             Total = pageResult.Total,
             Page = effectivePage,
             PageSize = effectivePageSize
         };
     }
 
+    /// <summary>
+    /// The share of a window's runs that failed from which a process reads as degraded even
+    /// though its latest run succeeded. A display cue for the health grid, not a published figure.
+    /// </summary>
+    public const double DegradedFailureRate = 0.25;
+
+    public async Task<IReadOnlyList<ProcessRunRollupReadModel>> GetRollupAsync(
+        string? processName, DateTime? since, CancellationToken ct)
+    {
+        // No hidden default window: without `since` the counts are true all-time totals,
+        // never a secret 7-day count smaller than a wider explicit window.
+        var normalizedProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName.Trim();
+        var now = DateTime.UtcNow;
+        var rollupRows = await store.GetRollupsAsync(normalizedProcessName, since, now, ct);
+
+        return
+        [
+            .. rollupRows.Select(row =>
+            {
+                // A stale Running latest run reads as Abandoned, consistent with the runs list.
+                var lastStatus = ProcessRunStaleness.EffectiveStatus(row.LatestStatus, row.LatestHeartbeatAtUtc, now);
+                var failureRate = row.RunCountInWindow == 0
+                    ? 0d
+                    : (double)row.FailureCountInWindow / row.RunCountInWindow;
+                return new ProcessRunRollupReadModel
+                {
+                    ProcessName = row.ProcessName,
+                    LastStatus = lastStatus,
+                    LastRunAtUtc = row.LastRunAtUtc,
+                    LastSuccessAtUtc = row.LastSuccessAtUtc,
+                    FailureCountInWindow = (int)row.FailureCountInWindow,
+                    RunCountInWindow = (int)row.RunCountInWindow,
+                    FailureRateInWindow = failureRate,
+                    Health = HealthOf(lastStatus, failureRate)
+                };
+            })
+        ];
+    }
+
+    /// <summary>
+    /// Red when the latest run failed, amber when it did not but the window's failure rate
+    /// reaches <see cref="DegradedFailureRate"/>, green otherwise.
+    /// </summary>
+    internal static DetectorStatus HealthOf(ProcessRunStatus lastStatus, double failureRate)
+        => (lastStatus, failureRate >= DegradedFailureRate) switch
+        {
+            (ProcessRunStatus.Failed, _) => DetectorStatus.Red,
+            (_, true) => DetectorStatus.Amber,
+            _ => DetectorStatus.Green,
+        };
+
     internal static ProcessRunReadModel ToReadModel(ProcessRunDocument run, DateTime now)
-        => new()
+    {
+        var status = ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now);
+        return new()
         {
             Id = run.Id,
             ProcessName = run.ProcessName,
             StartedAtUtc = run.StartedAtUtc,
-            FinishedAtUtc = run.FinishedAtUtc,
+            // The store mirrors an unfinished run's start into its finish; that is not a finish.
+            FinishedAtUtc = run.Status == ProcessRunStatus.Running ? null : run.FinishedAtUtc,
             DurationMs = run.DurationMs,
-            Status = ProcessRunStaleness.EffectiveStatus(run.Status, run.LastHeartbeatAtUtc, now).ToString(),
+            Status = status,
             Error = run.Error,
             Host = run.Host,
             JobMode = run.JobMode,
             LastHeartbeatAtUtc = run.LastHeartbeatAtUtc,
             Summary = ProcessRunSummaryParsing.Parse(run.SummaryJson)
         };
+    }
 
     private static ProcessRunStatus? ParseStatus(string? status)
     {

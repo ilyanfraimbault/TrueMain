@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type { StaticItemData } from '#shared/types/static-data'
 
 /**
@@ -7,7 +7,7 @@ import type { StaticItemData } from '#shared/types/static-data'
  * stats side by side, then the full build order and skill order.
  */
 defineProps<{
-  participant: MatchDetailParticipant
+  participant: MatchDetailParticipantReadModel
   items: Record<number, StaticItemData>
 }>()
 </script>

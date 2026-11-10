@@ -49,7 +49,7 @@ public sealed class ManualSeedProcess(
     // none are requeued here.
     private static readonly MainCandidateStatus[] RequeueableStatuses =
         [MainCandidateStatus.New, MainCandidateStatus.Scored];
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = manualSeedOptions.Value;
         var batchSize = Math.Max(1, options.BatchSize);
@@ -292,35 +292,28 @@ public sealed class ManualSeedProcess(
         // Best-effort by design, and ISOLATED from the processing-failure path: the
         // request is already marked Ingested above. If this audit insert threw
         // and escaped, ProcessRequestAsync's catch would call MarkFailedAsync and
-        // flip a SUCCESSFUL account to Failed (also double-counting it). So we catch
-        // here and only log a Warning — under a Mongo outage the seed still succeeds
-        // and only the audit event is missed. "Lossless" here means the audit channel
+        // flip a SUCCESSFUL account to Failed (also double-counting it). So the write
+        // goes through TryRecordAsync, which only logs a Warning — under a Mongo
+        // outage the seed still succeeds and only the audit event is missed.
+        // "Lossless" here means the audit channel
         // is synchronous and unbatched vs the lossy batched diagnostic channel — it
         // is not a guarantee against a Mongo outage.
-        try
-        {
-            await auditLog.RecordAsync(
-                action: AuditActions.SeedAccountIngested,
-                actor: AuditActors.Ingestor,
-                targetType: AuditTargets.SeedRequest,
-                targetId: request.Id.ToString(),
-                metadata: new Dictionary<string, string>
+        await auditLog.TryRecordAsync(
+            new AuditEntry(
+                AuditActions.SeedAccountIngested,
+                AuditActors.Ingestor,
+                AuditTargets.SeedRequest,
+                request.Id.ToString(),
+                new Dictionary<string, string>
                 {
                     ["gameName"] = request.GameName,
                     ["tagLine"] = request.TagLine,
                     ["platformId"] = request.PlatformId,
                     ["resolvedPuuid"] = account.Puuid,
                     ["candidatesQueued"] = queued.ToString()
-                },
-                ct: ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(
-                ex,
-                "Audit write failed for ingested seed request {SeedRequestId}; the account was ingested, audit event missed.",
-                request.Id);
-        }
+                }),
+            logger,
+            ct);
     }
 
     private static string? Truncate(string? value, int maxLength)

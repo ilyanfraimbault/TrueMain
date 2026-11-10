@@ -40,8 +40,8 @@ internal sealed class AccountExplorerPanelReads(TrueMainDbContext db)
             {
                 Id = c.Id,
                 ChampionId = c.ChampionId,
-                Status = c.Status.ToString(),
-                Source = c.Source.ToString(),
+                Status = c.Status,
+                Source = c.Source,
                 Score = c.Score,
                 ScoreInputs = new AccountExplorerCandidateScoreInputsReadModel
                 {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchSummarySelf } from '#shared/types/matches'
+import type { MatchSummarySelfReadModel } from '#shared/contract/api'
 import { formatDuration } from '#common/utils/relativeTime'
 import { formatSigned } from '#shared/utils/deltas'
 
@@ -7,7 +7,7 @@ import { formatSigned } from '#shared/utils/deltas'
 // measurement, so the data axis rather than the result's blue and red), the
 // duration otherwise, and CS per minute under it.
 const props = defineProps<{
-  self: MatchSummarySelf
+  self: MatchSummarySelfReadModel
   durationSeconds: number
   /** A game past match retention kept no CS (#2358), and a fabricated 0.0 is worse than a gap. */
   truncated?: boolean

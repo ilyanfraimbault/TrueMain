@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using TrueMain.ReadModels.Truemains;
 
 namespace TrueMain.ReadModels.Champions;
@@ -43,7 +45,7 @@ public sealed record ChampionMainsComparisonResponse
     public int MinGames { get; init; }
 
     /// <summary>Outcome of the lookup — see <see cref="ChampionComparisonStatus"/>.</summary>
-    public string Status { get; init; } = ChampionComparisonStatus.Ok;
+    public ChampionComparisonStatus Status { get; init; } = ChampionComparisonStatus.Ok;
 
     /// <summary>
     /// The compared account's side. Null only when the Riot ID is unknown to us
@@ -75,21 +77,21 @@ public sealed record ChampionMainsComparisonResponse
 }
 
 /// <summary>
-/// Why a comparison did — or did not — produce two comparable columns. A
-/// string rather than an enum so the JSON contract stays readable and the
-/// frontend can branch on it without a numeric mapping.
+/// Why a comparison did — or did not — produce two comparable columns.
 /// </summary>
-public static class ChampionComparisonStatus
+public enum ChampionComparisonStatus
 {
     /// <summary>Both sides cleared the games floor; the columns are comparable.</summary>
-    public const string Ok = "OK";
+    [JsonStringEnumMemberName("OK")]
+    Ok,
 
     /// <summary>
     /// The Riot ID is not in our database. Deliberately not a 404: this is the
     /// expected outcome for any account we have never ingested, and the caller
     /// renders an explanatory empty state rather than an error.
     /// </summary>
-    public const string UnknownAccount = "UNKNOWN_ACCOUNT";
+    [JsonStringEnumMemberName("UNKNOWN_ACCOUNT")]
+    UnknownAccount,
 
     /// <summary>
     /// The targeted <c>main</c>'s Riot ID is not in our database. The compared
@@ -97,14 +99,16 @@ public static class ChampionComparisonStatus
     /// <see cref="ChampionMainsComparisonResponse.Player"/> is still populated —
     /// only the yardstick is missing.
     /// </summary>
-    public const string UnknownTarget = "UNKNOWN_TARGET";
+    [JsonStringEnumMemberName("UNKNOWN_TARGET")]
+    UnknownTarget,
 
     /// <summary>
     /// At least one side is below <see cref="ChampionMainsComparisonResponse.MinGames"/>.
     /// Both sides are still returned (with their real game counts) so the caller
     /// can say which one is thin.
     /// </summary>
-    public const string InsufficientSample = "INSUFFICIENT_SAMPLE";
+    [JsonStringEnumMemberName("INSUFFICIENT_SAMPLE")]
+    InsufficientSample,
 }
 
 /// <summary>

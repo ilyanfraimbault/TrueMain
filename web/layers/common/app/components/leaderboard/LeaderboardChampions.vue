@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardTopChampion } from '#shared/types/leaderboard'
+import type { LeaderboardTopChampionReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import type { LeaderboardMainBuild } from '#common/composables/useLeaderboardChampions'
 
@@ -10,7 +10,7 @@ import type { LeaderboardMainBuild } from '#common/composables/useLeaderboardCha
 // column's width; a player without a main leaves the column empty.
 defineProps<{
   main: LeaderboardMainBuild | null
-  topChampions: readonly LeaderboardTopChampion[]
+  topChampions: readonly LeaderboardTopChampionReadModel[]
   championsById: Map<number, ChampionStaticListItem>
   /** The player's slug: every champion links to their page on it. */
   nameTag: string

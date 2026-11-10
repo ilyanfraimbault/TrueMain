@@ -63,7 +63,7 @@ public sealed class RiotQuotaQueryService(
             OldestRetainedUtc = usage.OldestRetainedBucketUtc,
             Routes = usage.Routes
                 .Select(route => BuildRoute(route, covered))
-                .OrderBy(route => route.Kind == "regional" ? 0 : route.Kind == "platform" ? 1 : 2)
+                .OrderBy(route => route.Kind)
                 .ThenByDescending(route => route.Calls)
                 .ToList(),
             Lanes = BuildLanes(runs, usage.SinceUtc, now)
@@ -107,15 +107,15 @@ public sealed class RiotQuotaQueryService(
         };
     }
 
-    /// <summary>The budget family of a routing host: <c>regional</c>, <c>platform</c> or <c>unknown</c>.</summary>
-    internal static string KindOf(string route)
+    /// <summary>The budget family of a routing host.</summary>
+    internal static RiotRouteKind KindOf(string route)
     {
         if (RegionalRoutes.Contains(route))
         {
-            return "regional";
+            return RiotRouteKind.Regional;
         }
 
-        return route == UnknownRoute ? "unknown" : "platform";
+        return route == UnknownRoute ? RiotRouteKind.Unknown : RiotRouteKind.Platform;
     }
 
     /// <summary>

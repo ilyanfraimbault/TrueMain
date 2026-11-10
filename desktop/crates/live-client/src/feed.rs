@@ -21,7 +21,7 @@ use crate::game::{GameChange, GameState};
 use crate::model::AllGameData;
 
 /// The changes of one reading.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GameUpdate {
     /// The state's revision once these are applied.

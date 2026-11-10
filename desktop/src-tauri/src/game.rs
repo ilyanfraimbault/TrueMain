@@ -9,14 +9,18 @@ use std::sync::{Arc, Mutex};
 
 use lcu::LiveClient;
 use live_client::{Emission, GameFeed, GameState};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 /// The whole game state, replacing the frontend's — `null` once no game runs.
-pub const SNAPSHOT_EVENT: &str = "game://snapshot";
-/// The changes one reading brought (`live_client::GameUpdate`).
-pub const UPDATE_EVENT: &str = "game://update";
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "game://snapshot")]
+pub struct GameSnapshot(pub Option<Box<GameState>>);
+/// The changes one reading brought.
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "game://update")]
+pub struct GameChanged(pub live_client::GameUpdate);
 
 pub type SharedGame = Arc<Mutex<GameFeed>>;
 
@@ -30,10 +34,10 @@ fn step(app: &AppHandle, run: impl FnOnce(&mut GameFeed) -> Option<Emission>) {
     };
     match emission {
         Some(Emission::Snapshot(state)) => {
-            let _ = app.emit(SNAPSHOT_EVENT, state);
+            crate::contract::emit(app, GameSnapshot(state));
         }
         Some(Emission::Update(update)) => {
-            let _ = app.emit(UPDATE_EVENT, update);
+            crate::contract::emit(app, GameChanged(update));
         }
         None => {}
     }
@@ -54,6 +58,7 @@ pub fn ingest(app: &AppHandle, payload: &serde_json::Value) {
 /// The game as the frontend should have it, read on mount — the updates it
 /// then follows carry the revisions after this one.
 #[tauri::command]
+#[specta::specta]
 pub fn current_game(game: tauri::State<'_, SharedGame>) -> Option<GameState> {
     game.lock().expect("game mutex poisoned").current().cloned()
 }

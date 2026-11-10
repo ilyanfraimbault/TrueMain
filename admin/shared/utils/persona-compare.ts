@@ -1,15 +1,15 @@
 // The two known players of a conflict, lined up (#2275): the operator decides by
 // comparing them, so what both list sits on one row — an account by its Riot ID,
 // a link by its channel — and what differs is said, not left to be spotted.
-import type { PersonaOps, PersonaOpsAccount, PersonaOpsLink } from '~~/shared/types/ops'
+import type { PersonaOpsAccountReadModel, PersonaOpsLinkReadModel, PersonaOpsReadModel } from '#site-shared/contract/api'
 
 /** `same`: both list it; `differs`: one kind of link, two channels; `only`: one side lists it. */
 export type CompareMatch = 'same' | 'differs' | 'only'
 
 export interface AccountCompareRow {
   key: string
-  left: PersonaOpsAccount | null
-  right: PersonaOpsAccount | null
+  left: PersonaOpsAccountReadModel | null
+  right: PersonaOpsAccountReadModel | null
   disputed: boolean
   match: CompareMatch
 }
@@ -17,8 +17,8 @@ export interface AccountCompareRow {
 export interface LinkCompareRow {
   key: string
   kind: string
-  left: PersonaOpsLink | null
-  right: PersonaOpsLink | null
+  left: PersonaOpsLinkReadModel | null
+  right: PersonaOpsLinkReadModel | null
   match: CompareMatch
 }
 
@@ -33,7 +33,7 @@ export interface CompareSummary {
 
 const MATCH_ORDER: Record<CompareMatch, number> = { same: 0, differs: 1, only: 2 }
 
-const accountKey = (a: PersonaOpsAccount) => `${a.platformId}:${a.gameName.toLowerCase()}#${a.tagLine.toLowerCase()}`
+const accountKey = (a: PersonaOpsAccountReadModel) => `${a.platformId}:${a.gameName.toLowerCase()}#${a.tagLine.toLowerCase()}`
 
 /**
  * A channel's identity across sources: decoded (one source escapes `성훈`, another
@@ -59,7 +59,7 @@ export function channelKey(url: string): string {
   return key.slice(0, end)
 }
 
-export function compareAccounts(left: PersonaOps, right: PersonaOps): AccountCompareRow[] {
+export function compareAccounts(left: PersonaOpsReadModel, right: PersonaOpsReadModel): AccountCompareRow[] {
   const rows = new Map<string, AccountCompareRow>()
   for (const [side, persona] of [['left', left], ['right', right]] as const) {
     for (const account of persona.accounts) {
@@ -75,14 +75,14 @@ export function compareAccounts(left: PersonaOps, right: PersonaOps): AccountCom
     Number(b.disputed) - Number(a.disputed) || MATCH_ORDER[a.match] - MATCH_ORDER[b.match] || a.key.localeCompare(b.key))
 }
 
-export function compareLinks(left: PersonaOps, right: PersonaOps): LinkCompareRow[] {
+export function compareLinks(left: PersonaOpsReadModel, right: PersonaOpsReadModel): LinkCompareRow[] {
   const kinds = [...new Set([...left.links, ...right.links].map(l => l.kind))]
   const rows: LinkCompareRow[] = []
   for (const kind of kinds) {
     const lefts = left.links.filter(l => l.kind === kind)
     const rights = right.links.filter(l => l.kind === kind)
     const unmatchedRights = [...rights]
-    const unmatchedLefts: PersonaOpsLink[] = []
+    const unmatchedLefts: PersonaOpsLinkReadModel[] = []
     for (const link of lefts) {
       const at = unmatchedRights.findIndex(r => channelKey(r.url) === channelKey(link.url))
       if (at >= 0) {

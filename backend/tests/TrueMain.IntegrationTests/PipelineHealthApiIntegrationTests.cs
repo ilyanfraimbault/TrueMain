@@ -51,7 +51,7 @@ public sealed class PipelineHealthApiIntegrationTests : IAsyncLifetime
         root.EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(["status", "headline", "evaluatedAtUtc", "signals", "processes", "rawData", "gaps", "regionBalance"]);
 
-        var payload = await response.Content.ReadFromJsonAsync<PipelineHealthResponseTestContract>();
+        var payload = await response.Content.ReadFromJsonAsync<PipelineHealthResponseTestContract>(ApiJson.Options);
         payload.Should().NotBeNull();
         payload!.Processes.Should().Contain(process => process.ProcessName == "MatchIngestion" && process.Status == "Success");
         payload.Processes.Should().Contain(process => process.ProcessName == "ChampionPatternAggregation" && process.Status == "Success");

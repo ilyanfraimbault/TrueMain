@@ -59,7 +59,7 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
             rows.Add(new DataQualityDetectorRowReadModel
             {
                 Label = processName,
-                Status = status.ToWireName(),
+                Status = status,
                 Value = age,
                 ValueLabel = DataQualityDetectorEvaluator.FormatAge(age),
                 Note = last is null
@@ -68,13 +68,13 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
             });
         }
 
-        var freshnessStatus = DataQualityDetectorEvaluator.Worst(rows.Select(DetectorCards.ParseStatus));
+        var freshnessStatus = DataQualityDetectorEvaluator.Worst(rows.Select(row => row.Status));
 
         return new DataQualityDetectorReadModel
         {
             Key = "aggregateFreshness",
             Title = "Aggregate freshness",
-            Status = freshnessStatus.ToWireName(),
+            Status = freshnessStatus,
             Count = stale,
             CountLabel = "aggregations past their staleness line",
             // Worded from the verdict, not from the count: a card that says "every
@@ -93,7 +93,7 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
             Rows = rows,
             Thresholds =
             [
-                DetectorCards.Threshold("time since last success", settings.AggregationStaleAmberHours, settings.AggregationStaleRedHours, "hours")
+                DetectorCards.Threshold("time since last success", settings.AggregationStaleAmberHours, settings.AggregationStaleRedHours, DetectorThresholdUnit.Hours)
             ],
             HasDrillDownEndpoint = true
         };
@@ -175,7 +175,7 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
                     ScopeRows = group.Sum(row => row.ScopeRows),
                     Status = DataQualityDetectorEvaluator
                         .Classify(age, settings.AggregationStaleAmberHours, settings.AggregationStaleRedHours)
-                        .ToWireName()
+                        
                 };
             })
             .OrderByDescending(row => row.AgeHours)

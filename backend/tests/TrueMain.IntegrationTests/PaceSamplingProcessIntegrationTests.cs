@@ -143,7 +143,7 @@ public sealed class PaceSamplingProcessIntegrationTests : IAsyncLifetime
             new FixedTimeProvider(NowUtc),
             MsOptions.Create(options));
 
-        return await process.RunCoreAsync(CancellationToken.None);
+        return await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private async Task SeedStoredMatchAsync(string matchId)

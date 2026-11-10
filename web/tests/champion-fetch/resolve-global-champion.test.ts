@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ChampionResponse } from '~~/shared/types/champions'
+import type { ChampionResponse } from '#shared/contract/api'
 import { resolveGlobalChampion } from '~~/app/utils/champion-fetch'
 
 /** Build an ofetch-style FetchError: a real Error carrying `statusCode`. */
