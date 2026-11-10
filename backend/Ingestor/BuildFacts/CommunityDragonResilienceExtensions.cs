@@ -1,4 +1,5 @@
 using Ingestor.Options;
+using Ingestor.Riot;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 
@@ -53,14 +54,7 @@ public static class CommunityDragonResilienceExtensions
                 options.AttemptTimeout.Timeout = attemptBudget;
             }
 
-            // The standard handler validates that the circuit breaker's sampling duration
-            // is at least double the attempt timeout; keep it valid when the configured
-            // attempt timeout exceeds what the 30s sampling default allows.
-            var minimumSamplingDuration = options.AttemptTimeout.Timeout * 2;
-            if (options.CircuitBreaker.SamplingDuration < minimumSamplingDuration)
-            {
-                options.CircuitBreaker.SamplingDuration = minimumSamplingDuration;
-            }
+            options.KeepCircuitBreakerSamplingValid();
         });
 
         return builder;

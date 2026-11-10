@@ -24,8 +24,8 @@ public sealed class RiotRateLimitHandlerTests
         using var handler = new RiotRateLimitHandler(limiter) { InnerHandler = inner };
         using var client = new HttpClient(handler, disposeHandler: false);
 
-        using var response = await client.GetAsync(
-            new Uri("https://europe.api.riotgames.com/lol/match/v5/matches/EUW1_1/timeline"));
+        using var response = await client.SendAsync(
+            RiotCall.Get(RiotEndpoint.MatchTimeline, "europe", "/lol/match/v5/matches/EUW1_1/timeline"));
 
         limiter.Acquired.Should().ContainSingle().Which.Should().Be(("europe", "match-v5.timeline"));
     }
@@ -38,8 +38,8 @@ public sealed class RiotRateLimitHandlerTests
         using var handler = new RiotRateLimitHandler(limiter) { InnerHandler = inner };
         using var client = new HttpClient(handler, disposeHandler: false);
 
-        using var response = await client.GetAsync(
-            new Uri("https://euw1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/abc"));
+        using var response = await client.SendAsync(
+            RiotCall.Get(RiotEndpoint.SummonerByPuuid, "euw1", "/lol/summoner/v4/summoners/by-puuid/abc"));
 
         limiter.Acquired.Should().ContainSingle().Which.Should().Be(("euw1", "summoner-v4.byPuuid"));
     }
@@ -52,8 +52,8 @@ public sealed class RiotRateLimitHandlerTests
         using var handler = new RiotRateLimitObserverHandler(limiter) { InnerHandler = inner };
         using var client = new HttpClient(handler, disposeHandler: false);
 
-        using var response = await client.GetAsync(
-            new Uri("https://americas.api.riotgames.com/lol/match/v5/matches/NA1_1"));
+        using var response = await client.SendAsync(
+            RiotCall.Get(RiotEndpoint.Match, "americas", "/lol/match/v5/matches/NA1_1"));
 
         response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         limiter.Observed.Should().ContainSingle().Which.Should().Be(("americas", "match-v5.match"));
@@ -90,8 +90,8 @@ public sealed class RiotRateLimitHandlerTests
         var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient("riot");
         client.Timeout = TimeSpan.FromSeconds(30);
 
-        using var response = await client.GetAsync(
-            new Uri("https://europe.api.riotgames.com/lol/match/v5/matches/EUW1_1"));
+        using var response = await client.SendAsync(
+            RiotCall.Get(RiotEndpoint.Match, "europe", "/lol/match/v5/matches/EUW1_1"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

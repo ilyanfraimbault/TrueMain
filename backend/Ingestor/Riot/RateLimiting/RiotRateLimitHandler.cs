@@ -27,13 +27,12 @@ internal sealed class RiotRateLimitHandler(IRiotRateLimiter limiter) : Delegatin
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        var (endpoint, routingValue) = RiotEndpointClassifier.Classify(request);
-        if (routingValue is null)
+        if (RiotCall.Of(request) is not { } call)
         {
             return await base.SendAsync(request, cancellationToken);
         }
 
-        await limiter.AcquireAsync(routingValue, endpoint, cancellationToken);
+        await limiter.AcquireAsync(call.RoutingValue, call.Endpoint.Method, cancellationToken);
 
         return await base.SendAsync(request, cancellationToken);
     }
@@ -59,10 +58,9 @@ internal sealed class RiotRateLimitObserverHandler(IRiotRateLimiter limiter) : D
     {
         var response = await base.SendAsync(request, cancellationToken);
 
-        var (endpoint, routingValue) = RiotEndpointClassifier.Classify(request);
-        if (routingValue is not null)
+        if (RiotCall.Of(request) is { } call)
         {
-            limiter.Observe(routingValue, endpoint, response);
+            limiter.Observe(call.RoutingValue, call.Endpoint.Method, response);
         }
 
         return response;

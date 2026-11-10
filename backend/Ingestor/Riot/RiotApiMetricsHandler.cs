@@ -16,16 +16,20 @@ namespace Ingestor.Riot;
 /// </summary>
 /// <remarks>
 /// Recording is fire-and-forget and fully defensive: it only enqueues onto a
-/// bounded in-memory channel and every failure is swallowed, so instrumentation
+/// bounded in-memory channel and every failure is logged and swallowed, so instrumentation
 /// can never slow down, fault or change the outcome of a Riot call.
 /// </remarks>
-internal sealed class RiotApiMetricsHandler(IRiotApiCallRecorder recorder, ICallerContext callerContext) : DelegatingHandler
+internal sealed class RiotApiMetricsHandler(
+    IRiotApiCallRecorder recorder,
+    ICallerContext callerContext,
+    TimeProvider timeProvider,
+    ILogger<RiotApiMetricsHandler> logger) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        var startedAtUtc = DateTime.UtcNow;
+        var startedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
         var start = Stopwatch.GetTimestamp();
         HttpResponseMessage? response = null;
         try
@@ -50,16 +54,16 @@ internal sealed class RiotApiMetricsHandler(IRiotApiCallRecorder recorder, ICall
     {
         try
         {
-            var (endpoint, route) = RiotEndpointClassifier.Classify(request);
+            var call = RiotCall.Of(request);
             var statusCode = response is null ? 0 : (int)response.StatusCode;
 
             recorder.Record(new RiotApiCallRecord(
                 startedAtUtc,
-                endpoint,
+                call?.Endpoint.Method ?? RiotEndpoint.Unknown,
                 request.Method.Method,
                 statusCode,
                 (long)elapsed.TotalMilliseconds,
-                route,
+                call?.RoutingValue,
                 Header(response, "X-App-Rate-Limit"),
                 Header(response, "X-App-Rate-Limit-Count"),
                 Header(response, "X-Method-Rate-Limit"),
@@ -68,9 +72,11 @@ internal sealed class RiotApiMetricsHandler(IRiotApiCallRecorder recorder, ICall
                 Header(response, "X-Rate-Limit-Type"),
                 callerContext.CurrentCaller));
         }
-        catch
+        catch (Exception ex)
         {
-            // Telemetry must never surface as a failure on the Riot call path.
+            // Telemetry must never surface as a failure on the Riot call path — but a recorder
+            // that keeps failing must not go unnoticed either (#2481, F27).
+            logger.LogWarning(ex, "Could not record a Riot API call metric.");
         }
     }
 
