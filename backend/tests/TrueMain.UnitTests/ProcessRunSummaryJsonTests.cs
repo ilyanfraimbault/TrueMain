@@ -277,15 +277,6 @@ public sealed class ProcessRunSummaryJsonTests
             new EloBracketEnrichmentSummary(5000, 40, 2),
             new { stamped = 5000, deferred = 40, batches = 2 });
 
-        yield return (
-            new TeamPositionCorrectionSummary(7, 3),
-            new { correctedParticipants = 7, inspectedTeams = 3 });
-
-        // MatchRoleBoundItemBackfillProcess (#1612).
-        yield return (
-            new RoleBoundItemBackfillSummary(4000, 3900, 2),
-            new { resolved = 4000, inferredBoots = 3900, batches = 2 });
-
         // ChampionSynergyAggregationProcess (#922) — same match/batch pair plus the
         // two upsert counts, since it writes two tables per fold.
         yield return (

@@ -64,7 +64,7 @@ public sealed class ProcessIterationHeadersIntegrationTests : IAsyncLifetime
         await Runs().InsertManyAsync(
         [
             BuildRun(old, "MainAnalysis", now.AddDays(-30).AddMinutes(5), "AggregateLane"),
-            BuildRun(old, "MatchTeamPositionCorrection", now.AddDays(-30), "AggregateLane")
+            BuildRun(old, "MatchParticipantEloBracketEnrichment", now.AddDays(-30), "AggregateLane")
         ]);
 
         using var context = BuildContext();

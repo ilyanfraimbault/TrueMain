@@ -45,10 +45,15 @@ public sealed class MatchRepository(TrueMainDbContext db) : IMatchRepository
             return Task.CompletedTask;
         }
 
+        // Ingest writes the canonical marks only (#772), so a timeline stored now is already what
+        // retention's dense-snapshot prune (#694) reduces old ones to: flagging it pruned keeps
+        // that prune from re-selecting every new match forever (#2481, F14).
         return db.Matches
             .Where(m => matchIds.Contains(m.Id))
             .ExecuteUpdateAsync(
-                setters => setters.SetProperty(m => m.TimelineIngested, timelineIngested),
+                setters => setters
+                    .SetProperty(m => m.TimelineIngested, timelineIngested)
+                    .SetProperty(m => m.TimelineSnapshotsPruned, timelineIngested),
                 ct);
     }
 
