@@ -162,7 +162,7 @@ Recordings go to `~/Movies/TrueMain` (`Videos\TrueMain`
 on Windows) unless the player picked a folder; clips cut in the recap go to
 its `clips/` subfolder, each its own `clip.mp4` + `clip.json` + thumbnail. The
 helper also cuts the clips (a passthrough export, no re-encoding) and takes the
-thumbnails (`crates/capture-helper`, shared with the spike).
+thumbnails (`crates/capture-helper`).
 
 There is one helper per platform, speaking the same JSON-lines protocol
 (`capture/macos/Sources/truemain-capture/main.swift` documents it), so nothing
@@ -367,11 +367,9 @@ desktop/
   crates/game-recording/  game recording minus the capture (#1744): settings, highlights,
                           game-clock anchor, storage budget — no Tauri, no GUI
   crates/capture-helper/  drives the capture helper: records, cuts clips, takes thumbnails,
-                          reads the Screen Recording permission — shared by app and spike
-  crates/capture-spike/   dev tool: records one game through the capture helper and
-                          reports what it measured (#1745)
+                          reads the Screen Recording permission
   capture/macos/          the macOS capture helper (Swift, ScreenCaptureKit) — built on
-                          a Mac only; run with capture/spike.sh
+                          a Mac only
   capture/windows/        the Windows capture helper (Rust, Windows.Graphics.Capture +
                           Media Foundation) — its code is cfg(windows), a stub elsewhere
   tools/                  overlay-probe.swift: the window server's view of a game (#1673);
