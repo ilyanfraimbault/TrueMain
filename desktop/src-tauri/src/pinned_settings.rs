@@ -32,7 +32,9 @@ fn csp(directive: &str) -> Vec<String> {
 /// The quoted strings of the TS declaration that starts at `marker`, up to its
 /// closing bracket.
 fn quoted_after(source: &str, marker: &str, close: char) -> Vec<String> {
-    let start = source.find(marker).unwrap_or_else(|| panic!("{marker} not found"));
+    let start = source
+        .find(marker)
+        .unwrap_or_else(|| panic!("{marker} not found"));
     let body = &source[start..];
     let body = &body[..body.find(close).expect("a closing bracket")];
     body.split('\'')

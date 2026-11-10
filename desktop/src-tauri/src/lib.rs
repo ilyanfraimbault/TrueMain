@@ -15,6 +15,8 @@ mod kits;
 mod loading;
 mod menu;
 mod overlay;
+#[cfg(test)]
+mod pinned_settings;
 mod record;
 mod recording;
 mod runes;
@@ -23,8 +25,6 @@ mod sim;
 mod site;
 mod supervisor;
 mod telemetry;
-#[cfg(test)]
-mod pinned_settings;
 mod window_state;
 
 use std::sync::{Arc, Mutex};
@@ -108,7 +108,10 @@ pub fn run() {
         .manage(SharedReads::default())
         .manage(ReplacedReads::default())
         .manage(client.clone())
-        .manage(champselect::ChampSelectWriter::new(client.clone()))
+        .manage(champselect::ChampSelectWriter::new(
+            &supervisor::Origin::from_env(),
+            client.clone(),
+        ))
         .manage(GameCache::default())
         .manage(SharedGame::default())
         .manage(loading::SharedLoading::default())
