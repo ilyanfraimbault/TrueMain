@@ -1,7 +1,7 @@
 import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { PlayerGame, PlayerRecord } from '~/types/record'
 import { readRankHistory, recordRankSnapshot } from '~/utils/lp-history'
-import { shell } from '~/utils/shell'
+import { fakeShell, shell } from '~/utils/shell'
 
 /** A record younger than this is shown as is when the dashboard opens again. */
 const FRESH_FOR_MS = 120_000
@@ -41,11 +41,7 @@ export function usePlayerRecord() {
   const loadingOlder = useState<boolean>('player-record-loading-older', () => false)
 
   async function read(): Promise<PlayerRecord | null> {
-    if (insideTauri()) {
-      return await trackLoad(shell.playerRecord())
-    }
-    if (import.meta.dev) return useDevScenarios().record.value
-    return null
+    return await trackLoad(shell.playerRecord())
   }
 
   /** Read again, unless a fresh record for this player is already held (`force` reads anyway). */
@@ -80,7 +76,8 @@ export function usePlayerRecord() {
   }
 
   function noteStanding(riotId: string, answer: PlayerRecord | null): RankHistoryEntryReadModel[] {
-    if (!insideTauri()) return import.meta.dev ? useDevScenarios().rankHistory.value : []
+    // The dev scenarios carry the snapshots a player's machine would have noted.
+    if (fakeShell) return useDevScenarios().rankHistory.value
     const solo = answer?.ranked.find(queue => queue.queueType === 'RANKED_SOLO_5x5') ?? null
     return answer ? recordRankSnapshot(riotId, solo) : readRankHistory(riotId)
   }
@@ -121,7 +118,6 @@ export function usePlayerRecord() {
   }
 
   async function readOlder(begin: number): Promise<PlayerGame[]> {
-    if (!insideTauri()) return []
     return await trackLoad(shell.playerHistory(begin))
   }
 

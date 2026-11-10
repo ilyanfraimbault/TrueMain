@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { fakeShell } from '~/utils/shell'
 const { screen, ready } = useLcuState()
 const narrowWindow = useNarrowWindow()
 const router = useRouter()
@@ -39,7 +40,7 @@ onMounted(() => {
 // The scenario picker exists only for `npm run dev` in a browser: inside Tauri
 // the state comes from the client, and in a production build `import.meta.dev`
 // is false so the component and its fixtures are dropped from the bundle.
-const showScenarioPicker = computed(() => import.meta.dev && !insideTauri() && !standalone.value)
+const showScenarioPicker = computed(() => fakeShell && !standalone.value)
 
 /**
  * The gameflow phase still drives the screen (`AppState::screen()` in Rust is

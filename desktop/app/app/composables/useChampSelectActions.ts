@@ -50,8 +50,7 @@ function create(draft: Ref<DraftState>) {
   const toast = useToast()
   const { nameOf } = useChampionStatics()
 
-  // Outside the shell (the dev server's scenarios) the controls show and send nothing, like the rune import.
-  const choices = ref<Choices>({ writable: !insideTauri() && import.meta.dev, pickable: null, bannable: null })
+  const choices = ref<Choices>({ writable: false, pickable: null, bannable: null })
   /** The write in flight, so its control spins and no second one starts. */
   const pending = ref<{ kind: ChampSelectKind | 'lock', championId: number } | null>(null)
 
@@ -111,7 +110,7 @@ function create(draft: Ref<DraftState>) {
   }
 
   async function send(command: 'champSelectHover' | 'champSelectLock', kind: ChampSelectKind, championId: number) {
-    if (insideTauri()) await shell[command](kind, championId)
+    await shell[command](kind, championId)
   }
 
   function refused(error: unknown, championId: number) {
@@ -122,16 +121,15 @@ function create(draft: Ref<DraftState>) {
       : { title: 'Nothing was sent to the client', description: message, icon: 'i-lucide-circle-x', color: 'error' })
   }
 
-  /** One write, from one click: no queue, no retry. `done` is the dev server's toast; null keeps the write silent. */
-  async function run(kind: ChampSelectKind | 'lock', championId: number, write: () => Promise<void>, done: string | null) {
+  /** One write, from one click: no queue, no retry. `say` tells a refusal; a hover stays silent. */
+  async function run(kind: ChampSelectKind | 'lock', championId: number, write: () => Promise<void>, say: boolean) {
     if (pending.value) return
     pending.value = { kind, championId }
     try {
       await write()
-      if (done && !insideTauri()) toast.add({ title: done, description: 'Dev server: nothing was sent to a client.', icon: 'i-lucide-check', color: 'success' })
     }
     catch (error) {
-      if (done) refused(error, championId)
+      if (say) refused(error, championId)
     }
     finally {
       pending.value = null
@@ -143,7 +141,7 @@ function create(draft: Ref<DraftState>) {
   function hover(championId: number) {
     const current = kind.value
     if (!current) return
-    return run(current, championId, () => send('champSelectHover', current, championId), null)
+    return run(current, championId, () => send('champSelectHover', current, championId), false)
   }
 
   /** Ban `championId`: hovered, then the ban completed — one confirmed click. */
@@ -152,19 +150,18 @@ function create(draft: Ref<DraftState>) {
     return run('ban', championId, async () => {
       await send('champSelectHover', 'ban', championId)
       await send('champSelectLock', 'ban', championId)
-    }, `${nameOf(championId)} banned`)
+    }, true)
   }
 
   /** Lock in the champion the client shows hovered on our pick. */
   function lock() {
     const championId = hovered.value
     if (!canLock.value || championId === null) return
-    return run('lock', championId, () => send('champSelectLock', 'pick', championId), `${nameOf(championId)} locked in`)
+    return run('lock', championId, () => send('champSelectLock', 'pick', championId), true)
   }
 
   /** What the client lets the player pick and ban now; read again whenever the draft moves. */
   async function refresh() {
-    if (!insideTauri()) return
     try {
       choices.value = await shell.champSelectChoices()
     }

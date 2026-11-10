@@ -473,13 +473,16 @@ TRUEMAIN_API_BASE=http://localhost:5008 TRUEMAIN_LCU_REPLAY=fixtures/ranked-draf
 cd desktop/app && npm run dev        # then pick a scenario at the bottom
 ```
 
-`npm run dev` outside Tauri has no client and no Rust, so it opens on a picker
-of states the client would have pushed — `?scenario=draft-locked#/draft` links
-to one directly (the route is in the hash). This is for working on the UI with
-hot reload; it proves nothing below the frontend. `app/app/fixtures/scenarios.json`
-holds the states. Everything else is real data: the dev server proxies `/api`
-to the site's `/api` — preprod with `desktop/.env.local`, production without
-(`nuxt.config.ts`, dev only) — since there is no Rust to ask. In a production build the picker never renders — `import.meta.dev`
+`npm run dev` outside Tauri has no client and no Rust, so a fake shell answers
+the app's commands instead (`app/app/dev-shell/`, installed by
+`app/app/utils/shell.ts`; typed by the generated bindings, so a new command needs
+its dev answer there and nowhere else). It opens on a picker of states the client
+would have pushed — `?scenario=draft-locked#/draft` links to one directly (the
+route is in the hash). This is for working on the UI with hot reload; it proves
+nothing below the frontend. `app/app/fixtures/scenarios.json` holds the states.
+TrueMain's reads are real data: the fake shell sends them through the dev server's
+proxy of the site's `/api` — preprod with `desktop/.env.local`, production
+without (`nuxt.config.ts`, dev only). In a production build the picker never renders — `import.meta.dev`
 is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chunk
 that is never fetched.
 

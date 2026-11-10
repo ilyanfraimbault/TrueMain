@@ -104,8 +104,6 @@ export function useDraftRecommendation(
     catch (cause) {
       if (requestId !== latestRequest) return
       error.value = String(cause)
-      // Offline in `npm run dev`: a scenario may carry the answer the API gave.
-      if (import.meta.dev && !insideTauri()) recommendation.value = useDevScenarios().recommendation.value
     }
     finally {
       if (requestId === latestRequest) pending.value = false
