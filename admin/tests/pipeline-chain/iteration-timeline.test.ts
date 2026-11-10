@@ -5,6 +5,7 @@ import {
   statusCounts,
   timedRuns,
 } from '~~/shared/utils/iteration-timeline'
+import { CATALOG } from './catalog'
 
 // The compact iteration rows read their badge, bar and counts off these helpers.
 
@@ -37,17 +38,17 @@ function iteration(
 
 describe('iterationKind', () => {
   it('names the lane modes and keeps a single-process mode verbatim', () => {
-    expect(iterationKind(iteration('a', 'FetchLane', '', '')).id).toBe('fetch')
-    expect(iterationKind(iteration('a', 'AggregateLane', '', '')).label).toBe('Aggregate')
-    expect(iterationKind(iteration('a', 'Full', '', '')).id).toBe('full')
-    expect(iterationKind(iteration('a', 'FetchWorkers', '', '')).id).toBe('fetch')
-    expect(iterationKind(iteration('a', 'HarvestOnly', '', ''))).toEqual({ id: 'single', label: 'HarvestOnly' })
+    expect(iterationKind(CATALOG, iteration('a', 'FetchLane', '', '')).id).toBe('fetch')
+    expect(iterationKind(CATALOG, iteration('a', 'AggregateLane', '', '')).label).toBe('Aggregate')
+    expect(iterationKind(CATALOG, iteration('a', 'Full', '', '')).id).toBe('full')
+    expect(iterationKind(CATALOG, iteration('a', 'FetchWorkers', '', '')).id).toBe('fetch')
+    expect(iterationKind(CATALOG, iteration('a', 'HarvestOnly', '', ''))).toEqual({ id: 'single', label: 'HarvestOnly' })
   })
 
   it('falls back to the lane of the processes for a pass recorded before the mode was stamped', () => {
-    expect(iterationKind(iteration('a', null, '', '', [run('Discovery'), run('Scoring')])).id).toBe('fetch')
-    expect(iterationKind(iteration('a', null, '', '', [run('Discovery'), run('MainAnalysis')])).id).toBe('full')
-    expect(iterationKind(iteration('a', null, '', '', [run('SomethingNew')]))).toEqual({ id: 'single', label: 'SomethingNew' })
+    expect(iterationKind(CATALOG, iteration('a', null, '', '', [run('Discovery'), run('Scoring')])).id).toBe('fetch')
+    expect(iterationKind(CATALOG, iteration('a', null, '', '', [run('Discovery'), run('MainAnalysis')])).id).toBe('full')
+    expect(iterationKind(CATALOG, iteration('a', null, '', '', [run('SomethingNew')]))).toEqual({ id: 'single', label: 'SomethingNew' })
   })
 })
 
