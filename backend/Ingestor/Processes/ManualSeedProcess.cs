@@ -297,30 +297,21 @@ public sealed class ManualSeedProcess(
         // and only the audit event is missed. "Lossless" here means the audit channel
         // is synchronous and unbatched vs the lossy batched diagnostic channel — it
         // is not a guarantee against a Mongo outage.
-        try
-        {
-            await auditLog.RecordAsync(
-                action: AuditActions.SeedAccountIngested,
-                actor: AuditActors.Ingestor,
-                targetType: AuditTargets.SeedRequest,
-                targetId: request.Id.ToString(),
-                metadata: new Dictionary<string, string>
-                {
-                    ["gameName"] = request.GameName,
-                    ["tagLine"] = request.TagLine,
-                    ["platformId"] = request.PlatformId,
-                    ["resolvedPuuid"] = account.Puuid,
-                    ["candidatesQueued"] = queued.ToString()
-                },
-                ct: ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(
-                ex,
-                "Audit write failed for ingested seed request {SeedRequestId}; the account was ingested, audit event missed.",
-                request.Id);
-        }
+        await auditLog.TryRecordAsync(
+            logger,
+            action: AuditActions.SeedAccountIngested,
+            actor: AuditActors.Ingestor,
+            targetType: AuditTargets.SeedRequest,
+            targetId: request.Id.ToString(),
+            metadata: new Dictionary<string, string>
+            {
+                ["gameName"] = request.GameName,
+                ["tagLine"] = request.TagLine,
+                ["platformId"] = request.PlatformId,
+                ["resolvedPuuid"] = account.Puuid,
+                ["candidatesQueued"] = queued.ToString()
+            },
+            ct: ct);
     }
 
     private static string? Truncate(string? value, int maxLength)
