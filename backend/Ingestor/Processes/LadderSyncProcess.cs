@@ -1,4 +1,5 @@
 using Core.Lol.Identifiers;
+using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Ops.Mongo;
@@ -61,7 +62,7 @@ public sealed class LadderSyncProcess(
     /// <inheritdoc />
     public TimeSpan MinRunInterval => ladderSyncOptions.Value.MinRunInterval;
 
-    private const string RankedSoloQueue = "RANKED_SOLO_5x5";
+    private const string RankedSoloQueue = LeagueQueueType.RankedSolo;
     public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = ladderSyncOptions.Value;

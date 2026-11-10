@@ -1,4 +1,5 @@
 using Core.Lol.Identifiers;
+using Core.Lol.Map;
 using Ingestor.Options;
 using Ingestor.Ranking;
 using Ingestor.Riot;
@@ -8,7 +9,7 @@ namespace Ingestor.Processes.Components.Discovery;
 
 public sealed class LadderDiscoveryService(IRiotPlatformClient riotPlatformClient) : ILadderDiscoveryService
 {
-    private const string RankedSoloQueue = "RANKED_SOLO_5x5";
+    private const string RankedSoloQueue = LeagueQueueType.RankedSolo;
 
     public async Task<LadderDiscoveryResult> DiscoverSummonersAsync(
         PlatformRoute platform,
