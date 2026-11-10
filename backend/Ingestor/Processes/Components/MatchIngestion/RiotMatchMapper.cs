@@ -1,6 +1,6 @@
 using Core.Lol.Map;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Riot.Dto;
 
 namespace Ingestor.Processes.Components.MatchIngestion;

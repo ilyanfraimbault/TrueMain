@@ -639,7 +639,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
     private sealed class NoOpCandidateUpsertService : ICandidateUpsertService
     {
         public Task<CandidateUpsertResult> UpsertAsync(
-            Data.Repositories.IDataSession session,
+            Ingestor.Persistence.IDataSession session,
             string platformId,
             string puuid,
             IReadOnlyCollection<RiotChampionMasteryDto> masteries,
