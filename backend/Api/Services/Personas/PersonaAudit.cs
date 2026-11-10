@@ -19,12 +19,13 @@ public sealed class PersonaAudit(IAuditLog auditLog, ILogger<PersonaAudit> logge
     {
         metadata["slug"] = slug;
         return auditLog.TryRecordAsync(
+            new AuditEntry(
+                action,
+                actor,
+                AuditTargets.Persona,
+                personaId.ToString(),
+                metadata),
             logger,
-            action: action,
-            actor: actor,
-            targetType: AuditTargets.Persona,
-            targetId: personaId.ToString(),
-            metadata: metadata,
-            ct: ct);
+            ct);
     }
 }

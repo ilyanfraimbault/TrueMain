@@ -17,17 +17,13 @@ public static class AuditLogBestEffort
     /// <returns>Whether the event was recorded.</returns>
     public static async Task<bool> TryRecordAsync(
         this IAuditLog auditLog,
+        AuditEntry entry,
         ILogger logger,
-        string action,
-        string actor,
-        string targetType,
-        string targetId,
-        IReadOnlyDictionary<string, string>? metadata = null,
         CancellationToken ct = default)
     {
         try
         {
-            await auditLog.RecordAsync(action, actor, targetType, targetId, metadata, ct);
+            await auditLog.RecordAsync(entry.Action, entry.Actor, entry.TargetType, entry.TargetId, entry.Metadata, ct);
             return true;
         }
         catch (Exception ex)
@@ -35,10 +31,18 @@ public static class AuditLogBestEffort
             logger.LogWarning(
                 ex,
                 "Audit write failed for {Action} on {TargetType} {TargetId}; the change it records was committed.",
-                action,
-                targetType,
-                targetId);
+                entry.Action,
+                entry.TargetType,
+                entry.TargetId);
             return false;
         }
     }
 }
+
+/// <summary>One audit event: what was done, by whom, to what, with optional structured context.</summary>
+public sealed record AuditEntry(
+    string Action,
+    string Actor,
+    string TargetType,
+    string TargetId,
+    IReadOnlyDictionary<string, string>? Metadata = null);

@@ -79,19 +79,16 @@ public sealed class TruemainsLeaderboardQueryService(
     private const int DefaultPageSize = 25;
     private const int MaxPageSize = 50;
 
-    // The leaderboard is dominated by page-1 traffic with no filters, and the
-    // four SQL queries that make a fresh response (Count + FetchPage +
-    // FetchTopChampions + FetchStats) cost more than the response itself is
-    // worth re-deriving every second. The numbers underneath only shift when
-    // the ingestor flushes a new batch of rank snapshots or matches — that
-    // happens on a multi-minute cadence, so a 30s TTL trades a few seconds of
-    // staleness for a massive drop in DB load. Mirrors the TTL
-    // ChampionSummariesQueryService uses for the same reason.
+    // The leaderboard is dominated by page-1 traffic with no filters, and a fresh
+    // response costs a ranking read, the page and six hydration reads. The numbers
+    // underneath only shift when the ingestor lands new rank snapshots or matches —
+    // a multi-minute cadence — so a 30s TTL trades a few seconds of staleness for a
+    // large drop in DB load. Shared caches get the same window (TruemainsController).
     internal static readonly TimeSpan ResponseCacheTtl = TimeSpan.FromSeconds(30);
 
-    // Ranked solo queue. Matches the queue used by MainStatsCalculator
-    // for main_champion_stats, so the "games" / KDA / winrate cell stays
-    // consistent with the player's top-champions cell on the same row.
+    // Ranked solo queue, the one main analysis computes main_champion_stats on
+    // (MainAnalysis:QueueId), so the "games" / KDA / winrate cell stays consistent
+    // with the player's top-champions cell on the same row.
     internal const int RankedQueueId = (int)LolQueueId.RankedSoloDuo;
 
     private readonly LeaderboardRanking ranking = new(db, dbFactory, mainAnalysisOptions, readCache);
@@ -130,13 +127,7 @@ public sealed class TruemainsLeaderboardQueryService(
         var minGames = Math.Max(0, options.Value.MinRankedGames);
         var filter = new LeaderboardFilter(platforms, championFilter, normalizedPosition, minGames, otpOnly);
 
-        // Page-1-no-filter is the dominant shape of /truemains traffic; the
-        // four SQL queries that compose a fresh response cost far more than
-        // the JSON is worth re-deriving every second. Cache the assembled
-        // response keyed on the request shape — the snapshot rate underneath
-        // moves on a multi-minute cadence (RankSnapshotIngestion + match
-        // ingest), so the TTL trades a few seconds of staleness for a large
-        // drop in DB load. Mirrors ChampionSummariesQueryService's TTL.
+        // The assembled response is cached on the request shape (see ResponseCacheTtl).
         var cacheKey = $"truemains:leaderboard:{filter.Key}:{sort}:{clampedPage}:{clampedPageSize}";
         if (cache.TryGetValue<LeaderboardResponse>(cacheKey, out var cached) && cached is not null)
         {

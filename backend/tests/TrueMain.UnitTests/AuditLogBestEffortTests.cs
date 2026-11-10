@@ -18,7 +18,7 @@ public sealed class AuditLogBestEffortTests
             .ThrowsAsyncForAnyArgs(new TimeoutException("mongo down"));
 
         var recorded = await auditLog.TryRecordAsync(
-            NullLogger.Instance, "seed_account", "operator", "SeedRequest", "id", ct: CancellationToken.None);
+            new AuditEntry("seed_account", "operator", "SeedRequest", "id"), NullLogger.Instance, CancellationToken.None);
 
         recorded.Should().BeFalse();
     }
@@ -29,7 +29,7 @@ public sealed class AuditLogBestEffortTests
         var auditLog = Substitute.For<IAuditLog>();
 
         var recorded = await auditLog.TryRecordAsync(
-            NullLogger.Instance, "seed_account", "operator", "SeedRequest", "id", ct: CancellationToken.None);
+            new AuditEntry("seed_account", "operator", "SeedRequest", "id"), NullLogger.Instance, CancellationToken.None);
 
         recorded.Should().BeTrue();
         await auditLog.Received(1).RecordAsync("seed_account", "operator", "SeedRequest", "id", null, CancellationToken.None);

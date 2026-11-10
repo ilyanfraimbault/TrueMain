@@ -292,26 +292,28 @@ public sealed class ManualSeedProcess(
         // Best-effort by design, and ISOLATED from the processing-failure path: the
         // request is already marked Ingested above. If this audit insert threw
         // and escaped, ProcessRequestAsync's catch would call MarkFailedAsync and
-        // flip a SUCCESSFUL account to Failed (also double-counting it). So we catch
-        // here and only log a Warning — under a Mongo outage the seed still succeeds
-        // and only the audit event is missed. "Lossless" here means the audit channel
+        // flip a SUCCESSFUL account to Failed (also double-counting it). So the write
+        // goes through TryRecordAsync, which only logs a Warning — under a Mongo
+        // outage the seed still succeeds and only the audit event is missed.
+        // "Lossless" here means the audit channel
         // is synchronous and unbatched vs the lossy batched diagnostic channel — it
         // is not a guarantee against a Mongo outage.
         await auditLog.TryRecordAsync(
+            new AuditEntry(
+                AuditActions.SeedAccountIngested,
+                AuditActors.Ingestor,
+                AuditTargets.SeedRequest,
+                request.Id.ToString(),
+                new Dictionary<string, string>
+                {
+                    ["gameName"] = request.GameName,
+                    ["tagLine"] = request.TagLine,
+                    ["platformId"] = request.PlatformId,
+                    ["resolvedPuuid"] = account.Puuid,
+                    ["candidatesQueued"] = queued.ToString()
+                }),
             logger,
-            action: AuditActions.SeedAccountIngested,
-            actor: AuditActors.Ingestor,
-            targetType: AuditTargets.SeedRequest,
-            targetId: request.Id.ToString(),
-            metadata: new Dictionary<string, string>
-            {
-                ["gameName"] = request.GameName,
-                ["tagLine"] = request.TagLine,
-                ["platformId"] = request.PlatformId,
-                ["resolvedPuuid"] = account.Puuid,
-                ["candidatesQueued"] = queued.ToString()
-            },
-            ct: ct);
+            ct);
     }
 
     private static string? Truncate(string? value, int maxLength)
