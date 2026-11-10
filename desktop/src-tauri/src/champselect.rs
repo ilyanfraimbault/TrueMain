@@ -10,9 +10,12 @@
 //! phase change or a suggestion's rank.
 //!
 //! The same commands write to a live client or, in development, to the draft
-//! simulator page through the dev server's relay (`sim.rs`). A tape replay is
-//! read-only: there is nothing to write to, and the draft hides the controls.
+//! simulator page through the dev server's relay (`sim.rs`), both through
+//! `ChampSelectPort`. A tape replay is read-only: there is nothing to write to,
+//! and the draft hides the controls.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use lcu::{ActionKind, ChampSelectSession, Error, LcuClient, Refusal, SpellSelection};
@@ -21,82 +24,79 @@ use tauri::AppHandle;
 
 use crate::contract::Refused;
 use crate::record::SharedClient;
+use crate::supervisor::Origin;
 use crate::telemetry::{self, Feature};
 
 type Answer<T> = Result<T, Refused<Refusal>>;
 
-/// Where the champion select writes go, fixed for the app's run by how it was
-/// started.
+pub(crate) type Reply<'a, T> = Pin<Box<dyn Future<Output = lcu::Result<T>> + Send + 'a>>;
+
+/// What champion select is read and written through: the League client, or the
+/// draft simulator's relay standing in for it (`sim.rs`), with the same calls
+/// on the same URIs.
+pub trait ChampSelectPort: Send + Sync {
+    fn session(&self) -> Reply<'_, Option<ChampSelectSession>>;
+    fn allowed(&self, kind: ActionKind) -> Reply<'_, Vec<i64>>;
+    fn hover(&self, action_id: i64, champion_id: i64) -> Reply<'_, ()>;
+    fn complete(&self, action_id: i64) -> Reply<'_, ()>;
+    fn set_spells<'a>(&'a self, selection: &'a SpellSelection) -> Reply<'a, ()>;
+}
+
+impl ChampSelectPort for LcuClient {
+    fn session(&self) -> Reply<'_, Option<ChampSelectSession>> {
+        Box::pin(self.champ_select_session())
+    }
+
+    fn allowed(&self, kind: ActionKind) -> Reply<'_, Vec<i64>> {
+        match kind {
+            ActionKind::Pick => Box::pin(self.pickable_champions()),
+            ActionKind::Ban => Box::pin(self.bannable_champions()),
+        }
+    }
+
+    fn hover(&self, action_id: i64, champion_id: i64) -> Reply<'_, ()> {
+        Box::pin(self.hover_champion(action_id, champion_id))
+    }
+
+    fn complete(&self, action_id: i64) -> Reply<'_, ()> {
+        Box::pin(self.complete_action(action_id))
+    }
+
+    fn set_spells<'a>(&'a self, selection: &'a SpellSelection) -> Reply<'a, ()> {
+        Box::pin(self.set_summoner_spells(selection))
+    }
+}
+
+/// Where the champion select writes go, fixed for the run by where its
+/// sessions come from (`supervisor::Origin`).
 pub enum ChampSelectWriter {
     /// The client the supervisor is attached to, whenever one is.
     Live(SharedClient),
-    /// The draft simulator's relay (`TRUEMAIN_LCU_SIM`), debug builds only.
-    #[cfg(debug_assertions)]
-    Sim(crate::sim::SimClient),
+    /// A source of its own that takes writes: the draft simulator, debug
+    /// builds only.
+    #[cfg_attr(not(debug_assertions), allow(dead_code))]
+    Port(Arc<dyn ChampSelectPort>),
     /// A tape replay: nothing to write to.
     ReadOnly,
 }
 
 impl ChampSelectWriter {
-    pub fn new(client: SharedClient) -> Self {
-        #[cfg(debug_assertions)]
-        if let Ok(url) = std::env::var(crate::sim::SIM_VAR) {
-            return Self::Sim(crate::sim::SimClient::new(url));
+    pub fn new(origin: &Origin, client: SharedClient) -> Self {
+        match origin {
+            Origin::Client => Self::Live(client),
+            Origin::Tape(_) => Self::ReadOnly,
+            #[cfg(debug_assertions)]
+            Origin::Simulator(url) => Self::Port(Arc::new(crate::sim::SimClient::new(url.clone()))),
         }
-        if crate::supervisor::replaying() {
-            return Self::ReadOnly;
-        }
-        Self::Live(client)
     }
 
-    fn target(&self) -> Result<Target, String> {
+    fn target(&self) -> Result<Arc<dyn ChampSelectPort>, String> {
         match self {
-            Self::Live(client) => crate::record::attached(client).map(Target::Live),
-            #[cfg(debug_assertions)]
-            Self::Sim(sim) => Ok(Target::Sim(sim.clone())),
+            Self::Live(client) => {
+                crate::record::attached(client).map(|client| client as Arc<dyn ChampSelectPort>)
+            }
+            Self::Port(port) => Ok(port.clone()),
             Self::ReadOnly => Err("a replay cannot be written to".to_string()),
-        }
-    }
-}
-
-/// One write's destination, resolved for the length of a command.
-enum Target {
-    Live(Arc<LcuClient>),
-    #[cfg(debug_assertions)]
-    Sim(crate::sim::SimClient),
-}
-
-impl Target {
-    async fn session(&self) -> lcu::Result<Option<ChampSelectSession>> {
-        match self {
-            Self::Live(client) => client.champ_select_session().await,
-            #[cfg(debug_assertions)]
-            Self::Sim(sim) => sim.champ_select_session().await,
-        }
-    }
-
-    async fn allowed(&self, kind: ActionKind) -> lcu::Result<Vec<i64>> {
-        match (self, kind) {
-            (Self::Live(client), ActionKind::Pick) => client.pickable_champions().await,
-            (Self::Live(client), ActionKind::Ban) => client.bannable_champions().await,
-            #[cfg(debug_assertions)]
-            (Self::Sim(sim), kind) => sim.allowed(kind).await,
-        }
-    }
-
-    async fn hover(&self, action_id: i64, champion_id: i64) -> lcu::Result<()> {
-        match self {
-            Self::Live(client) => client.hover_champion(action_id, champion_id).await,
-            #[cfg(debug_assertions)]
-            Self::Sim(sim) => sim.hover_champion(action_id, champion_id).await,
-        }
-    }
-
-    async fn complete(&self, action_id: i64) -> lcu::Result<()> {
-        match self {
-            Self::Live(client) => client.complete_action(action_id).await,
-            #[cfg(debug_assertions)]
-            Self::Sim(sim) => sim.complete_action(action_id).await,
         }
     }
 }
@@ -115,7 +115,10 @@ fn write_failed(error: Error) -> Refused<Refusal> {
 }
 
 /// The session and the client's list for `kind`, read right before a write.
-async fn read(target: &Target, kind: ActionKind) -> Answer<(ChampSelectSession, Vec<i64>)> {
+async fn read(
+    target: &Arc<dyn ChampSelectPort>,
+    kind: ActionKind,
+) -> Answer<(ChampSelectSession, Vec<i64>)> {
     let (session, allowed) = tokio::join!(target.session(), target.allowed(kind));
     let session = session
         .map_err(read_failed)?
@@ -187,20 +190,13 @@ pub async fn champ_select_spells(
 ) -> Answer<()> {
     let selection = SpellSelection::new(spell1_id, spell2_id)
         .ok_or(Refused::from("a kit needs two different spells"))?;
-    let client = match writer.target()? {
-        Target::Live(client) => client,
-        #[cfg(debug_assertions)]
-        Target::Sim(_) => return Err("the draft simulator does not take summoner spells".into()),
-    };
-    client
-        .champ_select_session()
+    let target = writer.target()?;
+    target
+        .session()
         .await
         .map_err(read_failed)?
         .ok_or(Refused::Known(Refusal::NotYourTurn))?;
-    client
-        .set_summoner_spells(&selection)
-        .await
-        .map_err(write_failed)
+    target.set_spells(&selection).await.map_err(write_failed)
 }
 
 /// What the client lets the player pick and ban right now, for the controls'
