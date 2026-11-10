@@ -10,6 +10,7 @@ const IPX: &str = include_str!("../../../web/shared/utils/ipx.ts");
 const PLAYER_LINKS: &str =
     include_str!("../../../web/layers/common/app/components/players/PlayerLinks.vue");
 const NUXT_CONFIG: &str = include_str!("../../app/nuxt.config.ts");
+const OVERLAY_SMOKE: &str = include_str!("../../tools/overlay-smoke-windows.ps1");
 
 fn conf() -> serde_json::Value {
     serde_json::from_str(CONF).expect("tauri.conf.json parses")
@@ -106,3 +107,26 @@ fn every_copy_of_the_production_site_is_the_shells() {
         "nuxt.config.ts's default site"
     );
 }
+
+#[test]
+fn the_overlay_smoke_test_writes_the_shells_current_files() {
+    let identifier = conf()["identifier"]
+        .as_str()
+        .expect("an app identifier")
+        .to_string();
+    assert!(
+        OVERLAY_SMOKE.contains(&format!("Join-Path $env:APPDATA \"{identifier}\"")),
+        "the smoke test's config folder"
+    );
+    let version = OVERLAY_SMOKE
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("version"))
+        .and_then(|rest| rest.trim().strip_prefix('='))
+        .and_then(|value| value.trim().parse::<u32>().ok());
+    assert_eq!(
+        version,
+        Some(shell_state::overlay::SETTINGS_VERSION),
+        "overlay-settings.json's version in tools/overlay-smoke-windows.ps1"
+    );
+}
+
