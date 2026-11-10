@@ -2,6 +2,7 @@ import type { MatchDetail } from '#shared/types/match-detail'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 import { gradeDetail } from '~/utils/match-summary'
+import { shell } from '~/utils/shell'
 
 /**
  * The app's side of the composables the twinned site components call, so the
@@ -68,8 +69,7 @@ async function readTruemainDetail(nameTag: string, platformId: string | null, ma
 
 async function readClientDetail(matchId: string): Promise<MatchDetail | null> {
   if (insideTauri()) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    return gradeDetail(await invoke<MatchDetail>('player_game', { gameId: Number(matchId) }))
+    return gradeDetail(await shell.playerGame(Number(matchId)))
   }
   if (import.meta.dev) {
     const fixtures = await import('~/fixtures/match-details.json')

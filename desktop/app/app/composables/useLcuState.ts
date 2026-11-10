@@ -1,6 +1,7 @@
 import { isChampSelect } from '~/utils/gameflow'
 import type { AppState, Screen } from '~/types/lcu'
 import { EMPTY_STATE } from '~/types/lcu'
+import { follow, shell, shellEvents } from '~/utils/shell'
 
 /**
  * Whether the shell is hosting us, rather than a plain browser.
@@ -42,17 +43,7 @@ export function useLcuState() {
       return
     }
 
-    const { invoke } = await import('@tauri-apps/api/core')
-    const { listen } = await import('@tauri-apps/api/event')
-
-    // Subscribe before the first read, or a change landing between the two
-    // would be lost and the shell would sit on a stale state.
-    const stop = await listen<AppState>('lcu://state', (event) => {
-      state.value = event.payload
-    })
-    onScopeDispose(stop)
-
-    state.value = await invoke<AppState>('current_state')
+    onScopeDispose(await follow(shellEvents.lcuState, shell.currentState, next => (state.value = next)))
     ready.value = true
   }
 

@@ -12,9 +12,9 @@ const updater = vi.hoisted(() => ({ check: vi.fn() }))
 const proc = vi.hoisted(() => ({ relaunch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-updater', () => updater)
 vi.mock('@tauri-apps/plugin-process', () => proc)
-const shellEvents = vi.hoisted(() => new Map<string, () => void>())
+const shellEvents = vi.hoisted(() => new Map<string, (event: { payload: null }) => void>())
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(async (name: string, handler: () => void) => {
+  listen: vi.fn(async (name: string, handler: (event: { payload: null }) => void) => {
     shellEvents.set(name, handler)
     return () => {}
   }),
@@ -194,7 +194,7 @@ describe('useAppUpdate during champion select and games', () => {
     await launch(fakeUpdate(() => new Promise(() => {})))
     expect(current()).toBeUndefined()
 
-    shellEvents.get('app://check-for-updates')!()
+    shellEvents.get('app://check-for-updates')!({ payload: null })
     await vi.advanceTimersByTimeAsync(0)
     expect(current()?.title).toBe('TrueMain 0.2.1 is ready')
   })

@@ -29,7 +29,7 @@ const GRAB_WIDTH: f64 = 120.0;
 const GRAB_HEIGHT: f64 = 24.0;
 
 /// The window as the player left it.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowPlacement {
     /// The outer top-left corner, in pixels.

@@ -1,5 +1,6 @@
 import type { Update } from '@tauri-apps/plugin-updater'
 import { isChampSelect, isGameRunning } from '~/utils/gameflow'
+import { shellEvents } from '~/utils/shell'
 
 /**
  * The app updates itself. Each build asks its own site's update feed
@@ -238,8 +239,7 @@ export function useAppUpdate() {
       stopListening?.()
     })
     void check('launch')
-    const { listen } = await import('@tauri-apps/api/event')
-    stopListening = await listen('app://check-for-updates', () => void check('manual'))
+    stopListening = await shellEvents.appCheckForUpdates.listen(() => void check('manual'))
   }
 
   return { start, restart, readyVersion, installing, stalled }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
-import type { Kit } from '#shared/types/kit'
+import type { Kit } from '~/types/kit'
 import { KIT_NAME_MAX } from '~/utils/kit'
 
 /**

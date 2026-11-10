@@ -1024,3 +1024,12 @@ guard is the host list in `channels.rs` — `https` on the default port, no cred
 three platforms the page shows. The other link kinds the intake stores stay out: those URLs come from public sources
 through the API, and nothing else may reach the system opener from a page's anchor. Not a general "open a URL"
 command: a new external link in a shared page needs its host listed there, or it does nothing in the app — #2441.
+
+**The TypeScript side of the shell's contract is generated from Rust, never written by hand.** Every type the
+webview read had been re-declared in `app/types/*.ts`, the commands and events re-typed as strings and the refusal
+codes matched as strings, linked only by "Mirrors" comments, so a field added in Rust took up to three edits and a
+renamed command failed at runtime. `specta` + `tauri-specta` now emit the commands, events, payload types,
+refusal codes and the shell's defaults into one checked-in file, guarded by a Rust test that fails when it is
+stale. Options considered: `ts-rs` (types only, the command and event names would stay hand-kept). A float is
+typed `number` (the shell never sends NaN), a TrueMain API body `unknown` (its shape is the API's contract)
+(2026-11-09) — #2494.

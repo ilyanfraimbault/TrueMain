@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::champ_select::DraftAction;
 
 /// Where the player is in the client, and what the app should therefore show.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub enum GameflowPhase {
     None,
     Lobby,
@@ -74,13 +74,13 @@ impl GameflowPhase {
 /// `GET /lol-gameflow/v1/session`, reduced to the game it is about. Read when a
 /// game starts: the phase alone does not say which game, and a recording is
 /// filed under the game id the match history will later know it by.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GameflowSession {
     pub game_data: GameflowGameData,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GameflowGameData {
     /// Zero until the game is created.
@@ -165,7 +165,7 @@ fn free_lane(team: &[GameflowPlayer], size: usize) -> Option<String> {
 }
 
 /// One player's champion in the session, listed for everyone.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GameflowChampionSelection {
     pub puuid: String,
@@ -174,7 +174,7 @@ pub struct GameflowChampionSelection {
 
 /// One player of the game, as the session lists them. Which identity fields
 /// are filled moved with the Riot ID migration, so all are kept.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GameflowPlayer {
     pub puuid: String,
@@ -209,13 +209,13 @@ impl GameflowPlayer {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GameflowQueue {
     pub id: i64,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampSelectPlayer {
     pub cell_id: i64,
@@ -246,14 +246,14 @@ impl ChampSelectPlayer {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampSelectTimer {
     pub adjusted_time_left_in_phase: i64,
     pub phase: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampSelectBans {
     pub my_team_bans: Vec<i64>,
@@ -262,7 +262,7 @@ pub struct ChampSelectBans {
 
 /// One step of the draft — a ban or a pick — by one cell. The client groups
 /// them by turn, so the session carries a list of lists.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampSelectAction {
     /// What a write to this action is addressed by
@@ -280,7 +280,7 @@ pub struct ChampSelectAction {
     pub kind: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampSelectSession {
     pub local_player_cell_id: i64,
@@ -293,7 +293,7 @@ pub struct ChampSelectSession {
 
 /// What the draft panel needs, derived once in Rust so the frontend does not
 /// re-derive it differently.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DraftState {
     /// Our own lane, normalised upper-case (`MIDDLE`), empty when the queue
@@ -323,7 +323,7 @@ pub struct DraftState {
 }
 
 /// One cell of our side of champion select.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamSlot {
     pub champion_id: Option<i64>,
@@ -425,7 +425,7 @@ impl ChampSelectSession {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CurrentSummoner {
     pub puuid: String,
@@ -448,7 +448,7 @@ impl CurrentSummoner {
 /// Only the two fields the pool ranking reads. The client's entry also carries
 /// the player's PUUID, and a tape records this model rather than the raw body,
 /// so keeping the struct this narrow is what keeps that id off disk.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChampionMastery {
     pub champion_id: i64,

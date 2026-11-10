@@ -60,7 +60,7 @@ pub const DEFAULT_MARK_KEY: Chord = Chord::with(true, true, false, KeyCode::Digi
 /// second, and a fragment is never longer than that if the app dies mid-game.
 pub const KEYFRAME_INTERVAL_SECONDS: u32 = 1;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub enum Resolution {
     /// The game window's own size.
     #[serde(rename = "native")]
@@ -85,8 +85,9 @@ impl Resolution {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(try_from = "u32", into = "u32")]
+#[specta(type = u32)]
 pub enum FrameRate {
     Fps30,
     Fps60,
@@ -119,7 +120,7 @@ impl From<FrameRate> for u32 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Queues {
     /// Ranked Solo/Duo and Flex only.
@@ -137,7 +138,7 @@ impl Queues {
 }
 
 /// The two choices the player makes about quality.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Quality {
     pub resolution: Resolution,
@@ -145,7 +146,7 @@ pub struct Quality {
 }
 
 /// What the encoder is given, derived from a [`Quality`] and the game window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputSpec {
     pub width: u32,
@@ -218,7 +219,7 @@ fn bitrate(width: u32, height: u32, frame_rate: u32) -> u64 {
     (pixels_per_second * BITS_PER_PIXEL).round() as u64
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingSettings {
     /// Off until the player turns it on: it costs disk and, on macOS, a

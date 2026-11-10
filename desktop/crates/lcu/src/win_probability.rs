@@ -20,7 +20,7 @@ use crate::record::HistoryGame;
 /// The events the model weighs or lists; the rest of the timeline is left out.
 const MODEL_EVENTS: [&str; 3] = ["CHAMPION_KILL", "BUILDING_KILL", "ELITE_MONSTER_KILL"];
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WinProbabilityTimeline {
     pub duration_ms: i64,
@@ -29,7 +29,7 @@ pub struct WinProbabilityTimeline {
     pub events: Vec<WinProbabilityEvent>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WinProbabilityParticipant {
     pub participant_id: i64,
@@ -38,14 +38,14 @@ pub struct WinProbabilityParticipant {
     pub position: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WinProbabilityFrame {
     pub ms: i64,
     pub players: Vec<WinProbabilityPlayer>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WinProbabilityPlayer {
     pub participant_id: i64,
@@ -62,7 +62,7 @@ pub struct WinProbabilityPlayer {
 
 /// One event, with only the fields its kind carries: the others are left out
 /// rather than sent as zeros or empty strings.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WinProbabilityEvent {
     #[serde(rename = "type")]

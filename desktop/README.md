@@ -191,7 +191,7 @@ permission on each update (its signature changes), which the page shows.
 
 The webview side (`app/app/pages/recordings/`, `components/recordings/`,
 `components/recap/`, `composables/useRecordings.ts`) reads all of it through
-the shell's recording commands and events (`types/recordings.ts` mirrors them):
+the shell's recording commands and events (generated, `types/recordings.ts` names them):
 the **Recordings** page lists full games and clips in DPM's layout with search,
 filters and grouping; the **recap** (`/recordings/<id>`) plays a full game over
 its timeline of moments, cuts clips by hand — drag across the timeline, or I / O
@@ -385,6 +385,17 @@ their tests with `cargo test -p lcu -p live-client -p shell-state -p game-record
 The **navigation rule lives in Rust** (`crates/shell-state/src/lib.rs`), not in the
 frontend: which screen belongs to which phase is a product decision, and two
 implementations of it would drift.
+
+The **contract between the shell and the webview is generated from Rust**
+(`src-tauri/src/contract.rs`, with `specta` and `tauri-specta`): every command the
+webview may call, every event it may hear, their payload types and the shell's
+refusal codes land in `app/app/generated/shell.ts`, which the webview reaches
+through `app/app/utils/shell.ts`. A new command or event is added to that list, a
+type that crosses the boundary derives `specta::Type`, and the file is
+regenerated with `UPDATE_BINDINGS=1 cargo test -p truemain-desktop contract`; the
+same test fails in CI when the checked-in file is stale. A type that reads
+differently than it writes (a `default` field) is `X` as the shell sends it and
+`XInput` as it takes it.
 
 The main window runs with `dragDropEnabled: false`. Left on, Tauri takes every
 drop at the native level to report dropped files, and the page's own HTML5

@@ -15,16 +15,15 @@
 
 use std::sync::Arc;
 
-use lcu::{ActionKind, ChampSelectSession, Error, LcuClient, SpellSelection};
+use lcu::{ActionKind, ChampSelectSession, Error, LcuClient, Refusal, SpellSelection};
 use serde::Serialize;
 use tauri::AppHandle;
 
+use crate::contract::Refused;
 use crate::record::SharedClient;
 use crate::telemetry::{self, Feature};
 
-/// The client answered an error status to a write — the timer ran out between
-/// the read and the write, or the phase moved on. Matched by the frontend.
-const CLIENT_REFUSED: &str = "client-refused";
+type Answer<T> = Result<T, Refused<Refusal>>;
 
 /// Where the champion select writes go, fixed for the app's run by how it was
 /// started.
@@ -102,47 +101,43 @@ impl Target {
     }
 }
 
-fn parse_kind(kind: &str) -> Result<ActionKind, String> {
-    ActionKind::parse(kind).ok_or_else(|| format!("{kind} is not an action the app writes"))
-}
-
-fn read_failed(error: Error) -> String {
+fn read_failed(error: Error) -> Refused<Refusal> {
     tracing::warn!(%error, "champion select read failed");
-    error.to_string()
+    Refused::Other(error.to_string())
 }
 
-fn write_failed(error: Error) -> String {
+fn write_failed(error: Error) -> Refused<Refusal> {
     tracing::warn!(%error, "champion select write failed");
     match error {
-        Error::UnexpectedStatus { .. } => CLIENT_REFUSED.to_string(),
-        other => other.to_string(),
+        Error::UnexpectedStatus { .. } => Refused::Known(Refusal::ClientRefused),
+        other => Refused::Other(other.to_string()),
     }
 }
 
 /// The session and the client's list for `kind`, read right before a write.
-async fn read(target: &Target, kind: ActionKind) -> Result<(ChampSelectSession, Vec<i64>), String> {
+async fn read(target: &Target, kind: ActionKind) -> Answer<(ChampSelectSession, Vec<i64>)> {
     let (session, allowed) = tokio::join!(target.session(), target.allowed(kind));
     let session = session
         .map_err(read_failed)?
-        .ok_or_else(|| lcu::Refusal::NotYourTurn.code().to_string())?;
+        .ok_or(Refused::Known(Refusal::NotYourTurn))?;
     Ok((session, allowed.map_err(read_failed)?))
 }
 
 /// Hover `champion_id` on the player's open action of `kind` — or, in the
 /// ranked planning phase, declare it as the pick intent.
 #[tauri::command]
+#[specta::specta]
 pub async fn champ_select_hover(
     app: AppHandle,
     writer: tauri::State<'_, ChampSelectWriter>,
-    kind: String,
+    kind: ActionKind,
     champion_id: i64,
-) -> Result<(), String> {
-    let kind = parse_kind(&kind)?;
+) -> Answer<()> {
     let target = writer.target()?;
     let (session, allowed) = read(&target, kind).await?;
     let action = session
         .plan_hover(kind, champion_id, &allowed)
-        .map_err(|refusal| refusal.code().to_string())?;
+        .map_err(Refused::Known)?;
     target
         .hover(action, champion_id)
         .await
@@ -156,18 +151,18 @@ pub async fn champ_select_hover(
 /// Lock in — or, for a ban, ban — `champion_id`, which the player confirmed and
 /// the client must already show hovered on their open action.
 #[tauri::command]
+#[specta::specta]
 pub async fn champ_select_lock(
     app: AppHandle,
     writer: tauri::State<'_, ChampSelectWriter>,
-    kind: String,
+    kind: ActionKind,
     champion_id: i64,
-) -> Result<(), String> {
-    let kind = parse_kind(&kind)?;
+) -> Answer<()> {
     let target = writer.target()?;
     let (session, allowed) = read(&target, kind).await?;
     let action = session
         .plan_lock(kind, champion_id, &allowed)
-        .map_err(|refusal| refusal.code().to_string())?;
+        .map_err(Refused::Known)?;
     target.complete(action).await.map_err(write_failed)?;
     telemetry::feature(
         &app,
@@ -184,25 +179,24 @@ pub async fn champ_select_lock(
 /// select there is nothing to write to. The simulator does not model spells,
 /// and a replay is read-only.
 #[tauri::command]
+#[specta::specta]
 pub async fn champ_select_spells(
     writer: tauri::State<'_, ChampSelectWriter>,
     spell1_id: i64,
     spell2_id: i64,
-) -> Result<(), String> {
+) -> Answer<()> {
     let selection = SpellSelection::new(spell1_id, spell2_id)
-        .ok_or_else(|| "a kit needs two different spells".to_string())?;
+        .ok_or(Refused::from("a kit needs two different spells"))?;
     let client = match writer.target()? {
         Target::Live(client) => client,
         #[cfg(debug_assertions)]
-        Target::Sim(_) => {
-            return Err("the draft simulator does not take summoner spells".to_string())
-        }
+        Target::Sim(_) => return Err("the draft simulator does not take summoner spells".into()),
     };
     client
         .champ_select_session()
         .await
         .map_err(read_failed)?
-        .ok_or_else(|| lcu::Refusal::NotYourTurn.code().to_string())?;
+        .ok_or(Refused::Known(Refusal::NotYourTurn))?;
     client
         .set_summoner_spells(&selection)
         .await
@@ -212,7 +206,7 @@ pub async fn champ_select_spells(
 /// What the client lets the player pick and ban right now, for the controls'
 /// disabled states. A list the client did not answer is `None` — unknown, not
 /// empty: the shell checks again before any write anyway.
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Choices {
     writable: bool,
@@ -221,6 +215,7 @@ pub struct Choices {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn champ_select_choices(
     writer: tauri::State<'_, ChampSelectWriter>,
 ) -> Result<Choices, String> {

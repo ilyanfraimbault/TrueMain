@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Kit } from '#shared/types/kit'
+import type { Kit } from '~/types/kit'
 import { cloneKit } from '~/utils/kit'
 
 /**

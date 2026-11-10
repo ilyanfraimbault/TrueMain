@@ -6,10 +6,11 @@
 
 use lcu::record::{MatchHistory, RankedStats};
 use lcu::{LaningForm, PlayerForm, RankedQueue};
+pub use live_client::Team;
 use serde::Serialize;
 
 /// One thing read about a player through their client.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(tag = "state", content = "value", rename_all = "camelCase")]
 pub enum Read<T> {
     /// Asked, not answered yet.
@@ -33,7 +34,7 @@ impl<T> Read<T> {
 }
 
 /// Where the board stands.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum LoadingStatus {
     /// No game is loading or running.
@@ -47,12 +48,12 @@ pub enum LoadingStatus {
     RosterFailed,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadingPlayer {
     pub champion_id: i64,
     /// `ORDER` (blue side) or `CHAOS`.
-    pub team: &'static str,
+    pub team: Team,
     pub position: String,
     pub is_me: bool,
     #[serde(flatten)]
@@ -60,7 +61,7 @@ pub struct LoadingPlayer {
 }
 
 /// Whether anything about the player is read.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Identity {
     /// The player hides their name (Streamer Mode): their champion and lane
@@ -69,7 +70,7 @@ pub enum Identity {
     Known(Box<Known>),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Known {
     /// Empty until read, when the session left it out.
@@ -131,7 +132,7 @@ impl LoadingPlayer {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadingView {
     pub status: LoadingStatus,
@@ -244,7 +245,7 @@ mod tests {
     fn line(name: &str, champion_id: i64) -> LoadingPlayer {
         LoadingPlayer {
             champion_id,
-            team: "ORDER",
+            team: Team::Order,
             position: "MIDDLE".into(),
             is_me: false,
             identity: Identity::Known(Box::new(Known::new(name.into(), format!("puuid-{name}")))),

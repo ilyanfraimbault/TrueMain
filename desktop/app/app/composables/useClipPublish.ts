@@ -1,4 +1,4 @@
-import type { Clip } from '~/types/recordings'
+import { recordingCall, useRecordings } from '~/composables/useRecordings'
 
 /**
  * Publishing a clip on YouTube through YouTube's own upload page (#1815): the
@@ -17,7 +17,7 @@ export function useClipPublish() {
 
   async function openUpload() {
     try {
-      await recordingCall<null>('open_youtube_upload')
+      await recordingCall('openYoutubeUpload')
     }
     catch (error) {
       failed('YouTube could not be opened', error)
@@ -26,7 +26,7 @@ export function useClipPublish() {
 
   async function openVideo(id: string) {
     try {
-      await recordingCall<null>('clip_open_youtube', { id })
+      await recordingCall('clipOpenYoutube', id)
     }
     catch (error) {
       failed('The video could not be opened', error)
@@ -36,7 +36,7 @@ export function useClipPublish() {
   /** From the drag handle's `dragstart`: the shell takes the drag over with the file itself. */
   async function startDrag(id: string) {
     try {
-      await recordingCall<null>('clip_start_drag', { id })
+      await recordingCall('clipStartDrag', id)
     }
     catch (error) {
       failed('The clip could not be dragged', error)
@@ -51,7 +51,7 @@ export function useClipPublish() {
    */
   async function setYoutubeUrl(id: string, url: string): Promise<string | null> {
     try {
-      await recordingCall<Clip>('clip_set_youtube_url', { id, url })
+      await recordingCall('clipSetYoutubeUrl', id, url)
       await refreshLibrary()
       return null
     }
@@ -64,7 +64,7 @@ export function useClipPublish() {
   /** Delete a published clip's file, keeping the clip; `false` when the shell refused. */
   async function deleteVideo(id: string): Promise<boolean> {
     try {
-      await recordingCall<Clip>('clip_delete_video', { id })
+      await recordingCall('clipDeleteVideo', id)
       await refreshLibrary()
       return true
     }
@@ -75,7 +75,7 @@ export function useClipPublish() {
   }
 
   /** The page that plays a clip from YouTube (`recording/embed.rs`), or `null` when there is none. */
-  const embedUrl = (id: string) => recordingCall<string>('clip_youtube_embed', { id }).catch(() => null)
+  const embedUrl = (id: string) => recordingCall('clipYoutubeEmbed', id).catch(() => null)
 
   async function copy(text: string, what: string) {
     try {

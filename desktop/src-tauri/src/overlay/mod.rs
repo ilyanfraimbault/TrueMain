@@ -43,7 +43,7 @@ use shell_state::overlay::{
     OverlayInputs, OverlayPanel, OverlayPoint, OverlaySettings, PanelKeys, PanelTrigger,
 };
 use shell_state::scoreboard::HudSettings;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::game::SharedGame;
 use crate::record::SharedClient;
@@ -53,8 +53,10 @@ use crate::recording::SharedRecorder;
 pub fn label(panel: OverlayPanel) -> String {
     format!("overlay-{}", panel.slug())
 }
-/// The settings or the preview changed: the payload is the new `OverlayView`.
-pub const VIEW_EVENT: &str = "overlay://view";
+/// The settings or the preview changed.
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "overlay://view")]
+pub struct OverlayViewChanged(pub OverlayView);
 
 const SETTINGS_FILE: &str = "overlay-settings.json";
 
@@ -84,8 +86,10 @@ const INITIAL_SIZE: (f64, f64) = (232.0, 64.0);
 pub const CONFIRMATION_LABEL: &str = "overlay-confirmation";
 /// Its page's name in `overlay_fit`.
 const CONFIRMATION_SLUG: &str = "confirmation";
-/// Its text changed: the payload is the new text.
-pub const CONFIRMATION_EVENT: &str = "overlay://confirmation";
+/// The confirmation's text changed.
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "overlay://confirmation")]
+pub struct ConfirmationShown(pub String);
 /// Long enough to be read at a glance, short enough to leave the game alone.
 const CONFIRMATION_FOR: Duration = Duration::from_millis(2_500);
 const CONFIRMATION_SIZE: (f64, f64) = (180.0, 36.0);
@@ -119,7 +123,7 @@ pub struct Overlay {
 pub type SharedOverlay = Arc<Overlay>;
 
 /// What the settings page and the overlay page read.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OverlayView {
     pub settings: OverlaySettings,
@@ -131,14 +135,14 @@ pub struct OverlayView {
     pub notice: Option<&'static str>,
     /// Each panel's chord, by slug, as the player presses it and what it also
     /// does in game.
-    pub chords: BTreeMap<&'static str, ChordView>,
+    pub chords: BTreeMap<OverlayPanel, ChordView>,
     /// The warnings come from the player's own keybindings, not Riot's defaults.
     pub own_binds: bool,
     /// The HUD settings the lane-gold plates are placed by.
     pub hud: HudSettings,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ChordView {
     pub label: String,
@@ -147,7 +151,7 @@ pub struct ChordView {
 }
 
 /// The settings page's question about a trigger before it saves it.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TriggerCheck {
     /// Why the trigger cannot be the panel's, if it cannot.
@@ -196,7 +200,7 @@ impl Overlay {
             .into_iter()
             .filter_map(|panel| {
                 let chord = settings.panel(panel).trigger.chord()?;
-                Some((panel.slug(), chord_view(&binds, &chord)))
+                Some((panel, chord_view(&binds, &chord)))
             })
             .collect();
         OverlayView {
@@ -387,7 +391,7 @@ pub fn follow(app: &AppHandle, running: bool) {
                     return;
                 };
                 read_hud(&overlay, client.inner()).await;
-                let _ = handle.emit(VIEW_EVENT, overlay.view());
+                crate::contract::emit(&handle, OverlayViewChanged(overlay.view()));
                 apply(&handle);
             });
         }
@@ -413,12 +417,13 @@ async fn read_hud(overlay: &Overlay, client: &SharedClient) {
 
 fn publish(app: &AppHandle, overlay: &Overlay) -> OverlayView {
     let view = overlay.view();
-    let _ = app.emit(VIEW_EVENT, &view);
+    crate::contract::emit(app, OverlayViewChanged(view.clone()));
     rebuild(app);
     view
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn overlay_view(overlay: State<'_, SharedOverlay>) -> OverlayView {
     overlay.view()
 }
@@ -432,12 +437,13 @@ fn mark_key(app: &AppHandle) -> Option<shell_state::keys::Chord> {
 /// falls back alone — a panel on the mark key's chord too — and the answer is
 /// what was kept.
 #[tauri::command]
+#[specta::specta]
 pub fn set_overlay_settings(
     app: AppHandle,
     overlay: State<'_, SharedOverlay>,
-    settings: serde_json::Value,
+    settings: crate::contract::Loose<OverlaySettings>,
 ) -> Result<OverlayView, String> {
-    let settings = OverlaySettings::from_app(&settings.to_string());
+    let settings = OverlaySettings::from_app(&settings.json());
     let settings = match mark_key(&app) {
         Some(chord) => settings.freeing(&chord),
         None => settings,
@@ -451,15 +457,15 @@ pub fn set_overlay_settings(
 /// Whether `trigger` can be `panel`'s, and how its chord reads, before the
 /// page saves it: the page shows the refusal by the field that recorded it.
 #[tauri::command]
+#[specta::specta]
 pub fn overlay_check_trigger(
     app: AppHandle,
     overlay: State<'_, SharedOverlay>,
-    panel: String,
-    trigger: serde_json::Value,
+    panel: OverlayPanel,
+    trigger: crate::contract::Loose<PanelTrigger>,
 ) -> Result<TriggerCheck, String> {
-    let panel = OverlayPanel::from_slug(&panel).ok_or("no such panel")?;
-    let trigger: PanelTrigger =
-        serde_json::from_value(trigger).map_err(|_| "a key this app does not know".to_string())?;
+    let trigger: PanelTrigger = serde_json::from_value(trigger.into_value())
+        .map_err(|_| "a key this app does not know".to_string())?;
     let refusal = overlay.settings().refusal(panel, &trigger).or_else(|| {
         let marks = trigger.chord().is_some() && trigger.chord() == mark_key(&app);
         marks.then(|| "Already the key that marks a moment while a game records.".to_string())
@@ -475,6 +481,7 @@ pub fn overlay_check_trigger(
 /// Without a client, or with an answer this build cannot read, Riot's defaults
 /// stay.
 #[tauri::command]
+#[specta::specta]
 pub async fn overlay_read_binds(
     app: AppHandle,
     overlay: State<'_, SharedOverlay>,
@@ -497,6 +504,7 @@ pub async fn overlay_read_binds(
 /// Show the panels on screen to place them, or stop. Ending the preview saves
 /// where they were dragged.
 #[tauri::command]
+#[specta::specta]
 pub fn overlay_preview(
     app: AppHandle,
     overlay: State<'_, SharedOverlay>,
@@ -514,6 +522,7 @@ pub fn overlay_preview(
 /// A panel page's measured size, in points. Its window takes it, so the
 /// panel never covers more of the game than its content.
 #[tauri::command]
+#[specta::specta]
 pub fn overlay_fit(
     app: AppHandle,
     overlay: State<'_, SharedOverlay>,
@@ -546,6 +555,7 @@ pub fn overlay_fit(
 /// What the confirmation's page shows when it opens: the text of the press
 /// that built its window, emitted before the page listened.
 #[tauri::command]
+#[specta::specta]
 pub fn overlay_confirmation(overlay: State<'_, SharedOverlay>) -> Option<String> {
     overlay.confirmation(Instant::now())
 }

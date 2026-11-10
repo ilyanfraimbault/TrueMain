@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, watch, type Ref } from 'vue'
-import type { KitStore } from '#shared/types/kit'
+import type { KitStore } from '~/types/kit'
 import type { GameState } from '~/types/game'
 import { item, kit } from './kit-fixtures'
 

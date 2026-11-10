@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { KitNode } from '#shared/types/kit'
+import type { KitNode } from '~/types/kit'
 import type { StaticItemData } from '#shared/types/static-data'
 import type { KitTreeSlot, PlacedKitNode } from '~/utils/kit-tree-layout'
 import { dropTargetAt, layoutKitTree } from '~/utils/kit-tree-layout'

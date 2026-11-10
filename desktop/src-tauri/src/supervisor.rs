@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use lcu::tape::{Played, Reading, Recorder, Tape};
 use lcu::{ChampSelectSession, ChampionMastery, CurrentSummoner, GameflowPhase, LcuClient};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tokio::sync::mpsc;
 
 use shell_state::{AppState, Screen};
@@ -29,8 +29,10 @@ use shell_state::{AppState, Screen};
 use crate::game::Poller;
 use crate::record::SharedClient;
 
-/// The event the frontend listens on.
-pub const STATE_EVENT: &str = "lcu://state";
+/// The app's state changed.
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "lcu://state")]
+pub struct StateChanged(pub AppState);
 
 /// How long to wait before looking for the client again. Long enough not to
 /// spin on a machine where League is simply not installed, short enough that
@@ -64,7 +66,7 @@ pub(crate) fn publish(app: &AppHandle, shared: &SharedState, next: AppState) {
     count_phase(app, &previous, &next);
     // The loading screen's roster is read off the phase (#1753).
     crate::loading::follow(app, &next);
-    let _ = app.emit(STATE_EVENT, next);
+    crate::contract::emit(app, StateChanged(next));
     // After the state, so the game page is open before its board fills — and
     // a game that ended is cleared on the same publish that left the phase.
     crate::game::follow(app, in_game);

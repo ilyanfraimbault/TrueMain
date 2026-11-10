@@ -6,6 +6,9 @@ import type { ChampSelectKind } from '~/composables/useChampSelectActions'
 import { provideChampSelectActions } from '~/composables/useChampSelectActions'
 import type { DraftState } from '~/types/lcu'
 
+const ipc = vi.hoisted(() => ({ invoke: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: ipc.invoke }))
+
 /**
  * Selecting and locking from the cards (#2465): a click hovers in silence, and
  * the hovered champion's card carries the "Lock in" button.
@@ -118,6 +121,24 @@ describe('provideChampSelectActions', () => {
     const { api, toasts } = setup()
     await api.hover(238)
     expect(toasts).toEqual([])
+  })
+
+  it('locks through the shell, reads its choices, and says its refusal', async () => {
+    ipc.invoke.mockReset()
+    ipc.invoke.mockImplementation(async (name: string) => {
+      if (name === 'champ_select_choices') return { writable: true, pickable: [105], bannable: [] }
+      throw 'hover-mismatch'
+    })
+    const toasts: { title: string }[] = []
+    vi.stubGlobal('useToast', () => ({ add: (toast: { title: string }) => toasts.push(toast) }))
+    vi.stubGlobal('insideTauri', () => true)
+    let api!: ReturnType<typeof provideChampSelectActions>
+    mount(defineComponent({ setup: () => { api = provideChampSelectActions(ref(draft())); return () => h('div') } }))
+    await api.lock()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(ipc.invoke).toHaveBeenCalledWith('champ_select_lock', { kind: 'pick', championId: 105 })
+    expect(ipc.invoke).toHaveBeenCalledWith('champ_select_choices')
+    expect(toasts.map(toast => toast.title)).toEqual(['Your hover changed'])
   })
 
   it('still says a lock', async () => {
