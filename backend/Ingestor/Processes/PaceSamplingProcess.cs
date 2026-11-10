@@ -53,8 +53,11 @@ public sealed class PaceSamplingProcess(
     IDataSessionFactory sessionFactory,
     IProcessRunStore processRunStore,
     TimeProvider timeProvider,
-    IOptions<PaceSamplingOptions> paceSamplingOptions) : IIngestorProcess
+    IOptions<PaceSamplingOptions> paceSamplingOptions) : ICadencedProcess
 {
+    /// <inheritdoc />
+    public TimeSpan MinRunInterval => paceSamplingOptions.Value.MinRunInterval;
+
     private const string RankedSoloQueue = "RANKED_SOLO_5x5";
     private const int RankedSoloQueueId = 420;
 
@@ -84,15 +87,6 @@ public sealed class PaceSamplingProcess(
         }
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-        if (options.MinRunInterval > TimeSpan.Zero)
-        {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.PaceSampling.Name, nowUtc, ct);
-            if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
-            {
-                return new SkippedSummary("Within MinRunInterval; pace sampling skipped this iteration.", true);
-            }
-        }
-
         var budget = await PaceSamplingBudget.ReadAsync(processRunStore, PipelineCatalog.PaceSampling.Name, options, nowUtc, ct);
         if (!budget.CanSpend(1 + 1 + CallsPerMatch))
         {
@@ -100,7 +94,7 @@ public sealed class PaceSamplingProcess(
                 "Pace sampling skipped: daily budget spent ({SpentToday}/{MaxRequestsPerDay}).",
                 budget.SpentToday,
                 options.MaxRequestsPerDay);
-            return new SkippedSummary("Daily request budget spent; pace sampling skipped this iteration.", true);
+            return new SkippedSummary("Daily request budget spent; pace sampling skipped this iteration.");
         }
 
         await using var session = await sessionFactory.CreateAsync(ct);
@@ -145,6 +139,15 @@ public sealed class PaceSamplingProcess(
             summary.MatchesUnusable,
             summary.FailedCalls,
             summary.LedgerPruned);
+
+        if (summary.FailedCalls > 0 && summary.FailedCalls == summary.RiotCalls)
+        {
+            // Every call failed: a dead key or Riot down, not an empty sample. Recorded Failed
+            // with its summary, so the calls still count against the daily ceiling.
+            throw new ProcessRunFailedException(
+                $"Pace sampling: all {summary.RiotCalls} Riot call(s) failed.",
+                summary);
+        }
 
         return summary;
     }

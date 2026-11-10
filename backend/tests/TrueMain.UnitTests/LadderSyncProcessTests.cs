@@ -98,10 +98,12 @@ public sealed class LadderSyncProcessTests
     {
         // The cursor is persisted before the fetch for exactly this reason: a page that fails
         // deterministically would otherwise pin the sweep on it forever (the #486 lesson).
+        // Its only call failing, the run fails as a whole — with its summary, so the failed
+        // page is still visible and the run still recorded (#2481, F18).
         var client = new RecordingPlatformClient { ThrowOnPage = 1 };
         var harness = new Harness(client);
 
-        var summary = await harness.RunAsync(
+        var act = () => harness.RunAsync(
             new LadderSyncOptions
             {
                 Platforms = ["KR"],
@@ -109,6 +111,8 @@ public sealed class LadderSyncProcessTests
                 MaxRequestsPerRun = 1
             });
 
+        var summary = (await act.Should().ThrowAsync<ProcessRunFailedException>())
+            .Which.Summary.Should().BeOfType<LadderSyncSummary>().Subject;
         summary.FailedCalls.Should().Be(1);
         summary.PagedCalls.Should().Be(0);
         harness.LastCursor.Should().Be(("KR", "DIAMOND", "I", 2), "the failed page must not be retried forever");

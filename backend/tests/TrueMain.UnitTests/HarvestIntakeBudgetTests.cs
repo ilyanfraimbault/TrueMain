@@ -117,7 +117,6 @@ public sealed class HarvestIntakeBudgetTests
                 sessionFactory,
                 harvestService,
                 coverageProvider,
-                Substitute.For<IProcessRunStore>(),
                 TimeProvider.System,
                 Microsoft.Extensions.Options.Options.Create(harvest),
                 Microsoft.Extensions.Options.Options.Create(matchIngestion),

@@ -148,7 +148,6 @@ public sealed class AccountFetchLaneRaceIntegrationTests(PostgresFixture fixture
             new AccountUpsertService(),
             candidates,
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
