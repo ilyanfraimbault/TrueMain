@@ -1928,6 +1928,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ops/data-quality/incomplete-matches/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many matches each data-quality check flags under the same filters as
+         *     `GET /ops/data-quality/incomplete-matches`, without the rows.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Restrict to a single check (camelCase name); omit for all. */
+                    issue?: string;
+                    /** @description Restrict to one queue id; omit for all. */
+                    queue?: number;
+                    /** @description Only consider matches at least this many hours old. */
+                    minAgeHours?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IncompleteMatchCountsReadModel"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ops/data-quality/match/{id}": {
         parameters: {
             query?: never;
@@ -4348,6 +4412,126 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/process-runs/rollup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-process health over the window starting at since: last status,
+         *     last success, in-window failure counts and rate, and the verdict the health grid colours by.
+         *     Unbounded (all-time counts) when since is omitted.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Restrict to a single process. Omit for all. */
+                    processName?: string;
+                    /** @description Lower bound of the failure window. Omit for all time. */
+                    since?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProcessRunRollupReadModel"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/process-iterations/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The newest pass of each pipeline lane, for the chain view's live tree: one entry per
+         *     lane that has run, a `Full` pass newest on both listed once.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProcessIterationReadModel"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Too Many Requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -9473,6 +9657,8 @@ export interface components {
             diskCapacityBytes: number;
             crossings: components["schemas"]["DbStorageThresholdCrossing"][];
         };
+        /** @enum {unknown} */
+        DbStorageForecastAbsence: "NoSnapshots" | "EnginesChanged" | "TooFewDays" | "NoCapacityConfigured" | "NotGrowing" | null;
         /**
          * @description Storage growth over a window, plus the disk-exhaustion forecast (#925). Read
          *     entirely from the daily snapshot collection — the page never runs a
@@ -9508,6 +9694,12 @@ export interface components {
              */
             comparableDays: number;
             forecast: null | components["schemas"]["DbStorageForecast"];
+            forecastAbsence: null | components["schemas"]["DbStorageForecastAbsence"];
+            /**
+             * Format: int32
+             * @description How many comparable days a forecast needs.
+             */
+            forecastMinimumDays: number;
         };
         /** @description One table's size on one day. */
         DbStorageTablePoint: {
@@ -10345,6 +10537,28 @@ export interface components {
             openIncidents: string[];
             /** @description The newest alerts first. */
             alerts: components["schemas"]["HealthAlertReadModel"][];
+        };
+        IncompleteMatchCountReadModel: {
+            issueType: components["schemas"]["DataQualityIssueType"];
+            /** Format: int32 */
+            count: number;
+        };
+        /** @description How many matches each check flags, without the rows. */
+        IncompleteMatchCountsReadModel: {
+            /** @description One entry per check that flags at least one match, in declaration order. */
+            counts: components["schemas"]["IncompleteMatchCountReadModel"][];
+            /**
+             * Format: int64
+             * @description Distinct matches flagged by at least one check in scope.
+             */
+            total: number;
+            /**
+             * Format: int32
+             * @description Matches with `TimelineIngested = false` are only flagged once older
+             *     than this many hours, so the normal recovery backlog isn't reported as
+             *     stuck. Echoed back so the panel can label the threshold it's seeing.
+             */
+            staleTimelineThresholdHours: number;
         };
         /**
          * @description A page of flagged matches for the data-quality panel, grouped by issue type.
@@ -12952,8 +13166,11 @@ export interface components {
             processName: string;
             /** Format: date-time */
             startedAtUtc: string;
-            /** Format: date-time */
-            finishedAtUtc: string;
+            /**
+             * Format: date-time
+             * @description When the run settled; null while it is still running.
+             */
+            finishedAtUtc: null | string;
             /** Format: int32 */
             durationMs: number;
             status: components["schemas"]["ProcessRunStatus"];
@@ -13008,18 +13225,20 @@ export interface components {
              *     than an always-positive absolute count.
              */
             failureRateInWindow: number;
+            /**
+             * @description Red when the latest run failed, amber when it did not but the window's failure rate
+             *     reached `ProcessRunsQueryService.DegradedFailureRate`, green otherwise.
+             */
+            health: components["schemas"]["DetectorStatus"];
         };
         /**
          * @description Process-run feed for the admin Processes panel: one page of individual runs
-         *     (newest first) plus a per-process rollup over the requested window so the
-         *     panel can show current health and recent failure volume at a glance.
-         *     long ProcessRunsReadModel.Total is the count of all runs matching the active filters
-         *     (before paging), so the panel can render a pager; the rollup is computed over
-         *     the full filtered set and is unaffected by paging.
+         *     (newest first). long ProcessRunsReadModel.Total is the count of all runs matching the active
+         *     filters (before paging), so the panel can render a pager. The per-process rollup
+         *     is its own read (`GET /ops/process-runs/rollup`).
          */
         ProcessRunsReadModel: {
             runs: components["schemas"]["ProcessRunReadModel"][];
-            rollup: components["schemas"]["ProcessRunRollupReadModel"][];
             /** Format: int64 */
             total: number;
             /** Format: int32 */
@@ -14087,6 +14306,7 @@ export type DataQualityIssueType = components['schemas']['DataQualityIssueType']
 export type DataQualityThresholdReadModel = components['schemas']['DataQualityThresholdReadModel'];
 export type DbStorageDailyPoint = components['schemas']['DbStorageDailyPoint'];
 export type DbStorageForecast = components['schemas']['DbStorageForecast'];
+export type DbStorageForecastAbsence = components['schemas']['DbStorageForecastAbsence'];
 export type DbStorageHistoryReadModel = components['schemas']['DbStorageHistoryReadModel'];
 export type DbStorageTablePoint = components['schemas']['DbStorageTablePoint'];
 export type DbStorageTableSeries = components['schemas']['DbStorageTableSeries'];
@@ -14131,6 +14351,8 @@ export type HealthAlertChangeKind = components['schemas']['HealthAlertChangeKind
 export type HealthAlertChangeReadModel = components['schemas']['HealthAlertChangeReadModel'];
 export type HealthAlertReadModel = components['schemas']['HealthAlertReadModel'];
 export type HealthAlertsReadModel = components['schemas']['HealthAlertsReadModel'];
+export type IncompleteMatchCountReadModel = components['schemas']['IncompleteMatchCountReadModel'];
+export type IncompleteMatchCountsReadModel = components['schemas']['IncompleteMatchCountsReadModel'];
 export type IncompleteMatchesReadModel = components['schemas']['IncompleteMatchesReadModel'];
 export type IngestorInstrumentReadModel = components['schemas']['IngestorInstrumentReadModel'];
 export type IngestorMeterSeriesReadModel = components['schemas']['IngestorMeterSeriesReadModel'];

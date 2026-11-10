@@ -2,7 +2,7 @@
 // Process health rollup of the Processes page: one card per process with its last
 // status, last run, last success and failures in the window. Split out of
 // `pages/processes.vue` (#1436); the page owns the (live-refreshed) fetch.
-import type { ProcessRunRollupReadModel } from '#site-shared/contract/api'
+import type { DetectorStatus, ProcessRunRollupReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
 
@@ -13,23 +13,17 @@ defineProps<{
   allTime: boolean
 }>()
 
-// Failure-cell coloring. The window always holds thousands of failures, so the
-// raw count is always > 0 and coloring by it would keep the cell permanently
-// red. Color instead by a meaningful signal:
-//   - the latest run is currently failing  -> error (the process is unhealthy now)
-//   - else a high recent failure *rate*     -> warning (degraded but recovered)
-//   - else                                  -> neutral
-// `failureRateInWindow` is a real ratio (failures / runs in window), not a
-// fabricated metric. The 0.25 threshold is a display cue, not a published stat.
-const HIGH_FAILURE_RATE = 0.25
+// Failure-cell colouring follows the API's verdict (`health`): red when the latest run
+// failed, amber when the window's failure rate is high though it recovered. The raw
+// count is always > 0 over a long window, so it would keep the cell permanently red.
+const FAILURE_TEXT: Record<DetectorStatus, string> = {
+  red: 'text-error',
+  amber: 'text-warning',
+  green: 'text-default',
+  unknown: 'text-default',
+}
 function failureTextClass(proc: ProcessRunRollupReadModel): string {
-  if (proc.lastStatus === 'Failed') {
-    return 'text-error'
-  }
-  if (proc.failureRateInWindow >= HIGH_FAILURE_RATE) {
-    return 'text-warning'
-  }
-  return 'text-default'
+  return FAILURE_TEXT[proc.health]
 }
 function failureRateLabel(proc: ProcessRunRollupReadModel): string {
   if (proc.runCountInWindow === 0) {
