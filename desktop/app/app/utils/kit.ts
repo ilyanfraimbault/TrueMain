@@ -1,4 +1,4 @@
-import type { Kit, KitNode, KitRunePage, KitStore } from '#shared/types/kit'
+import type { Kit, KitNode, KitRunePage, KitStore } from '~/types/kit'
 import type { RuneTreeResponse } from '#shared/types/static-data'
 import type { BuildCoreView } from '~/types/build'
 import { DEFAULT_SPELLS } from '~/utils/kit-items'

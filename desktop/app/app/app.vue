@@ -18,7 +18,7 @@ useLiveGame()
 if (!overlay) {
   // Recordings are read once and followed for the window's life too: the
   // sidebar and the dashboard's "Watch" read the library, and the end of a
-  // recorded game opens its recap (`recording://recap`, from home or the game
+  // recorded game opens its recap (the shell's recap event, from home or the game
   // page only).
   useRecordings()
 }

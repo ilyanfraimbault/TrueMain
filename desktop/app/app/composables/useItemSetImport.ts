@@ -1,13 +1,11 @@
 import type { ChampionItemContextResponse } from '#shared/contract/api'
+import type { ItemSetRefusal } from '~/generated/shell'
 import type { BuildOption } from '~/types/build'
 import { hasItems, itemSetBuild, situationalFromContext, situationalFromTree } from '~/utils/item-set'
+import { shell } from '~/utils/shell'
 
-/** What the shell answers when it could not read the client's list (`itemsets.rs`). */
-const READ_FAILED = 'read-failed'
-/** What the shell answers when the player's own sets no longer read the same. */
-const SETS_CHANGED = 'sets-changed'
-/** What the shell answers for a build with no item to write. */
-const EMPTY_BUILD = 'empty-build'
+/** A build with nothing to write, refused here as the shell would refuse it. */
+export const EMPTY_BUILD: ItemSetRefusal = 'empty-build'
 
 /** The build the button imports, and whose it is. */
 export interface ItemSetSubject {
@@ -58,8 +56,7 @@ export function useItemSetImport() {
       const build = itemSetBuild(subject.build.core, await situational(subject), itemId => itemId in items.value)
       if (!hasItems(build)) throw new Error(EMPTY_BUILD)
       if (insideTauri()) {
-        const { invoke } = await import('@tauri-apps/api/core')
-        await invoke('import_item_set', { championId: subject.championId, champion: subject.champion, build })
+        await shell.importItemSet(subject.championId, subject.champion, build)
       }
       done.value = true
       clearTimeout(doneTimer)
@@ -84,36 +81,34 @@ export function useItemSetImport() {
   return { available, pending, done, importItemSet }
 }
 
+/** The shell's refusals (`itemsets.rs`), in the player's words. */
+const REFUSALS: Record<ItemSetRefusal, ReturnType<typeof itemSetFailureToast>> = {
+  'read-failed': {
+    title: 'Could not read your item sets',
+    description: 'Nothing was written. Try again once the client has finished loading.',
+    icon: 'i-lucide-circle-x',
+    color: 'error',
+  },
+  'sets-changed': {
+    title: 'Check your item sets',
+    description: 'The TrueMain set was written, but your own sets no longer read the same in the client.',
+    icon: 'i-lucide-triangle-alert',
+    color: 'warning',
+  },
+  'empty-build': {
+    title: 'Nothing to import',
+    description: 'This build has no item to put in a set.',
+    icon: 'i-lucide-triangle-alert',
+    color: 'warning',
+  },
+}
+
 /** How a failed import is told, shared with a kit's (`useKitImport`). */
-export function itemSetFailureToast(message: string) {
-  switch (message) {
-    case READ_FAILED:
-      return {
-        title: 'Could not read your item sets',
-        description: 'Nothing was written. Try again once the client has finished loading.',
-        icon: 'i-lucide-circle-x',
-        color: 'error' as const,
-      }
-    case SETS_CHANGED:
-      return {
-        title: 'Check your item sets',
-        description: 'The TrueMain set was written, but your own sets no longer read the same in the client.',
-        icon: 'i-lucide-triangle-alert',
-        color: 'warning' as const,
-      }
-    case EMPTY_BUILD:
-      return {
-        title: 'Nothing to import',
-        description: 'This build has no item to put in a set.',
-        icon: 'i-lucide-triangle-alert',
-        color: 'warning' as const,
-      }
-    default:
-      return {
-        title: 'Could not import the items',
-        description: message,
-        icon: 'i-lucide-circle-x',
-        color: 'error' as const,
-      }
+export function itemSetFailureToast(message: string): { title: string, description: string, icon: string, color: 'error' | 'warning' } {
+  return REFUSALS[message as ItemSetRefusal] ?? {
+    title: 'Could not import the items',
+    description: message,
+    icon: 'i-lucide-circle-x',
+    color: 'error',
   }
 }
