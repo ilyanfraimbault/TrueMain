@@ -49,8 +49,8 @@ internal static class DetectorCards
         string label,
         double amber,
         double red,
-        string unit,
-        string direction = "above") => new()
+        DetectorThresholdUnit unit,
+        DetectorThresholdDirection direction = DetectorThresholdDirection.Above) => new()
     {
         Label = label,
         // A level of 0 or less is disabled, and the panel should omit it rather than

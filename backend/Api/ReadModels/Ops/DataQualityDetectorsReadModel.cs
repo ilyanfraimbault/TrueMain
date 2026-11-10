@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -136,8 +137,8 @@ public sealed record DataQualityThresholdReadModel
     /// <summary>Red level, or null when disabled.</summary>
     public double? Red { get; init; }
 
-    /// <summary>Unit of the two levels: <c>count</c>, <c>percent</c>, <c>hours</c> or <c>ratio</c>.</summary>
-    public string Unit { get; init; } = "count";
+    /// <summary>Unit of the two levels.</summary>
+    public DetectorThresholdUnit Unit { get; init; } = DetectorThresholdUnit.Count;
 
     /// <summary>
     /// Which side of the level is the bad one: <c>above</c> (a count, an age or a share
@@ -146,7 +147,33 @@ public sealed record DataQualityThresholdReadModel
     /// a printed level is ambiguous: "warning at 40%" reads as a ceiling when it is a
     /// floor.
     /// </summary>
-    public string Direction { get; init; } = "above";
+    public DetectorThresholdDirection Direction { get; init; } = DetectorThresholdDirection.Above;
+}
+
+/// <summary>The unit a detector's levels are written in.</summary>
+public enum DetectorThresholdUnit
+{
+    [JsonStringEnumMemberName("count")]
+    Count,
+
+    [JsonStringEnumMemberName("percent")]
+    Percent,
+
+    [JsonStringEnumMemberName("hours")]
+    Hours,
+
+    [JsonStringEnumMemberName("ratio")]
+    Ratio,
+}
+
+/// <summary>Which side of a detector's level is the bad one.</summary>
+public enum DetectorThresholdDirection
+{
+    [JsonStringEnumMemberName("above")]
+    Above,
+
+    [JsonStringEnumMemberName("below")]
+    Below,
 }
 
 /// <summary>

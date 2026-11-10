@@ -86,10 +86,10 @@ public sealed record ChampionItemContextItemReadModel
 public sealed record ChampionItemContextAxisReadModel
 {
     /// <summary>The situation, e.g. <c>EnemyMagicDamage</c>. The client owns the wording.</summary>
-    public string Axis { get; init; } = string.Empty;
+    public ItemContextAxis Axis { get; init; }
 
     /// <summary><c>High</c> or <c>Low</c> — the end of the axis where the item is picked more.</summary>
-    public string Bucket { get; init; } = string.Empty;
+    public ItemContextBucket Bucket { get; init; }
 
     /// <summary>
     /// Whether a draft alone determines this situation. False for the gold-lead axis, which

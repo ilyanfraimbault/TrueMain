@@ -12,7 +12,7 @@ public static class PipelineCatalogProjection
             .Select(step => new PipelineStepReadModel
             {
                 Name = step.Name,
-                JobMode = step.Mode.ToString(),
+                JobMode = step.Mode,
                 Lane = LaneId(step.Lane),
                 Label = step.Label,
                 Description = step.Description
@@ -24,7 +24,7 @@ public static class PipelineCatalogProjection
                 Id = lane.Id,
                 Label = lane.Label,
                 Description = lane.Description,
-                JobModes = PipelineCatalog.ModesRunning(lane.Lane).Select(mode => mode.ToString()).ToList(),
+                JobModes = PipelineCatalog.ModesRunning(lane.Lane).ToList(),
                 Steps = PipelineCatalog.InLane(lane.Lane).Select(step => step.Name).ToList()
             })
             .ToList()

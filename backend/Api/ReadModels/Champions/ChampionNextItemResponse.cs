@@ -1,3 +1,4 @@
+using Data.ItemContext;
 namespace TrueMain.ReadModels.Champions;
 
 /// <summary>
@@ -68,16 +69,16 @@ public sealed record NextItemOrderStepReadModel
     /// <summary>True for the boots, whose place in the order is measured apart from the legendaries.</summary>
     public bool IsBoots { get; init; }
 
-    /// <summary><see cref="NextItemOrderState"/>: <c>Completed</c>, <c>Next</c> or <c>Upcoming</c>.</summary>
-    public string State { get; init; } = NextItemOrderState.Upcoming;
+    /// <summary>Where this step stands in the order.</summary>
+    public NextItemOrderState State { get; init; } = NextItemOrderState.Upcoming;
 }
 
 /// <summary>Where a step of the build order stands.</summary>
-public static class NextItemOrderState
+public enum NextItemOrderState
 {
-    public const string Completed = nameof(Completed);
-    public const string Next = nameof(Next);
-    public const string Upcoming = nameof(Upcoming);
+    Completed,
+    Next,
+    Upcoming,
 }
 
 /// <summary>One item the game could complete next.</summary>
@@ -115,10 +116,10 @@ public sealed record NextItemCandidateReadModel
 public sealed record NextItemReasonReadModel
 {
     /// <summary>The axis, named as the item-context read names it, so the site's wording applies.</summary>
-    public string Axis { get; init; } = string.Empty;
+    public ItemContextAxis Axis { get; init; }
 
     /// <summary><c>Low</c> or <c>High</c> — the middle of an axis moves a share but has no wording, so it is never a reason.</summary>
-    public string Bucket { get; init; } = string.Empty;
+    public ItemContextBucket Bucket { get; init; }
 
     /// <summary>Factor applied to the item's share by this situation (1.4 = forty percent more often).</summary>
     public double Factor { get; init; }

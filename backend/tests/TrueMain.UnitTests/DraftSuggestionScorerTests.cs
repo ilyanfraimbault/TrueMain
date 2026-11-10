@@ -131,11 +131,11 @@ public class DraftSuggestionScorerTests
             new DraftBanCriteria { Position = "MIDDLE", Pool = pool });
         var (none, _) = DraftBanQueryService.Targets(new DraftBanCriteria { Position = "MIDDLE" });
 
-        Assert.Equal(DraftBanTargets.Pick, pick);
+        Assert.Equal(DraftBanTarget.Pick, pick);
         Assert.Equal(99, Assert.Single(pickTargets).ChampionId);
-        Assert.Equal(DraftBanTargets.Pool, poolTarget);
+        Assert.Equal(DraftBanTarget.Pool, poolTarget);
         Assert.Equal(DraftBanQueryService.MaxPoolTargets, poolTargets.Count);
         Assert.Equal(15, poolTargets[0].ChampionId);
-        Assert.Equal(DraftBanTargets.None, none);
+        Assert.Equal(DraftBanTarget.None, none);
     }
 }

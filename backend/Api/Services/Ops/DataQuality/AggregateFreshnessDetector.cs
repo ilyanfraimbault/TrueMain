@@ -93,7 +93,7 @@ internal sealed class AggregateFreshnessDetector(TrueMainDbContext db, IProcessR
             Rows = rows,
             Thresholds =
             [
-                DetectorCards.Threshold("time since last success", settings.AggregationStaleAmberHours, settings.AggregationStaleRedHours, "hours")
+                DetectorCards.Threshold("time since last success", settings.AggregationStaleAmberHours, settings.AggregationStaleRedHours, DetectorThresholdUnit.Hours)
             ],
             HasDrillDownEndpoint = true
         };

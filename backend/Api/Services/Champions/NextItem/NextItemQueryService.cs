@@ -279,8 +279,8 @@ public sealed class NextItemQueryService(
                     .Take(MaxReasons)
                     .Select(contribution => new NextItemReasonReadModel
                     {
-                        Axis = contribution.Axis.ToString(),
-                        Bucket = contribution.Bucket.ToString(),
+                        Axis = contribution.Axis,
+                        Bucket = contribution.Bucket,
                         Factor = Math.Exp(contribution.Weight),
                     })],
             })],

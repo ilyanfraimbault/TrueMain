@@ -250,8 +250,8 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
         ahri.TeamFitGames.Should().Be(500);
         var fit = ahri.Reasons[^1];
         fit.Kind.Should().Be(DraftReasonKind.TeamFit);
-        fit.Axis.Should().Be("AllyMagicDamage");
-        fit.Bucket.Should().Be("Low");
+        fit.Axis.Should().Be(ItemContextAxis.AllyMagicDamage);
+        fit.Bucket.Should().Be(ItemContextBucket.Low);
         fit.Delta.Should().BeApproximately(0.15, 1e-9);
         fit.Games.Should().Be(400);
         fit.Tentative.Should().BeTrue("Lulu is only hovering");
@@ -325,7 +325,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
 
         bans.Position.Should().Be(Position);
         bans.Patch.Should().Be(Current);
-        bans.Target.Should().Be(DraftBanTargets.Pick);
+        bans.Target.Should().Be(DraftBanTarget.Pick);
         bans.TargetChampionIds.Should().Equal(Ahri);
 
         // Kassadin beats Ahri harder (−15 pts) than Fizz does (−10 pts), but Fizz is
@@ -358,7 +358,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
 
         var open = await PostBansAsync(client, new { position = Position, pool });
 
-        open.Target.Should().Be(DraftBanTargets.Pool);
+        open.Target.Should().Be(DraftBanTarget.Pool);
         open.TargetChampionIds.Should().Equal(Ahri, LeBlanc);
         // Fizz and Kassadin threaten Ahri, two thirds of the pool's mastery; Zed only
         // threatens LeBlanc, the remaining third.
@@ -375,7 +375,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
             bans = new[] { Kassadin },
         });
 
-        constrained.Target.Should().Be(DraftBanTargets.Pool);
+        constrained.Target.Should().Be(DraftBanTarget.Pool);
         constrained.Candidates.Select(c => c.ChampionId).Should().Equal(Zed);
     }
 
@@ -396,7 +396,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
             enemyChampions = new[] { Zed },
         });
 
-        nothing.Target.Should().Be(DraftBanTargets.None);
+        nothing.Target.Should().Be(DraftBanTarget.None);
         nothing.TargetChampionIds.Should().BeEmpty();
         nothing.Candidates.Select(c => c.ChampionId).Should().Equal(Fizz, Ahri, Kassadin, Syndra, LeBlanc);
         nothing.Candidates.Should().OnlyContain(c => c.Score == 0);
@@ -417,7 +417,7 @@ public sealed class ChampionDraftApiIntegrationTests : IAsyncLifetime
             bans = new[] { Kassadin },
         });
 
-        cleared.Target.Should().Be(DraftBanTargets.Pick);
+        cleared.Target.Should().Be(DraftBanTarget.Pick);
         cleared.Candidates.Select(c => c.ChampionId).Should().Equal(Zed, Syndra, LeBlanc, Annie);
         cleared.Candidates.Should().OnlyContain(c => c.Reasons.All(r => r.Kind == DraftReasonKind.BanRate));
     }

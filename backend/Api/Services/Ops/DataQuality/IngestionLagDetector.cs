@@ -133,10 +133,10 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
             Rows = rows,
             Thresholds =
             [
-                DetectorCards.Threshold("newest match age", settings.IngestionLagAmberHours, settings.IngestionLagRedHours, "hours"),
-                DetectorCards.Threshold("matches awaiting a timeline", settings.PendingTimelineAmber, settings.PendingTimelineRed, "count"),
-                DetectorCards.Threshold("candidates queued", settings.QueuedCandidatesAmber, settings.QueuedCandidatesRed, "count"),
-                DetectorCards.Threshold("candidates processing", settings.ProcessingCandidatesAmber, settings.ProcessingCandidatesRed, "count")
+                DetectorCards.Threshold("newest match age", settings.IngestionLagAmberHours, settings.IngestionLagRedHours, DetectorThresholdUnit.Hours),
+                DetectorCards.Threshold("matches awaiting a timeline", settings.PendingTimelineAmber, settings.PendingTimelineRed, DetectorThresholdUnit.Count),
+                DetectorCards.Threshold("candidates queued", settings.QueuedCandidatesAmber, settings.QueuedCandidatesRed, DetectorThresholdUnit.Count),
+                DetectorCards.Threshold("candidates processing", settings.ProcessingCandidatesAmber, settings.ProcessingCandidatesRed, DetectorThresholdUnit.Count)
             ]
         };
     }

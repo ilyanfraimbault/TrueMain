@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 namespace TrueMain.ReadModels.Champions;
 
 /// <summary>
@@ -24,16 +25,19 @@ public sealed record DraftBanCandidateReadModel
 }
 
 /// <summary>What the ban suggestions protect.</summary>
-public static class DraftBanTargets
+public enum DraftBanTarget
 {
     /// <summary>The player declared a pick (their hover in the planning phase).</summary>
-    public const string Pick = "pick";
+    [JsonStringEnumMemberName("pick")]
+    Pick,
 
     /// <summary>No declared pick: the player's pool, weighted by mastery.</summary>
-    public const string Pool = "pool";
+    [JsonStringEnumMemberName("pool")]
+    Pool,
 
     /// <summary>Nothing to protect: the lane's most banned champions, labelled as such.</summary>
-    public const string None = "none";
+    [JsonStringEnumMemberName("none")]
+    None,
 }
 
 /// <summary>The ban suggestions for one champion-select state.</summary>
@@ -47,8 +51,7 @@ public sealed record DraftBanResponse
 
     public string EloBracket { get; init; } = string.Empty;
 
-    /// <summary>One of <see cref="DraftBanTargets"/>.</summary>
-    public string Target { get; init; } = DraftBanTargets.None;
+    public DraftBanTarget Target { get; init; } = DraftBanTarget.None;
 
     /// <summary>The champions protected: the declared pick, or the pool members weighed.</summary>
     public IReadOnlyList<int> TargetChampionIds { get; init; } = [];

@@ -158,8 +158,8 @@ public sealed class ChampionItemContextQueryService(
     private static ChampionItemContextAxisReadModel ToReadModel(ItemContextAxisFinding finding)
         => new()
         {
-            Axis = finding.Axis.ToString(),
-            Bucket = finding.Bucket.ToString(),
+            Axis = finding.Axis,
+            Bucket = finding.Bucket,
             DraftTime = ItemContextAxes.IsDraftTime(finding.Axis),
             GamesIn = finding.GamesIn,
             TotalIn = finding.TotalIn,

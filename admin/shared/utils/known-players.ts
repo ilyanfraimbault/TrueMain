@@ -2,7 +2,7 @@
 // operator's edits. Kept under `shared/` so it is importable — and tested —
 // without the Nuxt runtime.
 import type { PersonaListView } from '~~/shared/types/ops/known-players'
-import type { PersonaAdminAccountReadModel, PersonaExclusionReason, PersonaListRowReadModel } from '#site-shared/contract/api'
+import type { PersonaAdminAccountReadModel, PersonaExclusionReason, PersonaListRowReadModel, PersonaSource } from '#site-shared/contract/api'
 import { TRACKED_REGIONS } from '~~/shared/utils/regions'
 import { riotIdError, splitRiotId } from '#site-shared/utils/riot-id'
 
@@ -10,8 +10,11 @@ import { riotIdError, splitRiotId } from '#site-shared/utils/riot-id'
 export const SLUG_MAX_LENGTH = 64
 export const DISPLAY_NAME_MAX_LENGTH = 64
 
-/** The sources a known player, account or link can come from (`PersonaSource`). */
-export const PERSONA_SOURCES = ['Leaguepedia', 'TrackingThePros', 'DeepLol', 'Dpm', 'LoLPros', 'Manual'] as const
+/**
+ * The sources a known player, account or link can come from, in the filters' order: the scraped
+ * sources first, the operator's own entries last (the API declares `Manual` first).
+ */
+export const PERSONA_SOURCES: readonly PersonaSource[] = ['Leaguepedia', 'TrackingThePros', 'DeepLol', 'Dpm', 'LoLPros', 'Manual']
 
 /** The link kinds the intake stores, lowercase as the API answers them. */
 export const LINK_KINDS: readonly string[] = [

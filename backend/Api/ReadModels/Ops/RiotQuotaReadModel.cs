@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -49,7 +51,7 @@ public sealed record RiotRouteQuotaReadModel
 {
     public string Route { get; init; } = string.Empty;
 
-    public string Kind { get; init; } = string.Empty;
+    public RiotRouteKind Kind { get; init; }
 
     /// <summary>Every physical attempt, 429s included — a rejected request still counted.</summary>
     public long Calls { get; init; }
@@ -131,4 +133,21 @@ public sealed record ProcessDutyCycleReadModel
     public double BusyHours { get; init; }
 
     public int Runs { get; init; }
+}
+
+/// <summary>
+/// The budget family a Riot route draws from: a regional route (account, match) and a platform
+/// route (league, summoner) count against separate limits, never added.
+/// </summary>
+public enum RiotRouteKind
+{
+    [JsonStringEnumMemberName("regional")]
+    Regional,
+
+    [JsonStringEnumMemberName("platform")]
+    Platform,
+
+    /// <summary>A call whose host could not be resolved.</summary>
+    [JsonStringEnumMemberName("unknown")]
+    Unknown,
 }

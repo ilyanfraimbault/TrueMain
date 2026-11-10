@@ -1,3 +1,4 @@
+using Data.Entities;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>What <c>POST /ops/personas/conflicts/auto-merge</c> did (#2271).</summary>
@@ -62,7 +63,7 @@ public sealed record PersonaHomonymReadModel
 
     public string DisplayName { get; init; } = string.Empty;
 
-    public string Source { get; init; } = string.Empty;
+    public PersonaSource Source { get; init; }
 
     public DateTime CreatedAtUtc { get; init; }
 

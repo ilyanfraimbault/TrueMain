@@ -52,7 +52,7 @@ public sealed class ChampionDamageProfilesApiIntegrationTests : IAsyncLifetime
 
         response.Patch.Should().Be(Patch, "the newest profiled patch is served when none is asked for");
 
-        var measured = response.Profiles.Where(p => p.Source == ChampionDamageProfileSources.Measured).ToList();
+        var measured = response.Profiles.Where(p => p.Source == ChampionDamageProfileSource.Measured).ToList();
         measured.Should().OnlyContain(p =>
             Math.Abs(p.PhysicalShare!.Value + p.MagicShare!.Value + p.TrueShare!.Value - 1) < 1e-9
             && p.DamagePerGame > 0
@@ -78,13 +78,13 @@ public sealed class ChampionDamageProfilesApiIntegrationTests : IAsyncLifetime
         var response = await GetAsync();
 
         var kaisa = response.Profiles.Single(p => p.ChampionId == KaiSa && p.Position == "BOTTOM");
-        kaisa.Builds.Select(build => build.Archetype).Should().Equal("OnHit", "AbilityPower");
+        kaisa.Builds.Select(build => build.Archetype).Should().Equal(ItemArchetype.OnHit, ItemArchetype.AbilityPower);
         kaisa.Builds[0].PhysicalShare.Should().BeGreaterThan(kaisa.Builds[0].MagicShare);
         kaisa.Builds[1].MagicShare.Should().BeGreaterThan(kaisa.Builds[1].PhysicalShare);
         kaisa.FlexDamage.Should().BeTrue();
 
         var ahri = response.Profiles.Single(p => p.ChampionId == Ahri && p.Position == "MIDDLE");
-        ahri.Builds.Should().ContainSingle().Which.Archetype.Should().Be("AbilityPower");
+        ahri.Builds.Should().ContainSingle().Which.Archetype.Should().Be(ItemArchetype.AbilityPower);
         ahri.FlexDamage.Should().BeFalse();
     }
 
@@ -97,7 +97,7 @@ public sealed class ChampionDamageProfilesApiIntegrationTests : IAsyncLifetime
 
         var zed = response.Profiles.Should().ContainSingle(p => p.ChampionId == Zed,
             "fifty games are below the floor, so Zed is not measured — only classified").Which;
-        zed.Source.Should().Be(ChampionDamageProfileSources.Fallback);
+        zed.Source.Should().Be(ChampionDamageProfileSource.Fallback);
         zed.DamageClass.Should().Be("physical");
         zed.PhysicalShare.Should().BeNull();
         zed.MagicShare.Should().BeNull();
@@ -105,7 +105,7 @@ public sealed class ChampionDamageProfilesApiIntegrationTests : IAsyncLifetime
         zed.Games.Should().BeNull();
 
         response.Profiles.Should().NotContain(p => p.ChampionId == Unrated, "no rating is no class, never a guess");
-        response.Profiles.Should().NotContain(p => p.ChampionId == Ahri && p.Source == ChampionDamageProfileSources.Fallback,
+        response.Profiles.Should().NotContain(p => p.ChampionId == Ahri && p.Source == ChampionDamageProfileSource.Fallback,
             "a measured champion is never also a fallback");
     }
 
@@ -125,7 +125,7 @@ public sealed class ChampionDamageProfilesApiIntegrationTests : IAsyncLifetime
         var resolved = enemies
             .Select(enemy => response.Profiles.FirstOrDefault(p => p.ChampionId == enemy.ChampionId && p.Position == enemy.Position)
                 ?? response.Profiles.FirstOrDefault(p => p.ChampionId == enemy.ChampionId && p.Position == null))
-            .Where(profile => profile?.Source == ChampionDamageProfileSources.Measured)
+            .Where(profile => profile?.Source == ChampionDamageProfileSource.Measured)
             .Select(profile => profile!)
             .ToList();
         var clientShare = resolved.Sum(p => p.MagicShare!.Value * p.DamagePerGame!.Value)

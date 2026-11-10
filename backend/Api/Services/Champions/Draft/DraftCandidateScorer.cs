@@ -248,8 +248,8 @@ public static class DraftCandidateScorer
     private static DraftReasonReadModel TeamFitReason(DraftTeamFitAxis axis, bool tentative) => new()
     {
         Kind = DraftReasonKind.TeamFit,
-        Axis = axis.Axis.ToString(),
-        Bucket = axis.Bucket.ToString(),
+        Axis = axis.Axis,
+        Bucket = axis.Bucket,
         Delta = axis.Fit.Delta,
         Games = axis.Fit.Games,
         Tentative = tentative,
