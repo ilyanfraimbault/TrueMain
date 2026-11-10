@@ -104,8 +104,8 @@ internal sealed class DuplicateDimensionsDetector(TrueMainDbContext db)
             Rows = rows,
             Thresholds =
             [
-                DetectorCards.Threshold("duplicate groups", settings.DuplicateDimensionGroupsAmber, settings.DuplicateDimensionGroupsRed, "count"),
-                DetectorCards.Threshold("non-canonical rows", settings.NonCanonicalDimensionRowsAmber, settings.NonCanonicalDimensionRowsRed, "count")
+                DetectorCards.Threshold("duplicate groups", settings.DuplicateDimensionGroupsAmber, settings.DuplicateDimensionGroupsRed, DetectorThresholdUnit.Count),
+                DetectorCards.Threshold("non-canonical rows", settings.NonCanonicalDimensionRowsAmber, settings.NonCanonicalDimensionRowsRed, DetectorThresholdUnit.Count)
             ]
         };
     }

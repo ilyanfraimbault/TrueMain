@@ -122,9 +122,9 @@ internal sealed class OrphanParticipantsDetector(
             Rows = rows,
             Thresholds =
             [
-                DetectorCards.Threshold("orphan share", settings.OrphanRatioAmberPercent, settings.OrphanRatioRedPercent, "percent"),
-                DetectorCards.Threshold("rise vs previous window, once the share is already high", settings.OrphanRatioRiseAmberPoints, settings.OrphanRatioRiseRedPoints, "percent"),
-                DetectorCards.Threshold("time since last Harvest", settings.HarvestStaleAmberHours, settings.HarvestStaleRedHours, "hours")
+                DetectorCards.Threshold("orphan share", settings.OrphanRatioAmberPercent, settings.OrphanRatioRedPercent, DetectorThresholdUnit.Percent),
+                DetectorCards.Threshold("rise vs previous window, once the share is already high", settings.OrphanRatioRiseAmberPoints, settings.OrphanRatioRiseRedPoints, DetectorThresholdUnit.Percent),
+                DetectorCards.Threshold("time since last Harvest", settings.HarvestStaleAmberHours, settings.HarvestStaleRedHours, DetectorThresholdUnit.Hours)
             ]
         };
     }
