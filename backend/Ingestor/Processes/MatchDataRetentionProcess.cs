@@ -1,5 +1,6 @@
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.Pipeline;
@@ -471,30 +472,18 @@ public sealed class MatchDataRetentionProcess(
             snapshotPrune.PrunedMatches,
             snapshotPrune.DeletedSnapshots,
             aggregateDeletion.DeletedScopes,
-            aggregateDeletion.DeletedMatchupStats,
-            aggregateDeletion.DeletedSynergyStats,
+            aggregateDeletion.Deleted(PatchPanelFamily.Matchups),
+            aggregateDeletion.Deleted(PatchPanelFamily.Synergies),
             buildPurge.PurgedPatches,
             buildPurge.DeletedPatterns,
             retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
                 .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))
                 .ToList(),
-            vacuumedAfterPurge);
+            vacuumedAfterPurge,
+            aggregateDeletion.Deleted(PatchPanelFamily.Opponents),
+            aggregateDeletion.Deleted(PatchPanelFamily.Scaling),
+            aggregateDeletion.Deleted(PatchPanelFamily.Context),
+            aggregateDeletion.Deleted(PatchPanelFamily.Benchmarks));
     }
-
-    private sealed record SnapshotPruneResult(int PrunedMatches, int DeletedSnapshots)
-    {
-        public static SnapshotPruneResult Empty { get; } = new(0, 0);
-    }
-
-    private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants, int TruncatedSeats = 0)
-    {
-        public static DeletionResult Empty { get; } = new(0, 0);
-    }
-
-    private sealed record RetentionPlan(
-        int RetainedPatchCount,
-        int QueueId,
-        IReadOnlyDictionary<string, HashSet<string>> RetainedPatchesByPlatform,
-        IReadOnlyList<string> DeletableMatchIds);
 }
