@@ -159,7 +159,8 @@ export function buildLaneBranches(catalog: PipelineCatalogReadModel | null, runs
  * stamped it) is left to the lane rendering rather than guessed at.
  */
 function singleProcessModeOf(catalog: PipelineCatalogReadModel | null, runs: readonly ProcessRunReadModel[]): string | null {
-  if (runs.length === 0) {
+  // Without the catalog no mode is known to be composite: leave the pass to the catch-all.
+  if (catalog === null || runs.length === 0) {
     return null
   }
 

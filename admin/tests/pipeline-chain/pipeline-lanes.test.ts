@@ -76,6 +76,17 @@ describe('buildLaneBranches', () => {
     expect(branches.at(-1)!.links.map(link => link.processName)).toEqual(['SomeUndeclaredStep'])
   })
 
+  it('draws every run under its raw name in the trailing branch while the catalog is not known', () => {
+    const branches = buildLaneBranches(null, [
+      run('LadderSync', { jobMode: 'Full' }),
+      run('MainAnalysis', { jobMode: 'Full' }),
+    ])
+
+    expect(branches.map(branch => branch.id)).toEqual(['other'])
+    expect(branches[0]!.links.map(link => link.processName)).toEqual(['LadderSync', 'MainAnalysis'])
+    expect(laneForProcess(null, 'LadderSync')).toBeNull()
+  })
+
   it('takes the most alarming status as the lane outcome', () => {
     const failed = buildLaneBranches(CATALOG, [
       run('LadderSync'),
