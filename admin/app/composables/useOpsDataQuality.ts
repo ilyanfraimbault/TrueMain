@@ -13,6 +13,14 @@ export function useIncompleteMatches(filters?: MaybeRefOrGetter<OpsQueryOf<'/dat
 }
 
 /**
+ * `GET /api/ops/data-quality/incomplete-matches/counts` — how many matches each check flags
+ * under the filters, without the rows: what the panel lists its groups from.
+ */
+export function useIncompleteMatchCounts(filters?: MaybeRefOrGetter<OpsQueryOf<'/data-quality/incomplete-matches/counts'>>) {
+  return useOps('/data-quality/incomplete-matches/counts', filters)
+}
+
+/**
  * `GET /api/ops/data-quality/detectors` — the automated anomaly detectors (#924):
  * one card per detector with its verdict, headline number, drill-down rows and
  * the thresholds it judged against. Takes no filters; every threshold is

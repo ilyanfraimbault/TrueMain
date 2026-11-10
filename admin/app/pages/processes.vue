@@ -1,10 +1,8 @@
 <script setup lang="ts">
-// Processes panel — background-job run health from `GET /api/ops/process-runs`.
-// A per-process rollup (last status / last run / last success / recent failures)
-// plus a filterable, server-paginated runs table. The endpoint paginates, so we
-// only ever hold one page in memory and drive UPagination off the response's
-// `total`/`page`/`pageSize` (the rollup covers the full filtered set, not the
-// page). Failed runs are visually distinct (error tint) and each run's
+// Processes panel — background-job run health: a per-process rollup (last status /
+// last run / last success / recent failures, `GET /api/ops/process-runs/rollup`) plus a
+// filterable, server-paginated runs table (`GET /api/ops/process-runs`), driven off the
+// response's `total`/`page`/`pageSize`. Failed runs are visually distinct (error tint) and each run's
 // `summary` JSON + error is inspectable in a slide-over.
 //
 // Two tabs since #1410, deep-linkable via `?view=runs|riot-api`: the Riot API
@@ -101,27 +99,20 @@ function resetFilters() {
 
 const { data, pending, error, refresh } = useProcessRuns(filters)
 
-// The rollup gets its OWN request (#1411) even though the paged response above
-// already carries one. The rollup is live-refreshed and the runs table is not —
-// re-ordering a page under a reader's cursor is worse than showing it a page that
-// is thirty seconds old — and one fetch cannot be half-live. `pageSize: 1` keeps
-// the row payload to the minimum the endpoint will return; only `rollup` is read
-// from it. `status` is left out on purpose: the backend computes the rollup from
-// the process name and the window only, so sending it would refetch on a filter
-// that cannot change the answer.
+// The rollup is live-refreshed and the runs table is not (#1411): re-ordering a page
+// under a reader's cursor is worse than showing it a page that is thirty seconds old.
+// `status` is not a rollup filter: the rollup covers the process and the window only.
 const rollupFilters = computed(() => ({
   processName: processName.value.trim() || undefined,
   since: sinceWindow.value === ALL ? undefined : sinceToIso(sinceWindow.value),
-  page: 1,
-  pageSize: 1,
 }))
 const {
   data: rollupData,
   pending: rollupPending,
   refresh: refreshRollup,
-} = useProcessRuns(rollupFilters)
+} = useProcessRollup(rollupFilters)
 
-const rollup = computed(() => rollupData.value?.rollup ?? [])
+const rollup = computed(() => rollupData.value ?? [])
 const runs = computed(() => data.value?.runs ?? [])
 const total = computed(() => data.value?.total ?? 0)
 // The page the server actually served (its clamp wins over our optimistic ref).
@@ -164,29 +155,14 @@ const finishedIterations = computed<ProcessIterationReadModel[]>(() => iteration
 const iterationsTotal = computed(() => iterationsData.value?.total ?? 0)
 const iterationsServerPage = computed(() => iterationsData.value?.page ?? iterationsPage.value)
 
-// The top "current" block must always reflect the most-recent iteration OF EACH
-// LANE, independent of which page of the iterations LIST the operator is viewing.
-// A dedicated page-1 fetch keeps it both correct AND live — paginating the list
-// below never moves it.
-//
-// It asks for several iterations rather than one because the lanes run at their
-// own cadences: on preprod the fetch lane completes roughly three passes per
-// aggregate pass, so the aggregate lane's newest iteration sits a few positions
-// down a newest-first list. Six covers that ratio with margin and is still one
-// small request; a lane that has not run within the window simply shows as
-// not-yet-run rather than being invented.
-const LATEST_ITERATION_PROBE = 6
+// The top "current" block shows the newest pass OF EACH LANE, whichever page of the
+// iterations list is open below: its own read, so paginating never moves it.
 const {
   data: latestIterationData,
   error: latestIterationError,
   refresh: refreshLatestIterations,
-} = useProcessIterations({
-  page: 1,
-  pageSize: LATEST_ITERATION_PROBE,
-})
-const latestIterations = computed<ProcessIterationReadModel[]>(
-  () => latestIterationData.value?.iterations ?? [],
-)
+} = useLatestProcessIterations()
+const latestIterations = computed<ProcessIterationReadModel[]>(() => latestIterationData.value ?? [])
 
 // The live tree at the top: each lane shown at its own newest iteration. On a
 // two-lane deployment those are two different passes running concurrently; on a

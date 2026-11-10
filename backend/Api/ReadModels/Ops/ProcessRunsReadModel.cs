@@ -5,17 +5,13 @@ namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
 /// Process-run feed for the admin Processes panel: one page of individual runs
-/// (newest first) plus a per-process rollup over the requested window so the
-/// panel can show current health and recent failure volume at a glance.
-/// <see cref="Total"/> is the count of all runs matching the active filters
-/// (before paging), so the panel can render a pager; the rollup is computed over
-/// the full filtered set and is unaffected by paging.
+/// (newest first). <see cref="Total"/> is the count of all runs matching the active
+/// filters (before paging), so the panel can render a pager. The per-process rollup
+/// is its own read (<c>GET /ops/process-runs/rollup</c>).
 /// </summary>
 public sealed record ProcessRunsReadModel
 {
     public IReadOnlyList<ProcessRunReadModel> Runs { get; init; } = [];
-
-    public IReadOnlyList<ProcessRunRollupReadModel> Rollup { get; init; } = [];
 
     public long Total { get; init; }
 
@@ -39,7 +35,8 @@ public sealed record ProcessRunReadModel
 
     public DateTime StartedAtUtc { get; init; }
 
-    public DateTime FinishedAtUtc { get; init; }
+    /// <summary>When the run settled; null while it is still running.</summary>
+    public DateTime? FinishedAtUtc { get; init; }
 
     public int DurationMs { get; init; }
 
@@ -138,4 +135,10 @@ public sealed record ProcessRunRollupReadModel
     /// than an always-positive absolute count.
     /// </summary>
     public double FailureRateInWindow { get; init; }
+
+    /// <summary>
+    /// Red when the latest run failed, amber when it did not but the window's failure rate
+    /// reached <c>ProcessRunsQueryService.DegradedFailureRate</c>, green otherwise.
+    /// </summary>
+    public DetectorStatus Health { get; init; }
 }

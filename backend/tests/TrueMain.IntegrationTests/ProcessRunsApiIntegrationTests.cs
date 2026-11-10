@@ -44,7 +44,7 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         var json = await response.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(json);
         document.RootElement.EnumerateObject().Select(property => property.Name)
-            .Should().BeEquivalentTo(["runs", "rollup", "total", "page", "pageSize"]);
+            .Should().BeEquivalentTo(["runs", "total", "page", "pageSize"]);
 
         var firstRun = document.RootElement.GetProperty("runs")[0];
         firstRun.EnumerateObject().Select(property => property.Name)
@@ -54,12 +54,12 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
                 "durationMs", "status", "error", "host", "jobMode", "lastHeartbeatAtUtc", "summary", "baseline"
             ]);
 
-        var firstRollup = document.RootElement.GetProperty("rollup")[0];
-        firstRollup.EnumerateObject().Select(property => property.Name)
+        using var rollupDocument = JsonDocument.Parse(await client.GetStringAsync("/ops/process-runs/rollup"));
+        rollupDocument.RootElement[0].EnumerateObject().Select(property => property.Name)
             .Should().BeEquivalentTo(
             [
                 "processName", "lastStatus", "lastRunAtUtc", "lastSuccessAtUtc",
-                "failureCountInWindow", "runCountInWindow", "failureRateInWindow"
+                "failureCountInWindow", "runCountInWindow", "failureRateInWindow", "health"
             ]);
 
         var payload = await response.Content.ReadFromJsonAsync<ProcessRunsTestContract>(ApiJson.Options);
@@ -85,23 +85,26 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         // and the 30-day-old one), both counted now. The latest run is Failed and
         // there is an earlier success. Three MatchIngestion runs total (1 success,
         // 2 failures), so the all-time failure rate is 2/3.
-        var ingestion = payload.Rollup.Single(row => row.ProcessName == "MatchIngestion");
+        var allTime = await GetRollupAsync(client, string.Empty);
+        var ingestion = allTime.Single(row => row.ProcessName == "MatchIngestion");
         ingestion.LastStatus.Should().Be("Failed");
         ingestion.FailureCountInWindow.Should().Be(2);
         ingestion.RunCountInWindow.Should().Be(3);
         ingestion.FailureRateInWindow.Should().BeApproximately(2d / 3d, 0.0001);
         ingestion.LastSuccessAtUtc.Should().NotBeNull();
+        ingestion.Health.Should().Be("red", "its latest run failed");
 
-        var mainAnalysis = payload.Rollup.Single(row => row.ProcessName == "MainAnalysis");
+        var mainAnalysis = allTime.Single(row => row.ProcessName == "MainAnalysis");
         mainAnalysis.LastStatus.Should().Be("Success");
         mainAnalysis.FailureCountInWindow.Should().Be(0);
         mainAnalysis.RunCountInWindow.Should().Be(1);
         mainAnalysis.FailureRateInWindow.Should().Be(0);
+        mainAnalysis.Health.Should().Be("green");
 
         // Discovery's only run is 10 days old: with the unbounded all-time window
         // it is counted (one success, zero failures) and still anchors the
         // rollup's last-run/last-success.
-        var discovery = payload.Rollup.Single(row => row.ProcessName == "Discovery");
+        var discovery = allTime.Single(row => row.ProcessName == "Discovery");
         discovery.LastStatus.Should().Be("Success");
         discovery.FailureCountInWindow.Should().Be(0);
         discovery.RunCountInWindow.Should().Be(1);
@@ -132,7 +135,8 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
             && run.StartedAtUtc < DateTime.UtcNow.AddDays(-14));
         payload.Runs.Should().NotContain(run => run.ProcessName == "Discovery");
 
-        var ingestion = payload.Rollup.Single(row => row.ProcessName == "MatchIngestion");
+        var window = await GetRollupAsync(client, $"?since={Uri.EscapeDataString(since)}");
+        var ingestion = window.Single(row => row.ProcessName == "MatchIngestion");
         ingestion.FailureCountInWindow.Should().Be(1);
         ingestion.RunCountInWindow.Should().Be(2);
         ingestion.FailureRateInWindow.Should().BeApproximately(0.5d, 0.0001);
@@ -142,7 +146,7 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
 
         // Discovery's only run predates the window: it has no in-window runs, so
         // the rate is 0 (no division-by-zero), but its unbounded last-run survives.
-        var discovery = payload.Rollup.Single(row => row.ProcessName == "Discovery");
+        var discovery = window.Single(row => row.ProcessName == "Discovery");
         discovery.RunCountInWindow.Should().Be(0);
         discovery.FailureCountInWindow.Should().Be(0);
         discovery.FailureRateInWindow.Should().Be(0);
@@ -175,10 +179,12 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         // The in-flight run is the newest and leads the list with status Running.
         payload!.Runs[0].ProcessName.Should().Be("MatchIngestion");
         payload.Runs[0].Status.Should().Be("Running");
+        payload.Runs[0].FinishedAtUtc.Should().BeNull("a run in flight has not finished");
+        payload.Runs[1].FinishedAtUtc.Should().NotBeNull();
 
         // The rollup reflects the live state: lastStatus is Running, the prior
         // success still anchors LastSuccessAtUtc, and no failures are counted.
-        var ingestion = payload.Rollup.Single(row => row.ProcessName == "MatchIngestion");
+        var ingestion = (await GetRollupAsync(client, string.Empty)).Single(row => row.ProcessName == "MatchIngestion");
         ingestion.LastStatus.Should().Be("Running");
         ingestion.FailureCountInWindow.Should().Be(0);
         ingestion.LastSuccessAtUtc.Should().NotBeNull();
@@ -230,12 +236,13 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
 
         // No `since` => unbounded failure window: the -9d failure IS counted now
         // (a true all-time total), across all three runs (1 failure / 3 runs).
-        var legacy = payload.Rollup.Single(row => row.ProcessName == "LegacyJob");
+        var legacy = (await GetRollupAsync(client, string.Empty)).Single(row => row.ProcessName == "LegacyJob");
         legacy.FailureCountInWindow.Should().Be(1);
         legacy.RunCountInWindow.Should().Be(3);
         legacy.FailureRateInWindow.Should().BeApproximately(1d / 3d, 0.0001);
         legacy.LastStatus.Should().Be("Success");
         legacy.LastSuccessAtUtc.Should().NotBeNull();
+        legacy.Health.Should().Be("amber", "a third of its runs failed, though its latest succeeded");
     }
 
     [Fact]
@@ -273,12 +280,6 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         pageTwo.Total.Should().Be(5);
         pageTwo.Page.Should().Be(2);
 
-        // The rollup is computed over the FULL filtered set, so it is identical
-        // on every page: both in-window failures are counted even though page 2
-        // shows only one of them.
-        var rollup = pageTwo.Rollup.Single(row => row.ProcessName == "PagedJob");
-        rollup.LastStatus.Should().Be("Failed");
-        rollup.FailureCountInWindow.Should().Be(2);
 
         // Last page: a partial slice, not an error.
         var pageThree = await GetPayloadAsync(client, "/ops/process-runs?page=3&pageSize=2");
@@ -336,10 +337,9 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         summary.GetProperty("processed").GetInt32().Should().Be(42);
         summary.GetProperty("stage").GetString().Should().Be("fetch");
 
-        // Rollup is scoped to the same process filter.
-        var rollup = document.RootElement.GetProperty("rollup");
-        rollup.GetArrayLength().Should().Be(1);
-        rollup[0].GetProperty("processName").GetString().Should().Be("MatchIngestion");
+        // The rollup is scoped by the same process filter.
+        (await GetRollupAsync(client, "?processName=MatchIngestion"))
+            .Should().ContainSingle().Which.ProcessName.Should().Be("MatchIngestion");
     }
 
     [Fact]
@@ -459,11 +459,12 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
                 new KeyValuePair<string, string?>("MongoLogging:MinimumLevel", "None")
             ]);
 
+    private static async Task<IReadOnlyList<ProcessRunRollupTestContract>> GetRollupAsync(HttpClient client, string query)
+        => (await client.GetFromJsonAsync<IReadOnlyList<ProcessRunRollupTestContract>>($"/ops/process-runs/rollup{query}", ApiJson.Options))!;
+
     private sealed class ProcessRunsTestContract
     {
         public IReadOnlyList<ProcessRunTestContract> Runs { get; init; } = [];
-
-        public IReadOnlyList<ProcessRunRollupTestContract> Rollup { get; init; } = [];
 
         public long Total { get; init; }
 
@@ -479,6 +480,8 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         public string ProcessName { get; init; } = string.Empty;
 
         public DateTime StartedAtUtc { get; init; }
+
+        public DateTime? FinishedAtUtc { get; init; }
 
         public string Status { get; init; } = string.Empty;
 
@@ -498,6 +501,8 @@ public sealed class ProcessRunsApiIntegrationTests : IAsyncLifetime
         public int FailureCountInWindow { get; init; }
 
         public int RunCountInWindow { get; init; }
+
+        public string Health { get; init; } = string.Empty;
 
         public double FailureRateInWindow { get; init; }
     }

@@ -78,6 +78,24 @@ public sealed class OpsDataQualityController(
     }
 
     /// <summary>
+    /// How many matches each data-quality check flags under the same filters as
+    /// <c>GET /ops/data-quality/incomplete-matches</c>, without the rows.
+    /// </summary>
+    /// <param name="issue">Restrict to a single check (camelCase name); omit for all.</param>
+    /// <param name="queue">Restrict to one queue id; omit for all.</param>
+    /// <param name="minAgeHours">Only consider matches at least this many hours old.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("data-quality/incomplete-matches/counts")]
+    [ProducesResponseType(typeof(IncompleteMatchCountsReadModel), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IncompleteMatchCountsReadModel>> GetIncompleteMatchCountsAsync(
+        [FromQuery] string? issue,
+        [FromQuery] int? queue,
+        [FromQuery] int? minAgeHours,
+        CancellationToken ct = default)
+        => Ok(await incompleteMatchesQueryService.GetCountsAsync(issue, queue, minAgeHours, ct));
+
+    /// <summary>
     /// Per-match data-quality detail: both teams laid out by position with the
     /// gaps identified, plus the issue types the match trips. 404 if no such match.
     /// </summary>

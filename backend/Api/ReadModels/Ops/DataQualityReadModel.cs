@@ -72,6 +72,26 @@ public sealed record IncompleteMatchesReadModel
     public int StaleTimelineThresholdHours { get; init; }
 }
 
+/// <summary>How many matches each check flags, without the rows.</summary>
+public sealed record IncompleteMatchCountsReadModel
+{
+    /// <summary>One entry per check that flags at least one match, in declaration order.</summary>
+    public IReadOnlyList<IncompleteMatchCountReadModel> Counts { get; init; } = [];
+
+    /// <summary>Distinct matches flagged by at least one check in scope.</summary>
+    public long Total { get; init; }
+
+    /// <inheritdoc cref="IncompleteMatchesReadModel.StaleTimelineThresholdHours"/>
+    public int StaleTimelineThresholdHours { get; init; }
+}
+
+public sealed record IncompleteMatchCountReadModel
+{
+    public DataQualityIssueType IssueType { get; init; }
+
+    public int Count { get; init; }
+}
+
 /// <summary>One issue type's flagged matches: a capped sample plus the full count.</summary>
 public sealed record DataQualityIssueGroupReadModel
 {

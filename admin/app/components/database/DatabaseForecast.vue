@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Database panel: the disk forecast (#925), the reason the panel keeps history at
 // all. Reads the page's `GET /api/ops/db/history` payload.
-import type { DbStorageHistoryReadModel } from '#site-shared/contract/api'
+import type { DbStorageForecastAbsence, DbStorageHistoryReadModel } from '#site-shared/contract/api'
 import { formatDate, humanizeBytes } from '~~/shared/utils/format'
 
 const props = defineProps<{
@@ -26,35 +26,25 @@ const coverageLabel = computed(() => {
 })
 const latestPoint = computed(() => dailyPoints.value.at(-1) ?? null)
 
-// How many trailing days the backend is willing to fit — days measuring the same
-// engines as the latest one. Read from the payload rather than re-derived here:
-// a second implementation of the rule would drift, and the drift would show up as
-// the panel confidently naming the wrong reason.
+// How many trailing days the backend fits — days measuring the same engines as the
+// latest one — and why it returned no forecast. Both are read from the payload: a second
+// implementation of the rule would drift and name the wrong reason.
 const comparableDays = computed(() => props.history?.comparableDays ?? 0)
+const minimumDays = computed(() => props.history?.forecastMinimumDays ?? 0)
 
-// Why there is no forecast, in the operator's terms. The backend deliberately
-// returns null rather than a placeholder date, so the panel has to say which
-// reason applies instead of rendering an empty card.
-const MIN_FORECAST_DAYS = 3
+const ABSENCE_REASON: Record<NonNullable<DbStorageForecastAbsence>, () => string> = {
+  NoSnapshots: () => 'No snapshots recorded yet — the ingestor writes one per pipeline run.',
+  EnginesChanged: () => `The measured engines changed ${comparableDays.value} day(s) ago — the trend restarts `
+    + `from there, and needs ${minimumDays.value} days covering the same engines.`,
+  TooFewDays: () => `Only ${dailyPoints.value.length} day(s) of history — ${minimumDays.value} are needed `
+    + 'before a trend can be fitted.',
+  NoCapacityConfigured: () => 'No disk capacity is configured to forecast against (StorageHistory:DiskCapacityBytes).',
+  NotGrowing: () => 'Storage is flat or shrinking over this window.',
+}
 
 const forecastAbsenceReason = computed(() => {
-  if (props.pending || forecast.value) {
-    return null
-  }
-  if (dailyPoints.value.length === 0) {
-    return 'No snapshots recorded yet — the ingestor writes one per pipeline run.'
-  }
-  if (comparableDays.value < MIN_FORECAST_DAYS) {
-    // Fewer comparable days than charted days means the set of measured engines
-    // changed recently: the newcomer's footprint lands in one step, and a step is
-    // not a growth rate, so the fit restarts after it.
-    return comparableDays.value < dailyPoints.value.length
-      ? `The measured engines changed ${comparableDays.value} day(s) ago — the trend restarts `
-        + `from there, and needs ${MIN_FORECAST_DAYS} days covering the same engines.`
-      : `Only ${dailyPoints.value.length} day(s) of history — ${MIN_FORECAST_DAYS} are needed `
-        + 'before a trend can be fitted.'
-  }
-  return 'Storage is flat or shrinking over this window, or no disk capacity is configured (StorageHistory:DiskCapacityBytes).'
+  const absence = props.history?.forecastAbsence
+  return props.pending || forecast.value || !absence ? null : ABSENCE_REASON[absence]()
 })
 
 function crossingLabel(projectedAtUtc: string | null): string {

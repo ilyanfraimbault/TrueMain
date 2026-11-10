@@ -1,8 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using AwesomeAssertions;
 using Core.Lol.Map;
 using Data.Entities;
-using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace TrueMain.IntegrationTests;
@@ -69,6 +70,25 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
             .Where(g => g.IssueType == "missingTeamPosition")
             .SelectMany(g => g.Matches)
             .Should().NotContain(m => m.MatchId == "DQ_ARAM");
+    }
+
+    [Fact]
+    public async Task GetIncompleteMatchCounts_CountsEachCheckLikeTheGroupedRead()
+    {
+        await SeedAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var groups = await client.GetFromJsonAsync<IncompleteMatchesContract>(
+            "/ops/data-quality/incomplete-matches", ApiJson.Options);
+        using var counts = JsonDocument.Parse(await client.GetStringAsync("/ops/data-quality/incomplete-matches/counts"));
+
+        counts.RootElement.GetProperty("counts").EnumerateArray()
+            .Select(entry => (entry.GetProperty("issueType").GetString()!, entry.GetProperty("count").GetInt32()))
+            .Should().Equal(groups!.Groups.Select(group => (group.IssueType, (int)group.Count)));
+        counts.RootElement.GetProperty("total").GetInt64().Should().Be(groups.Total);
+        counts.RootElement.GetProperty("staleTimelineThresholdHours").GetInt32().Should().Be(groups.StaleTimelineThresholdHours);
     }
 
     [Fact]

@@ -50,6 +50,35 @@ public sealed class OpsProcessesController(
     }
 
     /// <summary>
+    /// Per-process health over the window starting at <paramref name="since"/>: last status,
+    /// last success, in-window failure counts and rate, and the verdict the health grid colours by.
+    /// Unbounded (all-time counts) when <paramref name="since"/> is omitted.
+    /// </summary>
+    /// <param name="processName">Restrict to a single process. Omit for all.</param>
+    /// <param name="since">Lower bound of the failure window. Omit for all time.</param>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("process-runs/rollup")]
+    [ProducesResponseType(typeof(IReadOnlyList<ProcessRunRollupReadModel>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IReadOnlyList<ProcessRunRollupReadModel>>> GetProcessRunRollupAsync(
+        [FromQuery] string? processName,
+        [FromQuery] DateTime? since,
+        CancellationToken ct = default)
+        => Ok(await processRunsQueryService.GetRollupAsync(processName, since, ct));
+
+    /// <summary>
+    /// The newest pass of each pipeline lane, for the chain view's live tree: one entry per
+    /// lane that has run, a <c>Full</c> pass newest on both listed once.
+    /// </summary>
+    /// <param name="ct">Request cancellation token.</param>
+    [HttpGet("process-iterations/latest")]
+    [ProducesResponseType(typeof(IReadOnlyList<ProcessIterationReadModel>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IReadOnlyList<ProcessIterationReadModel>>> GetLatestProcessIterationsAsync(
+        CancellationToken ct = default)
+        => Ok(await processIterationsQueryService.GetLatestPerLaneAsync(ct));
+
+    /// <summary>
     /// Recent pipeline iterations for the admin chain view: one full pass of the
     /// ingestor pipeline per iteration, newest first, each carrying its ordered
     /// process runs (status / duration / summary). Only iteration-stamped runs are

@@ -226,11 +226,9 @@ function toBranch(
   // the sum would hide a gap between two steps, and the question a lane header
   // answers is how long the lane took, not how long it was busy.
   //
-  // A lane still in flight has no span to report — and it cannot be detected by a
-  // missing `finishedAtUtc`, because the API mirrors a running run's start into it
-  // so the iteration's "last activity" still advances. The run's status is the
-  // only honest signal, so a `Running` step makes the whole branch's duration null
-  // rather than a 0 ms that reads as "instant".
+  // A lane still in flight has no span to report: a `Running` step (whose `finishedAtUtc`
+  // is null) makes the whole branch's duration null rather than a 0 ms that reads as
+  // "instant".
   const finishes = runs.map(run => run.finishedAtUtc).filter((at): at is string => at !== null)
   const inFlight = links.some(link => link.outcome === 'Running')
   const durationMs = startedAtUtc === null || inFlight || finishes.length !== runs.length
