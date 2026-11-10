@@ -104,13 +104,20 @@ fn scoreboards() -> Vec<Value> {
 
 #[test]
 fn the_checked_in_vectors_are_what_the_shell_computes() {
-    let vectors = json!({
-        "placements": placements(),
-        "drops": drops(),
-        "scoreboards": scoreboards(),
-    });
-    let mut text = serde_json::to_string_pretty(&vectors).expect("vectors serialise");
-    text.push('\n');
+    // One case a line: the file reads as a table and diffs case by case.
+    let list = |cases: Vec<Value>| {
+        cases
+            .iter()
+            .map(|case| format!("    {case}"))
+            .collect::<Vec<_>>()
+            .join(",\n")
+    };
+    let text = format!(
+        "{{\n  \"placements\": [\n{}\n  ],\n  \"drops\": [\n{}\n  ],\n  \"scoreboards\": [\n{}\n  ]\n}}\n",
+        list(placements()),
+        list(drops()),
+        list(scoreboards()),
+    );
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../fixtures/overlay-geometry.json"
