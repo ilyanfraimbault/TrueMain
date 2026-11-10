@@ -42,16 +42,24 @@ public static class RiotResilienceExtensions
             // ConfigureRiotClient sizes HttpClient.Timeout around (#855).
             options.TotalRequestTimeout.Timeout = riotOptions.EffectiveTotalRequestTimeout();
 
-            // The standard handler validates that the circuit breaker's sampling duration
-            // is at least double the attempt timeout; keep it valid when the configured
-            // attempt timeout exceeds what the 30s sampling default allows.
-            var minimumSamplingDuration = options.AttemptTimeout.Timeout * 2;
-            if (options.CircuitBreaker.SamplingDuration < minimumSamplingDuration)
-            {
-                options.CircuitBreaker.SamplingDuration = minimumSamplingDuration;
-            }
+            options.KeepCircuitBreakerSamplingValid();
         });
 
         return builder;
+    }
+
+    /// <summary>
+    /// The standard handler validates that the circuit breaker's sampling duration is at least
+    /// double the attempt timeout; this keeps it valid when a configured attempt timeout exceeds
+    /// what the 30 s sampling default allows. Shared by every resilience pipeline the ingestor
+    /// configures (Riot, static game data).
+    /// </summary>
+    internal static void KeepCircuitBreakerSamplingValid(this HttpStandardResilienceOptions options)
+    {
+        var minimumSamplingDuration = options.AttemptTimeout.Timeout * 2;
+        if (options.CircuitBreaker.SamplingDuration < minimumSamplingDuration)
+        {
+            options.CircuitBreaker.SamplingDuration = minimumSamplingDuration;
+        }
     }
 }
