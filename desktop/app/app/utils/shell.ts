@@ -2,12 +2,15 @@ import { commands, events } from '~/generated/shell'
 
 export type ShellCommands = typeof commands
 export type ShellEvents = typeof events
+export type ShellCommand = keyof ShellCommands
+/** What `commands[K]` resolves to. */
+export type ShellAnswer<K extends ShellCommand> = Awaited<ReturnType<ShellCommands[K]>>
 
 /**
  * Whether the app runs on the dev server in a browser, with no shell: the
  * fake one answers instead (`dev-shell/`). Always false in a production build.
  */
-export const fakeShell = import.meta.dev && typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window)
+export const fakeShell = import.meta.dev === true && !('__TAURI_INTERNALS__' in globalThis)
 
 /** An object whose methods load `load`'s on first call: the fake shell never reaches a production bundle. */
 export function later<T extends object>(load: () => Promise<T>): T {
@@ -16,18 +19,23 @@ export function later<T extends object>(load: () => Promise<T>): T {
   })
 }
 
+/** The shell to talk to: the generated bindings, or the fake shell when `fake`. */
+export function shellFor(fake: boolean): { shell: ShellCommands, shellEvents: ShellEvents } {
+  if (!fake) return { shell: commands, shellEvents: events }
+  return {
+    shell: later(() => import('~/dev-shell').then(dev => dev.devCommands as unknown as ShellCommands)),
+    shellEvents: new Proxy({} as ShellEvents, {
+      get: (_, name) => later(() => import('~/dev-shell').then(dev => dev.devEvents[name as keyof ShellEvents])),
+    }),
+  }
+}
+
 /**
  * The shell's commands and events, generated from Rust
  * (`desktop/src-tauri/src/contract.rs`): the webview's only way to the shell —
  * the real one inside the app, the fake one on the dev server.
  */
-export const shell: ShellCommands = fakeShell ? later(() => import('~/dev-shell').then(dev => dev.devCommands as unknown as ShellCommands)) : commands
-export const shellEvents: ShellEvents = fakeShell
-  ? new Proxy({} as ShellEvents, { get: (_, name) => later(() => import('~/dev-shell').then(dev => dev.devEvents[name as keyof ShellEvents])) })
-  : events
-export type ShellCommand = keyof ShellCommands
-/** What `commands[K]` resolves to. */
-export type ShellAnswer<K extends ShellCommand> = Awaited<ReturnType<ShellCommands[K]>>
+export const { shell, shellEvents } = shellFor(fakeShell)
 
 /**
  * What a command that forwards a TrueMain API read answers, as the caller's
