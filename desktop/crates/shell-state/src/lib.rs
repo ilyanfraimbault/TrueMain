@@ -5,7 +5,7 @@
 //! needs a platform webview). Here, the navigation rule is covered by tests
 //! that run anywhere.
 
-pub mod keys;
+pub use keys;
 pub mod kits;
 pub mod overlay;
 pub mod scoreboard;

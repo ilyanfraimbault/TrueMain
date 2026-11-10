@@ -360,6 +360,7 @@ screen hold. Update this table with what the tape shows.
 
 ```
 desktop/
+  crates/keys/            the keyboard model: key codes, chords, refusals, the game's binds
   crates/lcu/             pure Rust client for the League client API — no Tauri, no GUI
   crates/live-client/     the running game's own API, and the in-game state derived from it
   crates/shell-state/     the app's state and the screen it calls for, and the overlay's
@@ -381,7 +382,7 @@ desktop/
 
 The crates deliberately carry no Tauri dependency, so they build and test on
 any platform — including Linux CI, where the shell itself cannot build. Run
-their tests with `cargo test -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p truemain-capture` from
+their tests with `cargo test -p keys -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p truemain-capture` from
 `desktop/`.
 
 The **navigation rule lives in Rust** (`crates/shell-state/src/lib.rs`), not in the
