@@ -1,0 +1,11 @@
+[package]
+name = "keys"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The keyboard model the overlay's chords and the recording's mark key share"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+specta.workspace = true
