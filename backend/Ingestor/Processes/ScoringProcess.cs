@@ -1,6 +1,6 @@
 using Data.Entities;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.Intake;

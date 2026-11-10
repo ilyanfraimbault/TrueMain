@@ -7,6 +7,7 @@ using Data.Aggregation;
 using Data.Entities;
 using Ingestor.Options;
 using Ingestor.Processes;
+using Ingestor.Processes.Components.ScalingAggregation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.Options;

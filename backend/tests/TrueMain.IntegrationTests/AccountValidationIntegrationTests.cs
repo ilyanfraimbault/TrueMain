@@ -22,7 +22,7 @@ public sealed class AccountValidationIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task AccountValidationService_ShouldHandleValidateAndRevertTransitions()
     {
-        var accountKey = new Data.Repositories.AccountKey("KR", "puuid-1");
+        var accountKey = new Ingestor.Persistence.AccountKey("KR", "puuid-1");
 
         await SeedProcessingStateAsync(accountKey);
 
@@ -68,7 +68,7 @@ public sealed class AccountValidationIntegrationTests : IAsyncLifetime
         // The funnel counts validated *accounts* off this return value (#1024), so an
         // account whose candidates were already promoted — or reverted out from under
         // the claim — must not inflate the count on the way through.
-        var accountKey = new Data.Repositories.AccountKey("KR", "puuid-nothing-to-promote");
+        var accountKey = new Ingestor.Persistence.AccountKey("KR", "puuid-nothing-to-promote");
 
         await SeedProcessingStateAsync(accountKey);
         await using (var db = _fixture.CreateDbContext())
@@ -102,7 +102,7 @@ public sealed class AccountValidationIntegrationTests : IAsyncLifetime
         // oldest-ingested-first, so leaving LastMatchIngestAtUtc null — which is exactly
         // what a revert does, on purpose, to retry a transient failure at once — hands
         // this permanently unusable row the head of every subsequent batch.
-        var accountKey = new Data.Repositories.AccountKey("XX9", "puuid-uningestable");
+        var accountKey = new Ingestor.Persistence.AccountKey("XX9", "puuid-uningestable");
 
         await SeedProcessingStateAsync(accountKey);
 
@@ -126,7 +126,7 @@ public sealed class AccountValidationIntegrationTests : IAsyncLifetime
         candidate.ValidatedAtUtc.Should().BeNull();
     }
 
-    private async Task SeedProcessingStateAsync(Data.Repositories.AccountKey accountKey)
+    private async Task SeedProcessingStateAsync(Ingestor.Persistence.AccountKey accountKey)
     {
         await using var db = _fixture.CreateDbContext();
         var now = DateTime.UtcNow;
@@ -161,7 +161,7 @@ public sealed class AccountValidationIntegrationTests : IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
-    private async Task SetProcessingStateAsync(Data.Repositories.AccountKey accountKey)
+    private async Task SetProcessingStateAsync(Ingestor.Persistence.AccountKey accountKey)
     {
         await using var db = _fixture.CreateDbContext();
         var account = db.RiotAccounts.Single(a => a.PlatformId == accountKey.PlatformId && a.Puuid == accountKey.Puuid);

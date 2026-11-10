@@ -1,7 +1,7 @@
 using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using AwesomeAssertions;
 using Ingestor.Options;
 using Ingestor.Processes;

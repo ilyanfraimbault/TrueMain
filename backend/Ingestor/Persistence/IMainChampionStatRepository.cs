@@ -1,0 +1,44 @@
+using Data.Entities;
+
+namespace Ingestor.Persistence;
+
+public interface IMainChampionStatRepository
+{
+    /// <summary>
+    /// Counts current active mains per (platform, champion) — the coverage signal that
+    /// drives candidate scoring, the adaptive <c>IsMain</c> threshold and the per-platform
+    /// intake budget.
+    /// <para>
+    /// It used to aggregate across platforms, on the grounds that champion stats are served
+    /// from a cross-platform pool (the public champion endpoints take no region filter), so a
+    /// global count reflected a champion page's sample size. That reasoning is what let the
+    /// region imbalance persist (#1150): the global count says nothing about *where* the
+    /// sample came from, so a champion with 60 EUW1 mains and 1 KR main read as fully covered
+    /// and the under-served region got no scarcity signal at all. Sample size is a global
+    /// question; coverage is a per-region one.
+    /// </para>
+    /// </summary>
+    Task<Dictionary<(string PlatformId, int ChampionId), int>> GetMainCountsByPlatformAndChampionAsync(
+        CancellationToken ct);
+    Task<Dictionary<AccountKey, List<MainChampionStat>>> GetByAccountsAsync(
+        IReadOnlyCollection<AccountKey> accounts,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Records what ingested matches say about mains (#1475): every participant played,
+    /// at the game's start time, the champion it is listed on. Stamps
+    /// <see cref="RiotAccount.LastSeenInMatchAtUtc"/> on accounts holding a main or already
+    /// ingested once (#2039), and
+    /// reactivates an inactive main row whose champion was played at or after
+    /// <paramref name="activeSinceUtc"/>. Never deactivates anything: a match only ever
+    /// adds evidence of activity, retiring a main stays the mastery check's call.
+    /// </summary>
+    Task<MatchActivityRecordResult> RecordMatchActivityAsync(
+        string platformId,
+        IReadOnlyCollection<MatchActivityObservation> observations,
+        DateTime activeSinceUtc,
+        CancellationToken ct);
+
+    void Add(MainChampionStat stat);
+    void Remove(MainChampionStat stat);
+}

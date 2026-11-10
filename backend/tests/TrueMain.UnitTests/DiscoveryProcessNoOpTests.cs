@@ -1,6 +1,6 @@
 using Core.Lol.Identifiers;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Summaries;

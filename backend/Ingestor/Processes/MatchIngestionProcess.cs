@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Core;
 using Core.Lol.Identifiers;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.MatchIngestion;

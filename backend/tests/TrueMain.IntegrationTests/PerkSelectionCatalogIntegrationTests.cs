@@ -1,5 +1,5 @@
 using Data;
-using Data.Repositories;
+using Ingestor.Persistence;
 using AwesomeAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;

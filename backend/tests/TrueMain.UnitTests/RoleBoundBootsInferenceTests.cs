@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Core.Lol.Items;
 using Data.BuildFacts;
 using Data.Entities;
+using Ingestor.BuildFacts;
 using TrueMain.UnitTests.Fixtures;
 
 namespace TrueMain.UnitTests;

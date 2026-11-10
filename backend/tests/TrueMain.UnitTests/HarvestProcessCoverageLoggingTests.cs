@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Data.Logging;
 using Data.Ops.Mongo;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Coverage;

@@ -4,7 +4,7 @@ using Core.Lol.Identifiers;
 using Data.Logging;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
