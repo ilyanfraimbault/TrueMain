@@ -68,7 +68,7 @@ public sealed class MatchRoleBoundItemBackfillProcess(
             var idsByValue = new Dictionary<int, List<Guid>>();
             foreach (var row in rows)
             {
-                var metadata = await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct);
+                var metadata = (await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct)).Require("Item metadata");
                 var value = RoleBoundBootsInference.Infer(row.ItemEvents, row.InventorySlots, metadata);
                 if (!idsByValue.TryGetValue(value, out var ids))
                 {

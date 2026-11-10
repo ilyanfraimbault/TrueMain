@@ -33,10 +33,9 @@ public sealed class DataDragonChampionStaticsProviderTests
     public async Task GetChampionsAsync_MapsThePatchOntoItsPublishedVersion_AndReadsKeyRangeAndRatings()
     {
         using var handler = new FakeHandler();
-        using var client = new HttpClient(handler);
-        var provider = CreateProvider(client);
+        var provider = CreateProvider(handler);
 
-        var champions = await provider.GetChampionsAsync("16.16.712.4321", CancellationToken.None);
+        var champions = (await provider.GetChampionsAsync("16.16.712.4321", CancellationToken.None)).Value!;
 
         champions.Should().HaveCount(3, "a champion whose key does not parse is skipped");
         champions[266].Should().Be(new ChampionStatics(266, "Aatrox", 175));
@@ -52,8 +51,7 @@ public sealed class DataDragonChampionStaticsProviderTests
     public async Task GetChampionsAsync_FallsBackToTheNewestVersion_WhenThePatchIsNotPublishedYet()
     {
         using var handler = new FakeHandler();
-        using var client = new HttpClient(handler);
-        var provider = CreateProvider(client);
+        var provider = CreateProvider(handler);
 
         await provider.GetChampionsAsync("16.18.1.1", CancellationToken.None);
 
@@ -64,8 +62,7 @@ public sealed class DataDragonChampionStaticsProviderTests
     public async Task GetChampionsAsync_LoadsOncePerPatch()
     {
         using var handler = new FakeHandler();
-        using var client = new HttpClient(handler);
-        var provider = CreateProvider(client);
+        var provider = CreateProvider(handler);
 
         await provider.GetChampionsAsync("16.16.1.1", CancellationToken.None);
         await provider.GetChampionsAsync("16.16.9.9", CancellationToken.None);
@@ -77,18 +74,17 @@ public sealed class DataDragonChampionStaticsProviderTests
     public async Task GetChampionsAsync_RetriesAfterAFailedLoad()
     {
         using var handler = new FakeHandler { FailVersionsOnce = true };
-        using var client = new HttpClient(handler);
-        var provider = CreateProvider(client);
+        var provider = CreateProvider(handler);
 
-        var act = () => provider.GetChampionsAsync("16.16.1.1", CancellationToken.None);
-        await act.Should().ThrowAsync<HttpRequestException>();
+        (await provider.GetChampionsAsync("16.16.1.1", CancellationToken.None)).Status
+            .Should().Be(StaticDataStatus.Unavailable);
 
-        var champions = await provider.GetChampionsAsync("16.16.1.1", CancellationToken.None);
+        var champions = (await provider.GetChampionsAsync("16.16.1.1", CancellationToken.None)).Value!;
         champions.Should().NotBeEmpty("the faulted load was evicted rather than cached");
     }
 
-    private static DataDragonChampionStaticsProvider CreateProvider(HttpClient client)
-        => new(client, NullLogger<DataDragonChampionStaticsProvider>.Instance);
+    private static DataDragonChampionStaticsProvider CreateProvider(HttpMessageHandler handler)
+        => new(() => new HttpClient(handler, disposeHandler: false), NullLogger<DataDragonChampionStaticsProvider>.Instance, TimeProvider.System);
 
     private sealed class FakeHandler : HttpMessageHandler
     {

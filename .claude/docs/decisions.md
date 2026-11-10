@@ -319,6 +319,7 @@ Last verified against `develop` on 2026-09-02.
 - The ingestor Worker isolates failures per process — #443
 - A streamed Riot response can fail *after* the resilience handler has waved it through — isolate the call site — #253, #1052
 - A CommunityDragon patch branch that does not exist yet is a transient condition, not a fatal one — #1107
+- Static game data answers available / fallback / unavailable from one per-patch cache; each caller spells its degraded answer (2026-11-10) — #2572
 - Ranks are read from the ladder, not from one account at a time (2026-08-30) — #788, #1312, #1149
 - A lease is only kept if something reaps it (2026-09-01) — #1344
 - A redeploy is an outcome the pipeline records, not an accident it absorbs (2026-09-07) — #1513
