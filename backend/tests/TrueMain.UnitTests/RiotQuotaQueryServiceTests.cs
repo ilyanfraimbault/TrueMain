@@ -34,6 +34,13 @@ public sealed class RiotQuotaQueryServiceTests
         model.Consumers.Single().Share.Should().Be(1);
     }
 
+    [Theory]
+    [InlineData("europe", RiotRouteKind.Regional)]
+    [InlineData("euw1", RiotRouteKind.Platform)]
+    [InlineData(RiotQuotaQueryService.UnknownRoute, RiotRouteKind.Unknown)]
+    public void KindOf_NamesTheBudgetFamilyOfAHost(string route, RiotRouteKind expected)
+        => RiotQuotaQueryService.KindOf(route).Should().Be(expected);
+
     [Fact]
     public void BuildRoute_NoRateLimitHeader_LeavesUtilisationUnmeasured()
     {
