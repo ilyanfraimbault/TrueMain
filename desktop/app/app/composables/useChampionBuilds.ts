@@ -1,5 +1,5 @@
 import type { ChampionResponse } from '#shared/contract/api'
-import { apiAnswer, shell } from '~/utils/shell'
+import { apiGet } from '~/composables/useApi'
 
 /**
  * A champion's builds on one lane — the site's champion page endpoint, one
@@ -18,10 +18,7 @@ export function useChampionBuilds(championId: Ref<number | null>, position: Ref<
   let latest = 0
 
   async function fetchBuilds(champion: number, lane: string): Promise<ChampionResponse> {
-    if (insideTauri()) {
-      return await apiAnswer<ChampionResponse>(shell.championBuild(champion, lane, null))
-    }
-    return await $fetch<ChampionResponse>(`/api/champions/${champion}`, { query: { position: lane } })
+    return await apiGet<ChampionResponse>(`/champions/${champion}`, { position: lane }, { background: true })
   }
 
   watch(key, async (next) => {

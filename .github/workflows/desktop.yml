@@ -50,6 +50,7 @@ jobs:
               - "desktop/app/app/fixtures/scenarios.json"
             shell:
               - "desktop/src-tauri/**"
+              - "web/shared/contract/openapi.json"
             macos:
               - "desktop/capture/macos/**"
             overlay:
@@ -59,6 +60,7 @@ jobs:
             app:
               - "desktop/app/**"
               - "desktop/fixtures/**"
+              - "desktop/src-tauri/api-routes.json"
               - "web/layers/common/**"
               - "web/shared/**"
 

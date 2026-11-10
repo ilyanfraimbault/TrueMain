@@ -19,49 +19,13 @@ export const commands = {
 	 *  then follows carry the revisions after this one.
 	 */
 	currentGame: () => __TAURI_INVOKE<GameState | null>("current_game"),
-	/**
-	 *  Ask TrueMain to read one champion-select state.
-	 * 
-	 *  Proxied through Rust rather than fetched from the webview: see `api.rs` for
-	 *  why (CORS against an origin the site never expected, and a CSP that would
-	 *  have to be opened to a remote host).
-	 */
-	draftRecommendation: (request: unknown) => __TAURI_INVOKE<unknown>("draft_recommendation", { request }),
-	/**
-	 *  Ask TrueMain which champions to ban in one champion-select state (#1906):
-	 *  the threats to the player's declared pick, or to their pool.
-	 */
-	draftBans: (request: unknown) => __TAURI_INVOKE<unknown>("draft_bans", { request }),
-	/**
-	 *  The build, runes and summoner spells for one champion on one lane —
-	 *  narrowed to the lane opponent when there is one.
-	 * 
-	 *  Answered by the same endpoint as the site's champion page, so the desktop
-	 *  shows the build the site shows.
-	 */
-	championBuild: (championId: number, position: string, opponentChampionId: number | null) => __TAURI_INVOKE<unknown>("champion_build", { championId, position, opponentChampionId }),
-	/**
-	 *  The build for one champion against the draft as it stands — both teams'
-	 *  locked picks, each on its lane — from the endpoint behind the site's
-	 *  matchup page.
-	 * 
-	 *  Champion select moves faster than the API answers: a lock landing while a
-	 *  request is out makes that request's answer obsolete. So each call aborts the
-	 *  one before it rather than queueing behind it, and the superseded call
-	 *  returns an error the frontend recognises and drops.
-	 */
-	compositionBuild: (championId: number, request: unknown) => __TAURI_INVOKE<unknown>("composition_build", { championId, request }),
-	/**
-	 *  One read-only GET of a `readable` path, with its query as key/value pairs.
-	 *  Shared like `api_post`'s.
-	 */
+	/**  One read-only GET of a route, with its query as key/value pairs. */
 	apiGet: (path: string, query: ([string, string])[]) => __TAURI_INVOKE<unknown>("api_get", { path, query }),
 	/**
-	 *  One POST read of a `postable` path. The composition build is the slowest
-	 *  query the API runs, hence its deadline rather than the client-wide one.
-	 *  Asked identically by two webviews at once, it is sent once (`SharedReads`).
+	 *  One POST read of a route — a read that takes a draft or a game as its body.
+	 *  `replaces`: a key a newer request under the same key supersedes this one by.
 	 */
-	apiPost: (path: string, query: ([string, string])[], request: unknown) => __TAURI_INVOKE<unknown>("api_post", { path, query, request }),
+	apiPost: (path: string, query: ([string, string])[], request: unknown, replaces: string | null) => __TAURI_INVOKE<unknown>("api_post", { path, query, request, replaces }),
 	/**
 	 *  Open one of the site's pages in the player's browser — the site this build
 	 *  belongs to (`site.rs`), so a preprod build never sends a player to
@@ -296,6 +260,23 @@ export type Activity = { kind: "idle" } |
  *  once the match history has it (highlights not final yet).
  */
 { kind: "processing"; gameId: number };
+
+/**
+ *  Why a read the webview asked for has no answer. The webview tells an
+ *  answer from TrueMain (`Answered`, a 404 read as "not found") from no
+ *  answer at all (offline), and drops a read a newer one replaced.
+ */
+export type ApiError = 
+/**  TrueMain answered an error status. */
+{ kind: "answered"; status: number; message: string } | 
+/**  TrueMain could not be reached, or did not answer in time. */
+{ kind: "unreachable"; message: string } | 
+/**  TrueMain answered something the shell could not read. */
+{ kind: "unreadable"; message: string } | 
+/**  A newer request with the same `replaces` key took this one's place. */
+{ kind: "superseded" } | 
+/**  Not a read the app may make (`routes.rs`). */
+{ kind: "notAllowed"; message: string };
 
 
 /**

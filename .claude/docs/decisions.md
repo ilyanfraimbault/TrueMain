@@ -519,6 +519,7 @@ Last verified against `develop` on 2026-09-02.
 - Game recording is frozen; kept only if ≥ 25% of installs that play with the app open record a game within 30 days, read after the next production release (2026-11-01) — #2364
 - A known player opens in the app; the shell opens their channels through a host list (Twitch, YouTube, X), the one exception to the webview naming only a path on its site (2026-11-04) — #2441
 - The shell ↔ webview contract (commands, events, payload types, refusal codes) is generated from Rust by specta into `app/generated/shell.ts`, a stale file failing a Rust test (2026-11-09) — #2494
+- The shell's TrueMain reads are one route table (`src-tauri/api-routes.json`) checked in CI against the OpenAPI document and the app's reads; superseding is the caller's `replaces` key (2026-11-10) — #2551
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 
