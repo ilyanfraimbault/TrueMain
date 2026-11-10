@@ -1,3 +1,5 @@
+import type { ChampionDamageBuildReadModel, ChampionDamageProfileReadModel, ChampionDamageProfilesResponse } from '#shared/contract/api'
+
 /**
  * The champion damage profiles of `GET /champions/damage-profiles` (#1905) and
  * the arithmetic a team bar needs, kept beside the API's own rules: the same
@@ -6,39 +8,10 @@
  * build advice cannot disagree.
  */
 
-/** One build archetype's damage split. */
-export interface DamageBuild {
-  archetype: string
-  games: number
-  /** Share of the champion's archetype games. */
-  share: number
-  physicalShare: number
-  magicShare: number
-  trueShare: number
-}
-
-/** One champion's profile, at one lane or champion-wide (`position: null`). */
-export interface DamageProfile {
-  championId: number
-  position: string | null
-  profilePosition: string | null
-  source: 'measured' | 'fallback'
-  patch: string | null
-  games: number | null
-  physicalShare: number | null
-  magicShare: number | null
-  trueShare: number | null
-  damagePerGame: number | null
-  /** `physical`, `magic` or `mixed` on a fallback — a class, never a share. */
-  damageClass: 'physical' | 'magic' | 'mixed' | null
-  builds: DamageBuild[]
-  flexDamage: boolean
-}
-
-export interface DamageProfilesResponse {
-  patch: string | null
-  profiles: DamageProfile[]
-}
+/** The API's read models (generated, `#shared/contract/api`). */
+export type DamageBuild = ChampionDamageBuildReadModel
+export type DamageProfile = ChampionDamageProfileReadModel
+export type DamageProfilesResponse = ChampionDamageProfilesResponse
 
 /** A team's measured damage split, and how many of its picks it could not measure. */
 export interface TeamDamage {

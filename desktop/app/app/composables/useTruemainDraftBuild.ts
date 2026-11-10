@@ -12,8 +12,8 @@ type Answer = DraftBuild | null
  * main who never faced the lane opponent, or never played the champion on the
  * lane, answers `null` — the view then shows their usual build.
  *
- * Asked through the shell's shared POST, not `composition_build`: that command
- * keeps a single request in flight and would cancel the draft's own build.
+ * Asked without the draft build's `replaces` key, which keeps a single request
+ * in flight and would cancel the draft's own build.
  * Answers are kept for the session, per main and per draft; a failed ask is not,
  * so the next click asks again.
  */
