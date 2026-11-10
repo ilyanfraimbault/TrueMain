@@ -105,7 +105,7 @@ Last verified against `develop` on 2026-09-02.
 - The spread's rate reads "Lane WR NN% (at 15 minutes)", never "WR"; on touch a first tap selects an icon and shows its rate under the strip (2026-11-01) — #2354
 - The player champion page shows the same spread on the player's own lanes (live from their 15-min snapshots, no lane floor), replacing its sidebar list — 2026-10-22
 - The spread follows the page's lane (no picker of its own), its tooltip says only `% WR`, and its wash is the match rows' red-to-blue — 2026-10-22
-- Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
+- Lane win rate stores three counters and divides by the *decided* lanes, not by games played; the gold threshold is one constant, not a per-host option (2026-11-10) — #466, #919, #606, #2481
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - The draft assistant's lane guess is an assignment solved by exact enumeration — not per-champion arg-maxes, not Hungarian — #1674, #1706
 - Lane priors read the ally synergy baselines, not the scope table, decay over four patches rather than switching, and pool every elo band (2026-10-05) — #1674, #1706, #1707
