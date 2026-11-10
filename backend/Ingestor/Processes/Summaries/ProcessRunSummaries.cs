@@ -255,11 +255,7 @@ public sealed record ChampionPatternAggregationSummary(
 /// <summary>Elo-bracket enrichment outcome.</summary>
 public sealed record EloBracketEnrichmentSummary(int Stamped, int Deferred, int Batches) : IProcessRunSummary;
 
-/// <summary>Team position correction outcome.</summary>
-public sealed record TeamPositionCorrectionSummary(int CorrectedParticipants, int InspectedTeams) : IProcessRunSummary;
 
-/// <summary>Role-bound slot backfill outcome (#1612).</summary>
-public sealed record RoleBoundItemBackfillSummary(int Resolved, int InferredBoots, int Batches) : IProcessRunSummary;
 
 /// <summary>
 /// Champion synergy aggregation outcome (#922). Carries the two upsert counts on

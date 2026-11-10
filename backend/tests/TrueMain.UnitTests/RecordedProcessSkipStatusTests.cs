@@ -49,7 +49,7 @@ public sealed class RecordedProcessSkipStatusTests
     public async Task RunCoreAsync_WhenTheInnerProcessDidWork_StillRecordsSuccess()
     {
         var recorder = Substitute.For<IProcessRunRecorder>();
-        var process = Build(recorder, () => new TeamPositionCorrectionSummary(3, 1));
+        var process = Build(recorder, () => new EloBracketEnrichmentSummary(3, 1, 1));
 
         await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
@@ -92,7 +92,7 @@ public sealed class RecordedProcessSkipStatusTests
         // Every Riot call of a ladder sync failing is the run failing; the calls it spent
         // must still reach the summary its daily ceiling is charged from.
         var recorder = Substitute.For<IProcessRunRecorder>();
-        var spent = new TeamPositionCorrectionSummary(0, 4);
+        var spent = new EloBracketEnrichmentSummary(0, 4, 1);
         var process = Build(recorder, () => throw new ProcessRunFailedException("all calls failed", spent));
 
         var act = () => process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
