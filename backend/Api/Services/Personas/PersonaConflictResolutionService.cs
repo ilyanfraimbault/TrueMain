@@ -353,12 +353,13 @@ public sealed class PersonaConflictResolutionService(
         }
 
         return auditLog.TryRecordAsync(
+            new AuditEntry(
+                AuditActions.ResolvePersonaConflict,
+                actor,
+                AuditTargets.PersonaAccountConflict,
+                id.ToString(),
+                metadata),
             logger,
-            action: AuditActions.ResolvePersonaConflict,
-            actor: actor,
-            targetType: AuditTargets.PersonaAccountConflict,
-            targetId: id.ToString(),
-            metadata: metadata,
-            ct: ct);
+            ct);
     }
 }

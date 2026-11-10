@@ -27,7 +27,6 @@ namespace TrueMain.Options;
 /// </summary>
 public sealed class DataQualityDetectorOptions : IApiOptions, IValidatableObject
 {
-    /// <summary>Configuration section name.</summary>
     public const string SectionName = "DataQualityDetectors";
 
     static string IApiOptions.Section => SectionName;

@@ -150,18 +150,19 @@ public sealed class SeedRequestService(
         // unbatched vs the lossy batched diagnostic channel — it is not a
         // guarantee against a Mongo outage.
         await auditLog.TryRecordAsync(
+            new AuditEntry(
+                AuditActions.SeedAccount,
+                AuditActors.Operator,
+                AuditTargets.SeedRequest,
+                seedRequest.Id.ToString(),
+                new Dictionary<string, string>
+                {
+                    ["gameName"] = gameName,
+                    ["tagLine"] = tagLine,
+                    ["platformId"] = platform
+                }),
             logger,
-            action: AuditActions.SeedAccount,
-            actor: AuditActors.Operator,
-            targetType: AuditTargets.SeedRequest,
-            targetId: seedRequest.Id.ToString(),
-            metadata: new Dictionary<string, string>
-            {
-                ["gameName"] = gameName,
-                ["tagLine"] = tagLine,
-                ["platformId"] = platform
-            },
-            ct: ct);
+            ct);
 
         return new SeedRequestCreateResult
         {
