@@ -1,5 +1,5 @@
 import type { StaticItemData } from '#shared/types/static-data'
-import type { BuildItemSetReadModel, CompositionBuildResponse } from '#shared/contract/api'
+import type { BuildItemSetReadModel, CompositionBuildResponse, ItemContextAxis, NextItemOrderState } from '#shared/contract/api'
 import type { CompositionBuildRequest } from '~/types/build'
 import type { GamePlayer, GameState } from '~/types/game'
 import type { ItemRouteStep } from '~/utils/build-path'
@@ -19,7 +19,7 @@ export interface NextItemRequest {
 }
 
 export interface NextItemReason {
-  axis: string
+  axis: ItemContextAxis
   bucket: 'High' | 'Low'
   /** Factor the situation applied to the item's share (1.4 = forty percent more often). */
   factor: number
@@ -54,7 +54,7 @@ export interface NextItemOrderStep {
   itemId: number
   /** The boots, placed at the step the mains complete them at. */
   isBoots: boolean
-  state: 'Completed' | 'Next' | 'Upcoming'
+  state: NextItemOrderState
 }
 
 export interface NextItemResponse {
