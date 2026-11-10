@@ -56,7 +56,7 @@ public static class DamageProfileClassifier
             ChampionId = facts.ChampionId,
             Position = position,
             ProfilePosition = facts.Position,
-            Source = ChampionDamageProfileSources.Measured,
+            Source = ChampionDamageProfileSource.Measured,
             Patch = facts.Patch,
             Games = facts.Games,
             PhysicalShare = facts.PhysicalShare,
@@ -97,7 +97,7 @@ public static class DamageProfileClassifier
                 var magic = entry.Row.MagicDamageToChampionsSum / entry.Damage;
                 return new ChampionDamageBuildReadModel
                 {
-                    Archetype = entry.Row.Archetype.ToString(),
+                    Archetype = entry.Row.Archetype,
                     Games = entry.Row.Games,
                     Share = entry.Row.Games / (double)total,
                     PhysicalShare = physical,

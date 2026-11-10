@@ -53,7 +53,7 @@ public sealed class PersonaConflictsApiIntegrationTests : IAsyncLifetime
         conflict.Claimant.Slug.Should().Be("capsdpm");
         conflict.Owner.Slug.Should().Be("caps");
         conflict.Owner.AccountCount.Should().Be(2);
-        conflict.Source.Should().Be("Dpm");
+        conflict.Source.Should().Be(PersonaSource.Dpm);
         conflict.TimesSeen.Should().Be(2);
         conflict.Account.CurrentGameName.Should().Be("G2 Caps");
         conflict.Account.RiotAccountId.Should().NotBeNull();

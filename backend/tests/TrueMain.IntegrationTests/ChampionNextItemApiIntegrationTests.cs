@@ -84,7 +84,7 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
         var first = response.Build!.Candidates[0];
         first.ItemId.Should().Be(MagicResist);
         first.BaseShare.Should().BeApproximately(0.4, 1e-9);
-        first.Reasons.Should().ContainSingle().Which.Axis.Should().Be("EnemyMagicDamage");
+        first.Reasons.Should().ContainSingle().Which.Axis.Should().Be(ItemContextAxis.EnemyMagicDamage);
         first.Reasons[0].Factor.Should().BeGreaterThan(1);
         response.EnemyLanes.Should().OnlyContain(lane => lane.Given);
     }

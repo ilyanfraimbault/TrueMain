@@ -9,13 +9,13 @@
 // usage panel moved here from a page of its own, because how the pipeline spends
 // its call budget is a signal about these same runs, not a separate destination.
 import type { ProcessIterationReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
-import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
 // The chain is grouped by lane, not flat: since #1362 an iteration belongs to one
 // lane, and drawing the canonical 20 steps every time painted the other lane's
 // dozen as phantom "Not run" chips. `pickCurrentLanes` owns that grouping; the
 // cards themselves live in `components/processes/` (#1436).
 import { pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
 import { processRunStatusValues } from '#site-shared/contract/api'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
 
 // --- Tabs (#1410) ------------------------------------------------------------
 // `runs` is the default and stays out of the URL; `/riot-api` redirects here with
@@ -131,7 +131,7 @@ watch([processName, status, sinceWindow], () => {
 const iterationsPage = ref(1)
 const iterationsPageSize = 8
 // Filtered server-side so the pagination counts the lane's passes only.
-const iterationsLane = ref<'all' | PipelineLaneId>('all')
+const iterationsLane = ref<string>('all')
 watch(iterationsLane, () => {
   iterationsPage.value = 1
 })
@@ -167,9 +167,10 @@ const latestIterations = computed<ProcessIterationReadModel[]>(() => latestItera
 // The live tree at the top: each lane shown at its own newest iteration. On a
 // two-lane deployment those are two different passes running concurrently; on a
 // `Full` one, a single iteration supplies both branches. Driven by the dedicated
-// latest-iterations fetch so list pagination never changes it. The assembly lives
-// in the shared util, with the lanes themselves, so it is pinned by tests.
-const currentLanes = computed(() => pickCurrentLanes(latestIterations.value))
+// latest-iterations fetch so list pagination never changes it. The lanes come from
+// the API's pipeline catalog; the assembly lives in the shared util, pinned by tests.
+const catalog = usePipelineCatalog()
+const currentLanes = computed(() => pickCurrentLanes(catalog.value, latestIterations.value))
 const currentIterationRunning = computed(() => currentLanes.value.some(lane => lane.isRunning))
 
 // --- Live refresh (#1411) ----------------------------------------------------

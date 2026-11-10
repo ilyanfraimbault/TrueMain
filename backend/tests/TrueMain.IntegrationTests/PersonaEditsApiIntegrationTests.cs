@@ -64,9 +64,9 @@ public sealed class PersonaEditsApiIntegrationTests : IAsyncLifetime
         (await PlayerAsync(client, "caps")).DisplayName.Should().Be("Caps");
 
         var detail = await DetailAsync(client, created.Id);
-        detail.Source.Should().Be("Manual");
+        detail.Source.Should().Be(PersonaSource.Manual);
         detail.DisplayNameLocked.Should().BeTrue();
-        detail.Accounts.Single().Source.Should().Be("Manual");
+        detail.Accounts.Single().Source.Should().Be(PersonaSource.Manual);
 
         (await client.PostAsJsonAsync("/ops/personas", new { slug = "caps", displayName = "Again" }))
             .StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -174,7 +174,7 @@ public sealed class PersonaEditsApiIntegrationTests : IAsyncLifetime
         (await client.PostAsJsonAsync($"/ops/personas/{id}/links", new { kind = "twitch", url = "ftp://x" }))
             .StatusCode.Should().Be(HttpStatusCode.BadRequest);
         detail = await DetailAsync(client, id);
-        detail.Links.Single().Source.Should().Be("Manual");
+        detail.Links.Single().Source.Should().Be(PersonaSource.Manual);
         detail.RemovedLinks.Should().BeEmpty();
         (await AuditActionsAsync()).Should().Contain(["remove_persona_link", "add_persona_link"]);
     }

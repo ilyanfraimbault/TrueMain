@@ -1,3 +1,4 @@
+using Data.Pipeline;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -19,7 +20,7 @@ public sealed record PipelineStepReadModel
     public required string Name { get; init; }
 
     /// <summary>The <c>Job:Mode</c> that runs this step alone.</summary>
-    public required string JobMode { get; init; }
+    public required JobMode JobMode { get; init; }
 
     /// <summary>The <see cref="PipelineLaneReadModel.Id"/> of its lane.</summary>
     public required string Lane { get; init; }
@@ -39,7 +40,7 @@ public sealed record PipelineLaneReadModel
     public required string Description { get; init; }
 
     /// <summary>The <c>Job:Mode</c> values whose passes run this lane.</summary>
-    public IReadOnlyList<string> JobModes { get; init; } = [];
+    public IReadOnlyList<JobMode> JobModes { get; init; } = [];
 
     /// <summary>Its step names, in pipeline order.</summary>
     public IReadOnlyList<string> Steps { get; init; } = [];

@@ -1,4 +1,4 @@
-import type { ChampionItemContextAxisReadModel, ChampionItemContextItemReadModel, ItemContextSlot } from '../contract/api'
+import type { ChampionItemContextAxisReadModel, ChampionItemContextItemReadModel, ItemContextAxis, ItemContextSlot } from '../contract/api'
 
 /**
  * The wording of the situational build context (#1451).
@@ -66,7 +66,8 @@ function phrase(...parts: (string | [string, ItemContextTone])[]): ItemContextPh
  * "against a mostly ranged team" is the sentence a reader needs — never "not against a
  * mostly melee team".
  */
-const AXIS_PHRASES: Record<string, { high: ItemContextPhraseToken[], low: ItemContextPhraseToken[] }> = {
+// Partial on purpose: `Overall` and the `…Built` axes are worded elsewhere (the desktop's built reasons) or not at all.
+const AXIS_PHRASES: Partial<Record<NonNullable<ItemContextAxis>, { high: ItemContextPhraseToken[], low: ItemContextPhraseToken[] }>> = {
   EnemyMagicDamage: {
     high: phrase('against a ', ['magic-damage', 'magic'], ' team'),
     low: phrase('against a team with little ', ['magic damage', 'magic']),
@@ -138,6 +139,7 @@ export const KNOWN_ITEM_CONTEXT_AXES: readonly string[] = Object.keys(AXIS_PHRAS
  * is worse than a card showing one line fewer.
  */
 export function itemContextAxisPhrase(axis: ChampionItemContextAxisReadModel): ItemContextPhraseToken[] | null {
+  if (!axis.axis) return null
   return AXIS_PHRASES[axis.axis]?.[axis.bucket === 'High' ? 'high' : 'low'] ?? null
 }
 
