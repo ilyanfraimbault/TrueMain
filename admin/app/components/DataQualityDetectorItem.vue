@@ -64,7 +64,7 @@ function formatLevel(value: number, unit: DataQualityThresholdReadModel['unit'])
  * state of the database.
  */
 function describeThreshold(threshold: DataQualityThresholdReadModel): string {
-  const side = threshold.direction === 'below' ? 'below' : 'above'
+  const side = threshold.direction
   const levels: string[] = []
   if (threshold.amber !== null) {
     levels.push(`warning ${side} ${formatLevel(threshold.amber, threshold.unit)}`)
