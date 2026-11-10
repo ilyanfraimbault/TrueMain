@@ -9,8 +9,8 @@ export type ShellEvents = typeof events
  */
 export const fakeShell = import.meta.dev && typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window)
 
-/** `module`'s `key` export, loaded on first use: the fake shell never reaches a production bundle. */
-function later<T extends object>(load: () => Promise<T>): T {
+/** An object whose methods load `load`'s on first call: the fake shell never reaches a production bundle. */
+export function later<T extends object>(load: () => Promise<T>): T {
   return new Proxy({} as T, {
     get: (_, name) => (...args: unknown[]) => load().then(loaded => (loaded[name as keyof T] as (...args: unknown[]) => unknown)(...args)),
   })
