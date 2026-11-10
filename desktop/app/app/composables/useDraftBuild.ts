@@ -1,6 +1,7 @@
 import type { BuildCoreView, CompositionBuildRequest } from '~/types/build'
 import type { BuildTreeNodeReadModel, ChampionResponse, CompositionBuildResponse, CompositionLaneReadModel } from '#shared/contract/api'
-import { apiGet, apiPost, isSuperseded } from '~/composables/useApi'
+import { apiGet, apiPost } from '~/composables/useApi'
+import { isSuperseded } from '~/utils/shell-error'
 
 /** Whose build to show: a champion on its lane, and the draft around it from its side. */
 export interface BuildSubject {
