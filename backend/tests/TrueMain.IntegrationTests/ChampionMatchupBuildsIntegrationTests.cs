@@ -52,8 +52,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
         // Same champion, another opponent: must not be folded in.
         await SeedGameAsync("MU_3", win: true, opponentChampionId: OtherOpponent, buildOrder: [3072, 3026]);
 
-        var result = await CreateService().GetAsync(
-            Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
+        var result = await CreateService().GetAsync(Matchup(null, null), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.TotalGames.Should().Be(2);
@@ -71,8 +70,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
         // matchup that never happened.
         await SeedGameAsync("MU_ALLY", win: true, opponentChampionId: Opponent, buildOrder: [3031], opponentTeamId: 100);
 
-        var result = await CreateService().GetAsync(
-            Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
+        var result = await CreateService().GetAsync(Matchup(null, null), CancellationToken.None);
 
         result.Should().BeNull();
     }
@@ -83,8 +81,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
         // Enemy team, but not the lane opponent — same champion bottom while ours is mid.
         await SeedGameAsync("MU_OTHERLANE", win: true, opponentChampionId: Opponent, buildOrder: [3031], opponentPosition: "BOTTOM");
 
-        var result = await CreateService().GetAsync(
-            Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
+        var result = await CreateService().GetAsync(Matchup(null, null), CancellationToken.None);
 
         result.Should().BeNull();
     }
@@ -95,10 +92,8 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
         await SeedGameAsync("MU_OLD", win: true, opponentChampionId: Opponent, buildOrder: [3031], gameVersion: "16.3.500.1");
         await SeedGameAsync("MU_NEW", win: true, opponentChampionId: Opponent, buildOrder: [3031], gameVersion: KnownVersion);
 
-        var scoped = await CreateService().GetAsync(
-            Champion, Opponent, patch: "16.4", Position, eloBracket: null, CancellationToken.None);
-        var unscoped = await CreateService().GetAsync(
-            Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
+        var scoped = await CreateService().GetAsync(Matchup("16.4", null), CancellationToken.None);
+        var unscoped = await CreateService().GetAsync(Matchup(null, null), CancellationToken.None);
 
         scoped!.TotalGames.Should().Be(1);
 
@@ -115,8 +110,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
         await SeedGameAsync("MU_GOLD", win: true, opponentChampionId: Opponent, buildOrder: [3031], eloBracket: "GOLD");
         await SeedGameAsync("MU_IRON", win: true, opponentChampionId: Opponent, buildOrder: [3031], eloBracket: "IRON");
 
-        var result = await CreateService().GetAsync(
-            Champion, Opponent, patch: null, Position, "GOLD", CancellationToken.None);
+        var result = await CreateService().GetAsync(Matchup(null, "GOLD"), CancellationToken.None);
 
         result!.TotalGames.Should().Be(1);
     }
@@ -135,8 +129,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             "MU_GOLD_NEW", win: true, opponentChampionId: Opponent, buildOrder: [3031],
             eloBracket: "GOLD", gameVersion: KnownVersion);
 
-        var iron = await CreateService().GetAsync(
-            Champion, Opponent, patch: null, Position, "IRON", CancellationToken.None);
+        var iron = await CreateService().GetAsync(Matchup(null, "IRON"), CancellationToken.None);
 
         iron.Should().NotBeNull("IRON has a real game — just not on the patch GOLD's resolves to");
         iron!.TotalGames.Should().Be(1);
@@ -146,8 +139,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
     [Fact]
     public async Task GetAsync_ReturnsNull_WhenTheMatchupHasNoGame()
     {
-        var result = await CreateService().GetAsync(
-            Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
+        var result = await CreateService().GetAsync(Matchup(null, null), CancellationToken.None);
 
         // Null, not an empty response: the page says "no data for this matchup" rather
         // than rendering an aggregated-looking page that happens to be blank.
@@ -172,8 +164,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             await seed.SaveChangesAsync();
         }
 
-        var result = await CreateService().GetAsync(
-            Champion, Opponent, patch: null, Position, eloBracket: null, CancellationToken.None);
+        var result = await CreateService().GetAsync(Matchup(null, null), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.Patch.Should().Be("16.2", "the newest patch the pair was played on, truncated or not");
@@ -218,6 +209,11 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             BootsItemId = 3020,
             SkillOrderKey = "Q-W-E",
         };
+
+    private static LaneMatchupScope Matchup(string? patch, string? eloBracket)
+        => LaneMatchupScope.TryCreate(new ChampionScope(Champion, Position, patch, eloBracket), Opponent, out var matchup, out var rejection)
+            ? matchup
+            : throw new InvalidOperationException(rejection);
 
     private ChampionMatchupBuildsQueryService CreateService()
     {

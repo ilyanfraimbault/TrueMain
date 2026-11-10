@@ -4,6 +4,7 @@ using Core.Options;
 using Data.Entities;
 using Microsoft.Extensions.Caching.Memory;
 using TrueMain.Options;
+using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Truemains.Identity;
 using TrueMain.Services.Truemains.Leaderboard;
 using TrueMain.Services.Truemains.Matches;
@@ -55,7 +56,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
     {
         await using var db = _fixture.CreateDbContext();
         var response = await CreateService(db).GetAsync(
-            "NoSuchPlayer-KR1", ChampionId, patch: null, position: null, CancellationToken.None);
+            "NoSuchPlayer-KR1", new ChampionScope(ChampionId, null, null), CancellationToken.None);
 
         response.Should().BeNull();
     }
@@ -68,7 +69,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
 
         await using var db = _fixture.CreateDbContext();
         var response = await CreateService(db).GetAsync(
-            NameTag, ChampionId, patch: null, position: null, CancellationToken.None);
+            NameTag, new ChampionScope(ChampionId, null, null), CancellationToken.None);
 
         response.Should().NotBeNull();
         response!.Games.Should().Be(MinGames - 1);
@@ -85,7 +86,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
 
         await using var db = _fixture.CreateDbContext();
         var response = await CreateService(db).GetAsync(
-            NameTag, ChampionId, patch: null, position: null, CancellationToken.None);
+            NameTag, new ChampionScope(ChampionId, null, null), CancellationToken.None);
 
         response.Should().NotBeNull();
         response!.Games.Should().Be(6);
@@ -117,7 +118,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
 
         await using var db = _fixture.CreateDbContext();
         var response = await CreateService(db).GetAsync(
-            NameTag, ChampionId, patch: null, position: "TOP", CancellationToken.None);
+            NameTag, new ChampionScope(ChampionId, "TOP", null), CancellationToken.None);
 
         response.Should().NotBeNull();
         response!.Position.Should().Be("TOP");
@@ -140,54 +141,14 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
         // back empty for the very patch its games are on) and keyed verbatim, so the
         // canonical ask landed on a second cache entry and could never repair it.
         var raw = await service.GetAsync(
-            NameTag, ChampionId, "16.4.521.123", position: null, CancellationToken.None);
+            NameTag, new ChampionScope(ChampionId, null, "16.4.521.123"), CancellationToken.None);
         var canonical = await service.GetAsync(
-            NameTag, ChampionId, "16.4", position: null, CancellationToken.None);
+            NameTag, new ChampionScope(ChampionId, null, "16.4"), CancellationToken.None);
 
         raw.Should().NotBeNull();
         raw!.Patch.Should().Be("16.4", "the response names the scope it actually read");
         raw.Games.Should().Be(6);
         canonical.Should().BeSameAs(raw, "both forms name one patch, so they share one cache entry");
-    }
-
-    [Fact]
-    public async Task GetAsync_CanonicalisesTheLaneBeforeItQueriesOrCachesOnIt()
-    {
-        await SeedAccountAsync();
-        await SeedGamesAsync(count: 6);
-
-        await using var db = _fixture.CreateDbContext();
-        var service = CreateService(db);
-
-        // Every sibling champion read canonicalises "middle" to Riot's "MIDDLE"; this
-        // one compared the raw string against the stored value and found nothing.
-        var lower = await service.GetAsync(
-            NameTag, ChampionId, patch: null, position: "middle", CancellationToken.None);
-        var upper = await service.GetAsync(
-            NameTag, ChampionId, patch: null, position: "MIDDLE", CancellationToken.None);
-
-        lower.Should().NotBeNull();
-        lower!.Position.Should().Be("MIDDLE");
-        lower.Games.Should().Be(6);
-        upper.Should().BeSameAs(lower, "one lane, one cache entry");
-    }
-
-    [Fact]
-    public async Task GetAsync_DoesNotWidenALaneItCannotCanonicalise()
-    {
-        await SeedAccountAsync();
-        await SeedGamesAsync(count: 6);
-
-        await using var db = _fixture.CreateDbContext();
-        var response = await CreateService(db).GetAsync(
-            NameTag, ChampionId, patch: null, position: "adc", CancellationToken.None);
-
-        // A lane filter that cannot be honoured degrades to the empty state, never to
-        // "every lane": grading the player's MIDDLE games under an ADC label would be
-        // a number drawn from a population nobody asked about.
-        response.Should().NotBeNull();
-        response!.Games.Should().Be(0);
-        response.AverageScore.Should().BeNull();
     }
 
     [Fact]
@@ -206,7 +167,7 @@ public sealed class PlayerChampionPerformanceQueryServiceIntegrationTests : IAsy
 
         await using var db = _fixture.CreateDbContext();
         var response = await CreateService(db).GetAsync(
-            NameTag, ChampionId, patch: null, position: null, CancellationToken.None);
+            NameTag, new ChampionScope(ChampionId, null, null), CancellationToken.None);
 
         response.Should().NotBeNull();
         response!.Games.Should().Be(PlayerChampionPerformanceQueryService.Window);
