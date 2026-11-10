@@ -5,14 +5,12 @@
 //! through. The links come from the API, which takes them from public sources,
 //! so nothing else may reach the system opener from a page's anchor.
 
-/// The hosts of the channels the page shows: Twitch, YouTube and X.
-const CHANNEL_HOSTS: &[&str] = &[
-    "twitch.tv",
-    "www.twitch.tv",
-    "youtube.com",
-    "www.youtube.com",
-    "x.com",
-    "www.x.com",
+/// The channels the known player's page shows (`PlayerLinks.vue`'s `SHOWN`),
+/// by link kind, with their hosts.
+pub(crate) const CHANNELS: &[(&str, &[&str])] = &[
+    ("twitch", &["twitch.tv", "www.twitch.tv"]),
+    ("youtube", &["youtube.com", "www.youtube.com"]),
+    ("x", &["x.com", "www.x.com"]),
 ];
 
 /// The URL to open for `raw`, or `None` when it is not an `https` link to one of
@@ -23,7 +21,9 @@ pub fn channel_url(raw: &str) -> Option<String> {
         && url.username().is_empty()
         && url.password().is_none()
         && url.port().is_none()
-        && CHANNEL_HOSTS.contains(&url.host_str()?);
+        && CHANNELS
+            .iter()
+            .any(|(_, hosts)| hosts.contains(&url.host_str().unwrap_or_default()));
     allowed.then(|| url.into())
 }
 
