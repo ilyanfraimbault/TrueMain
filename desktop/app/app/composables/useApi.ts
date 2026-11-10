@@ -8,9 +8,7 @@
  */
 import { answerStaticEndpoint } from '~/utils/static-endpoints'
 import { apiAnswer, shell } from '~/utils/shell'
-import { asFetchError, isSuperseded } from '~/utils/shell-error'
-
-export { isSuperseded }
+import { asFetchError } from '~/utils/shell-error'
 
 type QueryValue = string | number | boolean | null | undefined
 /** A list repeats its key, one pair per entry (`?player=a&player=b`). */
