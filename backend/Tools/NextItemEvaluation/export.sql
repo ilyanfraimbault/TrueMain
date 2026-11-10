@@ -19,7 +19,7 @@ create temp table s as
 create temp table mm as
   select m."Id", m."PlatformId", m."GameStartTimeUtc", m."GameVersion" from matches m
   where m."QueueId" = 420 and m."Patch" = :'test_patch' and m."GameStartTimeUtc" >= :'since'
-    and m."TimelineIngested" and m."GameDurationSeconds" >= 300;
+    and m."TimelineIngested" and m."GameDurationSeconds" >= 300 and not m."EndedInEarlySurrender";
 create temp table k as select * from (
   select p."MatchId", p."ParticipantId",
          row_number() over (partition by p."ChampionId", p."TeamPosition" order by mm."GameStartTimeUtc" desc) rn
