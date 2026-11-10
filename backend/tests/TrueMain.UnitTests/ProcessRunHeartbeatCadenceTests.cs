@@ -28,7 +28,7 @@ public sealed class ProcessRunHeartbeatCadenceTests
     [Theory]
     [InlineData(null, null)]
     [InlineData("", "")]
-    [InlineData("short", "short")]
+    [InlineData("abc", "abc")]
     [InlineData("abcdef", "abc")]
     public void StoredText_CutsOnlyWhatIsTooLong(string? value, string? expected)
         => StoredText.Truncate(value, 3).Should().Be(expected);
