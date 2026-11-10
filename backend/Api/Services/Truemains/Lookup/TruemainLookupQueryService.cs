@@ -56,9 +56,6 @@ public sealed class TruemainLookupQueryService(
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
 
-    // Static because the service is scoped: coalescing is across requests.
-    private static readonly RequestCoalescer<TruemainLookupResponse> Coalescer = new();
-
     private static readonly HashSet<string> ExposedPlatforms =
         new(RegionFilterParser.AllExposedPlatforms(), StringComparer.OrdinalIgnoreCase);
 
@@ -72,26 +69,18 @@ public sealed class TruemainLookupQueryService(
             return Empty;
         }
 
-        var cacheKey = $"truemains:lookup:{request.Key}";
-        if (cache.TryGetValue<TruemainLookupResponse>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        // The owner waits for the pass even if its caller leaves: the query
-        // runs on its request-scoped context (see RequestCoalescer).
-        return await Coalescer.GetOrJoinAsync(
-            cacheKey,
-            async () =>
+        return await cache.GetOrComputeAsync(
+            $"truemains:lookup:{request.Key}",
+            CacheTtl,
+            async token =>
             {
-                var response = await QueryAsync(request, CancellationToken.None);
+                var response = await QueryAsync(request, token);
                 logger.LogInformation(
                     "[truemain-lookup] platform={PlatformId} asked={Asked} found={Found}",
                     LogValue.SingleLine(request.PlatformId), request.Pairs.Count, response.Players.Count);
-                return cache.Store(cacheKey, response, CacheTtl);
+                return response;
             },
-            ct,
-            ownerAwaitsToCompletion: true);
+            ct);
     }
 
     private async Task<TruemainLookupResponse> QueryAsync(TruemainLookupRequest request, CancellationToken ct)

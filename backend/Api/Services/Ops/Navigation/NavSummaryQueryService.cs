@@ -48,9 +48,6 @@ public sealed class NavSummaryQueryService(
     /// </summary>
     internal static readonly TimeSpan HealthMaxAge = CockpitCacheRefresher.IdleWindow;
 
-    // Static so concurrent requests, each with its own scoped instance, share one pass.
-    private static readonly RequestCoalescer<Counts> Coalescer = new();
-
     private TimeProvider Clock => clock ?? TimeProvider.System;
 
     public async Task<NavSummaryReadModel> GetAsync(CancellationToken ct)
@@ -72,30 +69,19 @@ public sealed class NavSummaryQueryService(
     internal static PipelineHealthReadModel? CurrentHealth(PipelineHealthReadModel? held, DateTime nowUtc) =>
         held is not null && nowUtc - held.EvaluatedAtUtc <= HealthMaxAge ? held : null;
 
-    private async Task<Counts> GetCountsAsync(CancellationToken ct)
-    {
-        if (cache.TryGetValue(CountsCacheKey, out Counts? cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        return await Coalescer.GetOrJoinAsync(
+    private Task<Counts> GetCountsAsync(CancellationToken ct)
+        => cache.GetOrComputeAsync(
             CountsCacheKey,
-            async () =>
+            CountsTtl,
+            async token =>
             {
                 var openConflicts = await db.PersonaAccountConflicts
                     .AsNoTracking()
-                    .LongCountAsync(c => c.Status == PersonaConflictStatus.Open, CancellationToken.None);
-                var homonymGroups = await homonyms.CountPendingAsync(CancellationToken.None);
-                return cache.Store(
-                    CountsCacheKey,
-                    new Counts(openConflicts, homonymGroups, Clock.GetUtcNow().UtcDateTime),
-                    CountsTtl);
+                    .LongCountAsync(c => c.Status == PersonaConflictStatus.Open, token);
+                var homonymGroups = await homonyms.CountPendingAsync(token);
+                return new Counts(openConflicts, homonymGroups, Clock.GetUtcNow().UtcDateTime);
             },
-            ct,
-            // Both queries borrow the request-scoped DbContext (see RequestCoalescer).
-            ownerAwaitsToCompletion: true);
-    }
+            ct);
 
     private sealed record Counts(long OpenConflicts, long HomonymGroups, DateTime CountedAtUtc);
 }

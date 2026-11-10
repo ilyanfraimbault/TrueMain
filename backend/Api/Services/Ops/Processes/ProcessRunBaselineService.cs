@@ -47,18 +47,13 @@ public sealed class ProcessRunBaselineService(IProcessRunStore store, IMemoryCac
             .ToList();
     }
 
-    private async Task<ProcessRunBaselineStats> GetStatsAsync(BaselineKey key, CancellationToken ct)
-    {
-        if (cache.TryGetValue(key, out ProcessRunBaselineStats? cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        var samples = await store.GetRecentSuccessesAsync(
-            key.ProcessName, key.JobMode, ProcessRunBaselinePolicy.SampleSize, ct);
-
-        return cache.Store(key, ProcessRunBaselineMath.Summarise(samples), ProcessRunBaselinePolicy.CacheTtl);
-    }
+    private Task<ProcessRunBaselineStats> GetStatsAsync(BaselineKey key, CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"ops:process-run-baseline:{key.ProcessName}:{key.JobMode}",
+            ProcessRunBaselinePolicy.CacheTtl,
+            async token => ProcessRunBaselineMath.Summarise(await store.GetRecentSuccessesAsync(
+                key.ProcessName, key.JobMode, ProcessRunBaselinePolicy.SampleSize, token)),
+            ct);
 
     private sealed record BaselineKey(string ProcessName, string? JobMode);
 }

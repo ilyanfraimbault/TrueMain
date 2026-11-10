@@ -37,16 +37,9 @@ public sealed class PaceBenchmarkQueryService(TrueMainDbContext db, IMemoryCache
     /// <summary>The bins only grow with each ingested match; an hour of staleness is invisible in a quartile.</summary>
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(1);
 
-    public async Task<PaceBenchmarkResponse> GetAsync(string position, CancellationToken ct)
-    {
-        var cacheKey = (nameof(PaceBenchmarkQueryService), position);
-        if (cache.TryGetValue(cacheKey, out PaceBenchmarkResponse? cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        return cache.Store(cacheKey, await ReadAsync(position, ct), CacheTtl);
-    }
+    public Task<PaceBenchmarkResponse> GetAsync(string position, CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"{nameof(PaceBenchmarkQueryService)}:{position}", CacheTtl, token => ReadAsync(position, token), ct);
 
     private async Task<PaceBenchmarkResponse> ReadAsync(string position, CancellationToken ct)
     {
