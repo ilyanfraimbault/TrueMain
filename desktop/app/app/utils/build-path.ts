@@ -1,7 +1,8 @@
 import type { StaticItemData } from '#shared/types/static-data'
+import { GOLD_STEP } from '~/generated/shell'
 
-/** Our gold reaches the page floored to this (`GOLD_STEP` in `crates/live-client/src/game.rs`). */
-export const GOLD_STEP = 50
+/** Our gold reaches the page floored to this. */
+export { GOLD_STEP }
 
 /**
  * One component on the way to an item (#2183), as `POST /champions/{id}/next-item`

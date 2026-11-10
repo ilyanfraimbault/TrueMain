@@ -466,10 +466,9 @@ pub fn overlay_check_trigger(
 ) -> Result<TriggerCheck, String> {
     let trigger: PanelTrigger = serde_json::from_value(trigger.into_value())
         .map_err(|_| "a key this app does not know".to_string())?;
-    let refusal = overlay.settings().refusal(panel, &trigger).or_else(|| {
-        let marks = trigger.chord().is_some() && trigger.chord() == mark_key(&app);
-        marks.then(|| "Already the key that marks a moment while a game records.".to_string())
-    });
+    let refusal = overlay
+        .settings()
+        .refusal_beside(panel, &trigger, mark_key(&app));
     Ok(TriggerCheck {
         refusal,
         chord: trigger.chord().map(|chord| overlay.chord_view(&chord)),
