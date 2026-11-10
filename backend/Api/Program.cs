@@ -5,6 +5,7 @@ using TrueMain.Configuration;
 using TrueMain.HealthChecks;
 using TrueMain.Http;
 using TrueMain.LogIngest;
+using TrueMain.OpenApi;
 using TrueMain.RateLimiting;
 using TrueMain.RequestLatency;
 using TrueMain.RequestLogging;
@@ -26,8 +27,7 @@ builder.Services.AddProblemDetails(options =>
     // to server logs without embedding entity ids in the message.
     options.CustomizeProblemDetails = context =>
         context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApi();
+builder.Services.AddTrueMainContract();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddTrueMainApiCache();
 builder.Services.AddTrueMainHealthChecks(builder.Configuration, builder.Environment);

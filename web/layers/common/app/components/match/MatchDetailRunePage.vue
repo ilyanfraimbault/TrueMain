@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem, RuneTreeResponse } from '#shared/types/static-data'
 import { championDisplayName } from '#shared/utils/champion-name'
 
@@ -9,7 +9,7 @@ import { championDisplayName } from '#shared/utils/champion-name'
  * the secondary runes and the stat shards — the scannable OP.GG-style card.
  */
 const props = defineProps<{
-  participant: MatchDetailParticipant
+  participant: MatchDetailParticipantReadModel
   champion: ChampionStaticListItem | null
   runeTree: RuneTreeResponse
 }>()

@@ -1,3 +1,4 @@
+using Data.ItemContext;
 namespace TrueMain.ReadModels.Champions;
 
 /// <summary>
@@ -44,8 +45,8 @@ public sealed record ChampionItemContextResponse
 /// <summary>One step's verdict — one edge of the build tree (#1496).</summary>
 public sealed record ChampionItemContextItemReadModel
 {
-    /// <summary><c>Build</c>, <c>Boots</c> or <c>Starter</c> — the decision this verdict is about.</summary>
-    public string Slot { get; init; } = string.Empty;
+    /// <summary>The decision this verdict is about.</summary>
+    public ItemContextSlot Slot { get; init; }
 
     /// <summary>
     /// The item this step followed, 0 on the branch every build starts from (and on every
@@ -57,8 +58,7 @@ public sealed record ChampionItemContextItemReadModel
 
     public int ItemId { get; init; }
 
-    /// <summary><c>Core</c>, <c>Situational</c> or <c>Preference</c>.</summary>
-    public string Class { get; init; } = string.Empty;
+    public ItemContextClass Class { get; init; }
 
     /// <summary>Games of the slice that took this branch to this item.</summary>
     public int Games { get; init; }
@@ -86,10 +86,10 @@ public sealed record ChampionItemContextItemReadModel
 public sealed record ChampionItemContextAxisReadModel
 {
     /// <summary>The situation, e.g. <c>EnemyMagicDamage</c>. The client owns the wording.</summary>
-    public string Axis { get; init; } = string.Empty;
+    public ItemContextAxis Axis { get; init; }
 
     /// <summary><c>High</c> or <c>Low</c> — the end of the axis where the item is picked more.</summary>
-    public string Bucket { get; init; } = string.Empty;
+    public ItemContextBucket Bucket { get; init; }
 
     /// <summary>
     /// Whether a draft alone determines this situation. False for the gold-lead axis, which

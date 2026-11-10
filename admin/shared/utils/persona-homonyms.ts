@@ -1,11 +1,11 @@
 // Known players sharing a name (#2271): the toasts of the automatic merge (which
 // also merges the ones sharing a social channel, #2286) and of the homonyms queue's
 // two actions, and what a group's selection sends.
-import type { PersonaAutoMerged, PersonaHomonymGroup, PersonaHomonymMarked, PersonaHomonymMerged } from '~~/shared/types/ops'
+import type { PersonaAutoMergeResponse, PersonaHomonymDistinctResponse, PersonaHomonymGroupReadModel, PersonaHomonymMergeResponse } from '#site-shared/contract/api'
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 
-export function autoMergedMessage(result: PersonaAutoMerged): { title: string, description?: string } {
+export function autoMergedMessage(result: PersonaAutoMergeResponse): { title: string, description?: string } {
   const byChannel = result.mergedByChannel ?? 0
   const left = result.skipped > 0 ? `${plural(result.skipped, 'conflict')} left open: changed meanwhile, or marked as different people.` : null
   if (result.merged === 0 && byChannel === 0) {
@@ -26,7 +26,7 @@ export function autoMergedMessage(result: PersonaAutoMerged): { title: string, d
   }
 }
 
-export function mergedMessage(result: PersonaHomonymMerged): { title: string, description?: string } {
+export function mergedMessage(result: PersonaHomonymMergeResponse): { title: string, description?: string } {
   const pages = result.mergedSlugs.map(slug => `/players/${slug}`).join(', ')
   const also = result.alsoResolved > 0 ? ` ${plural(result.alsoResolved, 'open conflict')} settled with it.` : ''
   return {
@@ -35,14 +35,14 @@ export function mergedMessage(result: PersonaHomonymMerged): { title: string, de
   }
 }
 
-export function markedMessage(result: PersonaHomonymMarked): { title: string } {
+export function markedMessage(result: PersonaHomonymDistinctResponse): { title: string } {
   return {
     title: result.marked > 0 ? 'Marked as different people' : 'Already marked as different people',
   }
 }
 
 /** Whether two known players of a group are already marked as different people. */
-export function markedDistinct(group: Pick<PersonaHomonymGroup, 'distinctPairs'>, a: string, b: string): boolean {
+export function markedDistinct(group: Pick<PersonaHomonymGroupReadModel, 'distinctPairs'>, a: string, b: string): boolean {
   return group.distinctPairs.some(([x, y]) => (x === a && y === b) || (x === b && y === a))
 }
 

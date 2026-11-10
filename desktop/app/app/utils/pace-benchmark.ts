@@ -1,3 +1,5 @@
+import type { PaceBenchmarkResponse, PaceQuartilesReadModel } from '#shared/contract/api'
+
 /**
  * The pace benchmark (#1912): what laners of a tier had at each minute, read
  * from `GET /benchmarks/pace?position=` and set against the player's own pace
@@ -5,28 +7,6 @@
  * here, on the player's machine, so the rank read from the client is never
  * sent (#1805).
  */
-
-/** Mirrors `PaceBenchmarkResponse` in `Api/ReadModels/Benchmarks`. */
-export interface PaceBenchmarkResponse {
-  position: string
-  patches: string[]
-  minSamples: number
-  tiers: { tier: string, minutes: PaceBenchmarkMinute[] }[]
-}
-
-export interface PaceBenchmarkMinute {
-  minute: number
-  samples: number
-  /** Cumulative; null under the sample floor. */
-  cs: PaceQuartiles | null
-  goldEarned: PaceQuartiles | null
-}
-
-export interface PaceQuartiles {
-  p25: number
-  median: number
-  p75: number
-}
 
 /** Where the player sits against the tier's quartiles: under the first, between, over the third. */
 export type PaceStanding = 'below' | 'within' | 'above'
@@ -47,13 +27,13 @@ export interface PaceReference {
   csCurve: { minute: number, value: number }[]
 }
 
-function standing(value: number, quartiles: PaceQuartiles): PaceStanding {
+function standing(value: number, quartiles: PaceQuartilesReadModel): PaceStanding {
   if (value < quartiles.p25) return 'below'
   if (value > quartiles.p75) return 'above'
   return 'within'
 }
 
-function compare(value: number, minute: number, quartiles: PaceQuartiles | null): PaceComparison | null {
+function compare(value: number, minute: number, quartiles: PaceQuartilesReadModel | null): PaceComparison | null {
   if (!quartiles || minute <= 0) return null
   return { median: quartiles.median / minute, standing: standing(value, quartiles) }
 }

@@ -1,5 +1,6 @@
 // Explicit imports rather than Nuxt auto-imports: this module is unit tested
 // outside the Nuxt context (`tests/ops-cache`).
+import type { OpsPath } from '~/composables/useOps'
 import { shallowReactive } from 'vue'
 
 /**
@@ -159,7 +160,7 @@ export function oldestShownAt(shown: ReadonlyMap<string, number> = opsCacheShown
 
 /** One ops read a sidebar entry's page fires on mount, to warm on hover. */
 export interface OpsPrefetchTarget {
-  path: string
+  path: OpsPath
   query?: OpsQuery
 }
 

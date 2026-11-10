@@ -20,50 +20,30 @@ public interface IChampionBuildsQueryService
     /// pages. <see langword="null"/> means the champion has no aggregated
     /// data on the active queue (404 territory).
     /// </summary>
-    /// <param name="championId">Riot champion id to build the page for.</param>
-    /// <param name="patch">
-    /// Requested patch (<c>major.minor</c> or full Riot version); when null
-    /// the newest patch whose lane holds <c>ChampionsList:MinDefaultPatchGames</c>
-    /// is resolved automatically (#2249), or the player's floor under a player scope.
-    /// </param>
-    /// <param name="position">
-    /// Requested Riot team position; when null the dominant position is
-    /// resolved automatically, and <see cref="LanePositions.AllPositions"/> folds
-    /// every position at the resolved patch (player-scoped callers only).
-    /// </param>
-    /// <param name="ct">Cancellation token.</param>
     /// <param name="scope">
+    /// The slice to build. A null <see cref="ChampionScope.Patch"/> resolves the newest
+    /// patch whose lane holds <c>ChampionsList:MinDefaultPatchGames</c> (#2249), or the
+    /// player's floor under a player narrowing; a null <see cref="ChampionScope.Position"/>
+    /// resolves the dominant position, and <see cref="LanePositions.AllPositions"/> folds
+    /// every position at the resolved patch (player-scoped callers only). A narrow
+    /// <see cref="ChampionScope.EloBracket"/> recomputes the builds / skill order / win rate
+    /// from the selected tier(s) only and reports its <see cref="ChampionResponse.EloCoverage"/>.
+    /// <see cref="ChampionPopulation.Everyone"/> widens the build from the champion's mains
+    /// (the only population the aggregate held before #1346) to every tracked player.
+    /// </param>
+    /// <param name="player">
     /// Optional player narrowing. When omitted the response aggregates the
-    /// global pool; when a player scope is supplied every aggregate is
-    /// computed only from that player's games on the champion. The
+    /// global pool; when supplied every aggregate is computed only from that
+    /// player's games on the champion. The
     /// <see cref="ChampionBuildsScope.MinGames"/> value only *prefers* a patch
     /// with enough games when resolving which to render — it no longer gates:
     /// a thinly-played champion still returns a (low-confidence) build. Only a
     /// total absence of aggregated data yields <see langword="null"/> (404).
     /// </param>
-    /// <param name="eloBracket">
-    /// Optional elo filter (per <c>Core.Lol.Ranking.EloBracket</c>): <c>ALL</c>,
-    /// a bare tier (e.g. <c>GOLD</c> — that tier only), or a <c>TIER_PLUS</c>
-    /// form (e.g. <c>GOLD_PLUS</c> — that tier and above). When null or
-    /// <c>ALL</c> the response spans every tier; otherwise it recomputes the
-    /// builds / skill order / win rate from the selected tier(s) only and
-    /// reports its <see cref="ChampionResponse.EloCoverage"/> /
-    /// <see cref="ChampionResponse.MinSampleMet"/>.
-    /// </param>
-    /// <param name="truemainsOnly">
-    /// When <see langword="true"/> (the default) the build is folded only from
-    /// accounts that are <em>mains</em> of the champion — the site's truemain
-    /// population, and the only population the aggregate held before #1346.
-    /// When <see langword="false"/> it widens to every tracked player's games on
-    /// the champion.
-    /// </param>
+    /// <param name="ct">Cancellation token.</param>
     Task<ChampionResponse?> GetAsync(
-        int championId,
-        string? patch,
-        string? position,
-        ChampionBuildsScope? scope = null,
-        string? eloBracket = null,
-        bool truemainsOnly = true,
+        ChampionScope scope,
+        ChampionBuildsScope? player = null,
         CancellationToken ct = default);
 }
 
@@ -75,21 +55,22 @@ public sealed class ChampionBuildsQueryService(
     : IChampionBuildsQueryService
 {
     public Task<ChampionResponse?> GetAsync(
-        int championId,
-        string? patch,
-        string? position,
-        ChampionBuildsScope? scope = null,
-        string? eloBracket = null,
-        bool truemainsOnly = true,
+        ChampionScope scope,
+        ChampionBuildsScope? player = null,
         CancellationToken ct = default)
         // This read had no cache at all before #1368, and it is not a cheap one: it
         // loads the scope's patterns and walks the build tree for every tab the page
-        // mounts. The scope object is part of the key because it narrows the rows.
+        // mounts. The player narrowing is part of the key because it narrows the rows.
         => cache.GetOrComputeAsync(
-            $"champions:builds:{championId}:{patch ?? "auto"}:{position ?? "auto"}"
-                + $":{eloBracket ?? "all"}:{(truemainsOnly ? "truemains" : "everyone")}"
-                + $":{scope?.CacheToken() ?? "default"}",
-            token => ComputeAsync(championId, patch, position, scope, eloBracket, truemainsOnly, token),
+            $"champions:builds:{scope.CacheToken()}:{player?.CacheToken() ?? "default"}",
+            token => ComputeAsync(
+                scope.ChampionId,
+                scope.Patch,
+                scope.Position,
+                player,
+                scope.EloBracket,
+                scope.Population == ChampionPopulation.Truemains,
+                token),
             ct);
 
     private async Task<ChampionResponse?> ComputeAsync(

@@ -5,17 +5,13 @@
 // Extracted from pages/data-quality.vue (#992) so the page reads as the layout
 // it now is — a verdict, a list of checks and a list of flagged matches —
 // instead of burying two hundred lines of slide-over markup between them.
-import type {
-  DataQualityIssueType,
-  IssueMeta,
-  MatchDataQualityDetail,
-  MatchTeam,
-} from '~~/shared/types/ops'
+import type { IssueMeta } from '~/utils/data-quality'
+import type { DataQualityIssueType, MatchDataQualityDetailReadModel, MatchTeamReadModel } from '#site-shared/contract/api'
 import { POSITION_BY_VALUE } from '#site-shared/utils/positions'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
 
 defineProps<{
-  detail: MatchDataQualityDetail | null
+  detail: MatchDataQualityDetailReadModel | null
   pending: boolean
   error: string | null
   errorTraceId?: string | null
@@ -51,7 +47,7 @@ function teamLabel(teamId: number, index: number): string {
 // Header count: actual vs expected ("4/5 players") so a short roster reads as
 // short, with members that exist but didn't map onto a lane called out as
 // unplaced instead of being passed off as missing players.
-function teamPlayersLabel(team: MatchTeam): string {
+function teamPlayersLabel(team: MatchTeamReadModel): string {
   const count = team.expectedPlayerCount !== null
     ? `${team.playerCount}/${team.expectedPlayerCount} players`
     : `${team.playerCount} ${team.playerCount === 1 ? 'player' : 'players'}`

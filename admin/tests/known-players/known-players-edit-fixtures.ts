@@ -1,6 +1,6 @@
-import type { PersonaAdminDetail, PersonaListRow } from '~~/shared/types/ops'
+import type { PersonaAdminDetailReadModel, PersonaListRowReadModel } from '#site-shared/contract/api'
 
-export function row(over: Partial<PersonaListRow> = {}): PersonaListRow {
+export function row(over: Partial<PersonaListRowReadModel> = {}): PersonaListRowReadModel {
   return {
     id: 'p1',
     slug: 'caps',
@@ -18,7 +18,7 @@ export function row(over: Partial<PersonaListRow> = {}): PersonaListRow {
   }
 }
 
-export function detail(over: Partial<PersonaAdminDetail> = {}): PersonaAdminDetail {
+export function detail(over: Partial<PersonaAdminDetailReadModel> = {}): PersonaAdminDetailReadModel {
   return {
     id: 'p1',
     slug: 'caps',

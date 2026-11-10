@@ -176,14 +176,15 @@ public sealed class WorkerProcessIsolationTests
             RunOnce = true
         });
 
+        var workerMetrics = TestIngestorMetrics.Create();
         return new Worker(
             NullLogger<Worker>.Instance,
             scopeFactory,
             jobOptions,
             iterationContext,
-            new CallerContext(),
+            new ProcessRunner(scopeFactory, new CallerContext(), workerMetrics, NullLogger<ProcessRunner>.Instance),
             lifetime,
-            TestIngestorMetrics.Create(),
+            workerMetrics,
             TimeProvider.System,
             NoHeartbeatFile.Instance);
     }
@@ -192,7 +193,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => mode.ToString();
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             executed.Add(mode);
@@ -209,7 +210,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             observed.Add(iterationContext.CurrentIterationId);
@@ -221,7 +222,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             throw new InvalidOperationException("simulated process failure");
@@ -232,7 +233,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             await cts.CancelAsync();

@@ -2,17 +2,17 @@
 // Database panel: the sortable list of Postgres tables and Mongo collections with
 // humanized sizes. The page filters the rows by name before handing them over.
 import type { TableColumn } from '@nuxt/ui'
-import type { DbTableRow } from '~~/shared/types/ops'
+import type { TableStatRow } from '#site-shared/contract/api'
 import { formatNumber, humanizeBytes } from '~~/shared/utils/format'
 
 defineProps<{
-  rows: DbTableRow[]
+  rows: TableStatRow[]
   pending: boolean
 }>()
 
 const sorting = ref([{ id: 'totalBytes', desc: true }])
 
-const columns: TableColumn<DbTableRow>[] = [
+const columns: TableColumn<TableStatRow>[] = [
   {
     accessorKey: 'engine',
     header: ({ column }) => sortableHeader(column, 'Engine'),

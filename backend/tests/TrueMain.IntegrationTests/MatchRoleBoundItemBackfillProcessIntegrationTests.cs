@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Data.BuildFacts;
 using Data.Entities;
+using Data.Statics;
 using Ingestor.Processes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -100,7 +101,7 @@ public sealed class MatchRoleBoundItemBackfillProcessIntegrationTests : IAsyncLi
             NullLogger<MatchRoleBoundItemBackfillProcess>.Instance,
             new TestDbContextFactory(_fixture),
             new BootsMetadataProvider());
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private sealed class BootsMetadataProvider : IItemMetadataProvider
@@ -112,7 +113,7 @@ public sealed class MatchRoleBoundItemBackfillProcessIntegrationTests : IAsyncLi
             [Legendary] = new(Legendary, 3200, true, false, false, false, true, false),
         };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Metadata);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Metadata));
     }
 }

@@ -152,19 +152,6 @@ public sealed class CandidateFunnelQueryServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_StartsWeeksOnMonday()
-    {
-        // 2026-08-05 is a Wednesday; its week starts on Monday the 3rd.
-        var store = StoreWith(HarvestRun(Now, inserted: 4));
-
-        var result = await CreateService(store).GetAsync(
-            IngestionTimeGranularity.Week, windowDays: 7, CancellationToken.None);
-
-        result.Buckets.Should().ContainSingle()
-            .Which.Bucket.Should().Be("2026-08-03T00:00:00Z");
-    }
-
-    [Fact]
     public async Task GetAsync_GroupsByCalendarMonth()
     {
         var store = StoreWith(

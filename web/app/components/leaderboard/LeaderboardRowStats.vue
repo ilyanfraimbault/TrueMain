@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardStats } from '~~/shared/types/leaderboard'
+import type { LeaderboardStatsReadModel } from '#shared/contract/api'
 import { leaderboardStatLabels } from '#common/utils/leaderboard-row'
 import { winRateTone } from '#common/utils/rate-tone'
 
@@ -11,7 +11,7 @@ import { winRateTone } from '#common/utils/rate-tone'
 // Only the win rate takes a colour: games is a count and KDA has no agreed
 // neutral point, so neither has a better/worse reading to encode. The host
 // sets the display.
-const props = defineProps<{ stats: LeaderboardStats }>()
+const props = defineProps<{ stats: LeaderboardStatsReadModel }>()
 
 const labels = computed(() => leaderboardStatLabels(props.stats))
 </script>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchSummarySelf } from '#shared/types/matches'
+import type { MatchSummarySelfReadModel } from '#shared/contract/api'
 import type {
   RuneTreeResponse,
   StaticItemData,
@@ -10,7 +10,7 @@ import type {
 // then the inventory (`MatchItemGrid`) — the two blocks the scoreboard draws too,
 // split apart there.
 defineProps<{
-  self: MatchSummarySelf
+  self: MatchSummarySelfReadModel
   items: Record<number, StaticItemData>
   summonerSpells: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse

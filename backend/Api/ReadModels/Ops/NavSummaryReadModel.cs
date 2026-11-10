@@ -20,7 +20,7 @@ public sealed record NavSummaryReadModel
     /// pipeline-health payload holds it. <c>unknown</c> as well when no recent evaluation is held:
     /// this read never runs one (see <see cref="HealthEvaluatedAtUtc"/>).
     /// </summary>
-    public string HealthStatus { get; init; } = "unknown";
+    public DetectorStatus HealthStatus { get; init; }
 
     /// <summary>
     /// When that verdict was evaluated; null when no evaluation recent enough is held, which tells an

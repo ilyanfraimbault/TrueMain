@@ -69,7 +69,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/truemains");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var leaderboard = await response.Content.ReadFromJsonAsync<LeaderboardResponse>();
+        var leaderboard = await response.Content.ReadFromJsonAsync<LeaderboardResponse>(ApiJson.Options);
         leaderboard.Should().NotBeNull();
 
         leaderboard!.Total.Should().Be(5, "unranked accounts are excluded from V1");
@@ -119,7 +119,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var leaderboard = await (await client.GetAsync("/truemains"))
-            .Content.ReadFromJsonAsync<LeaderboardResponse>();
+            .Content.ReadFromJsonAsync<LeaderboardResponse>(ApiJson.Options);
 
         leaderboard.Should().NotBeNull();
         leaderboard!.Total.Should().Be(1);
@@ -165,7 +165,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         leaderboard!.Rows.Should().ContainSingle();
 
         var stats = leaderboard.Rows[0].Stats;
@@ -205,7 +205,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         leaderboard!.Rows.Should().ContainSingle();
 
         var stats = leaderboard.Rows[0].Stats;
@@ -255,25 +255,25 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         // No filter → JP1 row is excluded (Korea pill is KR-only in V1).
-        var all = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var all = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         all!.Total.Should().Be(4);
         all.Rows.Should().NotContain(r => r.Identity.PlatformId == "JP1");
 
         // Region=europe → EUW1 + EUN1.
-        var europe = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe");
+        var europe = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe", ApiJson.Options);
         europe!.Total.Should().Be(2);
         europe.Rows.Select(r => r.Identity.PlatformId)
             .Should().BeEquivalentTo(["EUW1", "EUN1"]);
         europe.Rows.Should().OnlyContain(r => r.Region == "europe");
 
         // Region=korea → KR only (not JP1).
-        var korea = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=korea");
+        var korea = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=korea", ApiJson.Options);
         korea!.Total.Should().Be(1);
         korea.Rows[0].Identity.PlatformId.Should().Be("KR");
         korea.Rows[0].Region.Should().Be("korea");
 
         // Region=americas → NA1.
-        var americas = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=americas");
+        var americas = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=americas", ApiJson.Options);
         americas!.Total.Should().Be(1);
         americas.Rows[0].Identity.PlatformId.Should().Be("NA1");
         americas.Rows[0].Region.Should().Be("americas");
@@ -309,27 +309,27 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         // Position=MIDDLE → Yasuo + Ahri.
-        var middles = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE");
+        var middles = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE", ApiJson.Options);
         middles!.Total.Should().Be(2);
         middles.Rows.Select(r => r.Identity.GameName)
             .Should().BeEquivalentTo(["MidYasuo", "MidAhri"]);
 
         // The short form filters the same lane rather than silently filtering nothing (#1232).
-        var mids = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=mid");
+        var mids = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=mid", ApiJson.Options);
         mids!.Total.Should().Be(2);
 
         // championId=157 → only Yasuo main.
-        var yasuoMains = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?championId=157");
+        var yasuoMains = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?championId=157", ApiJson.Options);
         yasuoMains!.Total.Should().Be(1);
         yasuoMains.Rows[0].Identity.GameName.Should().Be("MidYasuo");
 
         // Position=TOP & championId=86 → only Garen.
-        var topGarenOnly = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=TOP&championId=86");
+        var topGarenOnly = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=TOP&championId=86", ApiJson.Options);
         topGarenOnly!.Total.Should().Be(1);
         topGarenOnly.Rows[0].Identity.GameName.Should().Be("TopGaren");
 
         // Mismatched combination (Yasuo champion with TOP position) → empty.
-        var noMatch = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=TOP&championId=157");
+        var noMatch = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=TOP&championId=157", ApiJson.Options);
         noMatch!.Total.Should().Be(0);
         noMatch.Rows.Should().BeEmpty();
     }
@@ -387,13 +387,13 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var middles = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE");
+        var middles = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=MIDDLE", ApiJson.Options);
         middles!.Total.Should().Be(2);
         middles.Rows.Select(r => r.Identity.GameName)
             .Should().BeEquivalentTo(["FlexTop", "CameoTop"]);
 
         // FlexTop (20% top) qualifies; CameoTop (15% top) does not.
-        var tops = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=TOP");
+        var tops = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?position=TOP", ApiJson.Options);
         tops!.Total.Should().Be(2);
         tops.Rows.Select(r => r.Identity.GameName)
             .Should().BeEquivalentTo(["FlexTop", "PureTop"]);
@@ -460,7 +460,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         leaderboard!.Total.Should().Be(3);
 
         var byName = leaderboard.Rows.ToDictionary(r => r.Identity.GameName);
@@ -508,7 +508,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         var row = leaderboard!.Rows.Single(r => r.Identity.GameName == "TiedPlayer");
 
         row.Positions.Should().NotBeNull();
@@ -562,7 +562,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var leaderboard = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         var row = leaderboard!.Rows.Single(r => r.Identity.GameName == "CappedPlayer");
 
         row.Positions.Should().NotBeNull();
@@ -597,24 +597,24 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var page1 = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?pageSize=3&page=1");
+        var page1 = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?pageSize=3&page=1", ApiJson.Options);
         page1!.Total.Should().Be(7);
         page1.Page.Should().Be(1);
         page1.PageSize.Should().Be(3);
         page1.Rows.Should().HaveCount(3);
         page1.Rows.Select(r => r.Rank).Should().ContainInOrder(1, 2, 3);
 
-        var page2 = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?pageSize=3&page=2");
+        var page2 = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?pageSize=3&page=2", ApiJson.Options);
         page2!.Page.Should().Be(2);
         page2.Rows.Select(r => r.Rank).Should().ContainInOrder(4, 5, 6);
 
-        var page3 = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?pageSize=3&page=3");
+        var page3 = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?pageSize=3&page=3", ApiJson.Options);
         page3!.Rows.Should().HaveCount(1);
         page3.Rows[0].Rank.Should().Be(7);
 
         // Past-the-end page returns empty rows + real total so the UI's
         // pagination control still resolves to a valid range.
-        var page4 = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?pageSize=3&page=4");
+        var page4 = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?pageSize=3&page=4", ApiJson.Options);
         page4!.Total.Should().Be(7);
         page4.Rows.Should().BeEmpty();
     }
@@ -664,7 +664,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
             BaseAddress = new Uri("https://localhost"),
         });
 
-        var response = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var response = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         response!.Total.Should().Be(2, "accounts with TotalMatches >= 5 should appear (5 sits on the boundary)");
         response.Rows.Select(r => r.Identity.GameName)
             .Should().BeEquivalentTo(["FiveGames", "SixGames"]);
@@ -706,7 +706,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var response = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var response = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         response!.Total.Should().Be(1);
         response.Rows.Single().Identity.GameName.Should().Be("RealMain");
     }
@@ -740,14 +740,14 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
 
         // Unfiltered: both rows appear, each carrying the right IsOtp flag on
         // their Yasuo top-champion cell.
-        var all = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var all = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         all!.Total.Should().Be(2);
         var byName = all.Rows.ToDictionary(r => r.Identity.GameName);
         byName["OneTrick"].TopChampions.Single(c => c.ChampionId == 157).IsOtp.Should().BeTrue();
         byName["FlexMain"].TopChampions.Single(c => c.ChampionId == 157).IsOtp.Should().BeFalse();
 
         // otpOnly=true → only the one-trick survives.
-        var otp = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?otpOnly=true");
+        var otp = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?otpOnly=true", ApiJson.Options);
         otp!.Total.Should().Be(1);
         otp.Rows.Single().Identity.GameName.Should().Be("OneTrick");
         otp.Rows.Single().TopChampions.Single(c => c.ChampionId == 157).IsOtp.Should().BeTrue();
@@ -779,13 +779,13 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         // OTP of Ahri → shows under otpOnly + championId=103.
-        var ahri = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?otpOnly=true&championId=103");
+        var ahri = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?otpOnly=true&championId=103", ApiJson.Options);
         ahri!.Total.Should().Be(1);
         ahri.Rows.Single().Identity.GameName.Should().Be("AhriOtp");
 
         // Not an OTP of Yasuo → excluded under otpOnly + championId=157, even
         // though the player is a Yasuo main and an OTP (of a different champion).
-        var yasuo = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?otpOnly=true&championId=157");
+        var yasuo = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?otpOnly=true&championId=157", ApiJson.Options);
         yasuo!.Total.Should().Be(0);
         yasuo.Rows.Should().BeEmpty();
     }
@@ -816,7 +816,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         // First request — populates the cache for this (platforms, …) shape.
-        var firstResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var firstResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         firstResponse!.Total.Should().Be(2);
 
         // Rename an account on the page. If the response wasn't cached, the next
@@ -829,14 +829,14 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         }
 
         // Identical request — must come back from cache, so still the old name.
-        var cachedResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains");
+        var cachedResponse = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options);
         cachedResponse!.Rows.Select(row => row.Identity.GameName).Should().Contain(
             "First", "the second request must hit the cache and ignore the rename");
 
         // Different filter shape yields a different cache key: it answers for its
         // own filter, and reads its rows fresh — proving the cache is keyed
         // correctly (not just returning the first response for every request).
-        var europe = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe");
+        var europe = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe", ApiJson.Options);
         europe!.Total.Should().Be(1, "a different filter shape must miss the cache");
         europe.Rows.Single().Identity.GameName.Should().Be("Renamed");
     }
@@ -858,7 +858,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        (await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe"))!.Total.Should().Be(1);
+        (await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?region=europe", ApiJson.Options))!.Total.Should().Be(1);
 
         await using (var db = _fixture.CreateDbContext())
         {
@@ -870,7 +870,7 @@ public sealed class TruemainsLeaderboardApiIntegrationTests : IAsyncLifetime
         }
 
         // The population is read once per version, and another shape reads the same one.
-        (await client.GetFromJsonAsync<LeaderboardResponse>("/truemains"))!.Total.Should().Be(1);
+        (await client.GetFromJsonAsync<LeaderboardResponse>("/truemains", ApiJson.Options))!.Total.Should().Be(1);
     }
 
     private static RiotAccount Account(string puuid, string gameName, string platformId, string? tagLine = null)

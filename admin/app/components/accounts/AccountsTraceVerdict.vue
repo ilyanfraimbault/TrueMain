@@ -2,12 +2,13 @@
 // Verdict card of the Trace tab: the pipeline state the backend resolved for the
 // Riot ID, in a badge and a sentence, plus the other accounts sharing that Riot ID.
 // Split out of `AccountsTrace.vue` (#1436).
-import type { AccountExplorer, AccountPipelineState, BadgeColor } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
+import type { AccountExplorerReadModel, AccountPipelineState } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { formatRiotId } from '#site-shared/utils/riot-id'
 
 const props = defineProps<{
-  result: AccountExplorer
+  result: AccountExplorerReadModel
 }>()
 
 const STATE_LABEL: Record<AccountPipelineState, string> = {

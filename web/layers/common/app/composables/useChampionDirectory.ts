@@ -1,5 +1,5 @@
-import type { ChampionDirectoryResponse } from '#shared/types/champion-directory'
-import type { ChampionSummaryResponse } from '#shared/types/champions'
+import { championSliceQuery } from '#common/utils/champion-slice-query'
+import type { ChampionDirectoryPageReadModel, ChampionSummaryReadModel } from '#shared/contract/api'
 import { DEFAULT_DIRECTORY_ORDER, type DirectoryOrder } from '#common/utils/table-sorting'
 import { describeStaleFetchError } from '#common/utils/errors'
 
@@ -29,17 +29,17 @@ interface UseChampionDirectoryOptions {
  */
 export function useChampionDirectory(options: UseChampionDirectoryOptions) {
   const query = computed(() => {
-    const query: Record<string, string | number> = { pageSize: options.pageSize }
+    const query: Record<string, string | number> = {
+      pageSize: options.pageSize,
+      ...championSliceQuery({
+        patch: toValue(options.patch),
+        eloBracket: toValue(options.eloBracket),
+        truemainsOnly: Boolean(toValue(options.truemainsOnly)),
+        position: toValue(options.position),
+      }),
+    }
     const page = toValue(options.page)
     if (Number.isFinite(page) && page > 1) query.page = Math.floor(page)
-    const patch = toValue(options.patch)
-    if (patch) query.patch = patch
-    const elo = toValue(options.eloBracket)
-    if (elo) query.eloBracket = elo
-    // Sent only when off — true is the API default.
-    if (!toValue(options.truemainsOnly)) query.truemainsOnly = 'false'
-    const position = toValue(options.position)
-    if (position) query.position = position
     const championId = toValue(options.championId)
     if (typeof championId === 'number' && championId > 0) query.championId = championId
     const { sort, order } = toValue(options.order)
@@ -49,12 +49,12 @@ export function useChampionDirectory(options: UseChampionDirectoryOptions) {
   })
 
   const apiFetch = useApiFetch()
-  const directoryFetch = useAsyncData<ChampionDirectoryResponse>(
+  const directoryFetch = useAsyncData<ChampionDirectoryPageReadModel>(
     () => `champion-directory-${Object.entries(query.value).map(([key, value]) => `${key}=${value}`).join('&')}`,
-    (_nuxtApp, { signal }) => apiFetch<ChampionDirectoryResponse>('/champions/directory', { query: query.value, signal }),
+    (_nuxtApp, { signal }) => apiFetch<ChampionDirectoryPageReadModel>('/champions/directory', { query: query.value, signal }),
     {
       watch: [query],
-      default: (): ChampionDirectoryResponse => ({
+      default: (): ChampionDirectoryPageReadModel => ({
         rows: [],
         page: 1,
         pageSize: options.pageSize,
@@ -72,7 +72,7 @@ export function useChampionDirectory(options: UseChampionDirectoryOptions) {
     onStaleFailure: failure => actionToast.failure('Could not update the champion list', describeStaleFetchError(failure)),
   })
 
-  const rows = computed<ChampionSummaryResponse[]>(() => data.value?.rows ?? [])
+  const rows = computed<ChampionSummaryReadModel[]>(() => data.value?.rows ?? [])
   const total = computed(() => data.value?.total ?? 0)
   const pageSize = computed(() => data.value?.pageSize ?? options.pageSize)
   // The page the rows on screen belong to — not the URL's after a failed pager

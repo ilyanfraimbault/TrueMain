@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import { isNavigationFailure } from 'vue-router'
-import type { SearchPlayer, SearchResult } from '#shared/types/search'
+import type { SearchPlayerReadModel, SearchResultReadModel } from '#shared/contract/api'
 import { playerPath } from '#shared/utils/player-path'
 import { riotIdLabel, truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 import { describeFetchError } from '#common/utils/errors'
@@ -66,7 +66,7 @@ const emit = defineEmits<{
   /** A champion id, or `null` from the reset row / the trigger's clear button. */
   filterChampion: [championId: number | null]
   /** `scope="players"` only. */
-  selectTruemain: [result: SearchResult]
+  selectTruemain: [result: SearchResultReadModel]
 }>()
 
 const open = ref(false)
@@ -113,14 +113,14 @@ function onSelectChampion(championId: number) {
   go(pathFor(championId))
 }
 
-function onSelectTruemain(result: SearchResult) {
+function onSelectTruemain(result: SearchResultReadModel) {
   if (!playersOnly.value) return go(truemainProfilePath(truemainNameTag(result.identity.gameName, result.identity.tagLine)))
   emit('selectTruemain', result)
   open.value = false
 }
 
 // `truemain` / `player` feed the row components; `iconUrl` the champion rows' picture.
-type SearchItem = CommandPaletteItem & { truemain?: SearchResult, player?: SearchPlayer, iconUrl?: string | null }
+type SearchItem = CommandPaletteItem & { truemain?: SearchResultReadModel, player?: SearchPlayerReadModel, iconUrl?: string | null }
 
 // Known players (#2018) — the person rather than one of their accounts, so they
 // come before the truemains. Shown only once a search has answered: their group
@@ -149,7 +149,7 @@ const championItems = computed<SearchItem[]>(() =>
 
 // `stale` (during a refetch) keeps the row visible but dimmed and
 // non-selectable, so a pending list can't be clicked onto the wrong profile.
-function toTruemainItem(result: SearchResult, stale = false): SearchItem {
+function toTruemainItem(result: SearchResultReadModel, stale = false): SearchItem {
   return {
     label: riotIdLabel(result.identity.gameName, result.identity.tagLine),
     slot: 'truemain',

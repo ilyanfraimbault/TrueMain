@@ -3,7 +3,8 @@
 // Riot accounts under, with what still needs a decision (an account in conflict,
 // one TrueMain does not track yet). A row opens the edit panel; "Add" creates one
 // by hand. `?player=<id>` deep-links the panel.
-import type { PersonaEdited, PersonaListRow, PersonaListView } from '~~/shared/types/ops'
+import type { PersonaListView } from '~~/shared/types/ops/known-players'
+import type { PersonaEditedResponse, PersonaListRowReadModel } from '#site-shared/contract/api'
 import { computed, ref, watch } from 'vue'
 import { formatNumber } from '~~/shared/utils/format'
 import { accountOutcomeMessage, PERSONA_SOURCES, VIEW_ITEMS } from '~~/shared/utils/known-players'
@@ -55,14 +56,14 @@ watch(openId, (id) => {
   router.replace({ query: { ...route.query, player: id ?? undefined } })
 })
 
-function open(persona: Pick<PersonaListRow, 'id'>) {
+function open(persona: Pick<PersonaListRowReadModel, 'id'>) {
   openId.value = persona.id
 }
 
 const createOpen = ref(false)
 const toast = useActionToast()
 
-function created(edited: PersonaEdited) {
+function created(edited: PersonaEditedResponse) {
   createOpen.value = false
   const outcome = edited.accounts[0] ? accountOutcomeMessage(edited.accounts[0].status) : null
   toast.success(`${edited.slug} added`, outcome ? `${outcome.title}. ${outcome.description ?? ''}`.trim() : undefined)

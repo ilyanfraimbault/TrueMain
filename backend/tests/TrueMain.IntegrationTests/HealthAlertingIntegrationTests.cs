@@ -79,12 +79,12 @@ public sealed class HealthAlertingIntegrationTests(PostgresFixture fixture, Mong
         discord.Requests[0].Body.Should().Contain("\"color\":15026253").And.Contain("last ended badly: MatchIngestion");
         discord.Requests[1].Body.Should().Contain("recovered");
 
-        var panel = await client.GetFromJsonAsync<HealthAlertsReadModel>("/ops/health-alerts");
+        var panel = await client.GetFromJsonAsync<HealthAlertsReadModel>("/ops/health-alerts", ApiJson.Options);
         panel!.Enabled.Should().BeTrue();
         panel.Channel.Should().Be("discord");
         panel.OpenIncidents.Should().NotContain("processes");
         panel.LastEvaluatedAtUtc.Should().NotBeNull();
-        panel.Alerts.Select(alert => alert.Kind).Should().Equal("recovered", "failing");
+        panel.Alerts.Select(alert => alert.Kind).Should().Equal(HealthAlertChangeKind.Recovered, HealthAlertChangeKind.Failing);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class HealthAlertingIntegrationTests(PostgresFixture fixture, Mong
         await using var factory = new AlertingFactory(fixture, mongo, discord, webhook: null);
         using var client = CreateClient(factory);
 
-        var panel = await client.GetFromJsonAsync<HealthAlertsReadModel>("/ops/health-alerts");
+        var panel = await client.GetFromJsonAsync<HealthAlertsReadModel>("/ops/health-alerts", ApiJson.Options);
 
         panel!.Enabled.Should().BeFalse();
         panel.Channel.Should().BeNull();

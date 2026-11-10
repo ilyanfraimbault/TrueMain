@@ -34,7 +34,7 @@ public sealed class HarvestProcessCoverageLoggingTests
             ]);
         var logger = new CapturingLogger<HarvestProcess>();
 
-        await BuildProcess(logger, coverage).RunCoreAsync(CancellationToken.None);
+        await BuildProcess(logger, coverage).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var warning = logger.Entries.Should()
             .ContainSingle(entry => entry.EventId.Id == OpsEvents.HarvestBudgetExhausted.Id).Subject;
@@ -64,7 +64,7 @@ public sealed class HarvestProcessCoverageLoggingTests
             Platforms: [new HarvestPlatformCoverage("KR", 5, 5, 95, 15)]);
         var logger = new CapturingLogger<HarvestProcess>();
 
-        await BuildProcess(logger, coverage).RunCoreAsync(CancellationToken.None);
+        await BuildProcess(logger, coverage).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var entry = logger.Entries.Should()
             .ContainSingle(e => e.EventId.Id == OpsEvents.HarvestBudgetExhausted.Id).Subject;
@@ -91,7 +91,7 @@ public sealed class HarvestProcessCoverageLoggingTests
         var coverage = new HarvestCoverage(3, 3, 7, 7, [new HarvestPlatformCoverage("KR", 3, 3, 7, 7)]);
         var logger = new CapturingLogger<HarvestProcess>();
 
-        var summary = await BuildProcess(logger, coverage).RunCoreAsync(CancellationToken.None);
+        var summary = await BuildProcess(logger, coverage).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var completed = logger.Entries.Should()
             .ContainSingle(entry => entry.EventId.Id == OpsEvents.HarvestCycleCompleted.Id).Subject;

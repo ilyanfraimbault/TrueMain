@@ -1,6 +1,6 @@
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PersonaListRow } from '~~/shared/types/ops'
+import type { PersonaListRowReadModel } from '#site-shared/contract/api'
 import { usePaletteSearch } from '~/composables/usePaletteSearch'
 import { buildSearchGroups } from '~/utils/navigation'
 import { opsCache } from '~/utils/ops-cache'
@@ -8,7 +8,7 @@ import { opsCache } from '~/utils/ops-cache'
 // The ⌘K palette's groups (#2290): pages always, instantly; the known-players
 // request only for a settled term of two characters or more.
 
-const row = (id: string, displayName: string) => ({ id, slug: id, displayName, removedAtUtc: null }) as PersonaListRow
+const row = (id: string, displayName: string) => ({ id, slug: id, displayName, removedAtUtc: null }) as PersonaListRowReadModel
 const PAGE_COUNT = buildSearchGroups().length
 
 let searchPersonas: ReturnType<typeof vi.fn>

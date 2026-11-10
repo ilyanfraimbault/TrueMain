@@ -1,3 +1,4 @@
+import type { FormBenchmarkResponse, FormBenchmarkTierReadModel } from '#shared/contract/api'
 import type { FormReference } from '#common/utils/match-form'
 
 /**
@@ -8,30 +9,9 @@ import type { FormReference } from '#common/utils/match-form'
  * never sent (#1805).
  */
 
-/** Mirrors `FormBenchmarkResponse` in `Api/ReadModels/Benchmarks`. */
-export interface FormBenchmarkResponse {
-  position: string
-  patches: string[]
-  minSamples: number
-  tiers: FormBenchmarkTier[]
-}
-
-interface Quartiles {
-  p25: number
-  median: number
-  p75: number
-}
-
+export type { FormBenchmarkResponse }
 /** Every figure null under the sample floor. */
-export interface FormBenchmarkTier {
-  tier: string
-  samples: number
-  kda: Quartiles | null
-  killParticipation: Quartiles | null
-  csPerMinute: Quartiles | null
-  deaths: Quartiles | null
-  visionPerMinute: Quartiles | null
-}
+export type FormBenchmarkTier = FormBenchmarkTierReadModel
 
 /**
  * What the tiles are set against for a player of `tier`: the tier's medians

@@ -20,7 +20,7 @@ pub const MARK_MINUTES: [i64; 5] = [5, 10, 15, 20, 30];
 const FRAME_TOLERANCE_MS: i64 = 30_000;
 
 /// One player at one mark.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TimelineMark {
     pub minute: i64,

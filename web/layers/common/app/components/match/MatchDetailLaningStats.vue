@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type { MatchDetailStat } from './MatchDetailStatGrid.vue'
 
 // The selected player's lane at 15 minutes against the opposing position.
 const props = defineProps<{
-  participant: MatchDetailParticipant
+  participant: MatchDetailParticipantReadModel
 }>()
 
 // A laning differential is a measurement, so it speaks the data axis rather

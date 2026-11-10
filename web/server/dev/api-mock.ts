@@ -8,57 +8,13 @@
 // All ids (champions, items, runes, summoner spells) are real Riot ids so the
 // DDragon/CDragon-backed `/api/static/*` endpoints resolve genuine icons.
 
-import type {
-  ActivityBucket,
-  ActivityMode,
-  ActivitySeries,
-  TruemainActivityResponse,
-} from '~~/shared/types/activity'
-import type {
-  ChampionBuild,
-  ChampionComparisonSide,
-  ChampionMainsComparison,
-  ChampionMatchupEntry,
-  ChampionMatchups,
-  ChampionOverviewResponse,
-  ChampionResponse,
-  ChampionScalingResponse,
-  ChampionSummaryResponse,
-  ChampionSynergies,
-  ChampionSynergyEntry,
-  ChampionTierListResponse,
-  ChampionTrendResponse,
-  ChampionTrioSynergies,
-  ChampionTrioSynergyEntry,
-  BuildRunePage,
-} from '~~/shared/types/champions'
-import type {
-  LeaderboardResponse,
-  LeaderboardRowResponse,
-  RegionSlug,
-} from '~~/shared/types/leaderboard'
+import type { ActivityMode, ApexCutoffsReadModel, BuildRunePageReadModel, ChampionBuildReadModel, ChampionComparisonSideReadModel, ChampionDirectoryPageReadModel, ChampionMainsComparisonResponse, ChampionMatchupEntry, ChampionMatchupsResponse, ChampionOverviewReadModel, ChampionResponse, ChampionScalingResponse, ChampionSummaryReadModel, ChampionSynergiesResponse, ChampionSynergyEntry, ChampionTierListReadModel, ChampionTrendReadModel, ChampionTrioSynergiesResponse, ChampionTrioSynergyEntry, CompositionBuildGamesResponse, CompositionBuildResponse, CompositionGameReadModel, DedicationReadModel, LeaderboardResponse, LeaderboardRowReadModel, MatchDetailItemEventReadModel, MatchDetailParticipantReadModel, MatchDetailSkillEventReadModel, MatchSummariesResponse, MatchSummaryReadModel, PerformanceComponentKind, PersonaAccountReadModel, PersonaReadModel, PersonaTagReadModel, PlayerChampionPerformanceResponse, ProfileIdentityReadModel, ProfileReadModel, RankHistoryReadModel, SearchPlayerReadModel, SearchResponse, TruemainActivityBucketReadModel, TruemainActivityReadModel, TruemainActivitySeriesReadModel } from '#shared/contract/api'
+import type { RegionSlug } from '~~/shared/types/leaderboard'
 import { parseLeaderboardSort } from '~~/shared/utils/leaderboard-sort'
-import type { ChampionDirectoryResponse, ChampionDirectorySort } from '~~/shared/types/champion-directory'
+import type { ChampionDirectorySort } from '~~/shared/types/champion-directory'
 import { CHAMPION_DIRECTORY_SORTS } from '~~/shared/types/champion-directory'
-import type { CompositionBuildGamesResponse, CompositionBuildResponse, CompositionGame } from '~~/shared/types/composition'
-import type { TruemainDedication } from '~~/shared/types/dedication'
-import type {
-  MatchDetailItemEvent,
-  MatchDetailParticipant,
-  MatchDetailResponse,
-  MatchDetailSkillEvent,
-} from '~~/shared/types/match-detail'
-import type { MatchSummariesResponse, MatchSummaryResponse } from '~~/shared/types/matches'
-import type { PersonaAccount, PersonaResponse, PersonaTag } from '~~/shared/types/players'
-import type {
-  PerformanceComponentKind,
-  PlayerChampionPerformanceResponse,
-} from '~~/shared/types/performance'
-import { PERFORMANCE_COMPONENT_KINDS } from '~~/shared/types/performance'
-import type { ProfileIdentity, ProfileResponse } from '~~/shared/types/profile'
-import type { RankHistoryResponse } from '~~/shared/types/rank-history'
-import type { ApexCutoffsResponse } from '~~/shared/types/apex-cutoffs'
-import type { SearchPlayer, SearchResponse } from '~~/shared/types/search'
+import type { MatchDetail } from '~~/shared/types/match-detail'
+import { performanceComponentKindValues } from '#shared/contract/api'
 import { isRiotIdOrSlug } from '~~/shared/utils/riot-id'
 import { REGIONS } from '~~/shared/utils/region'
 import { POSITIONS } from '~~/shared/utils/positions'
@@ -309,7 +265,7 @@ const POOL_GAMES = 42_000
 // most picked champions sit highest, in five equal tiers.
 const MOCK_TIERS = ['S', 'A', 'B', 'C', 'D'] as const
 
-async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
+async function mockChampionSummaries(): Promise<ChampionSummaryReadModel[]> {
   const patch = await latestShortPatch()
 
   const rowsByPosition = new Map<string, ChampionSeed[]>()
@@ -366,7 +322,7 @@ async function mockChampionSummaries(): Promise<ChampionSummaryResponse[]> {
 // paged. The fixture ignores patch, elo and population like `/champions` does.
 const DIRECTORY_TIER_ORDER = ['S', 'A', 'B', 'C', 'D']
 
-async function mockChampionDirectory(query: Record<string, unknown>): Promise<ChampionDirectoryResponse> {
+async function mockChampionDirectory(query: Record<string, unknown>): Promise<ChampionDirectoryPageReadModel> {
   const summaries = await mockChampionSummaries()
   const { page, pageSize } = pageParams(query, 50, 100)
   const position = typeof query.position === 'string' ? query.position : null
@@ -380,7 +336,7 @@ async function mockChampionDirectory(query: Record<string, unknown>): Promise<Ch
     const index = DIRECTORY_TIER_ORDER.indexOf(tier)
     return index < 0 ? DIRECTORY_TIER_ORDER.length : index
   }
-  const primary = (a: ChampionSummaryResponse, b: ChampionSummaryResponse): number => {
+  const primary = (a: ChampionSummaryReadModel, b: ChampionSummaryReadModel): number => {
     switch (sort) {
       case 'winRate': return sign * (a.winRate - b.winRate)
       case 'games': return sign * (a.games - b.games)
@@ -417,7 +373,7 @@ async function mockChampionDirectory(query: Record<string, unknown>): Promise<Ch
 // Tier list (`GET /champions/tierlist`): the summaries above grouped by their
 // per-lane tier, narrowed to one lane when asked. Like the directory, the
 // fixture ignores patch, elo and population.
-async function mockChampionTierList(query: Record<string, unknown>): Promise<ChampionTierListResponse> {
+async function mockChampionTierList(query: Record<string, unknown>): Promise<ChampionTierListReadModel> {
   const summaries = await mockChampionSummaries()
   const position = typeof query.position === 'string' ? query.position : null
   const lines = summaries.filter(line => !position || line.position === position)
@@ -453,7 +409,7 @@ async function mockChampionTierList(query: Record<string, unknown>): Promise<Cha
 const OVERVIEW_DEFAULT_LIMIT = 8
 const OVERVIEW_MAX_LIMIT = 20
 
-async function mockChampionOverview(query: Record<string, unknown>): Promise<ChampionOverviewResponse> {
+async function mockChampionOverview(query: Record<string, unknown>): Promise<ChampionOverviewReadModel> {
   const summaries = await mockChampionSummaries()
   const patch = summaries[0]?.patchVersion ?? await latestShortPatch()
 
@@ -496,7 +452,7 @@ function runePage(
   pickRate: number,
   winRate: number,
   rng: () => number,
-): BuildRunePage {
+): BuildRunePageReadModel {
   const primary = STYLE_PERKS[s.primaryStyle]!
   const secondary = STYLE_PERKS[s.secondaryStyle]!
   const pick = (row: number[]) => row[Math.floor(rng() * row.length)]!
@@ -523,7 +479,7 @@ function runePage(
   }
 }
 
-function makeBuild(s: ChampionSeed, variant: 0 | 1, totalGames: number): ChampionBuild {
+function makeBuild(s: ChampionSeed, variant: 0 | 1, totalGames: number): ChampionBuildReadModel {
   const rng = mulberry32(s.id * 97 + variant * 13)
   const archetype = ARCHETYPES[s.archetype]
   const primary = STYLE_PERKS[s.primaryStyle]!
@@ -693,7 +649,7 @@ async function mockChampionDetail(
 
 // ─── Champion insight endpoints ──────────────────────────────────────────────
 
-async function mockTrend(id: number): Promise<ChampionTrendResponse | null> {
+async function mockTrend(id: number): Promise<ChampionTrendReadModel | null> {
   const s = seedsById.get(id)
   if (!s) return null
   const latest = await latestShortPatch()
@@ -746,7 +702,7 @@ async function mockScaling(id: number): Promise<ChampionScalingResponse | null> 
   }
 }
 
-async function mockMatchups(id: number): Promise<ChampionMatchups | null> {
+async function mockMatchups(id: number): Promise<ChampionMatchupsResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
   const rng = mulberry32(s.id * 601)
@@ -860,7 +816,7 @@ function underFloor(draw: number, floor: number): number {
 async function mockSynergies(
   id: number,
   partnerPosition?: string,
-): Promise<ChampionSynergies | null> {
+): Promise<ChampionSynergiesResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
 
@@ -913,7 +869,7 @@ async function mockTrioSynergies(
   id: number,
   partner: number,
   partnerPosition: string,
-): Promise<ChampionTrioSynergies | null> {
+): Promise<ChampionTrioSynergiesResponse | null> {
   const s = seedsById.get(id)
   const p = seedsById.get(partner)
   if (!s || !p) return null
@@ -1006,7 +962,7 @@ function mockPlayerPerformance(
 
   if (games < minGames) return base
 
-  // Backend role profiles, in PERFORMANCE_COMPONENT_KINDS order.
+  // Backend role profiles, in performanceComponentKindValues order.
   const WEIGHTS: Record<string, number[]> = {
     TOP: [20, 19, 16, 7, 14, 5, 12, 7],
     JUNGLE: [18, 18, 14, 7, 14, 7, 12, 10],
@@ -1016,7 +972,7 @@ function mockPlayerPerformance(
   }
   const weights = WEIGHTS[lane] ?? WEIGHTS.MIDDLE!
 
-  const components = PERFORMANCE_COMPONENT_KINDS.map((kind: PerformanceComponentKind, i) => {
+  const components = performanceComponentKindValues.map((kind: PerformanceComponentKind, i) => {
     const weight = weights[i]!
     // MidGame is the component most often absent (short games), so it gets the
     // smaller sample — the "n/N games" note has to be reachable in mock mode.
@@ -1050,7 +1006,7 @@ const NAME_PREFIXES = ['Kass', 'Vex', 'Luna', 'Drak', 'Zephyr', 'Nox', 'Aurel', 
 const NAME_SUFFIXES = ['smith', 'walker', 'blade', 'main', 'senpai', 'fox', 'wolf', 'heart', 'strike', 'mind']
 
 interface MockPlayer {
-  row: LeaderboardRowResponse
+  row: LeaderboardRowReadModel
   /** Dominant lane, used by the leaderboard position filter. */
   position: string
   nameTag: string
@@ -1077,7 +1033,7 @@ function mockDedication(
   masteryPoints: number,
   masteryRank: number,
   daysSinceLastPlayed: number,
-): TruemainDedication {
+): DedicationReadModel {
   const shares = {
     playRate: clamp01(playRate),
     mastery: clamp01(masteryPoints / 3_000_000),
@@ -1213,7 +1169,7 @@ const MOCK_PERSONAS = {
   koralis: { slug: 'koralis', displayName: 'Koralis', pictureUrl: null },
 } as const
 
-const MOCK_PERSONA_ACCOUNTS: ReadonlyArray<readonly [number, PersonaTag]> = [
+const MOCK_PERSONA_ACCOUNTS: ReadonlyArray<readonly [number, PersonaTagReadModel]> = [
   [0, MOCK_PERSONAS.sheiden],
   [17, MOCK_PERSONAS.sheiden],
   [4, MOCK_PERSONAS.koralis],
@@ -1221,7 +1177,7 @@ const MOCK_PERSONA_ACCOUNTS: ReadonlyArray<readonly [number, PersonaTag]> = [
 
 // Known players whose name contains the term, with their best account's face
 // and rank — the mock's take on the backend's PersonaSearch (#2018).
-function mockPersonaSearch(needle: string): SearchPlayer[] {
+function mockPersonaSearch(needle: string): SearchPlayerReadModel[] {
   return Object.values(MOCK_PERSONAS)
     .filter(persona => persona.displayName.toLowerCase().includes(needle) || persona.slug.includes(needle))
     .map((persona) => {
@@ -1241,14 +1197,14 @@ function mockPersonaSearch(needle: string): SearchPlayer[] {
 // one, whose slug sends the page there.
 const MOCK_MERGED_PERSONAS: Readonly<Record<string, string>> = { 'sheiden-tv': 'sheiden' }
 
-function mockPersona(requested: string): PersonaResponse | null {
+function mockPersona(requested: string): PersonaReadModel | null {
   const slug = MOCK_MERGED_PERSONAS[requested] ?? requested
   const owned = players().filter(p => p.row.persona?.slug === slug)
   const persona = owned[0]?.row.persona
   if (!persona) return null
   // The page lists tracked accounts only, the one played most recently first:
   // the mock spaces their last games a day, then a month apart.
-  const accounts: PersonaAccount[] = owned.map(({ row }, index) => ({
+  const accounts: PersonaAccountReadModel[] = owned.map(({ row }, index) => ({
     gameName: row.identity.gameName,
     tagLine: row.identity.tagLine ?? '',
     platformId: row.identity.platformId,
@@ -1287,7 +1243,7 @@ function players(): MockPlayer[] {
 }
 
 /** Parse + clamp 1-indexed pagination params, mirroring the backend's clamping. */
-export function pageParams(
+function pageParams(
   query: Record<string, unknown>,
   fallbackSize: number,
   maxSize: number,
@@ -1374,7 +1330,7 @@ function findPlayer(nameTag: string): MockPlayer | undefined {
   return players().find(p => p.nameTag.toLowerCase() === target)
 }
 
-function mockProfile(player: MockPlayer): ProfileResponse {
+function mockProfile(player: MockPlayer): ProfileReadModel {
   const { row } = player
   const stats = row.stats
   return {
@@ -1418,7 +1374,7 @@ function mockProfile(player: MockPlayer): ProfileResponse {
  * the mock histories are labelled with (`apexTierForLp`), one entry per day of the window,
  * so a mock apex curve changes colour where it crosses them.
  */
-function mockApexCutoffs(query: Record<string, unknown>): ApexCutoffsResponse {
+function mockApexCutoffs(query: Record<string, unknown>): ApexCutoffsReadModel {
   const days = Math.min(Math.max(Number(query.days) || 90, 1), 730)
   const now = Date.now()
   const entries = Array.from({ length: days }, (_, i) => ({
@@ -1436,7 +1392,7 @@ function apexTierForLp(lp: number): { tier: string, division: string } {
   return { tier: 'MASTER', division: 'I' }
 }
 
-function mockRankHistory(player: MockPlayer): RankHistoryResponse {
+function mockRankHistory(player: MockPlayer): RankHistoryReadModel {
   const endLp = player.row.ranked?.leaguePoints ?? 0
   const apex = player.row.ranked?.tier !== 'DIAMOND'
   const rng = mulberry32(player.row.rank * 733)
@@ -1467,7 +1423,7 @@ function mockRankHistory(player: MockPlayer): RankHistoryResponse {
  * first game of it), the week window is the last seven days, and the day window
  * is whatever was played today.
  */
-function mockActivity(player: MockPlayer): TruemainActivityResponse {
+function mockActivity(player: MockPlayer): TruemainActivityReadModel {
   const rng = mulberry32(player.row.rank * 4409)
   const now = Date.now()
   // The patch is a fortnight old and the player only joined it on its fourth
@@ -1498,7 +1454,7 @@ function mockActivity(player: MockPlayer): TruemainActivityResponse {
   const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10)
   const floorDay = (ms: number) => Date.parse(`${isoDay(ms)}T00:00:00.000Z`)
 
-  function byDay(firstDay: number, lastDay: number): ActivityBucket[] {
+  function byDay(firstDay: number, lastDay: number): TruemainActivityBucketReadModel[] {
     const totals = new Map<number, { games: number, wins: number }>()
     for (const game of games) {
       const slot = floorDay(game.startUtc)
@@ -1506,7 +1462,7 @@ function mockActivity(player: MockPlayer): TruemainActivityResponse {
       totals.set(slot, { games: current.games + 1, wins: current.wins + (game.win ? 1 : 0) })
     }
 
-    const buckets: ActivityBucket[] = []
+    const buckets: TruemainActivityBucketReadModel[] = []
     for (let slot = firstDay; slot <= lastDay; slot += DAY_MS) {
       const hit = totals.get(slot)
       buckets.push({
@@ -1525,8 +1481,8 @@ function mockActivity(player: MockPlayer): TruemainActivityResponse {
   function series(
     mode: ActivityMode,
     patch: string | null,
-    buckets: ActivityBucket[],
-  ): ActivitySeries {
+    buckets: TruemainActivityBucketReadModel[],
+  ): TruemainActivitySeriesReadModel {
     const total = buckets.reduce((sum, bucket) => sum + bucket.games, 0)
     const wins = buckets.reduce((sum, bucket) => sum + bucket.wins, 0)
     return {
@@ -1542,7 +1498,7 @@ function mockActivity(player: MockPlayer): TruemainActivityResponse {
   }
 
   const today = floorDay(now)
-  const dayBuckets: ActivityBucket[] = games
+  const dayBuckets: TruemainActivityBucketReadModel[] = games
     .filter(game => floorDay(game.startUtc) === today)
     .map(game => ({
       key: `MOCK_${game.startUtc}`,
@@ -1570,7 +1526,7 @@ const MATCH_HISTORY_TOTAL = 46
  * panel expands inside the row it belongs to, and a second, independent roll
  * of the dice would show ten different champions than the row right above it.
  */
-function mockMatchSummary(player: MockPlayer, index: number): MatchSummaryResponse {
+function mockMatchSummary(player: MockPlayer, index: number): MatchSummaryReadModel {
   const now = Date.now()
   const pool = CHAMPION_SEEDS
   const rng = mulberry32(player.row.rank * 8887 + index * 271)
@@ -1614,6 +1570,7 @@ function mockMatchSummary(player: MockPlayer, index: number): MatchSummaryRespon
 
   return {
     matchId: `EUW1_${7_100_000_000 + player.row.rank * 10_000 + index}`,
+    isTruncated: false,
     queueId: 420,
     gameMode: 'CLASSIC',
     gameStartTimeUtc: new Date(now - (index * 11 + 3) * 60 * 60 * 1000).toISOString(),
@@ -1673,10 +1630,10 @@ const SKILL_SLOTS: Record<string, number> = { Q: 1, W: 2, E: 3, R: 4 }
  * archetype's max order. The panel's grid is a direct render of this list, so
  * a lazier "random slot per level" would draw six points in one skill.
  */
-function skillSequence(order: readonly string[], levels: number, rng: () => number): MatchDetailSkillEvent[] {
+function skillSequence(order: readonly string[], levels: number, rng: () => number): MatchDetailSkillEventReadModel[] {
   const points: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
   const priority = order.map(key => SKILL_SLOTS[key]!)
-  const events: MatchDetailSkillEvent[] = []
+  const events: MatchDetailSkillEventReadModel[] = []
   for (let level = 1; level <= levels; level++) {
     let slot: number
     if ((level === 6 || level === 11 || level === 16) && points[4]! < 3) {
@@ -1707,8 +1664,8 @@ function buildOrder(
   archetype: (typeof ARCHETYPES)[keyof typeof ARCHETYPES],
   minutes: number,
   rng: () => number,
-): MatchDetailItemEvent[] {
-  const events: MatchDetailItemEvent[] = []
+): MatchDetailItemEventReadModel[] {
+  const events: MatchDetailItemEventReadModel[] = []
   const purchase = (minute: number, itemId: number) => events.push({
     timestampMs: Math.round((minute * 60 + rng() * 45) * 1000),
     eventType: 'ITEM_PURCHASED',
@@ -1742,7 +1699,7 @@ function buildOrder(
   return events.sort((a, b) => a.timestampMs - b.timestampMs)
 }
 
-async function mockMatchDetail(player: MockPlayer, matchId: string): Promise<MatchDetailResponse | null> {
+async function mockMatchDetail(player: MockPlayer, matchId: string): Promise<MatchDetail | null> {
   // The id encodes the history index (see `mockMatchSummary`), which is what
   // lets the detail regenerate exactly the game the row summarised. An id from
   // another player's history — or a hand-typed one — has no fixture behind it.
@@ -1753,7 +1710,7 @@ async function mockMatchDetail(player: MockPlayer, matchId: string): Promise<Mat
   const summary = mockMatchSummary(player, index)
   const minutes = Math.round(summary.gameDurationSeconds / 60)
 
-  const participants = summary.participants.map((p, slot): MatchDetailParticipant => {
+  const participants = summary.participants.map((p, slot): MatchDetailParticipantReadModel => {
     const rng = mulberry32(index * 7919 + slot * 131 + player.row.rank)
     const isSelf = slot === 0
     const seedForChamp = seedsById.get(p.championId)!
@@ -1901,7 +1858,7 @@ const THIN_SAMPLE_ACCOUNTS: Record<string, { player: boolean, mains: boolean }> 
   both: { player: true, mains: true },
 }
 
-function thinSampleFixture(riotId: string): { identity: ProfileIdentity, player: boolean, mains: boolean } | null {
+function thinSampleFixture(riotId: string): { identity: ProfileIdentityReadModel, player: boolean, mains: boolean } | null {
   const [gameName, tagLine] = riotId.trim().split(/[#-]/)
   if (gameName?.toLowerCase() !== 'thin' || !tagLine) return null
   const fixture = THIN_SAMPLE_ACCOUNTS[tagLine.toLowerCase()]
@@ -1935,7 +1892,7 @@ async function mockMainsComparison(
   main: string | undefined,
   position: string | undefined,
   patch: string | undefined,
-): Promise<ChampionMainsComparison | null> {
+): Promise<ChampionMainsComparisonResponse | null> {
   const s = seedsById.get(id)
   if (!s) return null
 
@@ -1963,7 +1920,7 @@ async function mockMainsComparison(
   const playerIdentity = thin?.identity ?? player?.row.identity
   if (!playerIdentity) return { ...base, status: 'UNKNOWN_ACCOUNT', player: null, mains: null }
 
-  const side = (seed: number, identity: ProfileIdentity | null, players: number, belowFloor = false): ChampionComparisonSide => {
+  const side = (seed: number, identity: ProfileIdentityReadModel | null, players: number, belowFloor = false): ChampionComparisonSideReadModel => {
     const rng = mulberry32(seed)
     // A thin side lands on 1..minGames-1 recorded games; one draw either way,
     // so the rest of the side's stats stay identical to the seeded ones.
@@ -2227,7 +2184,7 @@ async function mockCompositionBuildGames(id: number, body: unknown, query: Recor
   const count = Math.max(0, Math.min(pageSize, total - start))
   const now = Date.now()
 
-  const games: CompositionGame[] = Array.from({ length: count }, (_, i): CompositionGame => {
+  const games: CompositionGameReadModel[] = Array.from({ length: count }, (_, i): CompositionGameReadModel => {
     const index = start + i
     const gameRng = mulberry32(s.id * 733 + index * 197)
     const isTruemain = index % 2 === 0
@@ -2254,8 +2211,9 @@ async function mockCompositionBuildGames(id: number, body: unknown, query: Recor
       }
     })
 
-    const match: MatchSummaryResponse = {
+    const match: MatchSummaryReadModel = {
       matchId: `EUW1_COMPG_${s.id}_${index}`,
+      isTruncated: false,
       queueId: 420,
       gameMode: 'CLASSIC',
       gameStartTimeUtc: new Date(now - (index * 13 + 5) * 60 * 60 * 1000).toISOString(),

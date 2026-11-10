@@ -1,3 +1,4 @@
+import type { ItemContextAxis } from '#shared/contract/api'
 import { describe, expect, it } from 'vitest'
 import { ITEM_CONTEXT_TONE_CLASS, KNOWN_ITEM_CONTEXT_AXES } from '#shared/utils/item-context'
 import { BUILT_AXES, builtAxisPhrase } from '~/utils/built-reasons'
@@ -8,7 +9,7 @@ import { sampleGame } from '~/utils/overlay-sample'
 // The in-game axes of what the enemies have built (#1750), from `ItemContextTypes.cs`
 // (`ItemContextAxis`, the members marked `[InGame(OverlayOnly = true)]`). A hand-kept mirror,
 // like the site's: it fails when the fold gains one the app has no sentence for.
-const BACKEND_BUILT_AXES = [
+const BACKEND_BUILT_AXES: ItemContextAxis[] = [
   'EnemyArmorBuilt',
   'EnemyMagicResistBuilt',
   'OpponentArmorBuilt',

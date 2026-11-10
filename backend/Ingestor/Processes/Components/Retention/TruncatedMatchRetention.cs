@@ -105,31 +105,6 @@ public static class TruncatedMatchRetention
     }
 
     /// <summary>
-    /// The item data of a truncated match's patch; null when it is unavailable, so its seats
-    /// keep every fact but the items rather than failing the batch.
-    /// </summary>
-    public static Func<string, CancellationToken, Task<IReadOnlyDictionary<int, ItemMetadata>?>> ItemMetadataReader(
-        IItemMetadataProvider provider,
-        ILogger logger)
-    {
-        ArgumentNullException.ThrowIfNull(provider);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        return async (gameVersion, ct) =>
-        {
-            try
-            {
-                return await provider.GetItemsAsync(gameVersion, ct);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                logger.LogWarning(exception, "Item metadata unavailable for {GameVersion}; truncated seats keep no item facts.", gameVersion);
-                return null;
-            }
-        };
-    }
-
-    /// <summary>
     /// Drops what the two tiers no longer keep: untracked seats outside the newest
     /// <paramref name="retainedPatchCount"/> patches, and every seat outside the newest
     /// <paramref name="trackedRetainedPatchCount"/>. Nothing when truncation is off. Returns the

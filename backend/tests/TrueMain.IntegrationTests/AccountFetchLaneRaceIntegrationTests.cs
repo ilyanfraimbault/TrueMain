@@ -83,7 +83,7 @@ public sealed class AccountFetchLaneRaceIntegrationTests(PostgresFixture fixture
                 SaveBatchSize = 1
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = fixture.CreateDbContext();
         var raced = await verify.RiotAccounts.AsNoTracking().SingleAsync(a => a.Puuid == RacedPuuid);
@@ -158,7 +158,7 @@ public sealed class AccountFetchLaneRaceIntegrationTests(PostgresFixture fixture
                 NewAccountsTarget = 0
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = fixture.CreateDbContext();
         var raced = await verify.RiotAccounts.AsNoTracking().SingleAsync(a => a.Puuid == RacedPuuid);

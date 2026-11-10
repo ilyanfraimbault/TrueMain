@@ -44,7 +44,7 @@ public sealed class ExternalProcessRunsApiIntegrationTests : IAsyncLifetime
             summary = new { currentStep = "leaguepedia" },
         });
         start.StatusCode.Should().Be(HttpStatusCode.Created);
-        var started = await start.Content.ReadFromJsonAsync<StartedContract>();
+        var started = await start.Content.ReadFromJsonAsync<StartedContract>(ApiJson.Options);
         started!.ProcessName.Should().Be("PersonaScraper");
 
         var beat = await client.PostAsJsonAsync($"/ops/process-runs/{started.Id}/heartbeat", new
@@ -185,7 +185,7 @@ public sealed class ExternalProcessRunsApiIntegrationTests : IAsyncLifetime
     {
         var response = await client.PostAsJsonAsync("/ops/process-runs", new { processName });
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        return (await response.Content.ReadFromJsonAsync<StartedContract>())!.Id;
+        return (await response.Content.ReadFromJsonAsync<StartedContract>(ApiJson.Options))!.Id;
     }
 
     private static async Task<JsonElement> GetRunAsync(HttpClient client, Guid id)

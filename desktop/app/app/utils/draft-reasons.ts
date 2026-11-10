@@ -1,4 +1,4 @@
-import type { DraftReason } from '~/types/draft'
+import type { DraftReasonReadModel } from '#shared/contract/api'
 import { formatCount } from '#shared/utils/counts'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { formatPointDelta } from '#shared/utils/deltas'
@@ -73,7 +73,7 @@ function signTone(value: number | null): ReasonText['tone'] {
  * The words for one reason. `position` is our lane (for "the most-played mids").
  * An unknown kind — an API newer than the app — still reads, as its figure only.
  */
-export function describeReason(reason: DraftReason, nameOf: (championId: number) => string, position: string): ReasonText {
+export function describeReason(reason: DraftReasonReadModel, nameOf: (championId: number) => string, position: string): ReasonText {
   const name = reason.championId !== null ? nameOf(reason.championId) : ''
   const delta = reason.delta ?? 0
   const lane = laneLabel(position)

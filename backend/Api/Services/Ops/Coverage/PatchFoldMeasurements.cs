@@ -10,7 +10,7 @@ namespace TrueMain.Services.Ops.Coverage;
 /// broken table yields <c>unknown</c> with the reason attached rather than blinding the
 /// others.
 /// </summary>
-internal sealed class PatchFoldMeasurements(TrueMainDbContext db, ILogger logger)
+internal sealed class PatchFoldMeasurements(TrueMainDbContext db, Measurements<PatchCoverageQueryService> measurements)
 {
     /// <summary>
     /// One grouped rollup per fold table, over every patch rather than only the covered
@@ -21,7 +21,7 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, ILogger logger
         IReadOnlyDictionary<string, PatchCoverage> coverage,
         CancellationToken ct)
     {
-        var measurements = new List<FoldMeasurement>
+        var folds = new List<FoldMeasurement>
         {
             // Builds ride the coverage rollup that has already been read: it is the same
             // table on the same filter, so re-scanning it would buy nothing.
@@ -30,10 +30,10 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, ILogger logger
 
         foreach (var fold in DerivedFolds)
         {
-            measurements.Add(await MeasureFoldAsync(fold, ct));
+            folds.Add(await MeasureFoldAsync(fold, ct));
         }
 
-        return measurements;
+        return folds;
     }
 
     private static FoldMeasurement BuildsFold(IReadOnlyDictionary<string, PatchCoverage> coverage)
@@ -57,45 +57,43 @@ internal sealed class PatchFoldMeasurements(TrueMainDbContext db, ILogger logger
 
     private async Task<FoldMeasurement> MeasureFoldAsync(DerivedFold fold, CancellationToken ct)
     {
+        // Same rule as the detector panel: one fold's broken or unaffordable rollup must not
+        // blind the other six, and must not read as an empty fold either.
+        var measured = await measurements.TryAsync(
+            $"Patch-coverage fold {fold.Spec.Key}", () => ReadFoldAsync(fold, ct), ct);
+        return measured.IsMeasured
+            ? measured.Value!
+            : new FoldMeasurement(
+                fold.Spec, new Dictionary<string, FoldPatchRow>(StringComparer.Ordinal), null, measured.UnknownReason);
+    }
+
+    private async Task<FoldMeasurement> ReadFoldAsync(DerivedFold fold, CancellationToken ct)
+    {
         var spec = fold.Spec;
 
-        try
-        {
-            var rows = await db.Database.SqlQueryRaw<FoldPatchSqlRow>(fold.Sql).ToListAsync(ct);
+        var rows = await db.Database.SqlQueryRaw<FoldPatchSqlRow>(fold.Sql).ToListAsync(ct);
 
-            var byPatch = rows
-                .Where(row => PatchVersion.TryParse(row.Patch, out _))
-                .GroupBy(row => PatchVersion.Normalize(row.Patch), StringComparer.Ordinal)
-                .ToDictionary(
-                    group => group.Key,
-                    group => new FoldPatchRow(
-                        group.Sum(row => row.Rows),
-                        group.Sum(row => row.Champions),
-                        group.Max(row => row.LastAggregatedAtUtc)),
-                    StringComparer.Ordinal);
+        var byPatch = rows
+            .Where(row => PatchVersion.TryParse(row.Patch, out _))
+            .GroupBy(row => PatchVersion.Normalize(row.Patch), StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => new FoldPatchRow(
+                    group.Sum(row => row.Rows),
+                    group.Sum(row => row.Champions),
+                    group.Max(row => row.LastAggregatedAtUtc)),
+                StringComparer.Ordinal);
 
-            // Only patches the fold actually produced something on count as "measured":
-            // a row group with zero rows is what the FILTER variants (lane outcomes,
-            // per-opponent spikes) return for a patch the fold predates.
-            var firstMeasured = byPatch
-                .Where(entry => entry.Value.Rows > 0)
-                .Select(entry => entry.Key)
-                .OrderBy(PatchVersion.Parse)
-                .FirstOrDefault();
+        // Only patches the fold actually produced something on count as "measured":
+        // a row group with zero rows is what the FILTER variants (lane outcomes,
+        // per-opponent spikes) return for a patch the fold predates.
+        var firstMeasured = byPatch
+            .Where(entry => entry.Value.Rows > 0)
+            .Select(entry => entry.Key)
+            .OrderBy(PatchVersion.Parse)
+            .FirstOrDefault();
 
-            return new FoldMeasurement(spec, byPatch, firstMeasured, UnknownReason: null);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // Same rule as the detector panel: one fold's broken or unaffordable rollup
-            // must not blind the other six, and must not read as an empty fold either.
-            logger.LogWarning(ex, "Patch-coverage fold {Fold} failed to measure", spec.Key);
-            return new FoldMeasurement(spec, new Dictionary<string, FoldPatchRow>(StringComparer.Ordinal), null, ex.Message);
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        return new FoldMeasurement(spec, byPatch, firstMeasured, UnknownReason: null);
     }
 
     /// <summary>

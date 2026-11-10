@@ -31,7 +31,9 @@ public sealed class ItemClassesController(IItemClassProvider classes) : Controll
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid patch", detail: $"'{patch}' is not a patch.");
         }
 
-        var answer = await classes.GetClassesAsync(patch, ct);
+        // An outage stays a 500, as when the provider threw: the editor has nothing to show
+        // without the classes, and the failure is already logged where the load failed.
+        var answer = (await classes.GetClassesAsync(patch, ct)).Require("Item shop classes");
         return Ok(new ItemClassesResponse
         {
             Patch = answer.Patch,

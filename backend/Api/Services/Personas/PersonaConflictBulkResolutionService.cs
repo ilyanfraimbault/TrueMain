@@ -80,31 +80,31 @@ public sealed class PersonaConflictBulkResolutionService(
             .FirstOrDefaultAsync(ct);
         if (conflict is null)
         {
-            return Skipped(id, "notFound");
+            return Skipped(id, PersonaConflictBulkSkipReason.NotFound);
         }
 
         if (conflict.Status != PersonaConflictStatus.Open)
         {
-            return Skipped(id, "notOpen");
+            return Skipped(id, PersonaConflictBulkSkipReason.NotOpen);
         }
 
         var evidence = (await PersonaConflictBulk.EvidenceAsync(
             db, [(id, conflict.ClaimantPersonaId, conflict.OwnerPersonaId)], ct))[id];
         if (evidence.DifferingSocial.Count > 0)
         {
-            return Skipped(id, "differingChannel");
+            return Skipped(id, PersonaConflictBulkSkipReason.DifferingChannel);
         }
 
         if (!PersonaConflictBulk.IsEligible(evidence, floor))
         {
-            return Skipped(id, "belowFloor");
+            return Skipped(id, PersonaConflictBulkSkipReason.BelowFloor);
         }
 
         var keepClaimant = PersonaConflictBulk.KeepClaimant(
             conflict.ClaimantCreatedAtUtc, conflict.ClaimantPersonaId, conflict.OwnerCreatedAtUtc, conflict.OwnerPersonaId);
         var outcome = await resolution.ResolveAsync(
             id,
-            new PersonaConflictResolveRequest { Action = "merge", Keep = keepClaimant ? "claimant" : "owner" },
+            new PersonaConflictResolveRequest { Action = PersonaConflictAction.Merge, Keep = keepClaimant ? PersonaConflictSide.Claimant : PersonaConflictSide.Owner },
             AuditActors.Operator,
             ct);
         return outcome.Result switch
@@ -112,14 +112,14 @@ public sealed class PersonaConflictBulkResolutionService(
             PersonaConflictResolveResult.Ok => new PersonaConflictBulkOutcomeReadModel
             {
                 Id = id,
-                Status = "resolved",
+                Status = PersonaConflictBulkStatus.Resolved,
                 Resolution = outcome.Resolved,
             },
-            PersonaConflictResolveResult.NotFound => Skipped(id, "notFound"),
-            _ => Skipped(id, "changed"),
+            PersonaConflictResolveResult.NotFound => Skipped(id, PersonaConflictBulkSkipReason.NotFound),
+            _ => Skipped(id, PersonaConflictBulkSkipReason.Changed),
         };
     }
 
-    private static PersonaConflictBulkOutcomeReadModel Skipped(Guid id, string reason) =>
-        new() { Id = id, Status = "skipped", Reason = reason };
+    private static PersonaConflictBulkOutcomeReadModel Skipped(Guid id, PersonaConflictBulkSkipReason reason) =>
+        new() { Id = id, Status = PersonaConflictBulkStatus.Skipped, Reason = reason };
 }

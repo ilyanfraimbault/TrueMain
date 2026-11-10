@@ -3,20 +3,20 @@
 // account, and what MainActivity did to it afterwards. Split out of
 // `AccountsTrace.vue` (#1436).
 import type { TableColumn } from '@nuxt/ui'
-import type { AccountExplorerMainRow, AccountExplorerMainThresholds } from '~~/shared/types/ops'
+import type { AccountExplorerMainRowReadModel, AccountExplorerMainThresholdsReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber, formatPercentOrDash } from '~~/shared/utils/format'
 import { POSITION_BY_VALUE } from '#site-shared/utils/positions'
 
 const props = defineProps<{
-  rows: AccountExplorerMainRow[]
-  thresholds: AccountExplorerMainThresholds | null
+  rows: AccountExplorerMainRowReadModel[]
+  thresholds: AccountExplorerMainThresholdsReadModel | null
   /** When MainAnalysis last ran on the account — phrases the empty state. */
   lastMainCalcAtUtc: string | null | undefined
 }>()
 
 const { nameFor, iconFor } = useChampionStatic()
 
-const mainColumns: TableColumn<AccountExplorerMainRow>[] = [
+const mainColumns: TableColumn<AccountExplorerMainRowReadModel>[] = [
   { accessorKey: 'championId', header: 'Champion' },
   { accessorKey: 'championMatches', header: 'Games' },
   { accessorKey: 'playRate', header: 'Play rate' },
@@ -27,7 +27,7 @@ const mainColumns: TableColumn<AccountExplorerMainRow>[] = [
 
 // Text fallback (tooltip, and rows with no breakdown at all) — the table cell
 // itself renders an icon per position when the breakdown is available.
-function positionSummary(row: AccountExplorerMainRow): string {
+function positionSummary(row: AccountExplorerMainRowReadModel): string {
   if (row.positionBreakdown.length === 0) {
     return row.primaryPosition || '—'
   }

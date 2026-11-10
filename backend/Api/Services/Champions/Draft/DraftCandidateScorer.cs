@@ -129,7 +129,7 @@ public static class DraftCandidateScorer
             var contribution = weights.Lane * occupied * (probability / occupancyTotal) * pairing.Shrunk(k);
             parts.Add((contribution, new DraftReasonReadModel
             {
-                Kind = DraftReasonKinds.LaneMatchup,
+                Kind = DraftReasonKind.LaneMatchup,
                 ChampionId = enemy,
                 Delta = pairing.Delta,
                 Games = pairing.Games,
@@ -141,7 +141,7 @@ public static class DraftCandidateScorer
         {
             parts.Add((weights.Lane * (1d - occupied) * blind.Shrunk, new DraftReasonReadModel
             {
-                Kind = DraftReasonKinds.BlindSafety,
+                Kind = DraftReasonKind.BlindSafety,
                 Delta = blind.Delta,
                 Games = blind.Games,
                 Count = blind.LosingInto,
@@ -153,7 +153,7 @@ public static class DraftCandidateScorer
         {
             parts.Add((weights.Strength * strength.Shrunk(k), new DraftReasonReadModel
             {
-                Kind = DraftReasonKinds.LaneStrength,
+                Kind = DraftReasonKind.LaneStrength,
                 Delta = strength.Delta,
                 Games = strength.Games,
             }));
@@ -166,7 +166,7 @@ public static class DraftCandidateScorer
             {
                 parts.Add((weights.Enemy * input.Weight / enemyWeight * input.Pairing.Shrunk(k), new DraftReasonReadModel
                 {
-                    Kind = DraftReasonKinds.EnemyTeam,
+                    Kind = DraftReasonKind.EnemyTeam,
                     ChampionId = input.ChampionId,
                     Delta = input.Pairing.Delta,
                     Games = input.Pairing.Games,
@@ -186,7 +186,7 @@ public static class DraftCandidateScorer
 
             parts.Add((weights.Synergy * weight / allyWeight * ally.Pairing.Shrunk(k), new DraftReasonReadModel
             {
-                Kind = DraftReasonKinds.Synergy,
+                Kind = DraftReasonKind.Synergy,
                 ChampionId = ally.ChampionId,
                 Position = ally.Position,
                 Delta = ally.Pairing.Delta,
@@ -226,7 +226,7 @@ public static class DraftCandidateScorer
         {
             reasons.Add(new DraftReasonReadModel
             {
-                Kind = DraftReasonKinds.LanePhase,
+                Kind = DraftReasonKind.LanePhase,
                 ChampionId = opponent,
                 Rate = (double)phase.Wins / (phase.Wins + phase.Losses),
                 Games = phase.Wins + phase.Losses,
@@ -247,9 +247,9 @@ public static class DraftCandidateScorer
 
     private static DraftReasonReadModel TeamFitReason(DraftTeamFitAxis axis, bool tentative) => new()
     {
-        Kind = DraftReasonKinds.TeamFit,
-        Axis = axis.Axis.ToString(),
-        Bucket = axis.Bucket.ToString(),
+        Kind = DraftReasonKind.TeamFit,
+        Axis = axis.Axis,
+        Bucket = axis.Bucket,
         Delta = axis.Fit.Delta,
         Games = axis.Fit.Games,
         Tentative = tentative,

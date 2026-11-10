@@ -2,14 +2,14 @@
 // Run detail slide-over of the Processes page: one run's status, timing, host,
 // error and formatted summary, with the raw JSON as a collapsible fallback.
 // Split out of `pages/processes.vue` (#1436).
-import type { ProcessRun } from '~~/shared/types/ops'
+import type { ProcessRunReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
 import { hasSummary } from '~~/shared/utils/process-summary'
 import { isScraperProcess, parseScraperSummary } from '~~/shared/utils/scraper-runs'
 
 const props = defineProps<{
-  run: ProcessRun | null
+  run: ProcessRunReadModel | null
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
