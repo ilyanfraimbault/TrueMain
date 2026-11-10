@@ -2030,12 +2030,16 @@ process de snapshot n'a pas tourné)
   marche lirait un saut unique comme un rythme quotidien. `comparableDays` expose ce
   compte, pour que le panneau nomme la vraie raison de l'absence au lieu de redériver
   la règle de son côté.
+- `forecastAbsence` : quand `forecast` est `null`, pourquoi — `NoSnapshots`,
+  `EnginesChanged`, `TooFewDays` (moins de `forecastMinimumDays` jours comparables),
+  `NoCapacityConfigured` ou `NotGrowing` ; `null` quand il y a une prévision.
 - `projectedAtUtc` : `null` = échéance à plus d'un siècle **dans un sens ou dans
   l'autre** (aucune date exploitable à ce rythme) ; une date passée = seuil déjà franchi.
 
 ## `GET /ops/process-runs`
 
-Une page de runs de process (récents d'abord) + rollup par process.
+Une page de runs de process (récents d'abord). Le rollup par process est sa propre
+lecture : `GET /ops/process-runs/rollup`.
 
 **Query**
 
@@ -2043,7 +2047,7 @@ Une page de runs de process (récents d'abord) + rollup par process.
 |---------------|----------|--------|-------------|
 | `processName` | string   | non | Restreint à un process. |
 | `status`      | string   | non | Nom de `ProcessRunStatus` (insensible casse). |
-| `since`       | datetime | non | Borne basse sur `StartedAtUtc` (+ fenêtre du rollup). |
+| `since`       | datetime | non | Borne basse sur `StartedAtUtc`. |
 | `limit`       | int      | non | Taille de page legacy (alias de `pageSize`). |
 | `page`        | int      | non | 1-based (clamp ≥ 1). |
 | `pageSize`    | int      | non | Clamp [1, 500], défaut 100. |
@@ -2066,9 +2070,6 @@ Une page de runs de process (récents d'abord) + rollup par process.
       "summary": { "accountsProcessed": 320, "matchesIngested": 4100 }
     }
   ],
-  "rollup": [
-    { "processName": "MainAnalysis", "lastStatus": "Success", "lastRunAtUtc": "2026-06-26T10:00:00Z", "lastSuccessAtUtc": "2026-06-26T10:00:00Z", "failureCountInWindow": 0, "runCountInWindow": 48, "failureRateInWindow": 0.0 }
-  ],
   "total": 1240,
   "page": 1,
   "pageSize": 100
@@ -2078,6 +2079,31 @@ Une page de runs de process (récents d'abord) + rollup par process.
 - `status` peut être `Success`/`Failed`/`Running`/`Abandoned` (un `Running` à
   heartbeat périmé est rapporté `Abandoned`).
 - `summary` est le payload JSONB du run, verbatim (ou `null`).
+- `finishedAtUtc` : `null` tant que le run est `Running` (le store y recopie le début,
+  ce n'est pas une fin).
+
+## `GET /ops/process-runs/rollup`
+
+Santé par process sur la fenêtre qui commence à `since` : ce que la grille de santé de
+`/processes` affiche, sans paginer les runs.
+
+**Query**
+
+| Param         | Type     | Requis | Description |
+|---------------|----------|--------|-------------|
+| `processName` | string   | non | Restreint à un process. |
+| `since`       | datetime | non | Début de la fenêtre. Absent : totaux depuis toujours, jamais une fenêtre cachée. |
+
+**Réponse `200`** — `ProcessRunRollupReadModel[]`
+
+```json
+[
+  { "processName": "MainAnalysis", "lastStatus": "Success", "lastRunAtUtc": "2026-06-26T10:00:00Z", "lastSuccessAtUtc": "2026-06-26T10:00:00Z", "failureCountInWindow": 0, "runCountInWindow": 48, "failureRateInWindow": 0.0, "health": "green" }
+]
+```
+
+- `health` : `red` si le dernier run a échoué, `amber` si la part d'échecs de la fenêtre
+  atteint 25 %, `green` sinon — le verdict que la grille colore, calculé par l'Api.
 
 ## `GET /ops/process-iterations`
 
@@ -2115,6 +2141,14 @@ d'abord, chacune portant ses runs ordonnés.
 ```
 
 `runs[]` ont la même forme que `ProcessRunReadModel` ci-dessus.
+
+## `GET /ops/process-iterations/latest`
+
+La passe la plus récente de chaque lane du pipeline (`fetch`, `aggregate`), pour l'arbre
+live de la vue chaîne : une entrée par lane qui a tourné, une passe `Full` la plus récente
+des deux listée une seule fois, récentes d'abord. Pas de query.
+
+**Réponse `200`** — `ProcessIterationReadModel[]`, même forme que `iterations[]` ci-dessus.
 
 ## `GET /ops/logs`
 
@@ -2557,6 +2591,22 @@ Matchs signalés par les checks de qualité, groupés par type d'anomalie.
 `staleTimelineThresholdHours` est une **constante serveur** (6), pas de la
 configuration : elle est réénoncée dans la réponse pour que le panneau affiche le seuil
 qu'il vient réellement d'appliquer plutôt qu'un nombre codé en dur de son côté.
+
+## `GET /ops/data-quality/incomplete-matches/counts`
+
+Combien de matchs chaque check signale, sous les mêmes filtres que
+`GET /ops/data-quality/incomplete-matches` (`issue`, `queue`, `minAgeHours`), sans les
+lignes : ce que lisent les compteurs de `/data-quality`.
+
+**Réponse `200`** — `IncompleteMatchCountsReadModel`
+
+```json
+{
+  "counts": [ { "issueType": "missingTimeline", "count": 320 } ],
+  "total": 512,
+  "staleTimelineThresholdHours": 6
+}
+```
 
 ## `GET /ops/data-quality/match/{id}`
 

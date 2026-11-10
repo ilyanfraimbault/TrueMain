@@ -1816,6 +1816,74 @@
         }
       }
     },
+    "/ops/data-quality/incomplete-matches/counts": {
+      "get": {
+        "tags": [
+          "OpsDataQuality"
+        ],
+        "summary": "How many matches each data-quality check flags under the same filters as\n`GET /ops/data-quality/incomplete-matches`, without the rows.",
+        "parameters": [
+          {
+            "name": "issue",
+            "in": "query",
+            "description": "Restrict to a single check (camelCase name); omit for all.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "queue",
+            "in": "query",
+            "description": "Restrict to one queue id; omit for all.",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "minAgeHours",
+            "in": "query",
+            "description": "Only consider matches at least this many hours old.",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncompleteMatchCountsReadModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ops/data-quality/match/{id}": {
       "get": {
         "tags": [
@@ -4295,6 +4363,111 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ops/process-runs/rollup": {
+      "get": {
+        "tags": [
+          "OpsProcesses"
+        ],
+        "summary": "Per-process health over the window starting at since: last status,\nlast success, in-window failure counts and rate, and the verdict the health grid colours by.\nUnbounded (all-time counts) when since is omitted.",
+        "parameters": [
+          {
+            "name": "processName",
+            "in": "query",
+            "description": "Restrict to a single process. Omit for all.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Lower bound of the failure window. Omit for all time.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProcessRunRollupReadModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ops/process-iterations/latest": {
+      "get": {
+        "tags": [
+          "OpsProcesses"
+        ],
+        "summary": "The newest pass of each pipeline lane, for the chain view's live tree: one entry per\nlane that has run, a `Full` pass newest on both listed once.",
+        "responses": {
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProcessIterationReadModel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
@@ -11243,13 +11416,25 @@
         },
         "description": "The fitted growth rate and when it reaches each configured fill level."
       },
+      "DbStorageForecastAbsence": {
+        "enum": [
+          "NoSnapshots",
+          "EnginesChanged",
+          "TooFewDays",
+          "NoCapacityConfigured",
+          "NotGrowing",
+          null
+        ]
+      },
       "DbStorageHistoryReadModel": {
         "required": [
           "daily",
           "tables",
           "engines",
           "comparableDays",
-          "forecast"
+          "forecast",
+          "forecastAbsence",
+          "forecastMinimumDays"
         ],
         "type": "object",
         "properties": {
@@ -11289,6 +11474,22 @@
                 "$ref": "#/components/schemas/DbStorageForecast"
               }
             ]
+          },
+          "forecastAbsence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Why DbStorageForecast? DbStorageHistoryReadModel.Forecast is null; null when there is one.",
+                "$ref": "#/components/schemas/DbStorageForecastAbsence"
+              }
+            ]
+          },
+          "forecastMinimumDays": {
+            "type": "integer",
+            "description": "How many comparable days a forecast needs.",
+            "format": "int32"
           }
         },
         "description": "Storage growth over a window, plus the disk-exhaustion forecast (#925). Read\nentirely from the daily snapshot collection — the page never runs a\n`pg_catalog` scan of its own, which is the point of snapshotting."
@@ -13122,6 +13323,50 @@
           }
         },
         "description": "The `/health` page's alerts panel (#2292): whether the alerter is on, the rules it\napplies, and the last alerts it sent."
+      },
+      "IncompleteMatchCountReadModel": {
+        "required": [
+          "issueType",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "issueType": {
+            "$ref": "#/components/schemas/DataQualityIssueType"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "IncompleteMatchCountsReadModel": {
+        "required": [
+          "counts",
+          "total",
+          "staleTimelineThresholdHours"
+        ],
+        "type": "object",
+        "properties": {
+          "counts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncompleteMatchCountReadModel"
+            },
+            "description": "One entry per check that flags at least one match, in declaration order."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Distinct matches flagged by at least one check in scope.",
+            "format": "int64"
+          },
+          "staleTimelineThresholdHours": {
+            "type": "integer",
+            "description": "Matches with `TimelineIngested = false` are only flagged once older\nthan this many hours, so the normal recovery backlog isn't reported as\nstuck. Echoed back so the panel can label the threshold it's seeing.",
+            "format": "int32"
+          }
+        },
+        "description": "How many matches each check flags, without the rows."
       },
       "IncompleteMatchesReadModel": {
         "required": [
@@ -18464,7 +18709,11 @@
             "format": "date-time"
           },
           "finishedAtUtc": {
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When the run settled; null while it is still running.",
             "format": "date-time"
           },
           "durationMs": {
@@ -18533,7 +18782,8 @@
           "lastSuccessAtUtc",
           "failureCountInWindow",
           "runCountInWindow",
-          "failureRateInWindow"
+          "failureRateInWindow",
+          "health"
         ],
         "type": "object",
         "properties": {
@@ -18566,6 +18816,10 @@
             "type": "number",
             "description": "Fraction of in-window runs that failed, in `[0, 1]`. 0 when no runs\nfall inside the window. Derived from real run counts (not a fabricated\nmetric) so the admin can color failure volume by a meaningful rate rather\nthan an always-positive absolute count.",
             "format": "double"
+          },
+          "health": {
+            "description": "Red when the latest run failed, amber when it did not but the window's failure rate\nreached `ProcessRunsQueryService.DegradedFailureRate`, green otherwise.",
+            "$ref": "#/components/schemas/DetectorStatus"
           }
         },
         "description": "Per-process summary over the rollup window. The window follows the caller's\n`since`: when `since` is omitted the window is unbounded, so\nint ProcessRunRollupReadModel.FailureCountInWindow is a true all-time total (≥ any narrower\nwindow) rather than a hidden default. int ProcessRunRollupReadModel.FailureCountInWindow and\nint ProcessRunRollupReadModel.RunCountInWindow count only runs whose `StartedAtUtc` falls\ninside the window; double ProcessRunRollupReadModel.FailureRateInWindow is their ratio (0 when no\nruns fall inside the window). ProcessRunStatus ProcessRunRollupReadModel.LastStatus /\nDateTime ProcessRunRollupReadModel.LastRunAtUtc / DateTime? ProcessRunRollupReadModel.LastSuccessAtUtc are unbounded, so an\nidle process still reports its real last state (DateTime? ProcessRunRollupReadModel.LastSuccessAtUtc is\nnull if the process has never succeeded)."
@@ -18573,7 +18827,6 @@
       "ProcessRunsReadModel": {
         "required": [
           "runs",
-          "rollup",
           "total",
           "page",
           "pageSize"
@@ -18584,12 +18837,6 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ProcessRunReadModel"
-            }
-          },
-          "rollup": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProcessRunRollupReadModel"
             }
           },
           "total": {
@@ -18605,7 +18852,7 @@
             "format": "int32"
           }
         },
-        "description": "Process-run feed for the admin Processes panel: one page of individual runs\n(newest first) plus a per-process rollup over the requested window so the\npanel can show current health and recent failure volume at a glance.\nlong ProcessRunsReadModel.Total is the count of all runs matching the active filters\n(before paging), so the panel can render a pager; the rollup is computed over\nthe full filtered set and is unaffected by paging."
+        "description": "Process-run feed for the admin Processes panel: one page of individual runs\n(newest first). long ProcessRunsReadModel.Total is the count of all runs matching the active\nfilters (before paging), so the panel can render a pager. The per-process rollup\nis its own read (`GET /ops/process-runs/rollup`)."
       },
       "ProcessRunStatus": {
         "enum": [
