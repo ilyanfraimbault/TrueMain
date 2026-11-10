@@ -1,5 +1,23 @@
 # Design system
 
+## The home page drops the eclipse, the stars and the template hero (2026-11-10)
+
+**Decided by the product owner in #2552, reversing the eclipse and stars of the #1060 and #1983 entries.**
+Visitors read the home page as AI-generated, and it carried most of the patterns that read that way: a glow
+ring behind a centered hero, decorative particles, an accent label above every heading, a two-tone slogan
+ending in a full stop, a closing CTA band. Each was a default, not a choice, and together they hid the
+site's real identity, which the data pages already show: dense, game-specific tables.
+
+- **Game art instead of decoration.** The hero shows the splash of the champion first in this patch's "most
+  played and banned" slice, credited in a caption: the picture says something about the data under it. It
+  sits on the right and fades into the page, so the headline stays on flat ground. `AppBackdrop` and its
+  shaders are deleted; share cards keep their wash until they are revisited.
+- **Plain, concrete copy.** The headline says what the site does differently (builds from true mains' games),
+  sections are titled by what they hold ("Patch 16.22", "Desktop app"), and the home page carries no eyebrow.
+- **Clean is not decoration.** The look stays: dark, rose gold, Inter, keycap surfaces. What goes is effects
+  that carry no information. A future "make the home page feel premium" reaches for game material and
+  typography, not glows.
+
 Part of the [decision log](../decisions.md). Format: **Decision** — why — `source`.
 
 ## The rose-gold-only surface rule is reversed: neutral surfaces, a scarce accent, and a data axis of its own (2026-08-10)
@@ -85,7 +103,7 @@ stay legible while scarce. A rose-gold number is now a *good* number, not a clic
 come from shape and position — a border, a cursor, a control's own chrome — and never from hue alone. Any
 future "make it obvious this is clickable" that reaches for the accent alone will not work any more.
 
-**The eclipse is scoped to the home hero** (`AppBackdrop.vue` moved out of `app.vue`). As a viewport-fixed
+**The eclipse is scoped to the home hero** (`AppBackdrop.vue` moved out of `app.vue`; the eclipse itself was retired in #2552). As a viewport-fixed
 layer behind every route its corona passed *through* the champion and leaderboard tables: rows near the glow
 rendered a visibly different luminance from those outside it, and a table that changes brightness down its own
 length cannot be scanned. The signature is kept where the page's job is atmosphere, and dropped where the

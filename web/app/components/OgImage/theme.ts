@@ -62,12 +62,10 @@ export const TIER_COLOR: Record<string, string> = {
 }
 
 /**
- * The rose-gold "eclipse" the site paints behind the home hero
- * (`AppBackdrop.vue` draws it in WebGL). Two offset radial washes are as close
- * as Satori's gradient support gets, and they carry the same warm off-centre
- * glow. The card keeps it whatever page it was shared from: a share card is an
- * ad for the site, so it wears the brand's signature rather than the sober
- * treatment the data pages get.
+ * The share cards' warm off-centre wash: two offset radial gradients, as far
+ * as Satori's gradient support goes. The site itself no longer paints a glow
+ * (the home hero's WebGL eclipse was retired for game art); the cards keep
+ * theirs until they get the same treatment.
  */
 export const BACKDROP = [
   'radial-gradient(900px 620px at 78% -12%, rgba(229,143,131,0.30), rgba(229,143,131,0) 70%)',

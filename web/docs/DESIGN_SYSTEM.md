@@ -85,10 +85,10 @@ Reach for the material utilities rather than composing a surface by hand:
 - **`glass-bar`** — the **only** translucent material, reserved for the floating header: it is the one surface
   page content actually scrolls behind, so it is the one place a blur has something to show. Do not reuse it
   for panels. The general-purpose `glass` is gone — the home hero's search field reads better solid against
-  the eclipse.
+  the splash art.
 - **`eyebrow`** — the short label above a page or section heading: Inter `text-sm`, medium, sentence case,
-  rose gold. Headings under it are Inter semibold with tight tracking (`tracking-tight`, `tracking-tighter`
-  on the home hero). A mono uppercase eyebrow and lighter, looser headings were tried in #1709 and withdrawn.
+  rose gold. Headings under it are Inter semibold with `tracking-tight`. The home page carries none: it
+  opens on its headline and titles its sections plainly. A mono uppercase eyebrow and lighter, looser headings were tried in #1709 and withdrawn.
 
 **`surface` owns `background-color` and `border` — don't restate them.** Writing `class="surface border
 border-default/60 bg-elevated/60"` is not merely redundant: a plain utility out-cascades a `@utility`
@@ -198,7 +198,7 @@ reaches the card. Expect the same trap on any component theme you extend with a 
 
 ## Component naming conventions
 
-- **`App*`** (`AppHeader`, `AppLogo`, `AppFooter`, `AppSearch`, `AppBackdrop`) — layout/shell components. One instance each, mounted from `app.vue` or a page, not meant to be reused inside a page.
+- **`App*`** (`AppHeader`, `AppLogo`, `AppFooter`, `AppSearch`) — layout/shell components. One instance each, mounted from `app.vue` or a page, not meant to be reused inside a page.
 - **`Champion/*`** — feature-scoped components for the champion detail area (`Champion/Hero` — the banner, in the shared layer —, `Champion/Matchups`, `Champion/BuildPanel`, ...). Each owns a section of the champion page.
 - **`Champion/Core/*`** — low-level data-viz primitives consumed by build panels (`Champion/Core/Runes`, `Champion/Core/BuildPath`, `Champion/Core/Spells`, ...). These render a single build artifact and stay presentational — no data fetching, no page-level state.
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { formatCompactCount } from '~~/shared/utils/counts'
 import { isLoadingStatus } from '#common/utils/async-data'
+import { championDisplayName } from '~~/shared/utils/champion-name'
 
 // The homepage title leads with the brand, so opt out of the global
 // `%s · TrueMain` template — it would duplicate the name in search results.
@@ -27,6 +28,19 @@ const championsById = useChampionsById(staticList)
 
 const { data: versions } = useDDragonVersions()
 const ddragonPatch = computed(() => versions.value?.[0] ?? null)
+
+// The hero's art is the splash of the champion leading this patch's "most
+// played and banned" slice: game art that says something about the data under
+// it, in place of the decorative eclipse and star field (#2552). Client-side
+// only, like both of its sources; the hero reads complete without it.
+const heroChampion = computed(() => {
+  const row = overview.value?.topRows[0]
+  const champ = row ? championsById.value.get(row.championId) : undefined
+  return row && champ ? { id: row.championId, name: championDisplayName(row.championId, champ), iconUrl: champ.iconUrl } : null
+})
+const heroSplash = useChampionSplash(() => heroChampion.value?.iconUrl)
+const { pathFor } = useChampionSlugs()
+const servedPatch = computed(() => overview.value?.patchVersion ?? null)
 
 // The tier-list panel needs both the overview (rows + tier/WR/PR) and the
 // static list (names + icons) — a single loading condition owned by the page,
@@ -68,33 +82,40 @@ const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
 await Promise.all([overviewFetch, truemainsReady])
 </script>
 
+
 <template>
   <div>
-    <!-- Hero — the one place the eclipse shader renders. It is mounted here
-         rather than in `app.vue` so it is bounded by this section: as a
-         viewport-fixed layer it bled through the champion and leaderboard
-         tables and made rows change luminance down the length of the list.
-         `relative` + `overflow-hidden` give the absolutely-positioned backdrop
-         its bounds, and the fade below hands off to the flat page background so
-         the corona doesn't stop at a hard edge. The negative top margin (the
-         floating header's full height) slides the hero up under that bar, so
-         the eclipse runs to the top of the viewport behind it. -->
-    <section class="relative -mt-19 overflow-hidden">
-      <AppBackdrop />
+    <!-- Hero. The negative top margin (the floating header's full height)
+         slides it up under that bar, so the splash runs to the top of the
+         viewport behind it. Left-aligned on the page's own grid, like every
+         section under it. -->
+    <section class="relative -mt-19 overflow-hidden border-b border-default/60">
+      <!-- The art sits on the right, faded into the page on its left edge, so
+           its subject stays clear of the headline on wide screens; on a phone
+           it is a dim wash behind the text. -->
+      <img
+        v-if="heroSplash"
+        :src="heroSplash"
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        class="hero-splash absolute inset-y-0 right-0 h-full w-full object-cover object-[50%_20%] md:w-[70%]"
+      >
       <div
         aria-hidden="true"
-        class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-32 bg-gradient-to-b from-transparent to-default"
+        class="pointer-events-none absolute inset-0 bg-linear-to-r from-default/70 to-transparent md:from-transparent"
       />
-      <div class="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-16 pt-36 text-center sm:pb-24 sm:pt-44">
-        <p class="eyebrow">
-          Champion intelligence
-        </p>
-        <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-tighter text-highlighted sm:text-6xl">
-          Real builds from<br>
-          <span class="text-primary">real mains</span>.
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-0 bg-linear-to-t from-default via-default/10 to-default/50"
+      />
+
+      <div class="relative mx-auto max-w-6xl px-4 pb-14 pt-32 md:px-6 sm:pb-20 sm:pt-40">
+        <h1 class="max-w-2xl text-4xl font-semibold leading-[1.1] tracking-tight text-balance text-highlighted sm:text-5xl">
+          League builds from the players who main the champion
         </h1>
-        <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-          Builds, runes and skill orders from the players who truly mastered your champion.
+        <p class="mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
+          Items, runes and skill orders computed from true mains' ranked games, not from everyone who picked the champion once.
         </p>
 
         <!-- Search is SSR'd as a plain field, but its command-palette JS
@@ -110,133 +131,122 @@ await Promise.all([overviewFetch, truemainsReady])
         <LazyAppSearch
           variant="field"
           size="lg"
-          class="mt-9 w-full max-w-xl"
+          class="mt-8 w-full max-w-xl"
           hydrate-on-idle
         />
 
-        <!-- Stat chips: real numbers only, skeletons until their source
-             payload resolves. Two of them, both lifetime totals — the third
-             ("N champions ranked") was dropped with the patch labels: it is the
-             one figure here that is inherently patch-scoped, so it could not
-             join the other two without dragging a qualifier back in. -->
-        <dl class="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm">
-          <div class="flex items-center gap-2">
-            <UIcon
-              name="i-lucide-database"
-              class="size-4 text-primary"
-            />
-            <USkeleton
-              v-if="overviewPending"
-              class="h-4 w-32"
-            />
-            <template v-else-if="gamesAnalyzed > 0">
-              <dt class="sr-only">
-                Main games analyzed
-              </dt>
-              <dd class="text-muted">
-                <span class="font-semibold tabular-nums text-default">{{ formatCompactCount(gamesAnalyzed) }}</span> main games analyzed
-              </dd>
-            </template>
+        <!-- Real numbers only, skeleton until their source payload resolves.
+             Both are lifetime totals, so neither names a patch (#1109). -->
+        <dl class="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+          <USkeleton
+            v-if="overviewPending"
+            class="h-4 w-40"
+          />
+          <div
+            v-else-if="gamesAnalyzed > 0"
+            class="flex gap-1"
+          >
+            <dt class="sr-only">
+              Main games analyzed
+            </dt>
+            <dd>
+              <span class="font-semibold tabular-nums text-default">{{ formatCompactCount(gamesAnalyzed) }}</span> main games analyzed
+            </dd>
           </div>
-
+          <span
+            v-if="!overviewPending && gamesAnalyzed > 0 && trackedTruemains !== null"
+            aria-hidden="true"
+            class="text-dimmed"
+          >·</span>
           <div
             v-if="trackedTruemains !== null"
-            class="flex items-center gap-2"
+            class="flex gap-1"
           >
-            <UIcon
-              name="i-lucide-users"
-              class="size-4 text-primary"
-            />
             <dt class="sr-only">
               Truemains tracked
             </dt>
-            <dd class="text-muted">
+            <dd>
               <span class="font-semibold tabular-nums text-default">{{ formatCompactCount(trackedTruemains) }}</span> truemains tracked
             </dd>
           </div>
         </dl>
       </div>
+
+      <!-- Whose art this is, and why it is here. -->
+      <p
+        v-if="heroChampion && heroSplash"
+        class="absolute inset-x-0 bottom-4 mx-auto hidden max-w-6xl px-4 text-right text-xs text-dimmed sm:block md:px-6"
+      >
+        <NuxtLink
+          :to="pathFor(heroChampion.id)"
+          class="text-muted hover:text-default"
+        >
+          {{ heroChampion.name }}
+        </NuxtLink>, first of this patch's most played and banned
+      </p>
     </section>
 
-    <!-- Everything under the hero sits on the eclipse's star field, without the
-         orb or its corona (`variant="stars"`): the cards here are translucent
-         panes and the stars are what their blur shows. Even luminance — no
-         glow passes behind the tables — so the rows still scan (decision
-         "the eclipse is scoped to the home hero"). Home only. -->
-    <div class="relative overflow-hidden">
-      <AppBackdrop variant="stars" />
-      <!-- The desktop app, announced before the panels it brings into
-           champion select. -->
-      <HomeDesktopBetaPanel />
+    <!-- The desktop app, announced before the panels it brings into champion
+         select. -->
+    <HomeDesktopBetaPanel class="pt-16 lg:pt-20" />
 
-      <!-- Live data panels — equal-width halves so the two read as a balanced
-           pair and the truemains rows have room for champion + play-rate
-           without truncating names. -->
-      <section class="mx-auto max-w-6xl px-4 pb-20 md:px-6">
-        <div class="mb-8">
-          <p class="eyebrow">
-            This patch
-          </p>
-          <h2 class="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
-            The most played and banned champions, and the players who main them.
-          </h2>
-        </div>
-        <div class="grid gap-6 lg:grid-cols-2">
-          <!-- Tier list: rendered eagerly (no chunk to fetch on demand, no
-               intersection-observer gate — #972), so there is no window where
-               neither the skeleton nor the real panel is on screen. -->
-          <HomeTierlistPanelSkeleton v-if="tierlistPending" />
-          <HomeTierlistPanel
-            v-else
-            :top-rows="overview?.topRows ?? []"
-            :champions-by-id="championsById"
-          />
-          <!-- Truemains teaser stays eagerly SSR'd + immediately hydrated: its rows
-               come from a `server: true` fetch, and its profile-icon `v-if`/`v-else`
-               and champion enrichment resolve from `server: false` sources, so
-               delaying its hydration would flip those branches after the data lands
-               and cause a structural hydration mismatch. The ~373 KiB item map it
-               needs is instead deferred inside the panel (visibility-gated fetch). -->
-          <HomeTruemainsPanel
-            :rows="truemainRows"
-            :champions-by-id="championsById"
-            :initial-loading="truemainsInitialLoading"
-            :patch="ddragonPatch"
-          />
-        </div>
-      </section>
-
-      <!-- CTA -->
-      <section class="border-t border-default/60">
-        <div class="mx-auto max-w-3xl px-6 py-16 text-center sm:py-20">
-          <p class="eyebrow">
-            Your champion
-          </p>
-          <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Find <span class="text-primary">your</span> real build.
-          </h2>
-          <p class="mx-auto mt-3 max-w-xl text-base text-muted">
-            Open the champion you actually play and see what their mains are buying this patch.
-          </p>
-          <div class="mt-7 flex flex-wrap justify-center gap-3">
-            <UButton
-              to="/champions"
-              color="primary"
-              size="lg"
-              icon="i-lucide-swords"
-              label="Explore champions"
-            />
-            <UButton
-              to="/truemains"
-              color="neutral"
-              variant="subtle"
-              size="lg"
-              icon="i-lucide-trophy"
-              label="Truemains leaderboard"
-            />
-          </div>
-        </div>
-      </section>
-    </div>
+    <!-- Live data panels — equal-width halves so the two read as a balanced
+         pair and the truemains rows have room for champion + play-rate
+         without truncating names. -->
+    <section class="mx-auto max-w-6xl px-4 pb-20 md:px-6">
+      <div class="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 class="text-2xl font-semibold tracking-tight text-highlighted">
+          {{ servedPatch ? `Patch ${servedPatch}` : 'This patch' }}
+        </h2>
+        <p class="text-sm text-muted">
+          The most played and banned champions, and the players who main them.
+        </p>
+      </div>
+      <div class="grid gap-6 lg:grid-cols-2">
+        <!-- Tier list: rendered eagerly (no chunk to fetch on demand, no
+             intersection-observer gate — #972), so there is no window where
+             neither the skeleton nor the real panel is on screen. -->
+        <HomeTierlistPanelSkeleton v-if="tierlistPending" />
+        <HomeTierlistPanel
+          v-else
+          :top-rows="overview?.topRows ?? []"
+          :champions-by-id="championsById"
+        />
+        <!-- Truemains teaser stays eagerly SSR'd + immediately hydrated: its rows
+             come from a `server: true` fetch, and its profile-icon `v-if`/`v-else`
+             and champion enrichment resolve from `server: false` sources, so
+             delaying its hydration would flip those branches after the data lands
+             and cause a structural hydration mismatch. The ~373 KiB item map it
+             needs is instead deferred inside the panel (visibility-gated fetch). -->
+        <HomeTruemainsPanel
+          :rows="truemainRows"
+          :champions-by-id="championsById"
+          :initial-loading="truemainsInitialLoading"
+          :patch="ddragonPatch"
+        />
+      </div>
+    </section>
   </div>
 </template>
+
+<style scoped>
+/* The splash arrives after the page (both of its sources are client-side), so
+   it fades in rather than popping over the text already on screen. */
+.hero-splash {
+  opacity: 0.45;
+  mask-image: linear-gradient(to right, transparent, #000 45%);
+  animation: hero-splash-in 600ms ease-out both;
+}
+
+@keyframes hero-splash-in {
+  from { opacity: 0; }
+}
+
+@media (min-width: 768px) {
+  .hero-splash { opacity: 0.8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-splash { animation: none; }
+}
+</style>

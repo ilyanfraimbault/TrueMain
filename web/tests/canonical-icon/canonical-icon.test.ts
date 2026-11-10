@@ -112,6 +112,8 @@ describe('canonical icon URLs', () => {
     // `src` prop is typed as a root-relative path, so no upstream URL fits it.
     const ALLOWED_SRC_IN: Record<string, RegExp> = {
       'components/SkeletonPicture.vue': /^src$/,
+      // The home hero's splash, built by `useChampionSplash` (the IPX banner shape).
+      'pages/index.vue': /^heroSplash$/,
     }
 
     const offenders: string[] = []
