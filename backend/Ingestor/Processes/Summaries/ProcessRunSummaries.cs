@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Data.Entities;
 using Data.Pipeline;
 using Ingestor.Processes.Components.ItemContextAggregation;
 
@@ -22,8 +23,18 @@ namespace Ingestor.Processes.Summaries;
 /// <summary>Nothing to do: no input selected for this run.</summary>
 public sealed record NoWorkSummary(string Reason, int Selected) : IProcessRunSummary;
 
-/// <summary>The run was deliberately skipped (e.g. a cadence guard).</summary>
-public sealed record SkippedSummary(string Reason, bool Skipped) : IProcessRunSummary;
+/// <summary>
+/// The run deliberately declined its work (a cadence guard, a spent daily budget), so it is
+/// recorded <see cref="ProcessRunStatus.Skipped"/> and a cadence guard never measures from it
+/// (#1149).
+/// </summary>
+public sealed record SkippedSummary(string Reason) : IProcessRunSummary
+{
+    /// <summary>Always true; kept so the stored JSON keeps its <c>skipped</c> key.</summary>
+    public bool Skipped { get; } = true;
+
+    ProcessRunStatus IProcessRunSummary.Status => ProcessRunStatus.Skipped;
+}
 
 /// <summary>Harvest had nothing to do.</summary>
 public sealed record HarvestNoWorkSummary(

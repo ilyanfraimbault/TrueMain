@@ -446,6 +446,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
             process,
             PipelineCatalog.MatchDataRetention,
             new ProcessRunRecorder(_processRunStore, new IterationContext(), TimeProvider.System),
+            _processRunStore,
             TimeProvider.System,
             NullLogger<RecordedProcess<MatchDataRetentionProcess>>.Instance);
     }

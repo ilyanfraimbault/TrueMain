@@ -6,6 +6,7 @@ using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TrueMain.UnitTests.Fixtures;
+using Data.Ops.Mongo;
 
 namespace TrueMain.UnitTests;
 
@@ -133,6 +134,7 @@ public sealed class RecordedProcessCancellationTests
             new StubProcess(body),
             TestPipelineSteps.Named("Stub"),
             recorder,
+            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             NullLogger<RecordedProcess<StubProcess>>.Instance);
 

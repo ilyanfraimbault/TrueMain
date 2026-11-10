@@ -5,6 +5,7 @@ using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
+using Data.Ops.Mongo;
 
 namespace TrueMain.UnitTests;
 
@@ -41,6 +42,7 @@ public sealed class IngestorProcessRegistrationTests
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Substitute.For<IProcessRunRecorder>());
+        services.AddSingleton(Substitute.For<IProcessRunStore>());
         services.AddRecordedProcess<StubProcess>(PipelineCatalog.Discovery);
 
         using var provider = services.BuildServiceProvider();
@@ -62,6 +64,7 @@ public sealed class IngestorProcessRegistrationTests
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(recorder);
+        services.AddSingleton(Substitute.For<IProcessRunStore>());
         services.AddRecordedProcess<StubProcess>(PipelineCatalog.MatchupAggregation);
 
         await using var provider = services.BuildServiceProvider();

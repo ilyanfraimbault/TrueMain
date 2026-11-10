@@ -157,7 +157,6 @@ public sealed class DiscoveryMasterySkipTests
                 accountUpsert,
                 candidateUpsert,
                 Substitute.For<IRankSnapshotWriter>(),
-                Substitute.For<IProcessRunStore>(),
                 new FixedTimeProvider(NowUtc),
                 Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
                 {

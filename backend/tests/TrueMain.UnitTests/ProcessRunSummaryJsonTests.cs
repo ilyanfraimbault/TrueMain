@@ -99,7 +99,7 @@ public sealed class ProcessRunSummaryJsonTests
 
         // DiscoveryProcess cadence skip.
         yield return (
-            new SkippedSummary("Within MinRunInterval; discovery skipped this iteration.", true),
+            new SkippedSummary("Within MinRunInterval; discovery skipped this iteration."),
             new { reason = "Within MinRunInterval; discovery skipped this iteration.", skipped = true });
 
         yield return (

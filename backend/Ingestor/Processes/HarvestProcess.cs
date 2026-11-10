@@ -1,5 +1,4 @@
 using Data.Logging;
-using Data.Ops.Mongo;
 using Data.Pipeline;
 using Data.Repositories;
 using Ingestor.Options;
@@ -25,12 +24,14 @@ public sealed class HarvestProcess(
     IDataSessionFactory sessionFactory,
     IParticipantHarvestService harvestService,
     IChampionCoverageProvider coverageProvider,
-    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
     IOptions<HarvestOptions> harvestOptions,
     IOptions<MatchIngestionOptions> matchIngestionOptions,
-    IOptions<IntakeOptions> intakeOptions) : IIngestorProcess
+    IOptions<IntakeOptions> intakeOptions) : ICadencedProcess
 {
+    /// <inheritdoc />
+    public TimeSpan MinRunInterval => harvestOptions.Value.MinRunInterval;
+
     public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var configured = harvestOptions.Value;
@@ -46,23 +47,6 @@ public sealed class HarvestProcess(
         }
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-
-        // Same guard as Discovery's (#487, #1149): measured from the last run that did its
-        // work, so a skip can never re-arm itself. Nothing else paces the harvest — it makes
-        // no Riot call — so without it the orphan scan follows the maintenance pass's loop
-        // speed (#2261).
-        if (configured.MinRunInterval > TimeSpan.Zero)
-        {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.Harvest.Name, nowUtc, ct);
-            if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < configured.MinRunInterval)
-            {
-                logger.LogInformation(
-                    "Harvest skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
-                    lastRunUtc,
-                    configured.MinRunInterval);
-                return new SkippedSummary("Within MinRunInterval; harvest skipped this iteration.", true);
-            }
-        }
 
         await using var session = await sessionFactory.CreateAsync(ct);
 
