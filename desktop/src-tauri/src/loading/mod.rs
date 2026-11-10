@@ -38,8 +38,8 @@ use std::time::Duration;
 use lcu::laning::LaneGaps;
 use lcu::record::MatchHistory;
 use lcu::{
-    gaps_at_fifteen, laning_games, GameflowPhase, GameflowPlayer, LaningForm, LcuClient,
-    FORM_GAMES, LANING_DEPTH, LANING_GAMES,
+    gaps_at_fifteen, laning_games, GameflowPlayer, LaningForm, LcuClient, FORM_GAMES, LANING_DEPTH,
+    LANING_GAMES,
 };
 use shell_state::AppState;
 use tauri::async_runtime::JoinHandle;
@@ -93,7 +93,7 @@ pub fn follow(app: &AppHandle, state: &AppState) {
         }
         return;
     }
-    if task.is_some() || state.phase != GameflowPhase::InProgress {
+    if task.is_some() || !state.phase.is_game_api_up() {
         return;
     }
     let client = app
