@@ -1,5 +1,7 @@
 using System.Reflection;
 using Data.Pipeline;
+using Ingestor.Processes.Components.ManualSeed;
+using Ingestor.Processes.Components.MatchIngestion;
 
 namespace Ingestor.Processes;
 
@@ -8,7 +10,8 @@ public static class IngestorProcessServiceCollectionExtensions
     /// <summary>
     /// Registers the process of every <see cref="PipelineCatalog"/> step, found by its
     /// <see cref="PipelineStepAttribute"/>, keyed by the step's <see cref="JobMode"/> and wrapped
-    /// in <see cref="RecordedProcess{TInner}"/> so every run is recorded.
+    /// in <see cref="RecordedProcess{TInner}"/> so every run is recorded; the
+    /// <see cref="ProcessRunner"/> that runs them; and the steps' boot recoveries.
     /// </summary>
     /// <exception cref="InvalidOperationException">
     /// A catalog step has no process, two processes claim one step, or a process claims a mode
@@ -21,6 +24,9 @@ public static class IngestorProcessServiceCollectionExtensions
             services.AddRecordedProcess(processType, step);
         }
 
+        services.AddSingleton<ProcessRunner>();
+        services.AddScoped<IStepBootRecovery, MatchClaimBootRecovery>();
+        services.AddScoped<IStepBootRecovery, SeedClaimBootRecovery>();
         return services;
     }
 

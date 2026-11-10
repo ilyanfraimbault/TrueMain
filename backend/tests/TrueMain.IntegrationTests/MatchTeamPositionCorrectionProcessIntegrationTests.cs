@@ -200,6 +200,6 @@ public sealed class MatchTeamPositionCorrectionProcessIntegrationTests : IAsyncL
         var process = new MatchTeamPositionCorrectionProcess(
             NullLogger<MatchTeamPositionCorrectionProcess>.Instance,
             new TestDbContextFactory(_fixture));
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 }

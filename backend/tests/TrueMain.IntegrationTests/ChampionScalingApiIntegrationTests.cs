@@ -260,7 +260,7 @@ public sealed class ChampionScalingApiIntegrationTests : IAsyncLifetime
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
             Microsoft.Extensions.Options.Options.Create(new ScalingAggregationOptions()),
             new TestDbContextFactory(_fixture),
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+            TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
     private static void AddGames(
         Data.TrueMainDbContext db, string prefix, int durationSeconds, int games, int wins, RiotAccount? account,

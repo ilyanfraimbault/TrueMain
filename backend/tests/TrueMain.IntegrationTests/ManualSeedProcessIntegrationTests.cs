@@ -62,7 +62,7 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
                     Mastery(championId: 157, points: 300_000, daysAgo: 2)
                 ]));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -101,7 +101,7 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
             new FakeRiotAccountClient(),
             new FakeRiotPlatformClient(summonerId: "unused", masteries: []));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -125,7 +125,7 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
             new ThrowingRiotAccountClient("riot exploded"),
             new FakeRiotPlatformClient(summonerId: "unused", masteries: []));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var request = await GetRequestAsync(requestId);
         request.Status.Should().Be(SeedRequestStatus.Failed);
@@ -147,7 +147,7 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
             new CancellingRiotAccountClient(cts),
             new FakeRiotPlatformClient(summonerId: "unused", masteries: []));
 
-        var act = async () => await process.RunCoreAsync(cts.Token);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, cts.Token);
         await act.Should().ThrowAsync<OperationCanceledException>();
 
         var request = await GetRequestAsync(requestId);
@@ -177,7 +177,7 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
         await BuildProcess(
                 new FakeRiotAccountClient(("Phantasm", "EUW1", "puuid-seed-1")),
                 new FakeRiotPlatformClient(summonerId: "summoner-seed-1", masteries: [Mastery(64, 500_000, 1)]))
-            .RunCoreAsync(CancellationToken.None);
+            .RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         (await GetRequestAsync(requestId)).Status.Should().Be(SeedRequestStatus.Ingested);
     }
@@ -251,7 +251,7 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
             new FakeRiotPlatformClient(summonerId: "summoner-seed-1", masteries: [Mastery(64, 500_000, 1)]),
             new FailingMarkIngestedStore(new SeedRequestStore(_context)));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // The account and its candidates were written: the seed happened, so the request
         // must not read Failed. It goes back to Pending and the next run stamps it.
@@ -268,7 +268,7 @@ public sealed class ManualSeedProcessIntegrationTests : IAsyncLifetime
         await BuildProcess(
                 new FakeRiotAccountClient(("Phantasm", "EUW1", "puuid-seed-1")),
                 new FakeRiotPlatformClient(summonerId: "summoner-seed-1", masteries: [Mastery(64, 500_000, 1)]))
-            .RunCoreAsync(CancellationToken.None);
+            .RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         (await GetRequestAsync(requestId)).Status.Should().Be(SeedRequestStatus.Ingested);
     }

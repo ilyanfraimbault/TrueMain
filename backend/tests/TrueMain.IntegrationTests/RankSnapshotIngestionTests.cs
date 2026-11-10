@@ -38,7 +38,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
         var process = BuildProcess(
             soloEntry: SoloEntry("GOLD", "II", 50, wins: 10, losses: 5));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var snapshots = await verify.RankSnapshots
@@ -64,7 +64,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
         var process = BuildProcess(
             soloEntry: SoloEntry("GOLD", "II", 50, wins: 12, losses: 6));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var count = await verify.RankSnapshots.CountAsync(s => s.RiotAccountId == account.Id);
@@ -80,7 +80,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
         var process = BuildProcess(
             soloEntry: SoloEntry("PLATINUM", "IV", 0));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var snapshots = await verify.RankSnapshots
@@ -103,7 +103,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
         var process = BuildProcess(
             soloEntry: SoloEntry("GOLD", "I", 5));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var snapshots = await verify.RankSnapshots
@@ -125,7 +125,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
         var process = BuildProcess(
             soloEntry: SoloEntry("GOLD", "II", 73));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var snapshots = await verify.RankSnapshots
@@ -146,7 +146,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
         var process = BuildProcess(
             soloEntry: SoloEntry("GOLD", "II", 73));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var snapshots = await verify.RankSnapshots
@@ -176,7 +176,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
             }
         });
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var count = await verify.RankSnapshots.CountAsync(s => s.RiotAccountId == account.Id);
@@ -190,7 +190,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
 
         var process = BuildProcess(); // no entries
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var count = await verify.RankSnapshots.CountAsync(s => s.RiotAccountId == account.Id);
@@ -215,7 +215,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
             }));
 
         var process = BuildProcessWithClients(accountClient, platformClient);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var snap = await verify.RankSnapshots.SingleAsync(s => s.RiotAccountId == account.Id);
@@ -244,7 +244,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
             .Returns<Task<List<RiotLeagueEntryByPuuidDto>>>(_ => throw new HttpRequestException("simulated 503"));
 
         var process = BuildProcessWithClients(accountClient, platformClient);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var stored = await verify.RiotAccounts.SingleAsync(a => a.Id == account.Id);
@@ -261,7 +261,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
         var account = await SeedAccountAsync("puuid-bump");
 
         var process = BuildProcess(soloEntry: SoloEntry("GOLD", "II", 50));
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var stored = await verify.RiotAccounts.SingleAsync(a => a.Id == account.Id);
@@ -301,7 +301,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
             }));
 
         var process = BuildProcessWithClients(accountClient, platformClient);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await platformClient.DidNotReceive().GetLeagueEntriesByPuuidAsync(
             Arg.Any<PlatformRoute>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -351,7 +351,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
             .Returns(Task.FromResult(new List<RiotLeagueEntryByPuuidDto>()));
 
         var process = BuildProcessWithClients(accountClient, platformClient);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var refreshed = await verify.RiotAccounts.SingleAsync(a => a.Id == account.Id);
@@ -374,7 +374,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
         var platformClient = Substitute.For<IRiotPlatformClient>();
 
         var process = BuildProcessWithClients(accountClient, platformClient);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var refreshed = await verify.RiotAccounts.SingleAsync(a => a.Id == account.Id);
@@ -414,7 +414,7 @@ public sealed class RankSnapshotIngestionTests : IAsyncLifetime
         var platformClient = Substitute.For<IRiotPlatformClient>();
 
         var process = BuildProcessWithClients(accountClient, platformClient);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = _fixture.CreateDbContext();
         var refreshed = await verify.RiotAccounts.SingleAsync(a => a.Id == accountId);

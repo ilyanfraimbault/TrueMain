@@ -164,21 +164,21 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
             Microsoft.Extensions.Options.Options.Create(new MatchupLeadAggregationOptions()),
             Microsoft.Extensions.Options.Options.Create(new LaneOutcomeAggregationOptions()),
             factory,
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+            TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await new ChampionSynergyAggregationProcess(
             NullLogger<ChampionSynergyAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new SynergyAggregationOptions()),
             factory,
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+            TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await new ChampionScalingAggregationProcess(
             NullLogger<ChampionScalingAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new ScalingAggregationOptions()),
             factory,
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+            TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await new ChampionPatternAggregationProcess(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
@@ -188,7 +188,7 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
             new ChampionPatternSourceRowReader(factory),
             new ChampionPatternAggregateBuilder(new CohortItemMetadataProvider()),
             new ChampionPatternAggregatePersister(factory, new ChampionDimensionResolver(factory)),
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+            TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private static MainAnalysisOptions AnalysisOptions()

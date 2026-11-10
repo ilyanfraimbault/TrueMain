@@ -68,7 +68,7 @@ public sealed class IngestorProcessRegistrationTests
         await using var scope = provider.CreateAsyncScope();
         await scope.ServiceProvider
             .GetRequiredKeyedService<IIngestorProcess>(JobMode.MatchupLeadAggregationOnly)
-            .RunCoreAsync(CancellationToken.None);
+            .RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await recorder.Received(1).RecordStartAsync("ChampionMatchupLeadAggregation", Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
@@ -130,7 +130,7 @@ public sealed class IngestorProcessRegistrationTests
 
     private sealed class StubProcess : IIngestorProcess
     {
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
             => Task.FromResult<IProcessRunSummary?>(null);
     }
 }

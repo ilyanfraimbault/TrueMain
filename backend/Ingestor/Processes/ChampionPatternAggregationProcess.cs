@@ -50,7 +50,7 @@ public sealed class ChampionPatternAggregationProcess(
     ChampionPatternAggregatePersister aggregatePersister,
     TimeProvider timeProvider) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
 

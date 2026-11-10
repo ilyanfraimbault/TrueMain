@@ -62,7 +62,7 @@ public sealed class ChampionProfileAggregationProcess(
 {
     private const int EarlyMinute = 10;
     private const int LaneMinute = 15;
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;

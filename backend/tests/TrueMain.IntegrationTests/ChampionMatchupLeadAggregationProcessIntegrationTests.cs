@@ -44,7 +44,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests : IAsy
     {
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -68,7 +68,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests : IAsy
         // which is the property the per-champion work-list used to break.
         await SeedGamesAsync(games: 8, version: "16.4.521.123", wins: 3, matchPrefix: "ahri", champion: 103, opponent: 134);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -102,7 +102,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests : IAsy
             games: 8, version: "16.4.521.123", wins: 3,
             matchPrefix: "offmain", champion: 103, opponent: 134, main: false);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -121,8 +121,8 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests : IAsy
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         (await db.ChampionMatchupStats.CountAsync()).Should().Be(1, "the second run finds nothing pending (flag-gated) so no new rows are written");
@@ -139,11 +139,11 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests : IAsy
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // More games for the same champion/opponent/patch arrive before the next cycle.
         await SeedGamesAsync(games: 5, version: "16.4.521.123", wins: 2, matchPrefix: "m2");
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -158,7 +158,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests : IAsy
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // Simulate MatchDataRetention dropping the 16.4 match data, then a fresh
         // 16.5 patch arriving.
@@ -171,7 +171,7 @@ public sealed class ChampionMatchupLeadAggregationProcessIntegrationTests : IAsy
         }
 
         await SeedGamesAsync(games: 11, version: "16.5.1", wins: 4, matchPrefix: "m2");
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var matchups = await db.ChampionMatchupStats.AsNoTracking().ToListAsync();

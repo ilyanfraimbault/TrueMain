@@ -32,7 +32,7 @@ public sealed class MatchRoleBoundItemBackfillProcess(
     // 20-minute cycles.
     private const int BatchSize = 2000;
     private const int MaxBatchesPerRun = 25;
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 

@@ -1267,7 +1267,7 @@ public sealed class ChampionMatchupApiIntegrationTests : IAsyncLifetime
             Microsoft.Extensions.Options.Options.Create(new LaneOutcomeAggregationOptions()),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private static HttpClient CreateClient(ApiWebApplicationFactory factory)
