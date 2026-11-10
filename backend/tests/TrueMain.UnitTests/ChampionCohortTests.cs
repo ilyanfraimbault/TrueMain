@@ -47,7 +47,7 @@ public sealed class ChampionCohortTests
     /// </summary>
     private static readonly string[] GameReadSourceFiles =
     [
-        "Api/Services/Champions/Matchups/ChampionMatchupQueryService.cs",
+        "Api/Services/Truemains/PlayerChampions/PlayerChampionMatchupQueryService.cs",
         "Api/Services/Champions/Composition/CompositionMatchQueryService.cs",
         "Data/Queries/MatchupParticipantQuery.cs"
     ];

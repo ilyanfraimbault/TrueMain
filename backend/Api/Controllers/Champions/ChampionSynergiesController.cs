@@ -38,7 +38,8 @@ public sealed class ChampionSynergiesController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryParseChampionScope(
+                championId, position, patch, eloBracket, PositionRule.Required, out var scope, out var problem))
         {
             return problem;
         }
@@ -48,21 +49,7 @@ public sealed class ChampionSynergiesController(
             return partnerProblem;
         }
 
-        var normalizedPatch = PatchParameter.Normalize(patch);
-        if (!this.TryNormalizeOptionalEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
-        {
-            return bracketProblem;
-        }
-
-        var response = await synergyQueryService.GetSynergiesAsync(
-            championId,
-            normalizedPosition,
-            normalizedPatch,
-            normalizedPartnerPosition,
-            normalizedBracket,
-            ct);
-
-        return Ok(response);
+        return Ok(await synergyQueryService.GetSynergiesAsync(scope, normalizedPartnerPosition, ct));
     }
 
     /// <summary>
@@ -87,7 +74,8 @@ public sealed class ChampionSynergiesController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryParseChampionScope(
+                championId, position, patch, eloBracket, PositionRule.Required, out var scope, out var problem))
         {
             return problem;
         }
@@ -99,26 +87,11 @@ public sealed class ChampionSynergiesController(
 
         // One team cannot field two players in a lane, so this would silently return
         // an empty list forever. Rejecting it names the mistake instead.
-        if (string.Equals(normalizedPosition, normalizedPartnerPosition, StringComparison.Ordinal))
+        if (string.Equals(scope.Position, normalizedPartnerPosition, StringComparison.Ordinal))
         {
             return ValidationProblem("partnerPosition must differ from position — teammates play different lanes.");
         }
 
-        var normalizedPatch = PatchParameter.Normalize(patch);
-        if (!this.TryNormalizeOptionalEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
-        {
-            return bracketProblem;
-        }
-
-        var response = await synergyQueryService.GetTrioSynergiesAsync(
-            championId,
-            normalizedPosition,
-            partner,
-            normalizedPartnerPosition,
-            normalizedPatch,
-            normalizedBracket,
-            ct);
-
-        return Ok(response);
+        return Ok(await synergyQueryService.GetTrioSynergiesAsync(scope, partner, normalizedPartnerPosition, ct));
     }
 }

@@ -280,6 +280,7 @@ Last verified against `develop` on 2026-09-02.
 - A unit of work covers the writes and nothing else (2026-08-28) — #264, #1229
 - `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07) — #1520, #1451
 - Api registration is owned by the feature: `Program.cs` only composes `AddTrueMain<Area>()`; options carry their section, rules and configuration-page entry (2026-11-08) — #2489
+- Champion reads take a canonical `ChampionScope` parsed once per route; each route names what a blank `position` means (2026-11-10) — #2571
 - A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541, #124
 - Ingestor options: bounds are attributes checked by a generated validator, cross-field rules stay lambdas (2026-10-04) — #271
 - A role is a string from `LanePositions` (no enum, `MID`/`BOT` accepted on input); timeline marks live once in `Data` (2026-10-04) — #1232

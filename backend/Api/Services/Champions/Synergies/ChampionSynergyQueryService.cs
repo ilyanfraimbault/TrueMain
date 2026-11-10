@@ -18,26 +18,17 @@ public interface IChampionSynergyQueryService
     /// synergy (observed minus expected win rate) rather than by raw pair win
     /// rate, from the pre-aggregated <c>champion_synergy_stats</c> table.
     /// </summary>
-    /// <param name="championId">Riot champion id the pairing is measured from.</param>
-    /// <param name="position">
-    /// Canonical Riot team position (<c>TOP</c> / <c>JUNGLE</c> / <c>MIDDLE</c> /
-    /// <c>BOTTOM</c> / <c>UTILITY</c>) the champion is played at. Required and
-    /// already validated by the caller.
-    /// </param>
-    /// <param name="patch">
-    /// Requested patch (<c>major.minor</c> or full Riot version); null spans every
-    /// patch the aggregate holds. Applied identically to the pair rows and to the
-    /// baselines they are measured against, so both always describe one cohort.
+    /// <param name="scope">
+    /// The champion the pairing is measured from, at its lane (required). A null patch
+    /// spans every patch the aggregate holds; patch and elo filter apply identically to
+    /// the pair rows and to the baselines they are measured against, so both always
+    /// describe one cohort. The elo filter selects on the tracked player's rank, the same
+    /// side the aggregate is keyed on.
     /// </param>
     /// <param name="partnerPosition">
     /// Optional narrowing to a single partner lane. Filters the returned pairs only
     /// — the cohort reference point stays the whole scope, so narrowing the list
     /// never moves the numbers already in it.
-    /// </param>
-    /// <param name="eloBracket">
-    /// Optional elo filter — an exact tier (<c>GOLD</c>) or a cumulative "X+"
-    /// threshold (<c>GOLD_PLUS</c>); null / <c>ALL</c> spans every band. Selects on
-    /// the tracked player's rank, the same side the aggregate is keyed on.
     /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
@@ -47,11 +38,8 @@ public interface IChampionSynergyQueryService
     /// thin for an expected win rate to mean anything.
     /// </returns>
     Task<ChampionSynergiesResponse> GetSynergiesAsync(
-        int championId,
-        string position,
-        string? patch,
+        ChampionScope scope,
         string? partnerPosition,
-        string? eloBracket,
         CancellationToken ct);
 
     /// <summary>
@@ -61,21 +49,16 @@ public interface IChampionSynergyQueryService
     /// <c>match_participants</c> — the triple space is far too sparse to
     /// pre-aggregate — and therefore scoped to the retention window.
     /// </summary>
-    /// <param name="championId">Riot champion id of the queried champion.</param>
-    /// <param name="position">Canonical Riot team position of the queried champion.</param>
+    /// <param name="scope">
+    /// The queried champion at its lane (required). A null patch spans every patch still
+    /// inside the retention window; the elo filter applies to the queried champion's side
+    /// exactly as in <see cref="GetSynergiesAsync"/>.
+    /// </param>
     /// <param name="partnerChampionId">Riot champion id of the already-chosen partner.</param>
     /// <param name="partnerPosition">
-    /// Canonical Riot team position of that partner. Must differ from
-    /// <paramref name="position"/>; an identical value simply matches nothing,
-    /// since one team cannot field two players in a lane.
-    /// </param>
-    /// <param name="patch">
-    /// Requested patch (<c>major.minor</c> or full Riot version); null spans every
-    /// patch still inside the retention window.
-    /// </param>
-    /// <param name="eloBracket">
-    /// Optional elo filter, applied to the queried champion's side exactly as in
-    /// <see cref="GetSynergiesAsync"/>.
+    /// Canonical Riot team position of that partner. Must differ from the scope's
+    /// position; an identical value simply matches nothing, since one team cannot field
+    /// two players in a lane.
     /// </param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
@@ -84,12 +67,9 @@ public interface IChampionSynergyQueryService
     /// answer for a rarely-played duo, not an error.
     /// </returns>
     Task<ChampionTrioSynergiesResponse> GetTrioSynergiesAsync(
-        int championId,
-        string position,
+        ChampionScope scope,
         int partnerChampionId,
         string partnerPosition,
-        string? patch,
-        string? eloBracket,
         CancellationToken ct);
 }
 
@@ -120,16 +100,13 @@ public sealed class ChampionSynergyQueryService(
     : IChampionSynergyQueryService
 {
     public Task<ChampionSynergiesResponse> GetSynergiesAsync(
-        int championId,
-        string position,
-        string? patch,
+        ChampionScope scope,
         string? partnerPosition,
-        string? eloBracket,
         CancellationToken ct)
         => cache.GetOrComputeAsync(
-            $"champions:synergies:{championId}:{position}:{PatchFilter.Normalize(patch) ?? "all"}"
-                + $":{partnerPosition ?? "any"}:{EloBracket.ResolveToken(eloBracket)}",
-            token => ComputeSynergiesAsync(championId, position, patch, partnerPosition, eloBracket, token),
+            $"champions:synergies:{scope.CacheToken()}:{partnerPosition ?? "any"}",
+            token => ComputeSynergiesAsync(
+                scope.ChampionId, scope.RequiredPosition, scope.Patch, partnerPosition, scope.EloBracket, token),
             ct);
 
     private async Task<ChampionSynergiesResponse> ComputeSynergiesAsync(
@@ -266,20 +243,22 @@ public sealed class ChampionSynergyQueryService(
     }
 
     public Task<ChampionTrioSynergiesResponse> GetTrioSynergiesAsync(
-        int championId,
-        string position,
+        ChampionScope scope,
         int partnerChampionId,
         string partnerPosition,
-        string? patch,
-        string? eloBracket,
         CancellationToken ct)
         // The trio fold is a live three-way self-join over match_participants and had
         // no cache of its own before #1368.
         => cache.GetOrComputeAsync(
-            $"champions:synergies-trio:{championId}:{position}:{partnerChampionId}:{partnerPosition}"
-                + $":{PatchFilter.Normalize(patch) ?? "all"}:{EloBracket.ResolveToken(eloBracket)}",
+            $"champions:synergies-trio:{scope.CacheToken()}:{partnerChampionId}:{partnerPosition}",
             token => ComputeTrioSynergiesAsync(
-                championId, position, partnerChampionId, partnerPosition, patch, eloBracket, token),
+                scope.ChampionId,
+                scope.RequiredPosition,
+                partnerChampionId,
+                partnerPosition,
+                scope.Patch,
+                scope.EloBracket,
+                token),
             ct);
 
     private async Task<ChampionTrioSynergiesResponse> ComputeTrioSynergiesAsync(

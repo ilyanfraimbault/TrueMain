@@ -11,12 +11,7 @@ namespace TrueMain.Services.Champions.Progression;
 
 public interface IChampionScalingQueryService
 {
-    Task<ChampionScalingResponse> GetAsync(
-        int championId,
-        string position,
-        string? patch,
-        string? eloBracket,
-        CancellationToken ct);
+    Task<ChampionScalingResponse> GetAsync(ChampionScope scope, CancellationToken ct);
 }
 
 /// <summary>
@@ -37,23 +32,15 @@ public sealed class ChampionScalingQueryService(
 {
     private static readonly string[] BucketLabels = ["<20m", "20-25m", "25-30m", "30-35m", "35m+"];
 
-    public Task<ChampionScalingResponse> GetAsync(
-        int championId,
-        string position,
-        string? patch,
-        string? eloBracket,
-        CancellationToken ct)
+    public Task<ChampionScalingResponse> GetAsync(ChampionScope scope, CancellationToken ct)
     {
-        var normalizedPatch = PatchFilter.Normalize(patch);
+        var position = scope.RequiredPosition;
+        var normalizedPatch = scope.Patch;
 
-        // The key carries the bracket so each band caches separately; the aggregation
-        // version is stamped on by the cache itself.
-        var bracketToken = EloBracket.ResolveToken(eloBracket);
-        var cacheKey = $"champions:scaling:{championId}:{position}:{normalizedPatch ?? "all"}:{bracketToken}";
-
+        // The aggregation version is stamped on the key by the cache itself.
         return cache.GetOrComputeAsync(
-            cacheKey,
-            token => ComputeAsync(championId, position, normalizedPatch, eloBracket, token),
+            $"champions:scaling:{scope.CacheToken()}",
+            token => ComputeAsync(scope.ChampionId, position, normalizedPatch, scope.EloBracket, token),
             ct);
     }
 

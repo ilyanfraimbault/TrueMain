@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TrueMain.Http;
 using TrueMain.ReadModels.Champions;
+using TrueMain.Requests.Champions;
 using TrueMain.Services.Champions.Directory;
 
 namespace TrueMain.Controllers.Champions;

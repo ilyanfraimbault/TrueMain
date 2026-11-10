@@ -47,17 +47,12 @@ public sealed class ChampionItemContextController(
         [FromQuery] string? patch,
         CancellationToken ct = default)
     {
-        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryParseChampionScope(
+                championId, position, patch, eloBracket: null, PositionRule.Required, out var scope, out var problem))
         {
             return problem;
         }
 
-        var response = await itemContextQueryService.GetAsync(
-            championId,
-            normalizedPosition,
-            PatchParameter.Normalize(patch),
-            ct);
-
-        return Ok(response);
+        return Ok(await itemContextQueryService.GetAsync(scope, ct));
     }
 }

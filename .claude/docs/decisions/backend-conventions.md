@@ -238,6 +238,24 @@ its registration there too.
 
 Source: #2489, #2481.
 
+## Champion reads take a `ChampionScope`, parsed once per route (2026-11-10)
+
+**Decision.** Every champion read — global or player-scoped — takes a `ChampionScope` (champion,
+position, patch, elo bracket, population) built by `Http/ChampionScopeParameter.TryParseChampionScope`.
+The scope is canonical by construction: Riot's upper-case lane, `major.minor` patch, canonical bracket;
+a position or bracket that names nothing throws instead of widening. Each route names its
+`PositionRule` — what a blank `position` means (rejected, the read resolves the dominant lane, or every
+position) and whether the explicit `ALL` token is accepted. A matchup is a `LaneMatchupScope`, whose
+factory owns the two aggregate rules (a lane is required, truemains only). One player's matchups are
+their own service (`PlayerChampionMatchupQueryService`, a live join); the global matchup service takes
+no account.
+
+**Why.** Each controller re-parsed position / patch / elo by hand and each service took loose strings
+plus caller-specific flags: the global matchup service carried a `riotAccountId` only its one player
+caller used, a blank `position` meant "dominant lane" on one player route and "every position" on the
+next through the same parser, the matchup population rule was two `if`s in a controller, and services
+re-normalised their own input "in case". — #2571 (F17 of #2481)
+
 ## A child table with a natural key uses it as its primary key — no surrogate `Guid` beside it (2026-09-25)
 
 **When every row of a table is identified by columns it already carries — `(MatchId, ParticipantId,

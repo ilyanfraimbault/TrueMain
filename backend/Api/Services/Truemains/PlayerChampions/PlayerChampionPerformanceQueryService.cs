@@ -1,5 +1,3 @@
-using Core.Lol.Map;
-using Core.Lol.Patches;
 using Core.Lol.Performance;
 using Core.Options;
 using Data;
@@ -8,6 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Truemains;
+using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Truemains.Identity;
 
 namespace TrueMain.Services.Truemains.PlayerChampions;
@@ -21,15 +20,14 @@ public interface IPlayerChampionPerformanceQueryService
     /// the champion is a 200 carrying zero counts.
     /// </summary>
     /// <param name="nameTag">The player's Riot id in <c>Name-TAG</c> route form.</param>
-    /// <param name="championId">The champion to scope the sample to.</param>
-    /// <param name="patch">Major.minor patch filter, or null for every patch.</param>
-    /// <param name="position">Canonical team position filter, or null for every lane.</param>
+    /// <param name="scope">
+    /// The champion to scope the sample to, its lane (every lane when the scope has none) and
+    /// its patch (every patch when null).
+    /// </param>
     /// <param name="ct">Request cancellation token.</param>
     Task<PlayerChampionPerformanceResponse?> GetAsync(
         string nameTag,
-        int championId,
-        string? patch,
-        string? position,
+        ChampionScope scope,
         CancellationToken ct);
 }
 
@@ -78,45 +76,22 @@ public sealed class PlayerChampionPerformanceQueryService(
 
     public async Task<PlayerChampionPerformanceResponse?> GetAsync(
         string nameTag,
-        int championId,
-        string? patch,
-        string? position,
+        ChampionScope scope,
         CancellationToken ct)
     {
+        var championId = scope.ChampionId;
         if (championId <= 0)
         {
             return null;
         }
 
-        // Canonicalise the scope before anything is keyed or queried on it, the way
-        // every sibling champion read does (ChampionMainsComparisonQueryService spells
-        // out why). The MVC controller already normalised both, so on that path this
-        // is an idempotent no-op; the interface is reachable without MVC, and there a
-        // raw "16.4.521" would be keyed and LIKE-matched as its own scope — two cache
-        // entries for one patch, the second matching nothing.
-        var normalizedPatch = string.IsNullOrWhiteSpace(patch)
-            ? null
-            : PatchVersion.TryParse(patch, out var parsedPatch) ? parsedPatch.ToMajorMinor() : null;
-
-        // A non-blank lane that does not canonicalise is not "every lane": widening a
-        // lane-labelled read to all of them is worse than the empty answer, so a filter
-        // that cannot be honoured degrades to the documented empty state below — after
-        // the account lookup, so an unknown player is still a 404 rather than an empty
-        // panel for somebody who does not exist.
-        var normalizedPosition = string.IsNullOrWhiteSpace(position)
-            ? null
-            : LanePositions.Normalize(position);
-        var unhonourablePosition = !string.IsNullOrWhiteSpace(position) && normalizedPosition is null;
+        var normalizedPatch = scope.Patch;
+        var normalizedPosition = scope.Lane;
 
         var account = await resolver.ResolveAsync(nameTag, ct);
         if (account is null)
         {
             return null;
-        }
-
-        if (unhonourablePosition)
-        {
-            return Empty(championId, normalizedPosition, normalizedPatch);
         }
 
         var cacheKey = $"truemains:champion-performance:{account.Id}:{championId}"

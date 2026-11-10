@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace TrueMain.Controllers.Champions;
+namespace TrueMain.Requests.Champions;
 
 /// <summary>
 /// Query parameters for <c>GET /champions/directory</c> (#1734). <see cref="Page"/>,
