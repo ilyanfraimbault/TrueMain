@@ -5,13 +5,26 @@ import type { OpsQueryOf } from './useOps'
 // health and configuration — built on `useOps` (`useOps.ts`).
 
 /**
- * `GET /api/ops/process-runs` — server-paginated runs (newest first) plus the
- * per-process rollup, which covers the full filtered set regardless of paging.
- * Pass a reactive getter so the table re-fetches when a filter or the page
+ * `GET /api/ops/process-runs` — server-paginated runs (newest first); the
+ * per-process rollup is its own read (`useProcessRollup`). Pass a reactive getter so the table re-fetches when a filter or the page
  * changes.
  */
 export function useProcessRuns(filters?: MaybeRefOrGetter<OpsQueryOf<'/process-runs'>>) {
   return useOps('/process-runs', filters)
+}
+
+/**
+ * `GET /api/ops/process-runs/rollup` — per-process health over the filter's window, with the
+ * verdict the health grid colours by. Its own read so it can refresh live while the runs table
+ * does not.
+ */
+export function useProcessRollup(filters?: MaybeRefOrGetter<OpsQueryOf<'/process-runs/rollup'>>) {
+  return useOps('/process-runs/rollup', filters)
+}
+
+/** `GET /api/ops/process-iterations/latest` — the newest pass of each pipeline lane. */
+export function useLatestProcessIterations() {
+  return useOps('/process-iterations/latest')
 }
 
 /**
