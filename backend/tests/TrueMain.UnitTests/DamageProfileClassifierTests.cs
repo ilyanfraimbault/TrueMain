@@ -19,7 +19,7 @@ public sealed class DamageProfileClassifierTests
     {
         var profile = DamageProfileClassifier.Measured(Facts(physical: 0.7, magic: 0.2, damagePerGame: 20_000), "MIDDLE", [])!;
 
-        profile.Source.Should().Be(ChampionDamageProfileSources.Measured);
+        profile.Source.Should().Be(ChampionDamageProfileSource.Measured);
         profile.Position.Should().Be("MIDDLE");
         profile.Patch.Should().Be("16.19");
         (profile.PhysicalShare + profile.MagicShare + profile.TrueShare).Should().BeApproximately(1, 1e-9);
@@ -43,7 +43,7 @@ public sealed class DamageProfileClassifierTests
             Row(ItemArchetype.None, 50, physical: 10_000, magic: 10_000),
         ]);
 
-        builds.Select(build => build.Archetype).Should().Equal("OnHit", "AbilityPower");
+        builds.Select(build => build.Archetype).Should().Equal(ItemArchetype.OnHit, ItemArchetype.AbilityPower);
         builds[0].Share.Should().BeApproximately(600d / 950, 1e-9, "the share counts every archetype game, kept or not");
         builds.Should().OnlyContain(build =>
             Math.Abs(build.PhysicalShare + build.MagicShare + build.TrueShare - 1) < 1e-9);

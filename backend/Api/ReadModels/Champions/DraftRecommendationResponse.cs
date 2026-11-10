@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Data.ItemContext;
 
 namespace TrueMain.ReadModels.Champions;
 
@@ -212,10 +213,10 @@ public sealed record DraftReasonReadModel
     public int? Count { get; init; }
 
     /// <summary>The composition axis a <c>teamFit</c> reason reads.</summary>
-    public string? Axis { get; init; }
+    public ItemContextAxis? Axis { get; init; }
 
     /// <summary>The band of <see cref="Axis"/> the board puts our team in.</summary>
-    public string? Bucket { get; init; }
+    public ItemContextBucket? Bucket { get; init; }
 
     public int? Of { get; init; }
 
