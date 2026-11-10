@@ -2,6 +2,7 @@ using Data;
 using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
+using Data.Pipeline;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,7 @@ namespace Ingestor.Processes;
 /// <c>null</c> and read as empty. New rows arrive with Riot's value, so steady state is
 /// an empty read of the partial index this queue sits on.
 /// </summary>
+[PipelineStep(JobMode.RoleBoundItemBackfillOnly)]
 public sealed class MatchRoleBoundItemBackfillProcess(
     ILogger<MatchRoleBoundItemBackfillProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
@@ -30,9 +32,6 @@ public sealed class MatchRoleBoundItemBackfillProcess(
     // 20-minute cycles.
     private const int BatchSize = 2000;
     private const int MaxBatchesPerRun = 25;
-
-    public string Name => "MatchRoleBoundItemBackfill";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);

@@ -2,12 +2,12 @@
 // Process health rollup of the Processes page: one card per process with its last
 // status, last run, last success and failures in the window. Split out of
 // `pages/processes.vue` (#1436); the page owns the (live-refreshed) fetch.
-import type { ProcessRollup } from '~~/shared/types/ops'
+import type { ProcessRunRollupReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { processStatusColor, processStatusIcon } from '~~/shared/utils/pipeline-health'
 
 defineProps<{
-  rollup: ProcessRollup[]
+  rollup: ProcessRunRollupReadModel[]
   pending: boolean
   /** True when no time window is selected — the failure label says "all time". */
   allTime: boolean
@@ -22,7 +22,7 @@ defineProps<{
 // `failureRateInWindow` is a real ratio (failures / runs in window), not a
 // fabricated metric. The 0.25 threshold is a display cue, not a published stat.
 const HIGH_FAILURE_RATE = 0.25
-function failureTextClass(proc: ProcessRollup): string {
+function failureTextClass(proc: ProcessRunRollupReadModel): string {
   if (proc.lastStatus === 'Failed') {
     return 'text-error'
   }
@@ -31,7 +31,7 @@ function failureTextClass(proc: ProcessRollup): string {
   }
   return 'text-default'
 }
-function failureRateLabel(proc: ProcessRollup): string {
+function failureRateLabel(proc: ProcessRunRollupReadModel): string {
   if (proc.runCountInWindow === 0) {
     return '—'
   }

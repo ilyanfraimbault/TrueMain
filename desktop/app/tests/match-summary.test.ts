@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import vectors from '#shared/fixtures/performance-score-vectors.json'
-import type { MatchDetailResponse } from '#shared/types/match-detail'
+import type { MatchDetail } from '#shared/types/match-detail'
 import type { GameParticipant } from '~/types/record'
 import { gameScore, gradeDetail, toMatchSummary } from '~/utils/match-summary'
 import { game } from './fixtures'
@@ -62,7 +62,7 @@ describe('gradeDetail', () => {
       isAce: false,
       marks: match.marks.filter(mark => mark.participantId === p.participantId),
     })),
-  } as unknown as MatchDetailResponse
+  } as unknown as MatchDetail
 
   it('grades the ten players of the opened game, the row\'s figures', () => {
     const graded = gradeDetail(detail)

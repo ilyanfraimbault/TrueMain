@@ -3,7 +3,7 @@
 // pass it was, when it ran, a bar of where its time went, and how its steps ended.
 // Hovering a segment of the bar recaps that step; the row expands into the step
 // timeline, and the per-run summaries stay in the slide-over.
-import type { ProcessIteration, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel } from '#site-shared/contract/api'
 import type { IterationKindId } from '~~/shared/utils/iteration-timeline'
 // Explicit imports, unlike most of the portal: the component tests mount it without
 // Nuxt's auto-imports, the way `ProcessSummaryView` is tested.
@@ -13,16 +13,17 @@ import { formatClock, formatDayLabel, formatElapsed } from '~~/shared/utils/form
 import { iterationKind, iterationSpan, statusCounts, timedRuns } from '~~/shared/utils/iteration-timeline'
 import { summaryRecap } from '~~/shared/utils/process-summary'
 import ProcessesIterationSteps from './ProcessesIterationSteps.vue'
+import { RUN_TALLIES } from '~~/shared/utils/pipeline-health'
 
 const props = defineProps<{
-  iteration: ProcessIteration
+  iteration: ProcessIterationReadModel
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
 
 defineEmits<{
-  openRun: [run: ProcessRun]
-  openIteration: [iteration: ProcessIteration]
+  openRun: [run: ProcessRunReadModel]
+  openIteration: [iteration: ProcessIterationReadModel]
 }>()
 
 const KIND_ICON: Record<IterationKindId, string> = {
@@ -41,15 +42,7 @@ const counts = computed(() => statusCounts(props.iteration.runs))
 // scanned, and the icons are the ones the chain and the timeline already use. Success
 // always shows (a zero is the point when a pass went wrong); the others only when they
 // happened.
-const TALLIES: readonly { status: ProcessRunStatus, verb: string, always?: boolean }[] = [
-  { status: 'Success', verb: 'succeeded', always: true },
-  { status: 'Skipped', verb: 'skipped, not due yet' },
-  { status: 'Failed', verb: 'failed' },
-  { status: 'Abandoned', verb: 'abandoned (the host died mid-run)' },
-  { status: 'Cancelled', verb: 'cancelled by a shutdown' },
-]
-
-const tallies = computed(() => TALLIES
+const tallies = computed(() => RUN_TALLIES
   .map(({ status, verb, always }) => {
     const count = counts.value[status] ?? 0
     return { status, count, always, text: `${count} ${count === 1 ? 'step' : 'steps'} ${verb}` }

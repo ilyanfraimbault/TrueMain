@@ -1,4 +1,4 @@
-import type { PersonaResponse } from '#shared/types/players'
+import type { PersonaReadModel } from '#shared/contract/api'
 import { parseRouteParam } from '#common/utils/route-params'
 import { mergedPlayerPath } from '#common/utils/player-redirect'
 import { isNotFoundError } from '#common/utils/remote-read'
@@ -14,11 +14,11 @@ export function useKnownPlayer() {
   const slug = computed(() => parseRouteParam(route.params.slug).toLowerCase())
 
   const apiFetch = useApiFetch()
-  const read = useAsyncData<PersonaResponse | null>(
+  const read = useAsyncData<PersonaReadModel | null>(
     () => `player-${slug.value}`,
     async (_nuxtApp, { signal }) => {
       try {
-        const response = await apiFetch<PersonaResponse | null>(
+        const response = await apiFetch<PersonaReadModel | null>(
           `/players/${encodeURIComponent(slug.value)}`,
           { signal },
         )

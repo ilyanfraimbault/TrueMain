@@ -1,4 +1,4 @@
-import type { SearchPlayer, SearchResponse, SearchResult } from '#shared/types/search'
+import type { SearchPlayerReadModel, SearchResponse, SearchResultReadModel } from '#shared/contract/api'
 
 /**
  * Below this many characters the backend won't search, so neither do we.
@@ -50,9 +50,9 @@ type SearchStatus = 'idle' | 'pending' | 'success' | 'error'
  */
 export function useTruemainSearch(term: MaybeRefOrGetter<string>, options: { limit?: number } = {}) {
   const apiFetch = useApiFetch()
-  const results = ref<SearchResult[]>([])
+  const results = ref<SearchResultReadModel[]>([])
   // Known players the same term names (#2018), answered by the same request.
-  const players = ref<SearchPlayer[]>([])
+  const players = ref<SearchPlayerReadModel[]>([])
   const status = ref<SearchStatus>('idle')
   const error = ref<unknown>(null)
 

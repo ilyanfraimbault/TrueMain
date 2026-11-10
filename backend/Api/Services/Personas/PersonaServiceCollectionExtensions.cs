@@ -1,3 +1,4 @@
+using TrueMain.Configuration;
 using TrueMain.Options;
 using TrueMain.Services.Personas.Pictures;
 
@@ -34,7 +35,7 @@ public static class PersonaServiceCollectionExtensions
 
     private static void AddPersonaPictures(this IServiceCollection services)
     {
-        services.AddOptions<PersonaPictureOptions>().BindConfiguration(PersonaPictureOptions.SectionName);
+        services.AddApiOptions<PersonaPictureOptions>();
 
         // No request loggers, like the alerter's: the secret-bearing requests stay out of the logs entirely.
         services.AddHttpClient(PersonaPictureReader.HttpClientName, client =>

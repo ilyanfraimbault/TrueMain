@@ -1,4 +1,4 @@
-import type { MatchDetailResponse } from '#shared/types/match-detail'
+import type { MatchDetail } from '#shared/types/match-detail'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 import { gradeDetail } from '~/utils/match-summary'
@@ -49,14 +49,14 @@ export function useStaticChampionsById() {
 }
 
 /** TrueMain's copies already read: an ingested game never changes. */
-const matchDetails = new Map<string, MatchDetailResponse>()
+const matchDetails = new Map<string, MatchDetail>()
 
-async function readTruemainDetail(nameTag: string, platformId: string | null, matchId: string): Promise<MatchDetailResponse | null> {
+async function readTruemainDetail(nameTag: string, platformId: string | null, matchId: string): Promise<MatchDetail | null> {
   if (!nameTag || !platformId) return null
   try {
     // In the background: an opened row shows its own skeleton, and the window's
     // loading bar is for a page's load, not for a panel opening in place.
-    return await apiGet<MatchDetailResponse>(
+    return await apiGet<MatchDetail>(
       `/truemains/${encodeURIComponent(nameTag)}/matches/${platformId}_${matchId}`,
       {},
       { background: true },
@@ -67,13 +67,13 @@ async function readTruemainDetail(nameTag: string, platformId: string | null, ma
   }
 }
 
-async function readClientDetail(matchId: string): Promise<MatchDetailResponse | null> {
+async function readClientDetail(matchId: string): Promise<MatchDetail | null> {
   if (insideTauri()) {
     return gradeDetail(await shell.playerGame(Number(matchId)))
   }
   if (import.meta.dev) {
     const fixtures = await import('~/fixtures/match-details.json')
-    const detail = (fixtures.default as unknown as Record<string, MatchDetailResponse>)[matchId]
+    const detail = (fixtures.default as unknown as Record<string, MatchDetail>)[matchId]
     if (!detail) return null
     // The shared model's fixture game stands in for every game's timeline, so the curve shows in dev.
     const { default: winProbability } = await import('#shared/fixtures/win-probability-timeline.json')
@@ -99,7 +99,7 @@ async function readClientDetail(matchId: string): Promise<MatchDetailResponse | 
  */
 export function usePlayerGameDetail(nameTag: MaybeRefOrGetter<string>, matchId: MaybeRefOrGetter<string>) {
   const { record } = usePlayerRecord()
-  const data = ref<MatchDetailResponse | null>(null)
+  const data = ref<MatchDetail | null>(null)
   const isLoading = ref(true)
   const notFound = ref(false)
 

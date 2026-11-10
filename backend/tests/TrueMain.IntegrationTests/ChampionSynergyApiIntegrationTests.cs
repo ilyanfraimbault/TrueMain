@@ -56,7 +56,7 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/champions/{Champion}/synergies?position={Position}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var synergies = await response.Content.ReadFromJsonAsync<ChampionSynergiesResponse>();
+        var synergies = await response.Content.ReadFromJsonAsync<ChampionSynergiesResponse>(ApiJson.Options);
         synergies.Should().NotBeNull();
         synergies!.ChampionId.Should().Be(Champion);
         synergies.Position.Should().Be(Position);
@@ -96,7 +96,7 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var synergies = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
-            $"/champions/{Champion}/synergies?position={Position}");
+            $"/champions/{Champion}/synergies?position={Position}", ApiJson.Options);
 
         synergies!.MinGames.Should().Be(10);
         synergies.Partners.Should().NotContain(
@@ -127,7 +127,7 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var synergies = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
-            $"/champions/{Champion}/synergies?position={Position}");
+            $"/champions/{Champion}/synergies?position={Position}", ApiJson.Options);
 
         synergies!.Partners.Should().NotContain(
             p => p.PartnerChampionId == Top && p.PartnerPosition == "BOTTOM",
@@ -150,7 +150,7 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var synergies = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
-            $"/champions/{Champion}/synergies?position={Position}");
+            $"/champions/{Champion}/synergies?position={Position}", ApiJson.Options);
 
         synergies!.MinGames.Should().Be(30, "the share floor binds and is echoed back");
         synergies.Partners.Should().NotContain(p => p.PartnerChampionId == Support);
@@ -169,9 +169,9 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var all = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
-            $"/champions/{Champion}/synergies?position={Position}");
+            $"/champions/{Champion}/synergies?position={Position}", ApiJson.Options);
         var utility = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
-            $"/champions/{Champion}/synergies?position={Position}&partnerPosition=UTILITY");
+            $"/champions/{Champion}/synergies?position={Position}&partnerPosition=UTILITY", ApiJson.Options);
 
         utility!.PartnerPosition.Should().Be("UTILITY");
         utility.Partners.Should().OnlyContain(p => p.PartnerPosition == "UTILITY");
@@ -195,7 +195,7 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         // so no expected win rate can be built for her, and the response says so
         // with a real game count instead of returning a made-up ranking.
         var synergies = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
-            $"/champions/{ThinSampleChampion}/synergies?position={Position}");
+            $"/champions/{ThinSampleChampion}/synergies?position={Position}", ApiJson.Options);
 
         synergies!.ChampionGames.Should().Be(12);
         synergies.Partners.Should().BeEmpty();
@@ -222,7 +222,7 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var trios = await client.GetFromJsonAsync<ChampionTrioSynergiesResponse>(
-            $"/champions/{Champion}/synergies/trios?position={Position}&partner={Support}&partnerPosition=UTILITY");
+            $"/champions/{Champion}/synergies/trios?position={Position}&partner={Support}&partnerPosition=UTILITY", ApiJson.Options);
 
         trios.Should().NotBeNull();
         trios!.PairGames.Should().Be(24);
@@ -249,7 +249,7 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var trios = await client.GetFromJsonAsync<ChampionTrioSynergiesResponse>(
-            $"/champions/{Champion}/synergies/trios?position={Position}&partner={Support}&partnerPosition=UTILITY");
+            $"/champions/{Champion}/synergies/trios?position={Position}&partner={Support}&partnerPosition=UTILITY", ApiJson.Options);
 
         // Three shared games can never support a third dimension. The caller still
         // gets the real count so it can say why rather than imply "no third works".
@@ -278,9 +278,9 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var first = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
-            $"/champions/{Champion}/synergies?position={Position}");
+            $"/champions/{Champion}/synergies?position={Position}", ApiJson.Options);
         var second = await client.GetFromJsonAsync<ChampionSynergiesResponse>(
-            $"/champions/{Champion}/synergies?position={Position}");
+            $"/champions/{Champion}/synergies?position={Position}", ApiJson.Options);
 
         // Two pairings with the same baselines and the same record score identically —
         // synergy is a difference of two rates, so ties are the norm rather than the

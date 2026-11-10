@@ -5,20 +5,17 @@
 // rather than a queue-and-age slice. Grouped by issue type in an accordion so one
 // table shows at a time. The page owns the filters (its overview fetch and the
 // verdict read them) and the match slide-over this section asks it to open.
-import type {
-  BadgeColor,
-  DataQualityIssueType,
-  IncompleteMatchesFilters,
-  DataQualityIssueGroup,
-} from '~~/shared/types/ops'
+import type { OpsQueryOf } from '~/composables/useOps'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
+import type { DataQualityIssueGroupReadModel, DataQualityIssueType } from '#site-shared/contract/api'
 
 const props = defineProps<{
-  groups: DataQualityIssueGroup[]
+  groups: DataQualityIssueGroupReadModel[]
   pending: boolean
   error: unknown
   staleHours: number
   hasActiveFilters: boolean
-  baseFilters: Omit<IncompleteMatchesFilters, 'issue' | 'page'>
+  baseFilters: Omit<OpsQueryOf<'/data-quality/incomplete-matches'>, 'issue' | 'page'>
   pageSize: number
 }>()
 

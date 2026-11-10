@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionTrendPoint } from '~~/shared/types/champions'
+import type { ChampionTrendPoint } from '#shared/contract/api'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 
 const props = withDefaults(defineProps<{

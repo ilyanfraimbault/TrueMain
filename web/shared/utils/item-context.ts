@@ -1,4 +1,4 @@
-import type { ChampionItemContextAxis, ChampionItemContextItem, ItemContextSlot } from '../types/item-context'
+import type { ChampionItemContextAxisReadModel, ChampionItemContextItemReadModel, ItemContextSlot } from '../contract/api'
 
 /**
  * The wording of the situational build context (#1451).
@@ -137,12 +137,12 @@ export const KNOWN_ITEM_CONTEXT_AXES: readonly string[] = Object.keys(AXIS_PHRAS
  * Null rather than the raw identifier: a card showing `EnemyArmorPenetration` to a player
  * is worse than a card showing one line fewer.
  */
-export function itemContextAxisPhrase(axis: ChampionItemContextAxis): ItemContextPhraseToken[] | null {
+export function itemContextAxisPhrase(axis: ChampionItemContextAxisReadModel): ItemContextPhraseToken[] | null {
   return AXIS_PHRASES[axis.axis]?.[axis.bucket === 'High' ? 'high' : 'low'] ?? null
 }
 
 /** The same phrase as flat text — for tests, and for anywhere prose is needed without markup. */
-export function itemContextAxisText(axis: ChampionItemContextAxis): string | null {
+export function itemContextAxisText(axis: ChampionItemContextAxisReadModel): string | null {
   return itemContextAxisPhrase(axis)?.map(token => token.text).join('') ?? null
 }
 
@@ -153,7 +153,7 @@ export function capitalizePhrase(phrase: ItemContextPhraseToken[]): ItemContextP
 }
 
 /** Only the findings this build can word — the card renders nothing it cannot explain. */
-export function wordableAxes(item: ChampionItemContextItem): ChampionItemContextAxis[] {
+export function wordableAxes(item: ChampionItemContextItemReadModel): ChampionItemContextAxisReadModel[] {
   return item.axes.filter(axis => itemContextAxisPhrase(axis) !== null)
 }
 
@@ -163,7 +163,7 @@ export function wordableAxes(item: ChampionItemContextItem): ChampionItemContext
  * that the API cannot tell it will land here rather than in a new prop drilled through
  * five components.
  */
-export type ItemContextCard = ChampionItemContextItem
+export type ItemContextCard = ChampionItemContextItemReadModel
 
 /**
  * The key a verdict is looked up by: a slot, the branch, and the item.
@@ -203,7 +203,7 @@ function itemContextFallbackKey(slot: ItemContextSlot, itemId: number): string {
  * and there the exact edge is the only honest key.
  */
 export function indexItemContext(
-  items: readonly ChampionItemContextItem[] | null | undefined,
+  items: readonly ChampionItemContextItemReadModel[] | null | undefined,
 ): Map<string, ItemContextCard> {
   const index = new Map<string, ItemContextCard>()
   const situationalByItem = new Map<string, ItemContextCard[]>()

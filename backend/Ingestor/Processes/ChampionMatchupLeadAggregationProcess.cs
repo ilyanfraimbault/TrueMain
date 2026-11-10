@@ -4,6 +4,7 @@ using Core.Options;
 using Data;
 using Data.Aggregation;
 using Data.Entities;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes.Components.IncrementalFolds;
 using Ingestor.Processes.Summaries;
@@ -87,6 +88,7 @@ namespace Ingestor.Processes;
 /// erase exactly the case worth showing.
 /// </para>
 /// </summary>
+[PipelineStep(JobMode.MatchupLeadAggregationOnly)]
 public sealed class ChampionMatchupLeadAggregationProcess(
     ILogger<ChampionMatchupLeadAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
@@ -113,9 +115,6 @@ public sealed class ChampionMatchupLeadAggregationProcess(
             .Sum("LaneGoldDiffGames", "integer", r => r.Value.LaneGoldDiffGames)
             .Sum("LaneXpDiffSum", "bigint", r => r.Value.LaneXpDiffSum)
             .Sum("LaneXpDiffGames", "integer", r => r.Value.LaneXpDiffGames);
-
-    public string Name => "ChampionMatchupLeadAggregation";
-
     public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;

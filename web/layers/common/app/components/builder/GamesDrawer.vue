@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CompositionBuildRequest } from '#shared/types/composition'
+import type { CompositionBuildRequest } from '#shared/contract/api'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,

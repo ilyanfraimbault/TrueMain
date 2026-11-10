@@ -270,7 +270,7 @@ public sealed class IncompleteMatchesQueryService(TrueMainDbContext db) : IIncom
 
             groups.Add(new DataQualityIssueGroupReadModel
             {
-                IssueType = MatchDataQualityRules.ToWireName(issueType),
+                IssueType = issueType,
                 Count = matchesForIssue.Count,
                 Matches = sample
             });
@@ -292,7 +292,7 @@ public sealed class IncompleteMatchesQueryService(TrueMainDbContext db) : IIncom
             TimelineIngested = match.TimelineIngested,
             ParticipantCount = match.ParticipantCount,
             ExpectedParticipantCount = match.Profile.IsKnown ? match.Profile.ExpectedParticipants : null,
-            Issues = flagged.Issues.Select(i => MatchDataQualityRules.ToWireName(i)).ToList()
+            Issues = flagged.Issues
         };
     }
 

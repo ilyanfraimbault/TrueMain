@@ -1,8 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using AwesomeAssertions;
 using Data.Entities;
 using Data.Ops.Mongo;
-using AwesomeAssertions;
+using Data.Pipeline;
 using Microsoft.AspNetCore.Mvc.Testing;
 using MongoDB.Driver;
 
@@ -59,7 +60,7 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/process-iterations");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>();
+        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         // Only the two iteration-grouped passes — the legacy un-grouped run is excluded.
@@ -208,7 +209,7 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync(url);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>();
+        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>(ApiJson.Options);
         payload.Should().NotBeNull();
         return payload!;
     }

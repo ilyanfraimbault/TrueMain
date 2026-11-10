@@ -81,7 +81,7 @@ public sealed class DesktopTelemetryIntegrationTests(PostgresFixture postgres, M
         }
 
         client.DefaultRequestHeaders.Add("X-Ops-Key", OpsApiKey);
-        var usage = await client.GetFromJsonAsync<DesktopUsageReadModel>("/ops/desktop/usage?windowDays=7");
+        var usage = await client.GetFromJsonAsync<DesktopUsageReadModel>("/ops/desktop/usage?windowDays=7", ApiJson.Options);
         usage!.Totals.DownloadsWindows.Should().Be(2);
         usage.DownloadVersions.Should().ContainSingle().Which.Version.Should().Be("0.3.1");
     }

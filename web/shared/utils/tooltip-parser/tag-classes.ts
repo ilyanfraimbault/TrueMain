@@ -101,7 +101,6 @@ export const TAG_CLASS: Record<string, string> = {
   runespeed: 'text-stat-speed',
   runemr: 'text-stat-mr',
 
-  // Fallthrough
   default: 'text-default',
 }
 

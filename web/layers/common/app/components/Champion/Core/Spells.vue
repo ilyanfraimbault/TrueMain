@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { BuildSummonerSpells } from '#shared/types/champions'
+import type { BuildSummonerSpellsReadModel } from '#shared/contract/api'
 import type { StaticSummonerSpellData } from '#shared/types/static-data'
 
 defineProps<{
-  summoners: BuildSummonerSpells | null
+  summoners: BuildSummonerSpellsReadModel | null
   summonersMap: Record<number, StaticSummonerSpellData>
   /**
    * True while the summoner-spell static map is still in flight. It is fetched

@@ -4,19 +4,19 @@
 // picks who belongs to it and either merges them into the one kept — oldest by
 // default, the slug the site advertised first — or marks them as different people.
 // The merge retires pages, so it asks twice.
-import type { PersonaHomonymDistinctBody, PersonaHomonymGroup, PersonaHomonymMergeBody } from '~~/shared/types/ops'
+import type { PersonaHomonymDistinctRequest, PersonaHomonymGroupReadModel, PersonaHomonymMergeRequest } from '#site-shared/contract/api'
 import { computed, ref, watch } from 'vue'
 import { markedDistinct } from '~~/shared/utils/persona-homonyms'
 import { useArmedConfirm } from '~/composables/useArmedConfirm'
 
 const props = defineProps<{
-  group: PersonaHomonymGroup
+  group: PersonaHomonymGroupReadModel
   busy: boolean
 }>()
 
 const emit = defineEmits<{
-  merge: [body: PersonaHomonymMergeBody]
-  distinct: [body: PersonaHomonymDistinctBody]
+  merge: [body: PersonaHomonymMergeRequest]
+  distinct: [body: PersonaHomonymDistinctRequest]
 }>()
 
 const keepId = ref('')

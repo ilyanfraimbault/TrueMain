@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ProfileIdentity } from '#shared/types/profile'
+import type { ProfileIdentityReadModel } from '#shared/contract/api'
 import type { BuildOption, CompositionBuildRequest } from '~/types/build'
 import type { DraftBuild } from '~/composables/useDraftBuild'
 import type { Kit } from '~/types/kit'
@@ -73,7 +73,7 @@ const options = computed<BuildOption[]>(() => {
 
 /** The row on screen: a build's key, or `main` for the true main picked in the list. */
 const selected = ref<string | null>(null)
-const main = ref<{ identity: ProfileIdentity } | null>(null)
+const main = ref<{ identity: ProfileIdentityReadModel } | null>(null)
 
 // A new champion puts the view back on its first row; a draft build arriving
 // takes the first row too, unless a true main's build is being read.

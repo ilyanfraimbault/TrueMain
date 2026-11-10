@@ -1,4 +1,4 @@
-import type { ChampionResponse } from '~~/shared/types/champions'
+import type { ChampionResponse } from '#shared/contract/api'
 import { fetchErrorStatus } from '#common/utils/errors'
 
 /**

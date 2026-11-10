@@ -10,13 +10,14 @@
 // Two tabs since #1410, deep-linkable via `?view=runs|riot-api`: the Riot API
 // usage panel moved here from a page of its own, because how the pipeline spends
 // its call budget is a signal about these same runs, not a separate destination.
-import type { ProcessIteration, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
 // The chain is grouped by lane, not flat: since #1362 an iteration belongs to one
 // lane, and drawing the canonical 20 steps every time painted the other lane's
 // dozen as phantom "Not run" chips. `pickCurrentLanes` owns that grouping; the
 // cards themselves live in `components/processes/` (#1436).
 import { pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
+import { processRunStatusValues } from '#site-shared/contract/api'
 
 // --- Tabs (#1410) ------------------------------------------------------------
 // `runs` is the default and stays out of the URL; `/riot-api` redirects here with
@@ -63,12 +64,7 @@ const sinceWindow = ref<SinceWindow>(ALL)
 
 const statusItems = [
   { label: 'All statuses', value: ALL },
-  { label: 'Running', value: 'Running' },
-  { label: 'Success', value: 'Success' },
-  { label: 'Failed', value: 'Failed' },
-  { label: 'Abandoned', value: 'Abandoned' },
-  { label: 'Cancelled', value: 'Cancelled' },
-  { label: 'Skipped', value: 'Skipped' },
+  ...processRunStatusValues.map(status => ({ label: status, value: status })),
 ]
 
 // Default view = the most recent runs regardless of recency: send NO `since`
@@ -164,7 +160,7 @@ const {
   error: iterationsError,
 } = useProcessIterations(iterationsFilters)
 
-const finishedIterations = computed<ProcessIteration[]>(() => iterationsData.value?.iterations ?? [])
+const finishedIterations = computed<ProcessIterationReadModel[]>(() => iterationsData.value?.iterations ?? [])
 const iterationsTotal = computed(() => iterationsData.value?.total ?? 0)
 const iterationsServerPage = computed(() => iterationsData.value?.page ?? iterationsPage.value)
 
@@ -188,7 +184,7 @@ const {
   page: 1,
   pageSize: LATEST_ITERATION_PROBE,
 })
-const latestIterations = computed<ProcessIteration[]>(
+const latestIterations = computed<ProcessIterationReadModel[]>(
   () => latestIterationData.value?.iterations ?? [],
 )
 
@@ -223,21 +219,21 @@ async function refreshRuns() {
 // A run (from the chain or the table) and a finished iteration each open their
 // own formatted breakdown rather than the raw JSON. The run is read back from the
 // live feeds (#2471), so a Running one settles in place when the chain refreshes.
-const selected = ref<ProcessRun | null>(null)
+const selected = ref<ProcessRunReadModel | null>(null)
 const detailOpen = ref(false)
 const selectedRun = computed(() => liveRun(selected.value, [
   ...latestIterations.value.map(iteration => iteration.runs),
   runs.value,
   ...finishedIterations.value.map(iteration => iteration.runs),
 ]))
-function openDetail(run: ProcessRun) {
+function openDetail(run: ProcessRunReadModel) {
   selected.value = run
   detailOpen.value = true
 }
 
 const iterationDetailOpen = ref(false)
-const selectedIteration = ref<ProcessIteration | null>(null)
-function openIterationDetail(iteration: ProcessIteration) {
+const selectedIteration = ref<ProcessIterationReadModel | null>(null)
+function openIterationDetail(iteration: ProcessIterationReadModel) {
   selectedIteration.value = iteration
   iterationDetailOpen.value = true
 }

@@ -1,4 +1,5 @@
-import type { CompositionBuildRequest, CompositionBuildResponse } from '~/types/build'
+import type { CompositionBuildResponse } from '#shared/contract/api'
+import type { CompositionBuildRequest } from '~/types/build'
 import type { DraftBuild } from '~/composables/useDraftBuild'
 import { draftBuildOf } from '~/composables/useDraftBuild'
 

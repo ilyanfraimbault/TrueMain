@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { devApiMockEnabled } from '~~/server/utils/dev-api-mock'
+import { devApiMockEnabled } from '~~/server/dev/api-mock'
 
 /**
  * `devApiMockEnabled` gates the dev-only backend mock. It must treat the flag
