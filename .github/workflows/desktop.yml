@@ -46,6 +46,8 @@ jobs:
             crates:
               - "desktop/crates/**"
               - "desktop/capture/windows/**"
+              - "desktop/fixtures/**"
+              - "desktop/app/app/fixtures/scenarios.json"
             shell:
               - "desktop/src-tauri/**"
             macos:
@@ -56,6 +58,7 @@ jobs:
               - "desktop/fixtures/**"
             app:
               - "desktop/app/**"
+              - "desktop/fixtures/**"
               - "web/layers/common/**"
               - "web/shared/**"
 

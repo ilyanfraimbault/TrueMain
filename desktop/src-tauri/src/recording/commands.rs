@@ -36,16 +36,8 @@ pub fn recording_settings(
     settings_view(&recorder, &overlay)
 }
 
-/// Why `chord` cannot be the mark key: refused on its own, like a panel's
-/// (`Chord::refusal`), or a panel's chord already.
 fn mark_key_refusal(chord: &Chord, overlay: &SharedOverlay) -> Option<String> {
-    if let Some(reason) = chord.refusal(false) {
-        return Some(reason.to_string());
-    }
-    overlay
-        .settings()
-        .panel_on(chord)
-        .map(|panel| format!("Already the shortcut of {}.", panel.name()))
+    overlay.settings().mark_key_refusal(chord)
 }
 
 /// Whether `chord` can be the mark key, and how it reads, before the page

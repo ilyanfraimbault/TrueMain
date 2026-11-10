@@ -70,6 +70,15 @@ impl From<&ChampSelectAction> for DraftAction {
     }
 }
 
+/// What a click on the draft writes to, by the rule of `plan_hover` and
+/// `plan_lock`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Controls {
+    pub click: Option<ActionKind>,
+    pub hovered_pick: Option<i64>,
+    pub can_lock: bool,
+}
+
 /// Where the player stands in the draft's turn order.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Turn {
@@ -167,6 +176,27 @@ impl ChampSelectSession {
         self.my_actions()
             .map(|(_, action)| action)
             .find(|action| action.kind == ActionKind::Pick.as_str() && !action.completed)
+    }
+
+    /// What the draft's controls may write right now.
+    pub fn controls(&self) -> Controls {
+        let open_pick = self.open_action(ActionKind::Pick);
+        let target_pick = open_pick.or_else(|| self.planned_pick());
+        let click = if open_pick.is_some() {
+            Some(ActionKind::Pick)
+        } else if self.open_action(ActionKind::Ban).is_some() {
+            Some(ActionKind::Ban)
+        } else {
+            target_pick.map(|_| ActionKind::Pick)
+        };
+        let hovered_pick = target_pick
+            .map(|action| action.champion_id)
+            .filter(|&champion| champion != 0);
+        Controls {
+            click,
+            hovered_pick,
+            can_lock: open_pick.is_some() && hovered_pick.is_some(),
+        }
     }
 
     pub fn turn(&self) -> Turn {
@@ -404,6 +434,44 @@ mod tests {
             outside.plan_hover(ActionKind::Pick, 103, &[103]),
             Err(Refusal::NotYourTurn)
         );
+    }
+
+    #[test]
+    fn the_controls_follow_the_write_rule() {
+        let banning = ranked(true, "BAN_PICK");
+        assert_eq!(
+            banning.controls(),
+            Controls {
+                click: Some(ActionKind::Ban),
+                hovered_pick: None,
+                can_lock: false
+            }
+        );
+
+        let mut planning = ranked(false, PLANNING);
+        assert_eq!(
+            planning.controls().click,
+            Some(ActionKind::Pick),
+            "planning declares the pick even with our ban still to come"
+        );
+        planning.actions[4][1].champion_id = 103;
+        assert_eq!(planning.controls().hovered_pick, Some(103));
+        assert!(!planning.controls().can_lock, "an intent is never locked");
+
+        let mut picking = ranked(false, "BAN_PICK");
+        picking.actions[4][1].is_in_progress = true;
+        assert!(!picking.controls().can_lock, "nothing hovered yet");
+        picking.actions[4][1].champion_id = 103;
+        assert_eq!(
+            picking.controls(),
+            Controls {
+                click: Some(ActionKind::Pick),
+                hovered_pick: Some(103),
+                can_lock: true
+            }
+        );
+
+        assert_eq!(ranked(false, "BAN_PICK").controls().click, None);
     }
 
     #[test]

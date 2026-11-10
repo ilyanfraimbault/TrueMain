@@ -165,10 +165,26 @@ impl AppState {
         }
         match self.phase {
             phase if phase.is_champ_select() => Screen::Draft,
-            // Not `is_game_running`: during a reconnect the game's API is down.
-            GameflowPhase::InProgress => Screen::InGame,
+            phase if phase.is_game_api_up() => Screen::InGame,
             _ => Screen::Dashboard,
         }
+    }
+}
+
+/// The state as the webview receives it: the state and the screen it calls for,
+/// so the navigation rule is applied here only.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AppView {
+    #[serde(flatten)]
+    pub state: AppState,
+    pub screen: Screen,
+}
+
+impl From<AppState> for AppView {
+    fn from(state: AppState) -> Self {
+        let screen = state.screen();
+        Self { state, screen }
     }
 }
 

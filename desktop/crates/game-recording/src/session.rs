@@ -134,7 +134,7 @@ impl<C: Capture> Session<C> {
         match (&self.state, in_game) {
             (State::Recording(_), true) => Ok(Change::None),
             (State::Recording(_), false) => self.stop(),
-            (_, true) if phase == GameflowPhase::InProgress => {
+            (_, true) if phase.is_game_api_up() => {
                 let Some(game) = game.filter(|g| g.game_id > 0 && settings.records(g.queue_id))
                 else {
                     return Ok(Change::None);

@@ -56,24 +56,19 @@ function create(draft: Ref<DraftState>) {
   const pending = ref<{ kind: ChampSelectKind | 'lock', championId: number } | null>(null)
 
   const action = computed(() => draft.value.myAction?.inProgress ? draft.value.myAction : null)
-  const planning = computed(() => draft.value.timerPhase === 'PLANNING' && draft.value.myNextAction?.kind === 'pick')
+  /** The planning phase: a click declares our pick, no turn of ours is open. */
+  const planning = computed(() => draft.value.click === 'pick' && action.value === null)
 
-  /** What a click on a champion writes right now, if anything. */
-  const kind = computed<ChampSelectKind | null>(() => {
-    if (action.value?.kind === 'pick' || action.value?.kind === 'ban') return action.value.kind
-    return planning.value ? 'pick' : null
-  })
+  /** What a click on a champion writes right now, if anything (the shell's rule). */
+  const kind = computed<ChampSelectKind | null>(() => draft.value.click)
 
   /** What the control is labelled, even out of turn: the kind of our next action. */
   const shownKind = computed<ChampSelectKind>(() => kind.value ?? (draft.value.myNextAction?.kind === 'ban' ? 'ban' : 'pick'))
 
   /** The champion the client shows on our pick — the one "Lock in" commits. */
-  const hovered = computed(() => {
-    if (action.value?.kind === 'pick') return action.value.championId
-    return planning.value ? draft.value.myNextAction?.championId ?? null : null
-  })
+  const hovered = computed(() => draft.value.hoveredPick)
 
-  const canLock = computed(() => action.value?.kind === 'pick' && hovered.value !== null)
+  const canLock = computed(() => draft.value.canLock)
 
   /** Whose turn it is, for the strip over the draft. `null` when the draft is no longer about ours. */
   const turnLabel = computed(() => {

@@ -21,7 +21,6 @@ pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             crate::current_state,
-            crate::current_screen,
             game::current_game,
             crate::draft_recommendation,
             crate::draft_bans,
@@ -86,9 +85,26 @@ pub fn builder() -> Builder<tauri::Wry> {
             recording::LibraryChanged,
             recording::RecapReady,
         ])
-        .constant("EMPTY_STATE", shell_state::AppState::default())
+        .constant(
+            "EMPTY_STATE",
+            shell_state::AppView::from(shell_state::AppState::default()),
+        )
         .constant("IDLE_LOADING", loading::LoadingView::default())
         .constant("RECORDING_SCHEME", recording::files::SCHEME)
+        .constant("PHASE_GROUPS", phase_groups())
+        .constant("OVERLAY_PANEL_TABLE", overlay_panels())
+        .constant("OVERLAY_LIMITS", overlay_limits())
+        .constant("OVERLAY_GEOMETRY", overlay_geometry())
+        .constant(
+            "DEFAULT_OVERLAY_SETTINGS",
+            shell_state::overlay::OverlaySettings::default(),
+        )
+        .constant(
+            "DEFAULT_HUD",
+            shell_state::scoreboard::HudSettings::DEFAULTS,
+        )
+        .constant("GOLD_STEP", live_client::GOLD_STEP)
+        .constant("KEY_LABELS", key_labels())
         .error_handling(ErrorHandlingMode::Throw)
         // Ids, timestamps and sizes stay far below 2^53.
         .dangerously_cast_bigints_to_number()
@@ -163,6 +179,86 @@ impl<R> From<&str> for Refused<R> {
     fn from(message: &str) -> Self {
         Self::Other(message.to_string())
     }
+}
+
+/// Each named set of client phases (`GameflowPhase::is_*`).
+fn phase_groups() -> serde_json::Value {
+    use lcu::GameflowPhase;
+    let of = |test: fn(GameflowPhase) -> bool| -> Vec<GameflowPhase> {
+        GameflowPhase::ALL
+            .into_iter()
+            .filter(|phase| test(*phase))
+            .collect()
+    };
+    serde_json::json!({
+        "champSelect": of(GameflowPhase::is_champ_select),
+        "gameRunning": of(GameflowPhase::is_game_running),
+        "gameApiUp": of(GameflowPhase::is_game_api_up),
+        "postGame": of(GameflowPhase::is_post_game),
+    })
+}
+
+/// Each overlay panel's name, settings field and placement.
+fn overlay_panels() -> serde_json::Value {
+    use shell_state::overlay::OverlayPanel;
+    OverlayPanel::ALL
+        .into_iter()
+        .map(|panel| {
+            (
+                panel.slug().to_string(),
+                serde_json::json!({
+                    "name": panel.name(),
+                    "field": panel.field(),
+                    "onScoreboard": panel.on_scoreboard(),
+                }),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>()
+        .into()
+}
+
+/// The bounds the shell clamps the overlay's settings to.
+fn overlay_limits() -> serde_json::Value {
+    use shell_state::overlay::{MAX_OPACITY, MAX_SCALE, MIN_OPACITY, MIN_SCALE};
+    serde_json::json!({
+        "scale": { "min": MIN_SCALE, "max": MAX_SCALE },
+        "opacity": { "min": MIN_OPACITY, "max": MAX_OPACITY },
+        "scoreboardNudge": shell_state::scoreboard::MAX_NUDGE,
+    })
+}
+
+/// The measures the overlay is placed by (`OverlaySettings::origin`,
+/// `scoreboard::rows`), for the Overlay page's editor.
+fn overlay_geometry() -> serde_json::Value {
+    use shell_state::{overlay, scoreboard};
+    serde_json::json!({
+        "edgeMargin": overlay::EDGE_MARGIN,
+        "topMargin": overlay::TOP_MARGIN,
+        "scoreboard": {
+            "reference": { "width": scoreboard::REFERENCE_WIDTH, "height": scoreboard::REFERENCE_HEIGHT },
+            "rows": scoreboard::ROWS,
+            "rowPitchAtZero": scoreboard::ROW_PITCH_AT_ZERO,
+            "hudGrowth": scoreboard::HUD_GROWTH,
+            "rowsBottomBelowMiddle": scoreboard::ROWS_BOTTOM_BELOW_MIDDLE,
+            "boardWidthAtZero": scoreboard::BOARD_WIDTH_AT_ZERO,
+        },
+    })
+}
+
+/// The keys a chord may use, each with its name on a US keyboard.
+fn key_labels() -> serde_json::Value {
+    use shell_state::keys::KeyCode;
+    KeyCode::ALL
+        .iter()
+        .map(|key| {
+            let code = serde_json::to_value(key).expect("a key code serialises");
+            (
+                code.as_str().unwrap_or_default().to_string(),
+                key.label().into(),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>()
+        .into()
 }
 
 /// Send `event` to every webview, under the name its binding listens to.

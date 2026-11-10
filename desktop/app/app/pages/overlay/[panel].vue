@@ -28,7 +28,7 @@ import { sampleGame } from '~/utils/overlay-sample'
 const route = useRoute()
 const panel = computed<OverlayPanel>(() => {
   const slug = String(route.params.panel)
-  return (OVERLAY_PANELS as string[]).includes(slug) ? slug as OverlayPanel : 'next-item'
+  return (OVERLAY_PANELS as readonly string[]).includes(slug) ? slug as OverlayPanel : 'next-item'
 })
 
 const PLACEHOLDERS: Record<OverlayPanel, string> = {

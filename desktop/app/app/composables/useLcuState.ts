@@ -1,4 +1,3 @@
-import { isChampSelect } from '~/utils/gameflow'
 import type { AppState, Screen } from '~/types/lcu'
 import { EMPTY_STATE } from '~/types/lcu'
 import { follow, shell, shellEvents } from '~/utils/shell'
@@ -47,18 +46,8 @@ export function useLcuState() {
     ready.value = true
   }
 
-  /**
-   * Which screen to show. Mirrors `AppState::screen()` in Rust, which is the
-   * authority — this exists so the frontend does not round-trip on every
-   * render, not to hold a second copy of the rule.
-   */
-  const screen = computed<Screen>(() => {
-    if (!state.value.connected) return 'no-client'
-    if (isChampSelect(state.value.phase)) return 'draft'
-    // Not `isGameRunning`: during a reconnect the game's API is down.
-    if (state.value.phase === 'InProgress') return 'in-game'
-    return 'dashboard'
-  })
+  /** Which screen to show, by the shell's navigation rule (`AppState::screen`). */
+  const screen = computed<Screen>(() => state.value.screen)
 
   return { state, screen, ready }
 }
