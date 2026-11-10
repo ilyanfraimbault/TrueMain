@@ -18,10 +18,6 @@ public readonly record struct PlatformId
     private static readonly FrozenDictionary<PlatformRoute, string> RouteNames =
         Enum.GetValues<PlatformRoute>().ToFrozenDictionary(route => route, route => route.ToString());
 
-    // The route itself: PlatformRoute leaves 0 unused, so default(PlatformId) — a 0 route —
-    // reads back as uninitialized with no offset or flag beside it.
-    private readonly PlatformRoute _route;
-
     public PlatformId(PlatformRoute route)
     {
         if (!Enum.IsDefined(route))
@@ -29,12 +25,18 @@ public readonly record struct PlatformId
             throw new ArgumentException($"Unknown platform route: {route}.", nameof(route));
         }
 
-        _route = route;
+        Route = route;
     }
 
-    public PlatformRoute Route => _route != default
-        ? _route
-        : throw new InvalidOperationException("Default PlatformId is not a valid platform.");
+    // PlatformRoute leaves 0 unused, so default(PlatformId) — a 0 route — reads back as
+    // uninitialized with no offset or flag beside it.
+    public PlatformRoute Route
+    {
+        get => field != default
+            ? field
+            : throw new InvalidOperationException("Default PlatformId is not a valid platform.");
+        private init;
+    }
 
     public string Value => RouteNames[Route];
 
