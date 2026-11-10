@@ -42,11 +42,8 @@ public sealed class PipelineHealthQueryService(
     IOptions<StorageHistoryOptions> storageHistoryOptions,
     TimeProvider timeProvider,
     IHostEnvironment environment,
-    ILogger<PipelineHealthQueryService> logger) : IPipelineHealthQueryService
+    Measurements<PipelineHealthQueryService> measurements) : IPipelineHealthQueryService
 {
-    /// <summary>The only failure text a production client ever sees.</summary>
-    private const string InternalError = "internal error";
-
     private static readonly string[] ProcessNames =
     [
         PipelineCatalog.Discovery.Name,
@@ -253,21 +250,9 @@ public sealed class PipelineHealthQueryService(
     /// </summary>
     private async Task<RawCorpusEstimates> SafeRawCorpusEstimatesAsync(CancellationToken ct)
     {
-        try
-        {
-            return await RawCorpusEstimates.ReadAsync(db, ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Pipeline-health raw-corpus estimates failed to measure");
-
-            return new RawCorpusEstimates(
-                null, null, FailureReason(ex));
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        var estimates = await measurements.TryAsync(
+            "Pipeline-health raw-corpus estimates", () => RawCorpusEstimates.ReadAsync(db, ct), ct);
+        return estimates.IsMeasured ? estimates.Value! : new RawCorpusEstimates(null, null, estimates.UnknownReason);
     }
 
     private async Task<PipelineGapReadModel> BuildGapsAsync(
@@ -318,36 +303,26 @@ public sealed class PipelineHealthQueryService(
     private async Task<IReadOnlyList<PipelineHealthSignalReadModel>> SafeDetectorSignalsAsync(
         CancellationToken ct)
     {
-        try
+        var detectors = await measurements.TryAsync(
+            "Pipeline-health data-quality signals", () => dataQualityDetectors.GetDetectorsAsync(ct), ct);
+        if (!detectors.IsMeasured)
         {
-            var detectors = await dataQualityDetectors.GetDetectorsAsync(ct);
-
             return
             [
-                PipelineHealthEvaluator.EvaluateDataQuality(detectors),
-                PipelineHealthEvaluator.EvaluateDetectorAsSignal(
-                    detectors,
-                    detectorKey: "ingestionLag",
-                    signalKey: "ingestionLag",
-                    title: "Ingestion lag & queues")
+                UnmeasurableSignal("dataQuality", "Data quality", "/data-quality", detectors.UnknownReason),
+                UnmeasurableSignal("ingestionLag", "Ingestion lag & queues", "/data-quality", detectors.UnknownReason)
             ];
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Pipeline-health data-quality signals failed to measure");
 
-            var reason = FailureReason(ex);
-
-            return
-            [
-                UnmeasurableSignal("dataQuality", "Data quality", "/data-quality", reason),
-                UnmeasurableSignal("ingestionLag", "Ingestion lag & queues", "/data-quality", reason)
-            ];
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        return
+        [
+            PipelineHealthEvaluator.EvaluateDataQuality(detectors.Value!),
+            PipelineHealthEvaluator.EvaluateDetectorAsSignal(
+                detectors.Value!,
+                detectorKey: "ingestionLag",
+                signalKey: "ingestionLag",
+                title: "Ingestion lag & queues")
+        ];
     }
 
     /// <summary>
@@ -356,23 +331,9 @@ public sealed class PipelineHealthQueryService(
     /// </summary>
     private async Task<RegionBalanceReadModel> SafeRegionBalanceAsync(DateTime nowUtc, CancellationToken ct)
     {
-        try
-        {
-            return await regionBalance.GetAsync(nowUtc, ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Pipeline-health region balance failed to measure");
-
-            return new RegionBalanceReadModel
-            {
-                UnknownReason = FailureReason(ex)
-            };
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        var balance = await measurements.TryAsync(
+            "Pipeline-health region balance", () => regionBalance.GetAsync(nowUtc, ct), ct);
+        return balance.IsMeasured ? balance.Value! : new RegionBalanceReadModel { UnknownReason = balance.UnknownReason };
     }
 
     private async Task<PipelineHealthSignalReadModel> SafeSignalAsync(
@@ -382,21 +343,8 @@ public sealed class PipelineHealthQueryService(
         Func<Task<PipelineHealthSignalReadModel>> build,
         CancellationToken ct)
     {
-        try
-        {
-            return await build();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Pipeline-health signal {Signal} failed to measure", key);
-
-            return UnmeasurableSignal(
-                key, title, detailPath, FailureReason(ex));
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        var signal = await measurements.TryAsync($"Pipeline-health signal {key}", build, ct);
+        return signal.IsMeasured ? signal.Value! : UnmeasurableSignal(key, title, detailPath, signal.UnknownReason);
     }
 
     private static PipelineHealthSignalReadModel UnmeasurableSignal(
@@ -425,12 +373,10 @@ public sealed class PipelineHealthQueryService(
     }
 
     /// <summary>
-    /// What an unmeasurable tile or block says about its failure: the sanitised message, or
-    /// <see cref="InternalError"/> when the exception carries none.
+    /// A process run's error as the cockpit shows it: in full outside production, so operators
+    /// can diagnose without the logs; never in production, where raw exception text can leak
+    /// paths, connection-string fragments or internal type names.
     /// </summary>
-    private string FailureReason(Exception ex)
-        => SanitizeError(ex.Message, environment.IsProduction()) ?? InternalError;
-
     private static string? SanitizeError(string? error, bool sanitize)
     {
         if (string.IsNullOrWhiteSpace(error))
@@ -438,17 +384,6 @@ public sealed class PipelineHealthQueryService(
             return null;
         }
 
-        if (!sanitize)
-        {
-            // Dev/QA: surface the full payload (stack, paths, message) so
-            // operators can diagnose without poking at logs.
-            return error;
-        }
-
-        // Production: never echo raw exception text to API clients. It can
-        // leak filesystem paths, connection-string fragments or internal
-        // type names. The status field already carries the failure signal;
-        // operators reach for logs/tracing for the real cause.
-        return InternalError;
+        return sanitize ? Measurements.InternalError : error;
     }
 }
