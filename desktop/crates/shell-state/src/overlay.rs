@@ -40,10 +40,10 @@ pub const MIN_OPACITY: f64 = 0.5;
 pub const MAX_OPACITY: f64 = 1.0;
 
 /// Distance from the screen's side edges, in points.
-const EDGE_MARGIN: f64 = 16.0;
+pub const EDGE_MARGIN: f64 = 16.0;
 /// Distance from the screen's top edge: below where the game prints its
 /// announcements and, top right, its own score strip.
-const TOP_MARGIN: f64 = 56.0;
+pub const TOP_MARGIN: f64 = 56.0;
 
 /// One panel of the overlay, each in its own window.
 #[derive(
@@ -105,7 +105,7 @@ impl OverlayPanel {
     }
 
     /// The panel's field in the settings file.
-    fn field(self) -> &'static str {
+    pub fn field(self) -> &'static str {
         match self {
             OverlayPanel::NextItem => "nextItem",
             OverlayPanel::WinProbability => "winProbability",
@@ -433,6 +433,30 @@ impl OverlaySettings {
 
     /// The panel `chord` brings on screen, if one does: the mark key (#2079)
     /// may not be a panel's chord too.
+    /// Why `trigger` cannot be `panel`'s, the recording's mark key
+    /// (`mark_key`) counted: no panel may share it.
+    pub fn refusal_beside(
+        &self,
+        panel: OverlayPanel,
+        trigger: &PanelTrigger,
+        mark_key: Option<Chord>,
+    ) -> Option<String> {
+        self.refusal(panel, trigger).or_else(|| {
+            let marks = trigger.chord().is_some() && trigger.chord() == mark_key;
+            marks.then(|| "Already the key that marks a moment while a game records.".to_string())
+        })
+    }
+
+    /// Why `chord` cannot be the recording's mark key: refused on its own,
+    /// like a panel's, or a panel's chord already.
+    pub fn mark_key_refusal(&self, chord: &Chord) -> Option<String> {
+        if let Some(reason) = chord.refusal(false) {
+            return Some(reason.to_string());
+        }
+        self.panel_on(chord)
+            .map(|panel| format!("Already the shortcut of {}.", panel.name()))
+    }
+
     pub fn panel_on(&self, chord: &Chord) -> Option<OverlayPanel> {
         OverlayPanel::ALL
             .into_iter()
@@ -1345,5 +1369,34 @@ mod tests {
             .collect();
         assert!(!taken.contains(&settings.objectives.anchor));
         assert!(settings.shows(Objectives, &in_game()));
+    }
+
+    #[test]
+    fn the_mark_key_and_the_panels_never_share_a_chord() {
+        use crate::keys::KeyCode;
+        let mark = Chord {
+            alt: true,
+            shift: true,
+            key: Some(KeyCode::KeyM),
+            ..Chord::default()
+        };
+        let mut settings = OverlaySettings::default();
+        let on_mark = PanelTrigger::Toggle {
+            chord: mark,
+            start_shown: false,
+        };
+        assert!(settings
+            .refusal_beside(OverlayPanel::Stats, &on_mark, Some(mark))
+            .is_some_and(|reason| reason.contains("marks a moment")));
+        assert_eq!(
+            settings.refusal_beside(OverlayPanel::Stats, &on_mark, None),
+            None
+        );
+
+        settings.stats.trigger = on_mark;
+        assert_eq!(
+            settings.mark_key_refusal(&mark).as_deref(),
+            Some("Already the shortcut of Your pace.")
+        );
     }
 }

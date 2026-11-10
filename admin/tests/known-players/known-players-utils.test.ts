@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { personaSourceValues } from '#site-shared/contract/api'
 import { evidenceBadges } from '~~/shared/utils/persona-evidence'
 import {
+  PERSONA_SOURCES,
   accountInput,
   accountLabel,
   accountOutcomeMessage,
@@ -97,5 +99,11 @@ describe('evidenceBadges', () => {
     expect(evidenceBadges({ score: 0, sharedSocial: [], sharedReferences: 0, differingSocial: [] })).toEqual([
       { label: 'nothing in common', color: 'neutral' },
     ])
+  })
+})
+
+describe('PERSONA_SOURCES', () => {
+  it('offers every source the API declares, once', () => {
+    expect([...PERSONA_SOURCES].sort()).toEqual([...personaSourceValues].sort())
   })
 })

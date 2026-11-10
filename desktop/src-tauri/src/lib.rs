@@ -32,7 +32,7 @@ use tauri::Manager;
 use api::{ApiClient, SharedReads};
 use game::SharedGame;
 use record::{GameCache, SharedClient};
-use shell_state::{AppState, Screen};
+use shell_state::{AppState, AppView};
 use supervisor::SharedState;
 
 /// The state the frontend reads on mount.
@@ -42,16 +42,8 @@ use supervisor::SharedState;
 /// player's next action changed something.
 #[tauri::command]
 #[specta::specta]
-fn current_state(shared: tauri::State<'_, SharedState>) -> AppState {
-    shared.lock().expect("state mutex poisoned").clone()
-}
-
-/// Which screen the current state calls for. Derived in Rust so the rule has
-/// exactly one implementation.
-#[tauri::command]
-#[specta::specta]
-fn current_screen(shared: tauri::State<'_, SharedState>) -> Screen {
-    shared.lock().expect("state mutex poisoned").screen()
+fn current_state(shared: tauri::State<'_, SharedState>) -> AppView {
+    shared.lock().expect("state mutex poisoned").clone().into()
 }
 
 /// Ask TrueMain to read one champion-select state.
