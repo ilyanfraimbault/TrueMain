@@ -17,7 +17,6 @@ using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Ranking;
 using Ingestor.Riot;
-using Ingestor.Riot.RateLimiting;
 using Ingestor.Services;
 using Microsoft.Extensions.Options;
 
@@ -27,52 +26,11 @@ builder.Services.AddValidatedOptions(builder.Configuration);
 builder.Services.AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 
-// RiotApiMetricsHandler is added AFTER the resilience handler so it sits inside
-// it in the pipeline: it then records every physical attempt, including the
-// retried 429s the resilience handler backs off on — which is what the
-// /ops/riot-usage rate-limit and status-code views need (#93).
-builder.Services.AddTransient<RiotApiMetricsHandler>();
-
-// One limiter for the whole process, shared by the three typed clients: Riot's
-// application budget belongs to the routing value, not to the client that happens to
-// call it, so the match client and the account client hitting `europe` must draw on
-// the same budget (#1359). Registered before the clients that consume it.
-builder.Services.AddSingleton<IRiotRateLimiter, RiotRateLimiter>();
-builder.Services.AddTransient<RiotRateLimitHandler>();
-builder.Services.AddTransient<RiotRateLimitObserverHandler>();
-
-// Handler order per client, outermost first:
-//   rate limiter -> resilience -> rate-limit observer -> metrics.
-//
-// The two halves of the limiter sit on opposite sides of the resilience handler, and both
-// placements are load-bearing. Waiting goes OUTSIDE it: inside, a permit wait is charged to
-// the 10-second per-attempt timeout, while a legitimate wait on a 100-per-2-minutes window
-// is routinely longer than that — preprod failed whole accounts that way within an hour of
-// the first deploy. Observing goes INSIDE it, where it sees every physical attempt including
-// the 429s the retry strategy absorbs, which are the responses carrying the Retry-After the
-// next acquisition must honour. The metrics handler stays innermost so a permit wait is
-// never recorded as Riot latency.
-//
-// Every client also asks for compressed responses (#1601): a match timeline is ~90 % smaller
-// gzipped, and the default handler sends no Accept-Encoding at all.
-builder.Services.AddHttpClient<IRiotMatchClient, RiotMatchClient>(ConfigureRiotClient)
-    .AcceptCompressedResponses()
-    .AddHttpMessageHandler<RiotRateLimitHandler>()
-    .AddRiotResilienceHandler()
-    .AddHttpMessageHandler<RiotRateLimitObserverHandler>()
-    .AddHttpMessageHandler<RiotApiMetricsHandler>();
-builder.Services.AddHttpClient<IRiotPlatformClient, RiotPlatformClient>(ConfigureRiotClient)
-    .AcceptCompressedResponses()
-    .AddHttpMessageHandler<RiotRateLimitHandler>()
-    .AddRiotResilienceHandler()
-    .AddHttpMessageHandler<RiotRateLimitObserverHandler>()
-    .AddHttpMessageHandler<RiotApiMetricsHandler>();
-builder.Services.AddHttpClient<IRiotAccountClient, RiotAccountClient>(ConfigureRiotClient)
-    .AcceptCompressedResponses()
-    .AddHttpMessageHandler<RiotRateLimitHandler>()
-    .AddRiotResilienceHandler()
-    .AddHttpMessageHandler<RiotRateLimitObserverHandler>()
-    .AddHttpMessageHandler<RiotApiMetricsHandler>();
+// The three typed Riot clients on the one shared pipeline: limiter, resilience, observer,
+// metrics (RiotClientServiceCollectionExtensions says why in that order).
+builder.Services.AddRiotClient<IRiotMatchClient, RiotMatchClient>();
+builder.Services.AddRiotClient<IRiotPlatformClient, RiotPlatformClient>();
+builder.Services.AddRiotClient<IRiotAccountClient, RiotAccountClient>();
 
 // Single clock source for the whole ingestor: every process and component that
 // needs "now" injects TimeProvider and calls GetUtcNow().UtcDateTime instead of
@@ -200,31 +158,6 @@ catch (Exception ex)
     try { crashReporter.Report(CrashSource.HostRun, ex); }
     catch { /* never let crash reporting mask the original failure */ }
     throw;
-}
-
-static void ConfigureRiotClient(IServiceProvider serviceProvider, HttpClient client)
-{
-    var options = serviceProvider.GetRequiredService<IOptions<RiotOptions>>().Value;
-    var rateLimit = serviceProvider.GetRequiredService<IOptions<RiotRateLimitOptions>>().Value;
-    client.DefaultRequestHeaders.Add("X-Riot-Token", options.ApiKey);
-
-    // HttpClient.Timeout wraps the whole resilience pipeline, and its 100s default
-    // would silently cut a longer pipeline short — surfacing an opaque
-    // TaskCanceledException instead of the handler's own timeout. This was
-    // previously left unset here (unlike ConfigureCommunityDragonClient below),
-    // so a Riot rate-limit backoff that pushed the effective total past 100s
-    // was truncated without a trace (#855). Sizing it from the same
-    // EffectiveTotalRequestTimeout the resilience handler uses keeps the two
-    // from ever drifting apart.
-    //
-    // Since #1359 this budget also has to cover the wait for a rate-limit permit, which
-    // happens in a handler outside the resilience pipeline: sized for the pipeline alone, a
-    // long-but-legitimate wait followed by a slow pipeline would trip the client timeout and
-    // surface as an opaque TaskCanceledException — the same class of failure #855 fixed, one
-    // layer out. RiotRateLimit:MaxPermitWaitSeconds is what bounds the wait itself.
-    client.Timeout = options.EffectiveTotalRequestTimeout()
-        + TimeSpan.FromSeconds(rateLimit.MaxPermitWaitSeconds)
-        + TimeSpan.FromSeconds(5);
 }
 
 static void ConfigureCommunityDragonClient(IServiceProvider serviceProvider, HttpClient client)
