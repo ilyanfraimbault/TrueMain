@@ -78,6 +78,19 @@ internal static class PositionParameter
     }
 
     /// <summary>
+    /// The 400 of the desktop's POST routes (draft, bans, next item) when the player's own lane
+    /// is not a position. Its title and capitalised detail predate the shared
+    /// <see cref="InvalidMessage"/>; kept so the wire does not change under a refactor.
+    /// </summary>
+    public static BadRequestObjectResult UnknownPosition(this ControllerBase controller)
+        => controller.BadRequest(new ProblemDetails
+        {
+            Title = "Unknown position",
+            Detail = "Position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.",
+            Status = StatusCodes.Status400BadRequest,
+        });
+
+    /// <summary>
     /// Whether <paramref name="position"/> is the explicit <see cref="LanePositions.AllPositions"/>
     /// token (case-insensitive) — accepted only on the routes whose <see cref="PositionRule"/> says so.
     /// </summary>
