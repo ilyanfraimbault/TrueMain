@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, type Ref } from 'vue'
-import { later } from '~/utils/shell'
+import { commands, events } from '~/generated/shell'
+import { later, shellFor } from '~/utils/shell'
 
 describe('later', () => {
   it('loads the object on the first call and forwards every call to it', async () => {
@@ -9,6 +10,19 @@ describe('later', () => {
     expect(load).not.toHaveBeenCalled()
     expect(await lazy.greet('Ahri')).toBe('hello Ahri')
     expect(await lazy.greet('Zed')).toBe('hello Zed')
+  })
+})
+
+describe('shellFor', () => {
+  it('is the generated bindings inside the app', () => {
+    expect(shellFor(false)).toEqual({ shell: commands, shellEvents: events })
+  })
+
+  it('is the fake shell on the dev server, loaded on first use', async () => {
+    const fake = shellFor(true)
+    expect(await fake.shell.champSelectChoices()).toEqual({ writable: true, pickable: null, bannable: null })
+    const stop = await fake.shellEvents.lcuState.listen(() => {})
+    expect(typeof stop).toBe('function')
   })
 })
 
