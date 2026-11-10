@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TrueMain.Options;
 using TrueMain.Services.Champions.Draft;
+using TrueMain.Services.Champions.Scopes;
 using TrueMain.Services.Champions.Synergies;
 using TrueMain.TestKit;
 
@@ -44,8 +45,8 @@ public sealed class SingleRowAggregateQueryTests
             TestChampionReadCache.PassThrough());
 
         var read = () => service.GetTrioSynergiesAsync(
-            championId: 1, position: "TOP", partnerChampionId: 2, partnerPosition: "JUNGLE",
-            patch: null, eloBracket: null, CancellationToken.None);
+            new ChampionScope(championId: 1, position: "TOP", patch: null),
+            partnerChampionId: 2, partnerPosition: "JUNGLE", CancellationToken.None);
 
         await read.Should().ThrowAsync<QueryReachedTheDatabase>();
     }
