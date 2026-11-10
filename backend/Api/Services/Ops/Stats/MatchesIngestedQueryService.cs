@@ -137,9 +137,9 @@ public sealed class MatchesIngestedQueryService(
             return false;
         }
 
-        inserted = ProcessRunSummaryParsing.ReadInt64(document.RootElement, "matchesInserted");
-        skipped = ProcessRunSummaryParsing.ReadInt64(document.RootElement, "matchesSkipped");
-        timelines = ProcessRunSummaryParsing.ReadInt64(document.RootElement, "timelinesUpdated");
+        inserted = ProcessRunSummaryParsing.ReadInt64(document.RootElement, RunSummaryFields.MatchIngestion.MatchesInserted);
+        skipped = ProcessRunSummaryParsing.ReadInt64(document.RootElement, RunSummaryFields.MatchIngestion.MatchesSkipped);
+        timelines = ProcessRunSummaryParsing.ReadInt64(document.RootElement, RunSummaryFields.MatchIngestion.TimelinesUpdated);
         return true;
     }
 
