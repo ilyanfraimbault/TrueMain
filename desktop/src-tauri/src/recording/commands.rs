@@ -9,6 +9,7 @@ use game_recording::{RecordingSettings, StoredClip, StoredRecording};
 use shell_state::keys::Chord;
 use tauri::{AppHandle, State};
 
+use crate::contract::Loose;
 use crate::overlay::{SharedOverlay, TriggerCheck};
 use crate::telemetry::{self, Feature};
 
@@ -27,6 +28,7 @@ fn settings_view(recorder: &SharedRecorder, overlay: &SharedOverlay) -> Settings
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn recording_settings(
     recorder: State<'_, SharedRecorder>,
     overlay: State<'_, SharedOverlay>,
@@ -34,27 +36,20 @@ pub fn recording_settings(
     settings_view(&recorder, &overlay)
 }
 
-/// Why `chord` cannot be the mark key: refused on its own, like a panel's
-/// (`Chord::refusal`), or a panel's chord already.
 fn mark_key_refusal(chord: &Chord, overlay: &SharedOverlay) -> Option<String> {
-    if let Some(reason) = chord.refusal(false) {
-        return Some(reason.to_string());
-    }
-    overlay
-        .settings()
-        .panel_on(chord)
-        .map(|panel| format!("Already the shortcut of {}.", panel.name()))
+    overlay.settings().mark_key_refusal(chord)
 }
 
 /// Whether `chord` can be the mark key, and how it reads, before the page
 /// saves it — the overlay's `overlay_check_trigger` for the mark key (#2079).
 #[tauri::command]
+#[specta::specta]
 pub fn recording_check_mark_key(
     overlay: State<'_, SharedOverlay>,
-    chord: serde_json::Value,
+    chord: Loose<Chord>,
 ) -> Result<TriggerCheck, String> {
-    let chord: Chord =
-        serde_json::from_value(chord).map_err(|_| "a key this app does not know".to_string())?;
+    let chord: Chord = serde_json::from_value(chord.into_value())
+        .map_err(|_| "a key this app does not know".to_string())?;
     Ok(TriggerCheck {
         refusal: mark_key_refusal(&chord, &overlay),
         chord: Some(overlay.chord_view(&chord)),
@@ -65,13 +60,14 @@ pub fn recording_check_mark_key(
 /// falls back alone. A smaller budget applies at once. A mark key that is a
 /// panel's chord is refused with the reason, as the page's check words it.
 #[tauri::command]
+#[specta::specta]
 pub fn set_recording_settings(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
     overlay: State<'_, SharedOverlay>,
-    settings: serde_json::Value,
+    settings: Loose<RecordingSettings>,
 ) -> Result<SettingsView, String> {
-    let settings = RecordingSettings::from_json(&settings.to_string());
+    let settings = RecordingSettings::from_json(&settings.json());
     if let Some(reason) = settings
         .mark_key
         .and_then(|chord| mark_key_refusal(&chord, &overlay))
@@ -98,6 +94,7 @@ pub fn set_recording_settings(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn recording_status(
     recorder: State<'_, SharedRecorder>,
 ) -> Result<RecordingStatusView, String> {
@@ -108,6 +105,7 @@ pub async fn recording_status(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn request_capture_permission(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
@@ -139,6 +137,7 @@ fn library(recorder: &SharedRecorder) -> Result<LibraryView, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn recording_library(recorder: State<'_, SharedRecorder>) -> Result<LibraryView, String> {
     let recorder = recorder.inner().clone();
     tokio::task::spawn_blocking(move || library(&recorder))
@@ -154,6 +153,7 @@ fn find(recorder: &SharedRecorder, id: &str) -> Result<StoredRecording, String> 
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn recording_get(recorder: State<'_, SharedRecorder>, id: String) -> Result<GameView, String> {
     let recording = find(&recorder, &id)?;
     Ok(GameView::new(&recording, &recorder.activity()))
@@ -162,6 +162,7 @@ pub fn recording_get(recorder: State<'_, SharedRecorder>, id: String) -> Result<
 /// The recap's win-probability curve data, read apart from the library since
 /// only the recap needs it. `None` for a recording that has none.
 #[tauri::command]
+#[specta::specta]
 pub fn recording_win_probability(
     recorder: State<'_, SharedRecorder>,
     id: String,
@@ -172,6 +173,7 @@ pub fn recording_win_probability(
 
 /// Keep the full game — exempt from the budget — or let the budget have it.
 #[tauri::command]
+#[specta::specta]
 pub fn recording_set_kept(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
@@ -193,6 +195,7 @@ pub fn recording_set_kept(
 
 /// Delete the full game. Its clips are their own files and stay.
 #[tauri::command]
+#[specta::specta]
 pub fn recording_delete(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
@@ -235,6 +238,7 @@ pub(super) fn clip_view(recorder: &SharedRecorder, id: &str) -> Result<ClipView,
 /// clip goes once the new one is written. A clip published on YouTube is not
 /// replaced — its link is the video's, not the new cut's.
 #[tauri::command]
+#[specta::specta]
 pub async fn clip_save(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
@@ -290,6 +294,7 @@ pub async fn clip_save(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn clip_update(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
@@ -311,6 +316,7 @@ pub fn clip_update(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn clip_delete(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
@@ -323,6 +329,7 @@ pub fn clip_delete(
 
 /// Show a file of the recordings folder in Finder / Explorer.
 #[tauri::command]
+#[specta::specta]
 pub fn reveal_recording_file(
     recorder: State<'_, SharedRecorder>,
     path: PathBuf,

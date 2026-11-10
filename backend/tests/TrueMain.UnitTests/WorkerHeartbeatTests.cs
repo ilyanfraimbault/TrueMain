@@ -112,14 +112,16 @@ public sealed class WorkerHeartbeatTests : IDisposable
             IntervalMinutes = 60
         });
 
+        var workerScopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        var workerMetrics = TestIngestorMetrics.Create();
         return new Worker(
             NullLogger<Worker>.Instance,
-            services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            workerScopeFactory,
             jobOptions,
             new IterationContext(),
-            new CallerContext(),
+            new ProcessRunner(workerScopeFactory, new CallerContext(), workerMetrics, NullLogger<ProcessRunner>.Instance),
             Substitute.For<IHostApplicationLifetime>(),
-            TestIngestorMetrics.Create(),
+            workerMetrics,
             time,
             new TestHeartbeatFile(heartbeatPath));
     }
@@ -251,7 +253,7 @@ public sealed class WorkerHeartbeatTests : IDisposable
 
         public bool HasCompleted { get; private set; }
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             started.TrySetResult();
             await Task.Delay(Timeout.Infinite, ct);

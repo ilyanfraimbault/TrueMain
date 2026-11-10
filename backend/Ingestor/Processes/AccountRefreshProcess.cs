@@ -24,7 +24,7 @@ public sealed class AccountRefreshProcess(
     IOptions<AccountRefreshOptions> refreshOptions) : IIngestorProcess
 {
     private const string SoloQueueType = "RANKED_SOLO_5x5";
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var accounts = await LoadAccountsForRefreshAsync(ct);
         if (accounts.Count == 0)

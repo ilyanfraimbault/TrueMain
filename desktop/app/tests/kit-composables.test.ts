@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, watch, type Ref } from 'vue'
-import type { KitStore } from '#shared/types/kit'
+import type { KitStore } from '~/types/kit'
 import type { GameState } from '~/types/game'
 import { item, kit } from './kit-fixtures'
 
@@ -32,6 +32,13 @@ beforeEach(() => {
   toasts = []
   tauri = false
   shell.invoke.mockReset()
+  // Outside the app the fake shell answers (`dev-shell/`): kits in `localStorage`.
+  shell.invoke.mockImplementation(async (name: string, args: { store?: unknown }) => {
+    const { devCommands } = await import('~/dev-shell')
+    if (name === 'kits_get') return devCommands.kitsGet()
+    if (name === 'kits_set') return devCommands.kitsSet(args.store as never)
+    return null
+  })
   shell.listeners.clear()
   localStorage.clear()
   lcu.value = { connected: true, phase: 'ChampSelect' }
@@ -214,13 +221,6 @@ describe('useKitImport', () => {
     expect(toasts.map(toast => toast.title)).toEqual(['Not in champion select', 'Could not set the spells', 'Could not read your item sets', 'Nothing to import'])
   })
 
-  it('sends nothing from the dev server', async () => {
-    const kitImport = await imports()
-    await kitImport.importItems(kit(), 'Ahri')
-    await kitImport.importSpells(kit())
-    expect(shell.invoke).not.toHaveBeenCalled()
-    expect(toasts.every(toast => toast.description?.startsWith('Dev server'))).toBe(true)
-  })
 })
 
 describe('useKitStep', () => {

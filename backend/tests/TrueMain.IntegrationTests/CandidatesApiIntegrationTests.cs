@@ -106,7 +106,7 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
 
         // The page is cut from main_candidates before the account join (#2304):
         // page 2 of 1 is still the second-best score, with its own Riot ID.
-        var second = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?page=2&pageSize=1");
+        var second = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?page=2&pageSize=1", ApiJson.Options);
 
         second!.Total.Should().Be(3);
         var row = second.Candidates.Should().ContainSingle().Subject;
@@ -114,7 +114,7 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
         row.GameName.Should().Be("Faker");
         row.TagLine.Should().Be("KR1");
 
-        var last = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?page=3&pageSize=1");
+        var last = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?page=3&pageSize=1", ApiJson.Options);
         last!.Candidates.Should().ContainSingle().Which.Id.Should().Be(OrphanCandidateId);
     }
 
@@ -138,15 +138,15 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
-        var wide = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates");
+        var wide = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates", ApiJson.Options);
         wide!.Total.Should().Be(10_000);
         wide.TotalCapped.Should().BeTrue();
         wide.Candidates[0].Id.Should().Be(ValidatedCandidateId);
 
-        var scored = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?status=scored");
+        var scored = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?status=scored", ApiJson.Options);
         scored!.TotalCapped.Should().BeTrue();
 
-        var narrow = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?region=euw1");
+        var narrow = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?region=euw1", ApiJson.Options);
         narrow!.Total.Should().Be(2);
         narrow.TotalCapped.Should().BeFalse();
     }
@@ -159,7 +159,7 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?status=validated");
+        var payload = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?status=validated", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.Total.Should().Be(1);
@@ -175,7 +175,7 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?region=kr");
+        var payload = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?region=kr", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.Candidates.Should().ContainSingle()
@@ -191,15 +191,15 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         // Riot ID (gameName) — only the Validated candidate's account is "Phantasm".
-        var byRiotId = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=phant");
+        var byRiotId = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=phant", ApiJson.Options);
         byRiotId!.Candidates.Should().ContainSingle().Which.Id.Should().Be(ValidatedCandidateId);
 
         // PUUID — exact-ish substring on the orphan candidate (no account).
-        var byPuuid = await client.GetFromJsonAsync<CandidatesContract>($"/ops/candidates?search={OrphanPuuid}");
+        var byPuuid = await client.GetFromJsonAsync<CandidatesContract>($"/ops/candidates?search={OrphanPuuid}", ApiJson.Options);
         byPuuid!.Candidates.Should().ContainSingle().Which.Id.Should().Be(OrphanCandidateId);
 
         // Champion id — numeric term matches ChampionId 64 (the KR candidate).
-        var byChampion = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=64");
+        var byChampion = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=64", ApiJson.Options);
         byChampion!.Candidates.Should().ContainSingle().Which.Id.Should().Be(NewKrCandidateId);
     }
 
@@ -214,17 +214,17 @@ public sealed class CandidatesApiIntegrationTests : IAsyncLifetime
         // The name and the tag live in two columns, so the term an operator types
         // ("Name#TAG") only matches once it is split — matched whole it finds
         // nothing, which reads as "no such candidate".
-        var exact = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=Phantasm%23EUW");
+        var exact = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=Phantasm%23EUW", ApiJson.Options);
         exact!.Candidates.Should().ContainSingle().Which.Id.Should().Be(ValidatedCandidateId);
 
         // Both halves are required: this name exists and this tag exists, but not
         // on the same account.
-        var mismatched = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=Faker%23EUW");
+        var mismatched = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=Faker%23EUW", ApiJson.Options);
         mismatched!.Candidates.Should().BeEmpty();
         mismatched.Total.Should().Be(0);
 
         // The '#' keystroke itself must not empty the list.
-        var midTyping = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=Phantasm%23");
+        var midTyping = await client.GetFromJsonAsync<CandidatesContract>("/ops/candidates?search=Phantasm%23", ApiJson.Options);
         midTyping!.Candidates.Should().ContainSingle().Which.Id.Should().Be(ValidatedCandidateId);
     }
 

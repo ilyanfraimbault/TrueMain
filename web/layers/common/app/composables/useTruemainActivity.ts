@@ -1,4 +1,4 @@
-import type { TruemainActivityResponse } from '#shared/types/activity'
+import type { TruemainActivityReadModel } from '#shared/contract/api'
 
 /**
  * Fetch the activity-grid payload for the given <c>nameTag</c> (#927). Same
@@ -14,15 +14,15 @@ import type { TruemainActivityResponse } from '#shared/types/activity'
  */
 export function useTruemainActivity(nameTag: MaybeRefOrGetter<string>) {
   const apiFetch = useApiFetch()
-  const data = ref<TruemainActivityResponse | null>(null)
+  const data = ref<TruemainActivityReadModel | null>(null)
 
-  const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<TruemainActivityResponse>(nameTag, {
-    request: (tag, signal) => apiFetch<TruemainActivityResponse | null>(
+  const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<TruemainActivityReadModel>(nameTag, {
+    request: (tag, signal) => apiFetch<TruemainActivityReadModel | null>(
       `/truemains/${encodeURIComponent(tag)}/activity`,
       { signal },
     ),
     // A real payload always carries every window, each with a bucket array.
-    validate: (response): response is TruemainActivityResponse =>
+    validate: (response): response is TruemainActivityReadModel =>
       Boolean(
         response
         && typeof response === 'object'

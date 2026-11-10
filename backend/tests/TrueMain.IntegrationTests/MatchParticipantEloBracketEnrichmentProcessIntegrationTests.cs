@@ -181,6 +181,6 @@ public sealed class MatchParticipantEloBracketEnrichmentProcessIntegrationTests 
         var process = new MatchParticipantEloBracketEnrichmentProcess(
             NullLogger<MatchParticipantEloBracketEnrichmentProcess>.Instance,
             new TestDbContextFactory(_fixture));
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 }

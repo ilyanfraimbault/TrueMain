@@ -28,7 +28,7 @@ public sealed class MatchTeamPositionCorrectionProcess(
     // only ever drains the pre-existing backlog — a corrected team drops out of
     // the candidate set on the next scan, so steady state is a near-empty query.
     private const int BatchSize = 2000;
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 

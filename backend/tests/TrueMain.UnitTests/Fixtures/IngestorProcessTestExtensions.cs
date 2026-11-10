@@ -25,5 +25,5 @@ internal static class IngestorProcessTestExtensions
                 recorder,
                 TimeProvider.System,
                 NullLogger<RecordedProcess<T>>.Instance)
-            .RunCoreAsync(ct);
+            .RunCoreAsync(RunInput.Whole, ct);
 }

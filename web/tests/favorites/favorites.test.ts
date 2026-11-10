@@ -31,17 +31,6 @@ beforeEach(() => {
   window.localStorage.clear()
 })
 
-describe('favoriteNameTag', () => {
-  it('joins the Riot ID with the app-wide `-` separator', () => {
-    expect(favoriteNameTag('Sheiden', '1234')).toBe('Sheiden-1234')
-  })
-
-  it('falls back to the bare game name when there is no tag line', () => {
-    expect(favoriteNameTag('Sheiden', null)).toBe('Sheiden')
-    expect(favoriteNameTag(' Sheiden ', '  ')).toBe('Sheiden')
-  })
-})
-
 describe('favoriteKey', () => {
   it('matches Riot IDs case-insensitively, like the backend lookup', () => {
     expect(favoriteKey(' SHEIDEN-1234 ')).toBe(favoriteKey('sheiden-1234'))

@@ -6,7 +6,7 @@ import type {
   ChampionBuildSummaryMatchups,
   SummaryMatchup,
 } from '../types/champion-build-summary'
-import type { ChampionMatchupEntry } from '../types/champions'
+import type { ChampionMatchupEntry } from '../contract/api'
 import type { ChampionStaticListItem } from '../types/static-data'
 import { capitalise, figure, joinTokens, lanePhrase, plain } from './champion-build-summary'
 import { formatPercentage } from './ddragon'

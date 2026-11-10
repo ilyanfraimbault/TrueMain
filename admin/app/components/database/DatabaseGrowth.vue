@@ -3,11 +3,11 @@
 // and the fastest-growing tables. Everything here reads the daily snapshot
 // collection (`GET /api/ops/db/history`, fetched by the page), never a live
 // pg_catalog scan, so widening the window costs nothing on the database.
-import type { DbStorageHistory } from '~~/shared/types/ops'
+import type { DbStorageHistoryReadModel } from '#site-shared/contract/api'
 import { formatDayLabel, formatPercentOrDash, humanizeBytes, humanizeBytesDelta } from '~~/shared/utils/format'
 
 const props = defineProps<{
-  history: DbStorageHistory | null | undefined
+  history: DbStorageHistoryReadModel | null | undefined
   pending: boolean
 }>()
 

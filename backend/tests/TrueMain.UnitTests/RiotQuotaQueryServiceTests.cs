@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Data.Metrics.Mongo;
 using Data.Ops.Mongo;
+using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.Stats;
 
 namespace TrueMain.UnitTests;
@@ -23,7 +24,7 @@ public sealed class RiotQuotaQueryServiceTests
 
         var model = RiotQuotaQueryService.BuildRoute(route, TimeSpan.FromDays(1));
 
-        model.Kind.Should().Be("regional");
+        model.Kind.Should().Be(RiotRouteKind.Regional);
         model.BindingLimit!.WindowSeconds.Should().Be(120);
         model.Utilisation.Should().BeApproximately(0.5, 1e-9);
         model.CurrentUtilisation.Should().BeApproximately(0.89, 1e-9);
@@ -33,6 +34,13 @@ public sealed class RiotQuotaQueryServiceTests
         model.Consumers.Single().Share.Should().Be(1);
     }
 
+    [Theory]
+    [InlineData("europe", RiotRouteKind.Regional)]
+    [InlineData("euw1", RiotRouteKind.Platform)]
+    [InlineData(RiotQuotaQueryService.UnknownRoute, RiotRouteKind.Unknown)]
+    public void KindOf_NamesTheBudgetFamilyOfAHost(string route, RiotRouteKind expected)
+        => RiotQuotaQueryService.KindOf(route).Should().Be(expected);
+
     [Fact]
     public void BuildRoute_NoRateLimitHeader_LeavesUtilisationUnmeasured()
     {
@@ -40,7 +48,7 @@ public sealed class RiotQuotaQueryServiceTests
             Route("euw1", calls: 10, rateLimited: 0, activeMinutes: 1, appLimit: null, appCount: null),
             TimeSpan.FromHours(1));
 
-        model.Kind.Should().Be("platform");
+        model.Kind.Should().Be(RiotRouteKind.Platform);
         model.Utilisation.Should().BeNull();
         model.CurrentUtilisation.Should().BeNull();
         model.BindingLimit.Should().BeNull();

@@ -280,6 +280,7 @@ Last verified against `develop` on 2026-09-02.
 - A unit of work covers the writes and nothing else (2026-08-28) — #264, #1229
 - `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07) — #1520, #1451
 - Api registration is owned by the feature: `Program.cs` only composes `AddTrueMain<Area>()`; options carry their section, rules and configuration-page entry (2026-11-08) — #2489
+- Champion reads take a canonical `ChampionScope` parsed once per route; each route names what a blank `position` means (2026-11-10) — #2571
 - A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541, #124
 - Ingestor options: bounds are attributes checked by a generated validator, cross-field rules stay lambdas (2026-10-04) — #271
 - A role is a string from `LanePositions` (no enum, `MID`/`BOT` accepted on input); timeline marks live once in `Data` (2026-10-04) — #1232
@@ -288,6 +289,7 @@ Last verified against `develop` on 2026-09-02.
 - Threading + Roslynator analyzers run on every project: async-correctness rules are errors, JTF-only and false-positive rules are off, Roslynator style stays IDE hints (2026-10-05) — #294
 - `riot_accounts` carries no concurrency token; a process's own timestamp is stamped set-based (2026-11-04) — #2046, #231, #2448
 - Benchmark counters are upserted once per transaction, in conflict-key order (2026-11-04) — #2448
+- The API's TypeScript types are generated from its committed OpenAPI document; enums travel by name (2026-11-08) — #2493
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
@@ -317,6 +319,7 @@ Last verified against `develop` on 2026-09-02.
 - The ingestor Worker isolates failures per process — #443
 - A streamed Riot response can fail *after* the resilience handler has waved it through — isolate the call site — #253, #1052
 - A CommunityDragon patch branch that does not exist yet is a transient condition, not a fatal one — #1107
+- Static game data answers available / fallback / unavailable from one per-patch cache; each caller spells its degraded answer (2026-11-10) — #2572
 - Ranks are read from the ladder, not from one account at a time (2026-08-30) — #788, #1312, #1149
 - A lease is only kept if something reaps it (2026-09-01) — #1344
 - A redeploy is an outcome the pipeline records, not an accident it absorbs (2026-09-07) — #1513
@@ -338,6 +341,7 @@ Last verified against `develop` on 2026-09-02.
 - Server-side timeouts: API `statement_timeout` 60 s and pooled `idle_in_transaction_session_timeout` 60 s through a dedicated PgBouncer database, migrations `lock_timeout` 5 s with retry (2026-10-06) — #1631
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
+- Every cached Api read goes through `ApiCache.GetOrComputeAsync`; an unavailable ops measurement is a `Measured<T>` value (2026-11-10) — #2575
 - A warm pass fills the next version before anyone reads it, and the site stays on the maintenance page for the first one (2026-11-03) — #2425, #1945
 - The leaderboard reads its population once per aggregation version, so any filter and sort is a walk in memory (2026-11-03) — #2431
 - A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15) — #1570
@@ -517,6 +521,9 @@ Last verified against `develop` on 2026-09-02.
 - The dashboard's form tiles carry the median of the player's own Solo/Duo tier (not the tier above) on their main role, in muted text with the tier's emblem; under the floor or without a standing, none; dashboard only (2026-10-20) — #2076
 - Game recording is frozen; kept only if ≥ 25% of installs that play with the app open record a game within 30 days, read after the next production release (2026-11-01) — #2364
 - A known player opens in the app; the shell opens their channels through a host list (Twitch, YouTube, X), the one exception to the webview naming only a path on its site (2026-11-04) — #2441
+- The shell ↔ webview contract (commands, events, payload types, refusal codes) is generated from Rust by specta into `app/generated/shell.ts`, a stale file failing a Rust test (2026-11-09) — #2494
+- The shell's TrueMain reads are one route table (`src-tauri/api-routes.json`) checked in CI against the OpenAPI document and the app's reads; superseding is the caller's `replaces` key (2026-11-10) — #2551
+- `npm run dev` runs the app against one fake shell (`app/dev-shell/`, typed by the generated commands), not per-composable browser fallbacks (2026-11-10) — #2553
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 

@@ -59,7 +59,7 @@ public sealed class LadderSyncProcess(
     IOptions<LadderSyncOptions> ladderSyncOptions) : IIngestorProcess
 {
     private const string RankedSoloQueue = "RANKED_SOLO_5x5";
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = ladderSyncOptions.Value;
         var platforms = PlatformNormalizer.Normalize(options.Platforms);

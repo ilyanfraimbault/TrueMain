@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 import { championDisplayName } from '#shared/utils/champion-name'
@@ -31,7 +31,7 @@ const props = defineProps<{
   perspectiveTeamId: number
   /** The viewer's participant id, null when the row's owner is not found. */
   selfParticipantId: number | null
-  participants: MatchDetailParticipant[]
+  participants: MatchDetailParticipantReadModel[]
   champions: ChampionStaticListItem[]
 }>()
 

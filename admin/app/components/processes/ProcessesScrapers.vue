@@ -4,7 +4,7 @@
 // one's latest run — the phase in flight, every phase's counters — and its history. It
 // owns its fetches and exposes `refresh`/`pending` so the page's navbar button drives it,
 // like the Riot API tab.
-import type { ProcessRun } from '~~/shared/types/ops'
+import type { ProcessRunReadModel } from '#site-shared/contract/api'
 import { SCRAPER_PROCESSES } from '~~/shared/utils/scraper-runs'
 import { useLastGoodPayload } from '~/composables/useLastGoodPayload'
 import { liveRun } from '~/utils/process-chain'
@@ -26,10 +26,10 @@ const pending = computed(() => feeds.some(feed => feed.pending.value))
 // (#2471): a Running run settles in it with the next refresh instead of staying the
 // snapshot of the click. The snapshot is only the fallback for a run that left them.
 // The selection outlives the close so the panel does not blank while it slides out.
-const selected = ref<ProcessRun | null>(null)
+const selected = ref<ProcessRunReadModel | null>(null)
 const detailOpen = ref(false)
 const selectedRun = computed(() => liveRun(selected.value, feeds.map(feed => feed.shown.value?.runs ?? [])))
-function openRun(run: ProcessRun) {
+function openRun(run: ProcessRunReadModel) {
   selected.value = run
   detailOpen.value = true
 }

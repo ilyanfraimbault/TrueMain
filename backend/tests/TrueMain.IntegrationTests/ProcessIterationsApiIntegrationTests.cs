@@ -60,7 +60,7 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/ops/process-iterations");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>();
+        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         // Only the two iteration-grouped passes — the legacy un-grouped run is excluded.
@@ -182,6 +182,52 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetLatestProcessIterationsAsync_ListsEachLanesNewestPassOnce()
+    {
+        var now = DateTime.UtcNow;
+        var olderFetch = Guid.NewGuid();
+        var newerFetch = Guid.NewGuid();
+        var aggregate = Guid.NewGuid();
+        var single = Guid.NewGuid();
+
+        await Runs().InsertManyAsync(
+        [
+            BuildRun(olderFetch, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-50), "FetchLane"),
+            BuildRun(aggregate, "MainAnalysis", ProcessRunStatus.Success, now.AddMinutes(-40), "AggregateLane"),
+            BuildRun(newerFetch, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-20), "FetchLane"),
+            BuildRun(single, "Harvest", ProcessRunStatus.Success, now.AddMinutes(-10), "HarvestOnly")
+        ]);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateClient(factory);
+
+        // The fetch lane's newest pass and the aggregate lane's, newest first; the older fetch
+        // pass and the single-process one belong to no lane's latest.
+        var latest = await client.GetFromJsonAsync<List<IterationContract>>("/ops/process-iterations/latest", ApiJson.Options);
+        latest!.Select(iteration => iteration.IterationId).Should().Equal(newerFetch, aggregate);
+    }
+
+    [Fact]
+    public async Task GetLatestProcessIterationsAsync_ListsAFullPassNewestOnBothLanesOnce()
+    {
+        var now = DateTime.UtcNow;
+        var full = Guid.NewGuid();
+
+        await Runs().InsertManyAsync(
+        [
+            BuildRun(Guid.NewGuid(), "Discovery", ProcessRunStatus.Success, now.AddMinutes(-40), "FetchLane"),
+            BuildRun(full, "Discovery", ProcessRunStatus.Success, now.AddMinutes(-20), "Full"),
+            BuildRun(full, "MainAnalysis", ProcessRunStatus.Success, now.AddMinutes(-18), "Full")
+        ]);
+
+        await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
+        using var client = CreateClient(factory);
+
+        var latest = await client.GetFromJsonAsync<List<IterationContract>>("/ops/process-iterations/latest", ApiJson.Options);
+        latest!.Should().ContainSingle().Which.IterationId.Should().Be(full);
+    }
+
+    [Fact]
     public async Task GetProcessIterationsAsync_ShouldRequireOpsApiKey()
     {
         await using var factory = new ApiWebApplicationFactory(_fixture, _mongo);
@@ -209,7 +255,7 @@ public sealed class ProcessIterationsApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync(url);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>();
+        var payload = await response.Content.ReadFromJsonAsync<IterationsContract>(ApiJson.Options);
         payload.Should().NotBeNull();
         return payload!;
     }

@@ -5,7 +5,7 @@
 // are the rest. The operator compares both and merges them (into either, asked
 // twice: a page retires) or marks them as different people. Either way they leave:
 // the list is derived from the links, not stored.
-import type { PersonaChannelConflict } from '~~/shared/types/ops'
+import type { PersonaChannelConflictReadModel } from '#site-shared/contract/api'
 import { computed, ref, watch } from 'vue'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { resolveErrorMessage } from '~~/shared/utils/persona-conflicts'
@@ -34,7 +34,7 @@ const total = computed(() => data.value?.total ?? 0)
 watch(total, count => emit('total', count), { immediate: true })
 watch(() => props.stamp, () => refresh())
 
-const selected = ref<PersonaChannelConflict | null>(null)
+const selected = ref<PersonaChannelConflictReadModel | null>(null)
 const detailOpen = ref(false)
 // Merging into either side asks twice; "different people" sends at once. A
 // confirmation is for one pair: opening another disarms it.
@@ -44,7 +44,7 @@ const sending = confirmation.sending
 const busy = computed(() => sending.value !== null)
 const toast = useActionToast()
 
-function open(conflict: PersonaChannelConflict) {
+function open(conflict: PersonaChannelConflictReadModel) {
   selected.value = conflict
   detailOpen.value = true
 }

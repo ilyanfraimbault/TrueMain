@@ -188,15 +188,4 @@ public class TruemainActivityBucketsTests
         TruemainActivityBuckets.ByGame([Game(Wednesday.AddDays(-1))], Wednesday).Should().BeEmpty();
         TruemainActivityBuckets.ByGame([], Wednesday).Should().BeEmpty();
     }
-
-    // ─── Window defaults ───────────────────────────────────────────────────
-
-    [Fact]
-    public void TheCalendarWindowsAreTheSpansTheyAreNamedAfter()
-    {
-        TruemainActivityBuckets.WeekWindowDays.Should().Be(7);
-        // Thirty days, not a calendar month: every window ends on today and counts
-        // back, and a calendar month would open on days that have not happened yet.
-        TruemainActivityBuckets.MonthWindowDays.Should().Be(30);
-    }
 }

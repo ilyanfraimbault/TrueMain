@@ -66,7 +66,7 @@ public static class DraftBanScorer
 
                 parts.Add((threat, new DraftReasonReadModel
                 {
-                    Kind = DraftReasonKinds.LaneThreat,
+                    Kind = DraftReasonKind.LaneThreat,
                     ChampionId = target.ChampionId,
                     Delta = pairing.Delta,
                     Games = pairing.Games,

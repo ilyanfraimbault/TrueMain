@@ -59,7 +59,7 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests : IAsyncLi
     {
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -86,7 +86,7 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests : IAsyncLi
     {
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var baselines = await db.ChampionSynergyBaselineStats.AsNoTracking().ToListAsync();
@@ -115,8 +115,8 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests : IAsyncLi
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -133,10 +133,10 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests : IAsyncLi
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await SeedGamesAsync(games: 5, version: "16.4.521.123", wins: 2, matchPrefix: "m2");
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -160,7 +160,7 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests : IAsyncLi
         // timeline gate applies and these matches must still be counted.
         await SeedGamesAsync(games: 6, version: "16.4.521.123", wins: 3, timelineIngested: false);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         (await db.ChampionSynergyStats.AsNoTracking().MaxAsync(s => (int?)s.Games)).Should().Be(6);
@@ -171,7 +171,7 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests : IAsyncLi
     {
         await SeedGamesAsync(games: 8, version: "16.4.521.123", wins: 4, tracked: false);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -187,7 +187,7 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests : IAsyncLi
         await SeedGamesAsync(games: 12, version: "16.4.521.123", wins: 7);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // Simulate MatchDataRetention dropping the 16.4 match data, then a fresh
         // 16.5 patch arriving.
@@ -199,7 +199,7 @@ public sealed class ChampionSynergyAggregationProcessIntegrationTests : IAsyncLi
         }
 
         await SeedGamesAsync(games: 11, version: "16.5.1", wins: 4, matchPrefix: "m2");
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var pairs = await db.ChampionSynergyStats.AsNoTracking().ToListAsync();

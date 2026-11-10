@@ -45,7 +45,7 @@ public sealed class MatchIngestionProcessIntegrationTests : IAsyncLifetime
                 ClaimLeaseMinutes = 5
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var match = verifyDb.Matches.Single(m => m.Id == "KR_200");

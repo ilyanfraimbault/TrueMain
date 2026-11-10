@@ -27,7 +27,7 @@ public sealed class DiscoveryProcess(
     TimeProvider timeProvider,
     IOptions<DiscoveryOptions> discoveryOptions) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = discoveryOptions.Value;
         var platforms = PlatformNormalizer.Normalize(options.Platforms);

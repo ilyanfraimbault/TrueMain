@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem, StaticItemData } from '#shared/types/static-data'
 import { resultTone } from '#common/utils/result-tone'
 
 // The match detail's Build tab: the player picker, then the picked player's
 // name, result and breakdown (`MatchDetailPlayerPanel`).
 const props = defineProps<{
-  blueTeam: MatchDetailParticipant[]
-  redTeam: MatchDetailParticipant[]
+  blueTeam: MatchDetailParticipantReadModel[]
+  redTeam: MatchDetailParticipantReadModel[]
   champions: ChampionStaticListItem[]
   items: Record<number, StaticItemData>
   /** Champion of the row's owner — the tab opens on that player. */
@@ -18,7 +18,7 @@ const props = defineProps<{
 // owner's champion (so the tab opens on "you"), then the first participant.
 const pickedId = ref<number | null>(null)
 
-const selected = computed<MatchDetailParticipant | null>(() => {
+const selected = computed<MatchDetailParticipantReadModel | null>(() => {
   const list = [...props.blueTeam, ...props.redTeam]
   return list.find(p => p.participantId === pickedId.value)
     ?? (props.selfChampionId ? list.find(p => p.championId === props.selfChampionId) : undefined)

@@ -1,4 +1,4 @@
-import type { PersonaHomonymGroup } from '~~/shared/types/ops'
+import type { PersonaHomonymGroupReadModel } from '#site-shared/contract/api'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
@@ -32,7 +32,7 @@ const ui = {
   FetchErrorAlert: stub('aside', p => String(p.title ?? '')),
 }
 
-function group(over: Partial<PersonaHomonymGroup> = {}): PersonaHomonymGroup {
+function group(over: Partial<PersonaHomonymGroupReadModel> = {}): PersonaHomonymGroupReadModel {
   return {
     key: 'rain',
     personas: [
@@ -92,7 +92,7 @@ describe('persona-homonyms utils', () => {
 })
 
 describe('KnownPlayersHomonymGroup', () => {
-  const mountGroup = (props: { group: PersonaHomonymGroup, busy?: boolean }) => mount(KnownPlayersHomonymGroup, {
+  const mountGroup = (props: { group: PersonaHomonymGroupReadModel, busy?: boolean }) => mount(KnownPlayersHomonymGroup, {
     props: { busy: false, ...props },
     global: { components: { ...ui, KnownPlayersHomonymRow } },
   })

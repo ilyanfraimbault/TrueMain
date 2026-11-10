@@ -27,8 +27,7 @@ public interface IItemRouteQueryService
 public sealed class ItemRouteQueryService(
     TrueMainDbContext db,
     IItemMetadataProvider itemMetadata,
-    IChampionReadCache cache,
-    ILogger<ItemRouteQueryService> logger) : IItemRouteQueryService
+    IChampionReadCache cache) : IItemRouteQueryService
 {
     /// <summary>Patches an item may reach back over to hold the floor, the served one included.</summary>
     public const int MaxPatchWindow = 3;
@@ -40,14 +39,9 @@ public sealed class ItemRouteQueryService(
             return ItemRouteBook.Empty;
         }
 
-        IReadOnlyDictionary<int, ItemMetadata> items;
-        try
+        // No build paths while the item metadata is down.
+        if ((await itemMetadata.GetItemsAsync(patch, ct)).Value is not { } items)
         {
-            items = await itemMetadata.GetItemsAsync(patch, ct);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Item metadata unavailable for patch {Patch}; serving no build paths.", patch);
             return ItemRouteBook.Empty;
         }
 

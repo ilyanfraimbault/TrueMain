@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type { MatchDetailStat } from './MatchDetailStatGrid.vue'
 
 // The selected player's whole-game rates. Ward counts and control wards are
 // absent on purpose: the detail payload doesn't carry them yet.
 const props = defineProps<{
-  participant: MatchDetailParticipant
+  participant: MatchDetailParticipantReadModel
 }>()
 
 const stats = computed<MatchDetailStat[]>(() => {
