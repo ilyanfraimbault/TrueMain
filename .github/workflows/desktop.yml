@@ -51,6 +51,10 @@ jobs:
             shell:
               - "desktop/src-tauri/**"
               - "web/shared/contract/openapi.json"
+              - "web/shared/utils/ipx.ts"
+              - "web/layers/common/app/components/players/PlayerLinks.vue"
+              - "desktop/app/nuxt.config.ts"
+              - "desktop/tools/overlay-smoke-windows.ps1"
             macos:
               - "desktop/capture/macos/**"
             overlay:
