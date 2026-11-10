@@ -318,7 +318,10 @@ freeze: `ingestor` kept running the whole pipeline next to the new aggregate
 container, and every aggregate step ran twice for about twenty hours (#1493).
 `.github/scripts/check-job-mode.sh` therefore fails the preflight when the
 compose file declares `ingestor-aggregate` and the env file sets the variable to
-`Full` in any casing. An unset variable and the single-process freeze modes
+a composite mode that runs the aggregate lane (`Full`, `AggregateLane`) in any
+casing. The script keeps that list itself; `PipelineCatalogJobModeCheckTests`
+pins it to `PipelineCatalog.ModesRunning(PipelineLane.Aggregate)`, so a new
+composite mode breaks a unit test rather than slipping past the check. An unset variable and the single-process freeze modes
 `docs/riot-key-switch.md` relies on stay allowed, so the lever keeps working.
 The env file reaches the script through an environment variable, never argv,
 and only the offending mode is ever printed. `check-job-mode.test.sh` runs it

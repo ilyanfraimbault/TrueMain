@@ -1,8 +1,14 @@
+using System.Text.Json.Serialization;
+using Data.Pipeline;
 using Ingestor.Processes.Components.ItemContextAggregation;
 
 namespace Ingestor.Processes.Summaries;
 
 // Persisted shapes — DO NOT rename a property without a migration plan.
+//
+// Keys another reader depends on (the Riot budget ledgers, the Api's ops series) are pinned
+// with [JsonPropertyName] to the constants in Data.Pipeline.RunSummaryFields, which those
+// readers use too.
 //
 // These records replace the anonymous types the processes used to return. The
 // summaries are stored in process_runs.summary and rendered as-is by the admin
@@ -20,7 +26,9 @@ public sealed record NoWorkSummary(string Reason, int Selected) : IProcessRunSum
 public sealed record SkippedSummary(string Reason, bool Skipped) : IProcessRunSummary;
 
 /// <summary>Harvest had nothing to do.</summary>
-public sealed record HarvestNoWorkSummary(string Reason, int CandidatesInserted) : IProcessRunSummary;
+public sealed record HarvestNoWorkSummary(
+    string Reason,
+    [property: JsonPropertyName(RunSummaryFields.Harvest.CandidatesInserted)] int CandidatesInserted) : IProcessRunSummary;
 
 /// <summary>Manual seed had nothing to claim.</summary>
 public sealed record ManualSeedNoWorkSummary(string Reason, int Claimed) : IProcessRunSummary;
@@ -29,7 +37,10 @@ public sealed record ManualSeedNoWorkSummary(string Reason, int Claimed) : IProc
 public sealed record ChampionPatternNoWorkSummary(string Reason, int Patterns) : IProcessRunSummary;
 
 /// <summary>Per-platform scoring outcome.</summary>
-public sealed record ScoringPlatformSummary(string Platform, int Scored, int Queued);
+public sealed record ScoringPlatformSummary(
+    string Platform,
+    [property: JsonPropertyName(RunSummaryFields.Scoring.Scored)] int Scored,
+    [property: JsonPropertyName(RunSummaryFields.Scoring.Queued)] int Queued);
 
 /// <summary>Scoring outcome, one entry per platform that had scored candidates.</summary>
 /// <summary>
@@ -39,7 +50,7 @@ public sealed record ScoringPlatformSummary(string Platform, int Scored, int Que
 /// <see cref="Platforms"/> so the pre-existing key keeps its wire order.
 /// </summary>
 public sealed record ScoringSummary(
-    IReadOnlyList<ScoringPlatformSummary> Platforms,
+    [property: JsonPropertyName(RunSummaryFields.Scoring.Platforms)] IReadOnlyList<ScoringPlatformSummary> Platforms,
     int PromotionCapPerPlatform) : IProcessRunSummary;
 
 /// <summary>
@@ -58,7 +69,7 @@ public sealed record DiscoveryPlatformSummary(
     string Platform,
     int AccountsProcessed,
     int NewAccounts,
-    int CandidatesInserted,
+    [property: JsonPropertyName(RunSummaryFields.Discovery.CandidatesInserted)] int CandidatesInserted,
     int CandidatesUpdated,
     int RankSnapshotsInserted,
     int RankSnapshotsUpdated,
@@ -68,7 +79,8 @@ public sealed record DiscoveryPlatformSummary(
     int MasteryCallsSkipped);
 
 /// <summary>Discovery outcome, one entry per attempted platform.</summary>
-public sealed record DiscoverySummary(IReadOnlyList<DiscoveryPlatformSummary> Platforms) : IProcessRunSummary;
+public sealed record DiscoverySummary(
+    [property: JsonPropertyName(RunSummaryFields.Discovery.Platforms)] IReadOnlyList<DiscoveryPlatformSummary> Platforms) : IProcessRunSummary;
 
 /// <summary>
 /// Per-platform match ingestion outcome. <see cref="MatchesSkipped"/> is the healthy skip —
@@ -118,11 +130,11 @@ public sealed record MatchIngestionPlatformSummary(
 /// </summary>
 public sealed record MatchIngestionSummary(
     int AccountsProcessed,
-    int MatchesInserted,
-    int MatchesSkipped,
-    int TimelinesUpdated,
+    [property: JsonPropertyName(RunSummaryFields.MatchIngestion.MatchesInserted)] int MatchesInserted,
+    [property: JsonPropertyName(RunSummaryFields.MatchIngestion.MatchesSkipped)] int MatchesSkipped,
+    [property: JsonPropertyName(RunSummaryFields.MatchIngestion.TimelinesUpdated)] int TimelinesUpdated,
     int Errors,
-    int AccountsValidated,
+    [property: JsonPropertyName(RunSummaryFields.MatchIngestion.AccountsValidated)] int AccountsValidated,
     int ExpiredCandidatesReleased,
     int ExpiredClaimsReleased,
     int MatchesSkippedWrongQueue,
@@ -140,7 +152,7 @@ public sealed record ManualSeedSummary(
     int Ingested,
     int NotFound,
     int Failed,
-    int CandidatesQueued,
+    [property: JsonPropertyName(RunSummaryFields.ManualSeed.CandidatesQueued)] int CandidatesQueued,
     int NoSummonerOnPlatform = 0) : IProcessRunSummary;
 
 /// <summary>
@@ -148,7 +160,7 @@ public sealed record ManualSeedSummary(
 /// between newly-discovered and already-known (puuid, champion) pairs.
 /// </summary>
 public sealed record HarvestSummary(
-    int CandidatesInserted,
+    [property: JsonPropertyName(RunSummaryFields.Harvest.CandidatesInserted)] int CandidatesInserted,
     int CandidatesUpdated,
     int AccountsCreated,
     int EligibleNew,
@@ -167,8 +179,8 @@ public sealed record LadderSyncTierSummary(string Tier, int EntriesFetched);
 /// <see cref="Tiers"/> — is what says whether a swept tier earns its page cost.
 /// </summary>
 public sealed record LadderSyncSummary(
-    int ApexCalls,
-    int PagedCalls,
+    [property: JsonPropertyName(RunSummaryFields.LadderSync.ApexCalls)] int ApexCalls,
+    [property: JsonPropertyName(RunSummaryFields.LadderSync.PagedCalls)] int PagedCalls,
     int FailedCalls,
     int EntriesFetched,
     int AccountsMatched,
@@ -204,7 +216,7 @@ public sealed record MainAnalysisSummary(
     int AccountsProcessed,
     int StatsUpserted,
     int StatsRemoved,
-    int DemotedAccounts) : IProcessRunSummary;
+    [property: JsonPropertyName(RunSummaryFields.MainAnalysis.DemotedAccounts)] int DemotedAccounts) : IProcessRunSummary;
 
 /// <summary>Champion-mastery activity check outcome (#900).</summary>
 public sealed record MainActivitySummary(

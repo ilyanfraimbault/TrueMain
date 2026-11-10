@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Ingestor.Options;
 
 namespace Ingestor.Processes.Components.PaceSampling;
@@ -68,7 +69,7 @@ internal sealed class PaceSamplingBudget
             using var document = JsonDocument.Parse(summaryJson);
             var root = document.RootElement;
             return root.ValueKind == JsonValueKind.Object
-                   && root.TryGetProperty("riotCalls", out var value)
+                   && root.TryGetProperty(RunSummaryFields.PaceSampling.RiotCalls, out var value)
                    && value.ValueKind == JsonValueKind.Number
                    && value.TryGetInt32(out var parsed)
                 ? Math.Max(0, parsed)
