@@ -316,7 +316,7 @@ public sealed class LadderSyncProcessTests
                 new FixedTimeProvider(NowUtc),
                 Microsoft.Extensions.Options.Options.Create(options));
 
-            return await process.RunCoreAsync(CancellationToken.None);
+            return await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
         }
     }
 

@@ -31,7 +31,7 @@ public sealed class RecordedProcessSkipStatusTests
         var recorder = Substitute.For<IProcessRunRecorder>();
         var process = Build(recorder, () => new SkippedSummary("Within MinRunInterval.", true));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await recorder.Received(1).RecordAsync(
             Arg.Any<Guid>(),
@@ -50,7 +50,7 @@ public sealed class RecordedProcessSkipStatusTests
         var recorder = Substitute.For<IProcessRunRecorder>();
         var process = Build(recorder, () => new TeamPositionCorrectionSummary(3, 1));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await recorder.Received(1).RecordAsync(
             Arg.Any<Guid>(),
@@ -69,7 +69,7 @@ public sealed class RecordedProcessSkipStatusTests
         var recorder = Substitute.For<IProcessRunRecorder>();
         var process = Build(recorder, () => new NoWorkSummary("Nothing selected.", 0));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // "Nothing to do" is not "did not look": the process ran, found an empty input and
         // finished. It must keep counting as a real run so a cadence guard measures its
@@ -97,7 +97,7 @@ public sealed class RecordedProcessSkipStatusTests
 
     private sealed class StubProcess(Func<IProcessRunSummary?> payload) : IIngestorProcess
     {
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
             => Task.FromResult(payload());
     }
 }

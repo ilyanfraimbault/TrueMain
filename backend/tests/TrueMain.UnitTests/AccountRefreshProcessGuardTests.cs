@@ -166,7 +166,7 @@ public sealed class AccountRefreshProcessGuardTests
             new FixedTimeProvider(NowUtc),
             Microsoft.Extensions.Options.Options.Create(new AccountRefreshOptions()));
 
-        var summary = await process.RunCoreAsync(CancellationToken.None);
+        var summary = await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
         return summary.Should().BeOfType<AccountRefreshSummary>().Subject;
     }
 }

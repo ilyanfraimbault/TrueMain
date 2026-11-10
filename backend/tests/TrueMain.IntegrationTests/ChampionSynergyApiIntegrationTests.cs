@@ -490,7 +490,7 @@ public sealed class ChampionSynergyApiIntegrationTests : IAsyncLifetime
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private static MatchParticipant Participant(

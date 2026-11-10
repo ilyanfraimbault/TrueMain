@@ -26,7 +26,7 @@ public sealed class HarvestIntakeBudgetTests
             matchIngestion: new MatchIngestionOptions { BatchSize = 75, EstablishedMainShare = 0.7 },
             intake: new IntakeOptions { PromotionHeadroomFactor = 3 });
 
-        await harness.Process.RunCoreAsync(CancellationToken.None);
+        await harness.Process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // Discovery keeps its configured 3 750; the refresh half drops from 3 750 to the
         // claim's 22 new slots x 3 cycles of headroom = 66.
@@ -48,7 +48,7 @@ public sealed class HarvestIntakeBudgetTests
             matchIngestion: new MatchIngestionOptions { BatchSize = 75, EstablishedMainShare = 0.7 },
             intake: new IntakeOptions { PromotionHeadroomFactor = 3 });
 
-        await harness.Process.RunCoreAsync(CancellationToken.None);
+        await harness.Process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // 10 new + min(10, 66) refresh = 20, i.e. the configured budget: the cap only ever
         // lowers, and a configuration already below the claim's capacity is passed through
@@ -76,7 +76,7 @@ public sealed class HarvestIntakeBudgetTests
             new MatchIngestionOptions { BatchSize = 75, EstablishedMainShare = 0.7 },
             new IntakeOptions { PromotionHeadroomFactor = 3 });
 
-        await harness.Process.RunCoreAsync(CancellationToken.None);
+        await harness.Process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // Only the two budget fields are re-derived; a copy that silently reset the scan
         // window or the queue would change what the harvest looks at, not how much of it.

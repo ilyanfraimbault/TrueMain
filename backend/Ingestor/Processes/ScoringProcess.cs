@@ -26,7 +26,7 @@ public sealed class ScoringProcess(
     private const double FallbackRecencyWeight = 0.65;
     private const double FallbackRankWeight = 0.20;
     private const double FallbackPointsWeight = 0.15;
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var scoring = scoringOptions.Value;
 

@@ -68,7 +68,7 @@ public sealed class PaceSamplingProcess(
     internal const int MaxConsecutiveFailures = 5;
 
     private static readonly string[] Divisions = ["I", "II", "III", "IV"];
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = paceSamplingOptions.Value;
         var platforms = PlatformNormalizer.Normalize(options.Platforms);

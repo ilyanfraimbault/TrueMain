@@ -169,7 +169,7 @@ public sealed class DiscoveryMasterySkipTests
 
         public async Task<DiscoverySummary> RunAsync()
         {
-            var summary = await _process.RunCoreAsync(CancellationToken.None);
+            var summary = await _process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
             return summary.Should().BeOfType<DiscoverySummary>().Subject;
         }
     }

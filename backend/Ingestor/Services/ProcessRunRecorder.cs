@@ -6,7 +6,8 @@ namespace Ingestor.Services;
 
 public sealed class ProcessRunRecorder(
     IProcessRunStore store,
-    IIterationContext iterationContext) : IProcessRunRecorder
+    IIterationContext iterationContext,
+    TimeProvider timeProvider) : IProcessRunRecorder
 {
     private const int MaxErrorLength = 2048;
 
@@ -99,7 +100,7 @@ public sealed class ProcessRunRecorder(
         // is gone (reaped) or already terminal — only an in-flight Running document
         // carries a meaningful heartbeat, and refreshing a finished one would
         // resurrect it as "fresh".
-        => store.TouchHeartbeatAsync(runId, DateTime.UtcNow, ct);
+        => store.TouchHeartbeatAsync(runId, timeProvider.GetUtcNow().UtcDateTime, ct);
 
     public Task<int> ReconcileOrphanedRunsAsync(IReadOnlyCollection<string> processNames, CancellationToken ct)
         // Anything still Running at startup among *this* instance's own processes was owned
@@ -107,7 +108,7 @@ public sealed class ProcessRunRecorder(
         // scoping matters since #1362: with a fetch lane and an aggregate lane in separate
         // processes, an unscoped sweep would abandon runs that are very much alive.
         => store.AbandonRunningAsync(
-            DateTime.UtcNow,
+            timeProvider.GetUtcNow().UtcDateTime,
             "Abandoned: ingestor restarted while this run was in flight.",
             processNames,
             ct);

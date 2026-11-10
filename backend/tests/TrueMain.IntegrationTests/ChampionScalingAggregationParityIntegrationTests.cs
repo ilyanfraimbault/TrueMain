@@ -64,7 +64,7 @@ public sealed class ChampionScalingAggregationParityIntegrationTests : IAsyncLif
 
         // Small batches on purpose: the parity has to survive a match landing in any
         // batch, and the drain has to stop on the short last one.
-        await CreateProcess(batchSize: 37).RunCoreAsync(CancellationToken.None);
+        await CreateProcess(batchSize: 37).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var service = new ChampionScalingQueryService(
@@ -111,12 +111,12 @@ public sealed class ChampionScalingAggregationParityIntegrationTests : IAsyncLif
         await SeedCorpusAsync(new Random(7), matches: 120);
 
         var process = CreateProcess(batchSize: 50);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var gamesAfterFirstRun = await db.ChampionScalingStats.AsNoTracking().SumAsync(s => s.Games);
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         (await db.ChampionScalingStats.AsNoTracking().SumAsync(s => s.Games)).Should().Be(gamesAfterFirstRun);
         gamesAfterFirstRun.Should().BePositive();

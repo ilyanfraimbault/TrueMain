@@ -101,7 +101,7 @@ public sealed class MatchRoleBoundItemBackfillProcessIntegrationTests : IAsyncLi
             NullLogger<MatchRoleBoundItemBackfillProcess>.Instance,
             new TestDbContextFactory(_fixture),
             new BootsMetadataProvider());
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private sealed class BootsMetadataProvider : IItemMetadataProvider

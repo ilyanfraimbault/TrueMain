@@ -51,7 +51,7 @@ public sealed class ManualSeedProcessWrongPlatformTests
         _platformClient.GetSummonerByPuuidAsync(PlatformRoute.BR1, "puuid-1", Arg.Any<CancellationToken>())
             .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 404 (Not Found).", null, HttpStatusCode.NotFound));
 
-        var summary = await BuildProcess().RunCoreAsync(CancellationToken.None);
+        var summary = await BuildProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await _store.Received(1).MarkFailedAsync(
             _request.Id,
@@ -80,7 +80,7 @@ public sealed class ManualSeedProcessWrongPlatformTests
         _platformClient.GetSummonerByPuuidAsync(PlatformRoute.BR1, "puuid-1", Arg.Any<CancellationToken>())
             .ThrowsAsync(failure);
 
-        var summary = await BuildProcess().RunCoreAsync(CancellationToken.None);
+        var summary = await BuildProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var entry = _logger.Entries.Should()
             .ContainSingle(e => e.EventId.Id == OpsEvents.SeedRequestFailed.Id).Subject;

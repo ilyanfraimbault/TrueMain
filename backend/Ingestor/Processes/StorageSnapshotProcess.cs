@@ -50,7 +50,7 @@ public sealed class StorageSnapshotProcess(
     IMongoStorageStatsReader mongoStats,
     TimeProvider timeProvider) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 

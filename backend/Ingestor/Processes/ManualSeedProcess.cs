@@ -49,7 +49,7 @@ public sealed class ManualSeedProcess(
     // none are requeued here.
     private static readonly MainCandidateStatus[] RequeueableStatuses =
         [MainCandidateStatus.New, MainCandidateStatus.Scored];
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = manualSeedOptions.Value;
         var batchSize = Math.Max(1, options.BatchSize);

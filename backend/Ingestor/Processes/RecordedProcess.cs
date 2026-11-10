@@ -1,4 +1,5 @@
 using Data.Logging;
+using Data.Ops.Mongo;
 using Data.Pipeline;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
@@ -26,8 +27,6 @@ public sealed class RecordedProcess<TInner>(
     ILogger<RecordedProcess<TInner>> logger) : IIngestorProcess
     where TInner : IIngestorProcess
 {
-    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
-
     /// <summary>
     /// How long the cancellation record may take before the shutdown moves on without it.
     /// Small on purpose: it is spent inside the container's stop grace period, alongside
@@ -37,7 +36,7 @@ public sealed class RecordedProcess<TInner>(
 
     private string Name => step.Name;
 
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var startedAt = timeProvider.GetUtcNow().UtcDateTime;
         var runId = await recorder.RecordStartAsync(Name, startedAt, ct);
@@ -51,7 +50,7 @@ public sealed class RecordedProcess<TInner>(
         var heartbeatLoop = RunHeartbeatLoopAsync(runId, heartbeatCts.Token);
         try
         {
-            var payload = await inner.RunCoreAsync(ct);
+            var payload = await inner.RunCoreAsync(input, ct);
             var finishedAt = timeProvider.GetUtcNow().UtcDateTime;
             await recorder.RecordCompletionAsync(runId, Name, startedAt, finishedAt, payload, ct);
             // Ops event (#722): persisted by the Mongo sink despite being
@@ -127,7 +126,7 @@ public sealed class RecordedProcess<TInner>(
         {
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(HeartbeatInterval, ct);
+                await Task.Delay(ProcessRunStaleness.HeartbeatInterval, timeProvider, ct);
                 await recorder.HeartbeatAsync(runId, ct);
             }
         }

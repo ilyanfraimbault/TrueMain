@@ -23,7 +23,7 @@ public sealed class DiscoveryCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: FixedNow.AddHours(-1));
 
-        await harness.Process(minRunInterval: TimeSpan.FromDays(1)).RunCoreAsync(CancellationToken.None);
+        await harness.Process(minRunInterval: TimeSpan.FromDays(1)).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await harness.Ladder.DidNotReceive().DiscoverSummonersAsync(
             Arg.Any<PlatformRoute>(),
@@ -38,7 +38,7 @@ public sealed class DiscoveryCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: FixedNow.AddDays(-2));
 
-        await harness.Process(minRunInterval: TimeSpan.FromDays(1)).RunCoreAsync(CancellationToken.None);
+        await harness.Process(minRunInterval: TimeSpan.FromDays(1)).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await harness.Ladder.Received(1).DiscoverSummonersAsync(
             Arg.Any<PlatformRoute>(),
@@ -53,7 +53,7 @@ public sealed class DiscoveryCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: FixedNow);
 
-        await harness.Process(minRunInterval: TimeSpan.Zero).RunCoreAsync(CancellationToken.None);
+        await harness.Process(minRunInterval: TimeSpan.Zero).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await harness.Ladder.Received(1).DiscoverSummonersAsync(
             Arg.Any<PlatformRoute>(),

@@ -53,7 +53,7 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLi
         await SeedMatchAsync("m-2", durationSeconds: 2100, withContext: true, topWins: false,
             topItems: [CritItem], snapshots: true);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var top = await db.ChampionProfileStats.AsNoTracking()
@@ -102,7 +102,7 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLi
         await SeedMatchAsync("legacy", durationSeconds: 1800, withContext: false, topWins: true, topItems: [], snapshots: true);
         await SeedMatchAsync("remake", durationSeconds: 200, withContext: true, topWins: true, topItems: [], snapshots: false);
 
-        var summary = await CreateProcess().RunCoreAsync(CancellationToken.None);
+        var summary = await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         (await db.ChampionProfileStats.CountAsync()).Should().Be(0, "a pre-#1448 row and a remake both fold to nothing");
@@ -123,9 +123,9 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLi
         await SeedMatchAsync("legacy", durationSeconds: 1800, withContext: false, topWins: true,
             topItems: [ApItem], snapshots: true);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
         // Same gate as the profile: a second run folds nothing twice.
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var rows = await db.ChampionDamageProfileStats.AsNoTracking()
@@ -153,13 +153,13 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLi
     public async Task RunAsync_IsANoOpOnASecondRun_AndKeepsTheRangedFlagWhenStaticsAreDown()
     {
         await SeedMatchAsync("m-1", durationSeconds: 1800, withContext: true, topWins: true, topItems: [], snapshots: true);
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // A second match arrives while Data Dragon is unreachable: its sums fold, the
         // flag set by the first run is kept rather than blanked.
         await SeedMatchAsync("m-2", durationSeconds: 1800, withContext: true, topWins: true, topItems: [], snapshots: true);
-        await CreateProcess(staticsAvailable: false).RunCoreAsync(CancellationToken.None);
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess(staticsAvailable: false).RunCoreAsync(RunInput.Whole, CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var top = await db.ChampionProfileStats.AsNoTracking()
@@ -173,7 +173,7 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLi
     {
         await SeedMatchAsync("short", durationSeconds: 700, withContext: true, topWins: true, topItems: [], snapshots: false);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var top = await db.ChampionProfileStats.AsNoTracking()

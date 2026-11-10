@@ -34,7 +34,7 @@ public sealed class ProcessRunRecorderIntegrationTests : IAsyncLifetime
     {
         var iterationContext = new IterationContext();
         using var context = BuildContext();
-        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), iterationContext);
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), iterationContext, TimeProvider.System);
 
         Guid runId;
         Guid iterationId;
@@ -70,7 +70,7 @@ public sealed class ProcessRunRecorderIntegrationTests : IAsyncLifetime
     public async Task RecordAsync_PersistsTheSummaryWithItsCamelCaseKeys()
     {
         using var context = BuildContext();
-        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext(), TimeProvider.System);
         var startedAt = DateTime.UtcNow;
         var runId = await recorder.RecordStartAsync("Discovery", startedAt, CancellationToken.None);
 
@@ -111,7 +111,7 @@ public sealed class ProcessRunRecorderIntegrationTests : IAsyncLifetime
     public async Task RecordStart_OutsideAnyIteration_LeavesIterationNull()
     {
         using var context = BuildContext();
-        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext(), TimeProvider.System);
 
         var startedAt = DateTime.UtcNow;
         var runId = await recorder.RecordStartAsync("AdHoc", startedAt, CancellationToken.None);
@@ -155,7 +155,7 @@ public sealed class ProcessRunRecorderIntegrationTests : IAsyncLifetime
         ]);
 
         using var context = BuildContext();
-        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext(), TimeProvider.System);
         var reconciled = await recorder.ReconcileOrphanedRunsAsync(["Discovery", "Scoring"], CancellationToken.None);
 
         reconciled.Should().Be(1);
@@ -205,7 +205,7 @@ public sealed class ProcessRunRecorderIntegrationTests : IAsyncLifetime
         ]);
 
         using var context = BuildContext();
-        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext(), TimeProvider.System);
 
         // The fetch lane restarting must reclaim its own orphan and leave the aggregate
         // lane's genuinely in-flight run alone (#1362) — the two lanes are separate
@@ -233,7 +233,7 @@ public sealed class ProcessRunRecorderIntegrationTests : IAsyncLifetime
         });
 
         using var context = BuildContext();
-        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext(), TimeProvider.System);
         (await recorder.ReconcileOrphanedRunsAsync(["Discovery"], CancellationToken.None)).Should().Be(0);
     }
 
@@ -241,7 +241,7 @@ public sealed class ProcessRunRecorderIntegrationTests : IAsyncLifetime
     public async Task RecordAsync_OnARunTheBootReconcileAbandoned_LeavesItAbandonedAndInsertsNothing()
     {
         using var context = BuildContext();
-        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext());
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), new IterationContext(), TimeProvider.System);
         var startedAt = DateTime.UtcNow.AddMinutes(-5);
         var runId = await recorder.RecordStartAsync("Discovery", startedAt, CancellationToken.None);
 

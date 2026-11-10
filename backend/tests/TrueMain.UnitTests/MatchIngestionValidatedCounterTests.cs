@@ -106,7 +106,7 @@ public sealed class MatchIngestionValidatedCounterTests
                 BatchSize = claimed.Count
             }));
 
-        return await process.RunCoreAsync(CancellationToken.None);
+        return await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private static IMatchSnapshotWriter SucceedingSnapshotWriter()

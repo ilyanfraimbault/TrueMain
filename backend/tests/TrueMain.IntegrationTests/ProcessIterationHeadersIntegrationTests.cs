@@ -33,7 +33,7 @@ public sealed class ProcessIterationHeadersIntegrationTests : IAsyncLifetime
     {
         var iterationContext = new IterationContext();
         using var context = BuildContext();
-        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), iterationContext);
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), iterationContext, TimeProvider.System);
         var start = DateTime.UtcNow.AddMinutes(-10);
 
         Guid iterationId;

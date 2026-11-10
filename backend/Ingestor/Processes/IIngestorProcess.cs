@@ -9,9 +9,10 @@ namespace Ingestor.Processes;
 public interface IIngestorProcess
 {
     /// <summary>
-    /// Executes the process logic and returns a serialisable summary payload that
-    /// the surrounding <c>RecordedProcess</c> decorator persists via the recorder.
-    /// Implementations must NOT call <c>IProcessRunRecorder</c> themselves.
+    /// Executes the process logic over <paramref name="input"/> and returns a serialisable
+    /// summary payload that the surrounding <c>RecordedProcess</c> decorator persists via the
+    /// recorder. Implementations must NOT call <c>IProcessRunRecorder</c> themselves. A step
+    /// that cannot be narrowed ignores <paramref name="input"/>.
     /// </summary>
-    Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct);
+    Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct);
 }

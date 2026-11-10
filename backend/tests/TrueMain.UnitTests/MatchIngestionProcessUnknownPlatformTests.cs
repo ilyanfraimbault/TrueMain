@@ -24,7 +24,7 @@ public sealed class MatchIngestionProcessUnknownPlatformTests
         var accountValidationService = Substitute.For<IAccountValidationService>();
         var process = CreateProcess(accountValidationService, new AccountKey("XX9", "puuid-corrupt"));
 
-        var act = async () => await process.RunCoreAsync(CancellationToken.None);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await act.Should().NotThrowAsync("an unparseable platform is a state, not an exception");
 
@@ -55,7 +55,7 @@ public sealed class MatchIngestionProcessUnknownPlatformTests
             new AccountKey("XX9", "puuid-corrupt"),
             new AccountKey("KR", "puuid-valid"));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await accountValidationService.Received(1).ReleaseUningestableAsync(
             Arg.Is<AccountKey>(key => key.Puuid == "puuid-corrupt"),

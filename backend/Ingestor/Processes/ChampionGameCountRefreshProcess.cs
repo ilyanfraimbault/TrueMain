@@ -64,7 +64,7 @@ public sealed class ChampionGameCountRefreshProcess(
     /// patch left the window, is what retention's <c>PostPurgeVacuum</c> takes away (#2444).
     /// </summary>
     internal static readonly TimeSpan CommandTimeout = TimeSpan.FromMinutes(15);
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 

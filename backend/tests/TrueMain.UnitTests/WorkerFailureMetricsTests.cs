@@ -170,14 +170,15 @@ public sealed class WorkerFailureMetricsTests
             RunOnce = true
         });
 
+        var workerMetrics = new IngestorMetrics(meterFactory);
         return new Worker(
             NullLogger<Worker>.Instance,
             scopeFactory,
             jobOptions,
             new IterationContext(),
-            new CallerContext(),
+            new ProcessRunner(scopeFactory, new CallerContext(), workerMetrics, NullLogger<ProcessRunner>.Instance),
             lifetime,
-            new IngestorMetrics(meterFactory),
+            workerMetrics,
             TimeProvider.System,
             NoHeartbeatFile.Instance);
     }
@@ -186,14 +187,14 @@ public sealed class WorkerFailureMetricsTests
     {
         public string Name => name;
 
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult<IProcessRunSummary?>(null);
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct) => Task.FromResult<IProcessRunSummary?>(null);
     }
 
     private sealed class ThrowingProcess(string name) : IIngestorProcess
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             throw new InvalidOperationException("simulated process failure");
@@ -204,7 +205,7 @@ public sealed class WorkerFailureMetricsTests
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             await cts.CancelAsync();

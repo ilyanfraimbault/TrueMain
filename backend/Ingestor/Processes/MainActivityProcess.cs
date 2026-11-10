@@ -39,7 +39,7 @@ public sealed class MainActivityProcess(
     TimeProvider timeProvider,
     IOptions<MainActivityOptions> activityOptions) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = activityOptions.Value;
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;

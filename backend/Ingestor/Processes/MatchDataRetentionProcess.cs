@@ -25,7 +25,7 @@ public sealed class MatchDataRetentionProcess(
     IOptions<IntakeOptions> intakeOptions,
     IItemMetadataProvider itemMetadataProvider) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         // Prune stale never-promoted candidates first (#487) — independent of match
         // retention, so it runs even when there is nothing to delete below.

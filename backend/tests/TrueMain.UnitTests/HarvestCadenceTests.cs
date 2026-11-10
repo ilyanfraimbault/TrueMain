@@ -25,7 +25,7 @@ public sealed class HarvestCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: Now.UtcDateTime.AddMinutes(-5));
 
-        var summary = await harness.Process(TimeSpan.FromMinutes(20)).RunCoreAsync(CancellationToken.None);
+        var summary = await harness.Process(TimeSpan.FromMinutes(20)).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<SkippedSummary>().Which.Skipped.Should().BeTrue();
         await harness.HarvestService.DidNotReceiveWithAnyArgs().HarvestAsync(default!, default!, default!, default, default);
@@ -37,7 +37,7 @@ public sealed class HarvestCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: Now.UtcDateTime.AddMinutes(-25));
 
-        var summary = await harness.Process(TimeSpan.FromMinutes(20)).RunCoreAsync(CancellationToken.None);
+        var summary = await harness.Process(TimeSpan.FromMinutes(20)).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<HarvestSummary>();
         await harness.HarvestService.ReceivedWithAnyArgs(1).HarvestAsync(default!, default!, default!, default, default);
@@ -48,7 +48,7 @@ public sealed class HarvestCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: null);
 
-        var summary = await harness.Process(TimeSpan.FromMinutes(20)).RunCoreAsync(CancellationToken.None);
+        var summary = await harness.Process(TimeSpan.FromMinutes(20)).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<HarvestSummary>();
     }
@@ -58,7 +58,7 @@ public sealed class HarvestCadenceTests
     {
         var harness = new Harness(lastCompletedRunUtc: Now.UtcDateTime.AddSeconds(-1));
 
-        var summary = await harness.Process(TimeSpan.Zero).RunCoreAsync(CancellationToken.None);
+        var summary = await harness.Process(TimeSpan.Zero).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<HarvestSummary>();
         await harness.RunStore.DidNotReceiveWithAnyArgs().GetLastCompletedRunStartAsync(default!, default, default);

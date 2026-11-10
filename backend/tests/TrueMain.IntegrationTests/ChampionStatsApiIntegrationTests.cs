@@ -182,7 +182,7 @@ public sealed class ChampionStatsApiIntegrationTests : IAsyncLifetime
                 new TestDbContextFactory(_fixture),
                 new FakeProcessRunStore(),
                 TimeProvider.System)
-            .RunCoreAsync(CancellationToken.None);
+            .RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private static Match BuildMatch(string id, string platformId, string gameVersion, int queueId, DateTime startUtc)

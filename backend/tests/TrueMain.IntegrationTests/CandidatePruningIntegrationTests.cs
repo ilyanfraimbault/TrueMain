@@ -41,7 +41,7 @@ public sealed class CandidatePruningIntegrationTests : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        await BuildProcess(pruneAfterDays: 30).RunCoreAsync(CancellationToken.None);
+        await BuildProcess(pruneAfterDays: 30).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var remaining = await verifyDb.MainCandidates.AsNoTracking()
@@ -65,7 +65,7 @@ public sealed class CandidatePruningIntegrationTests : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        await BuildProcess(pruneAfterDays: 30, enabled: false).RunCoreAsync(CancellationToken.None);
+        await BuildProcess(pruneAfterDays: 30, enabled: false).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         (await verifyDb.MainCandidates.AsNoTracking().CountAsync()).Should().Be(1);
@@ -98,7 +98,7 @@ public sealed class CandidatePruningIntegrationTests : IAsyncLifetime
                     QueueDepthDemotionBatchSize = 1,
                     MaxDemotionBatchesPerRun = 4
                 })
-            .RunCoreAsync(CancellationToken.None);
+            .RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var byPuuid = await verifyDb.MainCandidates.AsNoTracking()

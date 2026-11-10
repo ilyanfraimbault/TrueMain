@@ -70,7 +70,7 @@ public sealed class ChampionBanAggregationProcess(
             .Key("Patch", "text", r => r.Key.Patch)
             .Key("elo_bracket", "text", r => r.Key.EloBracket)
             .Sum("Matches", "integer", r => r.Value);
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;

@@ -29,7 +29,7 @@ public sealed class RecordedProcessOpsEventTests
             TimeProvider.System,
             logger);
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var entry = logger.Entries.Should().ContainSingle(
             e => e.EventId.Id == OpsEvents.ProcessRunCompleted.Id).Subject;
@@ -53,7 +53,7 @@ public sealed class RecordedProcessOpsEventTests
             TimeProvider.System,
             logger);
 
-        var act = async () => await process.RunCoreAsync(CancellationToken.None);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
         await act.Should().ThrowAsync<InvalidOperationException>();
 
         var entry = logger.Entries.Should().ContainSingle(
@@ -89,6 +89,6 @@ public sealed class RecordedProcessOpsEventTests
 
     private sealed class StubProcess(Func<IProcessRunSummary?> body) : IIngestorProcess
     {
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult(body());
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct) => Task.FromResult(body());
     }
 }

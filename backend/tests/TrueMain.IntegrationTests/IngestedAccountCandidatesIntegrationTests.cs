@@ -54,7 +54,7 @@ public sealed class IngestedAccountCandidatesIntegrationTests : IAsyncLifetime
                 QueueDepthDemotionBatchSize = 10,
                 MaxDemotionBatchesPerRun = 4
             })
-            .RunCoreAsync(CancellationToken.None);
+            .RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var byPuuid = await verifyDb.MainCandidates.AsNoTracking()
@@ -94,7 +94,7 @@ public sealed class IngestedAccountCandidatesIntegrationTests : IAsyncLifetime
             MaxDemotionBatchesPerRun = 2
         });
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using (var verifyDb = _fixture.CreateDbContext())
         {
@@ -108,8 +108,8 @@ public sealed class IngestedAccountCandidatesIntegrationTests : IAsyncLifetime
         }
 
         // The backlog settles over the next runs rather than in one unbounded statement.
-        await process.RunCoreAsync(CancellationToken.None);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var finalDb = _fixture.CreateDbContext();
         (await finalDb.MainCandidates.AsNoTracking()
