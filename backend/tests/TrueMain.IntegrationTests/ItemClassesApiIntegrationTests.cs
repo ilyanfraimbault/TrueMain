@@ -71,7 +71,7 @@ public sealed class ItemClassesApiIntegrationTests(PostgresFixture fixture)
     {
         public List<string?> Asked { get; } = [];
 
-        public Task<ItemClasses> GetClassesAsync(string? gameVersion, CancellationToken ct)
+        public Task<StaticData<ItemClasses>> GetClassesAsync(string? gameVersion, CancellationToken ct)
         {
             Asked.Add(gameVersion);
             IReadOnlyDictionary<int, IReadOnlyList<ItemShopClass>> items = new Dictionary<int, IReadOnlyList<ItemShopClass>>
@@ -79,7 +79,7 @@ public sealed class ItemClassesApiIntegrationTests(PostgresFixture fixture)
                 [3190] = [ItemShopClass.Support, ItemShopClass.Tank],
                 [3031] = [ItemShopClass.Marksman],
             };
-            return Task.FromResult(new ItemClasses("16.21", items));
+            return Task.FromResult(StaticData<ItemClasses>.Available(new ItemClasses("16.21", items)));
         }
     }
 }

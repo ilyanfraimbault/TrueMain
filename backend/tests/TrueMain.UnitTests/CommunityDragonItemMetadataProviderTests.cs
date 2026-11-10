@@ -1,4 +1,5 @@
 using Data.BuildFacts;
+using Data.Statics;
 using System.Net;
 using System.Text;
 using AwesomeAssertions;
@@ -40,7 +41,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
         using var handler = new StubHttpMessageHandler(payload);
         var provider = CreateProvider(handler);
 
-        var items = await provider.GetItemsAsync("16.7.1", CancellationToken.None);
+        var items = (await provider.GetItemsAsync("16.7.1", CancellationToken.None)).Value!;
 
         items[3172].IsBootsItem.Should().BeTrue();
         items[3172].IsFinalBoots.Should().BeTrue();
@@ -78,7 +79,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
         using var handler = new StubHttpMessageHandler(payload);
         var provider = CreateProvider(handler);
 
-        var items = await provider.GetItemsAsync("16.7.1", CancellationToken.None);
+        var items = (await provider.GetItemsAsync("16.7.1", CancellationToken.None)).Value!;
 
         items[3042].IsInventoryTransformItem.Should().BeTrue();
         items[3042].TransformFromItemId.Should().Be(3004);
@@ -142,7 +143,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
         using var handler = new StubHttpMessageHandler(payload);
         var provider = CreateProvider(handler);
 
-        var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
+        var items = (await provider.GetItemsAsync("16.10.1", CancellationToken.None)).Value!;
 
         items[3865].IsSupportQuestStarter.Should().BeTrue();
         items[3865].IsSupportQuestIntermediate.Should().BeFalse();
@@ -180,7 +181,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
         using var handler = new StubHttpMessageHandler(payload);
         var provider = CreateProvider(handler);
 
-        var items = await provider.GetItemsAsync("14.20.1", CancellationToken.None);
+        var items = (await provider.GetItemsAsync("14.20.1", CancellationToken.None)).Value!;
 
         items[3850].IsSupportQuestStarter.Should().BeFalse();
         items[3850].IsSupportQuestIntermediate.Should().BeFalse();
@@ -220,7 +221,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
         using var handler = new StubHttpMessageHandler(payload);
         var provider = CreateProvider(handler);
 
-        var items = await provider.GetItemsAsync("99.99.1", CancellationToken.None);
+        var items = (await provider.GetItemsAsync("99.99.1", CancellationToken.None)).Value!;
 
         items[3865].IsSupportQuestStarter.Should().BeFalse();
         items[3868].IsSupportQuestStarter.Should().BeFalse();
@@ -266,7 +267,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
         using var handler = new StubHttpMessageHandler(payload);
         var provider = CreateProvider(handler);
 
-        var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
+        var items = (await provider.GetItemsAsync("16.10.1", CancellationToken.None)).Value!;
 
         items[1056].IsStarterClassItem.Should().BeTrue();
         items[1083].IsStarterClassItem.Should().BeTrue();
@@ -321,7 +322,7 @@ public sealed class CommunityDragonItemMetadataProviderTests
         using var handler = new StubHttpMessageHandler(payload);
         var provider = CreateProvider(handler);
 
-        var items = await provider.GetItemsAsync("16.10.1", CancellationToken.None);
+        var items = (await provider.GetItemsAsync("16.10.1", CancellationToken.None)).Value!;
 
         items[1001].IsStarterClassItem.Should().BeFalse();
         items[6653].IsStarterClassItem.Should().BeFalse();
@@ -338,9 +339,10 @@ public sealed class CommunityDragonItemMetadataProviderTests
             branch == "16.16" ? null : OneItemPayload);
         var provider = CreateProvider(handler);
 
-        var items = await provider.GetItemsAsync("16.16.804.9184", CancellationToken.None);
+        var answer = await provider.GetItemsAsync("16.16.804.9184", CancellationToken.None);
 
-        items.Should().ContainKey(3172);
+        answer.Status.Should().Be(StaticDataStatus.Fallback, "the caller is told the patch's own data is not out yet");
+        answer.Value.Should().ContainKey(3172);
         handler.RequestedBranches.Should().Equal("16.16", "latest");
     }
 
@@ -387,10 +389,10 @@ public sealed class CommunityDragonItemMetadataProviderTests
         });
         var provider = CreateProvider(handler);
 
-        await Assert.ThrowsAsync<HttpRequestException>(
-            () => provider.GetItemsAsync("16.15.1", CancellationToken.None));
+        (await provider.GetItemsAsync("16.15.1", CancellationToken.None)).Status
+            .Should().Be(StaticDataStatus.Unavailable);
 
-        var items = await provider.GetItemsAsync("16.15.1", CancellationToken.None);
+        var items = (await provider.GetItemsAsync("16.15.1", CancellationToken.None)).Value!;
 
         items.Should().ContainKey(3172);
     }
@@ -403,8 +405,8 @@ public sealed class CommunityDragonItemMetadataProviderTests
         using var handler = new StatusHttpMessageHandler(HttpStatusCode.InternalServerError);
         var provider = CreateProvider(handler);
 
-        await Assert.ThrowsAsync<HttpRequestException>(
-            () => provider.GetItemsAsync("16.15.1", CancellationToken.None));
+        (await provider.GetItemsAsync("16.15.1", CancellationToken.None)).Status
+            .Should().Be(StaticDataStatus.Unavailable);
     }
 
     /// <summary>Each load takes a fresh client on the shared handler, as the host's factory hands out.</summary>

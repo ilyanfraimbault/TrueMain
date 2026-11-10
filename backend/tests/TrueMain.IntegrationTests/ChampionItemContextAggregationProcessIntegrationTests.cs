@@ -503,8 +503,8 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             [Kindlegem] = new(Kindlegem, 800, true, false, false, false, false, false),
         };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Metadata);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Metadata));
 
         private static ItemMetadata Final(int id, params string[] categories)
             => new(id, 3000, true, false, false, false, true, false)
@@ -523,7 +523,7 @@ public sealed class ChampionItemContextAggregationProcessIntegrationTests : IAsy
             [CoreItem] = new(CoreItem, 0, 0, 40, 0, 0, 0, 0, FrozenSet<string>.Empty),
         };
 
-        public Task<IReadOnlyDictionary<int, ItemStats>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Stats);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemStats>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemStats>>.Available(Stats));
     }
 }

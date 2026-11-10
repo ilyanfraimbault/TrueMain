@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using AwesomeAssertions;
 using Data.BuildFacts;
 using Data.Entities;
+using Data.Statics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -606,8 +607,8 @@ public sealed class CompositionBuildApiIntegrationTests : IAsyncLifetime
                 [3026] = new(3026, 3100, true, false, false, false, true, false),
             };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(
             string gameVersion, CancellationToken ct)
-            => Task.FromResult(Items);
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Items));
     }
 }

@@ -373,7 +373,9 @@ public sealed class MatchDataRetentionProcess(
         var deletedMatches = 0;
         var deletedParticipants = 0;
         var truncatedSeats = 0;
-        var itemMetadata = TruncatedMatchRetention.ItemMetadataReader(itemMetadataProvider, logger);
+        // Item data down: the truncated seats keep every fact but the items rather than failing the batch.
+        Func<string, CancellationToken, Task<IReadOnlyDictionary<int, ItemMetadata>?>> itemMetadata =
+            async (gameVersion, token) => (await itemMetadataProvider.GetItemsAsync(gameVersion, token)).Value;
 
         foreach (var batchIds in deletableMatchIds.Chunk(batchSize))
         {

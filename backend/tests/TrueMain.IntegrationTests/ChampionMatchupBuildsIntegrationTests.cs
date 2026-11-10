@@ -3,6 +3,7 @@ using Core.Lol.Map;
 using Core.Options;
 using Data.BuildFacts;
 using Data.Entities;
+using Data.Statics;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
@@ -222,8 +223,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
             db,
             new ParticipantBuildFactsLoader(
                 db,
-                new FakeItemMetadataProvider(),
-                NullLogger<ParticipantBuildFactsLoader>.Instance),
+                new FakeItemMetadataProvider()),
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions()),
             TestChampionReadCache.PassThrough(),
             NullLogger<ChampionMatchupBuildsQueryService>.Instance);
@@ -357,7 +357,7 @@ public sealed class ChampionMatchupBuildsIntegrationTests(PostgresFixture fixtur
                 [3026] = new(3026, 3100, true, false, false, false, true, false),
             };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Items);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Items));
     }
 }

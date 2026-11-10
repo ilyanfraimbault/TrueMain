@@ -4,8 +4,8 @@ namespace Data.Statics;
 public interface IItemStatsProvider
 {
     /// <summary>
-    /// The items of the patch <paramref name="gameVersion"/> belongs to. Throws when the source
-    /// is unreachable — a caller that can live without the in-game axes catches and carries on.
+    /// The items of the patch <paramref name="gameVersion"/> belongs to, or why there are none
+    /// (<see cref="StaticData{T}"/>). Never throws but on cancellation.
     /// </summary>
-    Task<IReadOnlyDictionary<int, ItemStats>> GetItemsAsync(string gameVersion, CancellationToken ct);
+    Task<StaticData<IReadOnlyDictionary<int, ItemStats>>> GetItemsAsync(string gameVersion, CancellationToken ct);
 }

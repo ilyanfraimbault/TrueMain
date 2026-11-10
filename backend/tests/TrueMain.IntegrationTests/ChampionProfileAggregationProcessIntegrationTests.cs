@@ -301,8 +301,8 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLi
             [ApItem] = Final(ApItem, "SpellDamage"),
         };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Metadata);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Metadata));
 
         private static ItemMetadata Final(int id, params string[] categories)
             => new(id, 3000, true, false, false, false, true, false)
@@ -313,11 +313,11 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLi
 
     private sealed class FakeChampionStaticsProvider(bool available) : IChampionStaticsProvider
     {
-        public Task<IReadOnlyDictionary<int, ChampionStatics>> GetChampionsAsync(string gameVersion, CancellationToken ct)
+        public Task<StaticData<IReadOnlyDictionary<int, ChampionStatics>>> GetChampionsAsync(string gameVersion, CancellationToken ct)
         {
             if (!available)
             {
-                throw new HttpRequestException("Data Dragon is down.");
+                return Task.FromResult(StaticData<IReadOnlyDictionary<int, ChampionStatics>>.Unavailable("Data Dragon is down."));
             }
 
             IReadOnlyDictionary<int, ChampionStatics> statics = new Dictionary<int, ChampionStatics>
@@ -325,7 +325,7 @@ public sealed class ChampionProfileAggregationProcessIntegrationTests : IAsyncLi
                 [Aatrox] = new(Aatrox, "Aatrox", 175),
                 [Caitlyn] = new(Caitlyn, "Caitlyn", 650),
             };
-            return Task.FromResult(statics);
+            return Task.FromResult(StaticData<IReadOnlyDictionary<int, ChampionStatics>>.Available(statics));
         }
     }
 }

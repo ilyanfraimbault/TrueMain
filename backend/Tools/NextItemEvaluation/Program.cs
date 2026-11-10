@@ -53,7 +53,7 @@ var testRecords = CsvRows.Records(File("tp.csv")).Skip(1).ToList();
 using var http = new HttpClientHandler();
 var metadataProvider = new CommunityDragonItemMetadataProvider(
     () => new HttpClient(http, disposeHandler: false), NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
-var metadata = await metadataProvider.GetItemsAsync(testRecords[0][13], CancellationToken.None);
+var metadata = (await metadataProvider.GetItemsAsync(testRecords[0][13], CancellationToken.None)).Require("Item metadata");
 var thresholds = new DraftAxisThresholds();
 
 // The test decisions, resolved once: every build edge and the boots of every test game,

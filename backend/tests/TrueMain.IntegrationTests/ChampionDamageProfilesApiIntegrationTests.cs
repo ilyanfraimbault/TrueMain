@@ -234,7 +234,7 @@ public sealed class ChampionDamageProfilesApiIntegrationTests : IAsyncLifetime
 
     private sealed class FakeChampionStaticsProvider : IChampionStaticsProvider
     {
-        public Task<IReadOnlyDictionary<int, ChampionStatics>> GetChampionsAsync(string gameVersion, CancellationToken ct)
+        public Task<StaticData<IReadOnlyDictionary<int, ChampionStatics>>> GetChampionsAsync(string gameVersion, CancellationToken ct)
         {
             IReadOnlyDictionary<int, ChampionStatics> statics = new Dictionary<int, ChampionStatics>
             {
@@ -242,7 +242,7 @@ public sealed class ChampionDamageProfilesApiIntegrationTests : IAsyncLifetime
                 [Zed] = new(Zed, "Zed", 125, AttackRating: 9, MagicRating: 1),
                 [Unrated] = new(Unrated, "Unrated", 125),
             };
-            return Task.FromResult(statics);
+            return Task.FromResult(StaticData<IReadOnlyDictionary<int, ChampionStatics>>.Available(statics));
         }
     }
 }
