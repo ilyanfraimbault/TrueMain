@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use shell_state::keys::{Chord, KeyCode};
+use keys::{Chord, KeyCode};
 
 use crate::auto_clips::AutoClipKind;
 use crate::marks::MarkLength;
