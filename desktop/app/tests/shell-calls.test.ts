@@ -133,3 +133,91 @@ describe('the recordings', () => {
     expect(recordings.status.value?.availability).toBe('missing')
   })
 })
+
+describe('the recordings library', () => {
+  it('runs each change through the shell, then reads the library again', async () => {
+    ipc.invoke.mockImplementation(async (name: string) => {
+      if (name === 'recording_delete') throw 'this recording is no longer on disk'
+      if (name === 'recording_library') return { games: [], clips: [], usedBytes: 0, budgetBytes: 1, folder: '/r' }
+      if (name === 'recording_status' || name === 'request_capture_permission') return { availability: 'ready', message: null, activity: { kind: 'idle' } }
+      if (name === 'recording_win_probability') throw 'unreadable'
+      return { id: 'x' }
+    })
+    vi.stubGlobal('onMounted', () => {})
+    const { useRecordings } = await import('~/composables/useRecordings')
+    const recordings = useRecordings()
+
+    await recordings.getRecording('game-1')
+    expect(await recordings.getWinProbability('game-1')).toBeNull()
+    await recordings.setKept('game-1', true)
+    expect(await recordings.deleteRecording('game-1')).toBe(false)
+    await recordings.saveClip('game-1', 0, 1000, 'Clip')
+    await recordings.checkMarkKey({ alt: true, shift: false, ctrl: false, meta: false, tab: false, key: 'KeyM' })
+    await recordings.updateClip('clip-1', { title: 'Renamed' })
+    await recordings.deleteClip('clip-1')
+    await recordings.reveal('/r/a.mp4')
+    await recordings.requestPermission()
+
+    expect(called().map(([name]) => name).filter(name => name !== 'recording_library')).toEqual([
+      'recording_get',
+      'recording_win_probability',
+      'recording_set_kept',
+      'recording_delete',
+      'clip_save',
+      'recording_check_mark_key',
+      'clip_update',
+      'clip_delete',
+      'reveal_recording_file',
+      'request_capture_permission',
+    ])
+    expect(called().find(([name]) => name === 'clip_update')![1]).toEqual({ id: 'clip-1', title: 'Renamed', favorite: null })
+    expect(toasts.map(toast => toast.title)).toEqual(['The game could not be deleted'])
+  })
+})
+
+describe('the live game', () => {
+  it('reads the game after listening, and applies the updates in order', async () => {
+    const game = { revision: 1, gameTime: 60, players: [] }
+    ipc.invoke.mockResolvedValue(game)
+    const { useLiveGame } = await import('~/composables/useLiveGame')
+    const live = useLiveGame()
+    await flush()
+    expect(live.game.value).toMatchObject({ revision: 1 })
+
+    ipc.listeners.get('game://update')!({ payload: { revision: 2, gameTime: 62, changes: [] } })
+    expect(live.game.value).toMatchObject({ revision: 2, gameTime: 62 })
+    ipc.listeners.get('game://snapshot')!({ payload: null })
+    expect(live.game.value).toBeNull()
+  })
+})
+
+describe('the shell\'s reads of TrueMain', () => {
+  it('ask the shell, and hand a status back as the shared pages read one', async () => {
+    vi.stubGlobal('trackLoad', (work: Promise<unknown>) => work)
+    ipc.invoke.mockImplementation(async (name: string, args: { path: string }) => {
+      if (args.path === '/players/nobody') throw 'TrueMain answered 404 Not Found for /players/nobody'
+      return { ok: name }
+    })
+    const { apiGet, apiPost, useApiFetch } = await import('~/composables/useApi')
+    expect(await apiGet('/truemains', { page: 2, empty: '' })).toEqual({ ok: 'api_get' })
+    expect(await apiPost('/champions/7/next-item', { gold: 1 })).toEqual({ ok: 'api_post' })
+    expect(called()[0]).toEqual(['api_get', { path: '/truemains', query: [['page', '2']] }])
+    expect(called()[1]).toEqual(['api_post', { path: '/champions/7/next-item', query: [], request: { gold: 1 } }])
+    await expect(useApiFetch()('/players/nobody')).rejects.toMatchObject({ statusCode: 404 })
+    expect(await useApiFetch()('/players/nobody', { ignoreResponseError: true })).toBeNull()
+  })
+})
+
+describe('the rune import', () => {
+  it('writes the page through the shell, and says a full book', async () => {
+    vi.stubGlobal('useLcuState', () => ({ state: ref({ connected: true }) }))
+    ipc.invoke.mockRejectedValueOnce('no-slot').mockResolvedValueOnce(null)
+    const { useRuneImport } = await import('~/composables/useRuneImport')
+    const runes = useRuneImport()
+    const page = { primaryStyleId: 8100, primaryKeystoneId: 8112, primaryPerk1Id: 1, primaryPerk2Id: 2, primaryPerk3Id: 3, secondaryStyleId: 8200, secondaryPerk1Id: 4, secondaryPerk2Id: 5, statOffense: 6, statFlex: 7, statDefense: 8 }
+    await runes.importRunes(page, 'Ahri')
+    await runes.importRunes(page, 'Ahri')
+    expect(called()[0]).toEqual(['import_runes', { champion: 'Ahri', page }])
+    expect(toasts.map(toast => toast.title)).toEqual(['No free rune page', 'Runes imported'])
+  })
+})
