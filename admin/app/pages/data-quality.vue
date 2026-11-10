@@ -38,23 +38,20 @@ const baseFilters = computed(() => ({
   minAgeHours: ageWindow.value === ALL ? undefined : Number(ageWindow.value),
 }))
 
-// Overview fetch: discovers which issue groups exist and their full counts under
-// the active filters. The per-group rows it returns are unused — each table
-// re-fetches its own paged slice — so it stays pinned to page 1.
+// Which checks flag matches under the active filters, and how many: each group's table
+// reads its own paged rows.
 const overviewFilters = computed(() => ({
   ...baseFilters.value,
   issue: issue.value === ALL ? undefined : issue.value,
-  page: 1,
-  pageSize,
 }))
 
 const hasActiveFilters = computed(
   () => issue.value !== ALL || queue.value !== ALL || ageWindow.value !== ALL,
 )
 
-const { data, pending, refreshing, error, refresh } = useIncompleteMatches(overviewFilters)
+const { data, pending, refreshing, error, refresh } = useIncompleteMatchCounts(overviewFilters)
 
-const groups = computed(() => data.value?.groups ?? [])
+const groups = computed(() => data.value?.counts ?? [])
 const total = computed(() => data.value?.total ?? 0)
 const staleHours = computed(() => data.value?.staleTimelineThresholdHours ?? 6)
 
