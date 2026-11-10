@@ -15,8 +15,12 @@ use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+
+pub mod commands;
+pub mod routes;
+
+pub use commands::ReplacedReads;
 
 /// Where the API lives: the proxy of the site this build belongs to
 /// (`site.rs`), which is the only surface that exists.
@@ -55,71 +59,36 @@ impl ApiClient {
         }
     }
 
-    pub async fn post<B: Serialize, T: DeserializeOwned>(
+    /// One read of `path`: a GET, or a POST of `body`, under the route's
+    /// deadline when it has one, else the client-wide one.
+    pub async fn read(
         &self,
+        method: routes::Method,
         path: &str,
-        body: &B,
-    ) -> Result<T, String> {
-        let request = self.http.post(format!("{}{path}", self.base)).json(body);
-        Self::read(request, path).await
-    }
-
-    /// `post` with its own deadline, for an endpoint known to run longer than
-    /// the client-wide one.
-    pub async fn post_within<B: Serialize, T: DeserializeOwned>(
-        &self,
-        path: &str,
-        body: &B,
-        timeout: Duration,
-    ) -> Result<T, String> {
-        let request = self
-            .http
-            .post(format!("{}{path}", self.base))
-            .json(body)
-            .timeout(timeout);
-        Self::read(request, path).await
-    }
-
-    /// `post_within` with a query string, for a paged POST read.
-    pub async fn post_query_within<Q: Serialize, B: Serialize, T: DeserializeOwned>(
-        &self,
-        path: &str,
-        query: &Q,
-        body: &B,
-        timeout: Duration,
-    ) -> Result<T, String> {
-        let request = self
-            .http
-            .post(format!("{}{path}", self.base))
-            .query(query)
-            .json(body)
-            .timeout(timeout);
-        Self::read(request, path).await
-    }
-
-    pub async fn get<Q: Serialize, T: DeserializeOwned>(
-        &self,
-        path: &str,
-        query: &Q,
-    ) -> Result<T, String> {
-        let request = self.http.get(format!("{}{path}", self.base)).query(query);
-        Self::read(request, path).await
-    }
-
-    /// `get` with its own deadline, for a read known to run longer than the
-    /// client-wide one.
-    pub async fn get_within<Q: Serialize, T: DeserializeOwned>(
-        &self,
-        path: &str,
-        query: &Q,
-        timeout: Duration,
-    ) -> Result<T, String> {
-        let request = self
-            .http
-            .get(format!("{}{path}", self.base))
-            .query(query)
-            .timeout(timeout);
-        Self::read(request, path).await
+        query: &[(String, String)],
+        body: Option<&serde_json::Value>,
+        deadline: Option<Duration>,
+    ) -> Result<serde_json::Value, ApiError> {
+        let url = format!("{}{path}", self.base);
+        let mut request = match method {
+            routes::Method::Get => self.http.get(url),
+            routes::Method::Post => self.http.post(url).json(&body),
+        }
+        .query(query);
+        if let Some(deadline) = deadline {
+            request = request.timeout(deadline);
+        }
+        let response = request.send().await.map_err(ApiError::unreachable)?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(ApiError::Answered {
+                status: status.as_u16(),
+                message: format!("TrueMain answered {status} for {path}"),
+            });
+        }
+        response.json().await.map_err(|error| ApiError::Unreadable {
+            message: format!("could not read TrueMain's answer: {error}"),
+        })
     }
 
     /// A POST whose answer carries nothing to read: a report, not a read —
@@ -138,25 +107,31 @@ impl ApiClient {
         }
         Ok(())
     }
+}
 
-    async fn read<T: DeserializeOwned>(
-        request: reqwest::RequestBuilder,
-        path: &str,
-    ) -> Result<T, String> {
-        let response = request
-            .send()
-            .await
-            .map_err(|e| format!("could not reach TrueMain: {e}"))?;
+/// Why a read the webview asked for has no answer. The webview tells an
+/// answer from TrueMain (`Answered`, a 404 read as "not found") from no
+/// answer at all (offline), and drops a read a newer one replaced.
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ApiError {
+    /// TrueMain answered an error status.
+    Answered { status: u16, message: String },
+    /// TrueMain could not be reached, or did not answer in time.
+    Unreachable { message: String },
+    /// TrueMain answered something the shell could not read.
+    Unreadable { message: String },
+    /// A newer request with the same `replaces` key took this one's place.
+    Superseded,
+    /// Not a read the app may make (`routes.rs`).
+    NotAllowed { message: String },
+}
 
-        let status = response.status();
-        if !status.is_success() {
-            return Err(format!("TrueMain answered {status} for {path}"));
+impl ApiError {
+    fn unreachable(error: reqwest::Error) -> Self {
+        Self::Unreachable {
+            message: format!("could not reach TrueMain: {error}"),
         }
-
-        response
-            .json::<T>()
-            .await
-            .map_err(|e| format!("could not read TrueMain's answer: {e}"))
     }
 }
 
@@ -169,7 +144,7 @@ impl Default for ApiClient {
 /// How long an answer stays good for a read asked again, identical.
 const REUSE_FOR: Duration = Duration::from_secs(2);
 
-type Answer = Result<serde_json::Value, String>;
+type Answer = Result<serde_json::Value, ApiError>;
 /// When the read was first asked, and its answer once it has one.
 type Read = (Instant, Arc<tokio::sync::OnceCell<Answer>>);
 
@@ -244,7 +219,7 @@ mod tests {
         let reads = SharedReads::default();
         let sent = AtomicU32::new(0);
         let failed = reads
-            .read("next".into(), || counted(&sent, Err("offline".into())))
+            .read("next".into(), || counted(&sent, Err(ApiError::Superseded)))
             .await;
         assert!(failed.is_err());
         let answered = reads

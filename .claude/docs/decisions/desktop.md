@@ -151,7 +151,7 @@ restricts the sampled games to that player's, every other rule unchanged — the
 hard filter. A main who never faced the lane opponent (or never played the champion on the lane) answers
 `matchupFound: false` or no game, and the view falls back to their usual build, saying "no game against this draft";
 a found one says "against this draft" with its game count, however small. The app asks it through the shell's shared
-POST rather than `composition_build`, whose single in-flight slot would cancel the draft's own build. Outside a draft
+POST without the draft's `replaces` key, which would cancel the draft's own build. Outside a draft
 (a champion's page) nothing changes (2026-10-08) — #1987.
 
 **Icons are bundled at build time, routes live in the hash, and images are drawn without a `load` gate.** The
@@ -1033,3 +1033,13 @@ refusal codes and the shell's defaults into one checked-in file, guarded by a Ru
 stale. Options considered: `ts-rs` (types only, the command and event names would stay hand-kept). A float is
 typed `number` (the shell never sends NaN), a TrueMain API body `unknown` (its shape is the API's contract)
 (2026-11-09) — #2494.
+
+**The shell's TrueMain reads are one route table, not code.** The allow-list was code mirroring the API's routes and
+the shared pages' reads, linked by nothing: 13 of `lib.rs`'s commits only edited it, a shared page could break the app
+with no desktop file touched — the dashboard's apex cutoffs were refused this way, silently — and four bespoke
+commands made a second door with its own deadlines. `src-tauri/api-routes.json` now lists each route (method, path as
+the OpenAPI document names it, deadline); the shell serves exactly those through `api_get`/`api_post`, a test checks
+each route against the OpenAPI document and another every read the app and `web/layers/common` make against the
+table. Superseding is the caller's (`replaces`), not the route's: two features post to the same route (2026-11-10) —
+#2551.
+

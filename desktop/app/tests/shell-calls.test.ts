@@ -195,14 +195,14 @@ describe('the shell\'s reads of TrueMain', () => {
   it('ask the shell, and hand a status back as the shared pages read one', async () => {
     vi.stubGlobal('trackLoad', (work: Promise<unknown>) => work)
     ipc.invoke.mockImplementation(async (name: string, args: { path: string }) => {
-      if (args.path === '/players/nobody') throw 'TrueMain answered 404 Not Found for /players/nobody'
+      if (args.path === '/players/nobody') throw { kind: 'answered', status: 404, message: 'TrueMain answered 404 Not Found for /players/nobody' }
       return { ok: name }
     })
     const { apiGet, apiPost, useApiFetch } = await import('~/composables/useApi')
     expect(await apiGet('/truemains', { page: 2, empty: '' })).toEqual({ ok: 'api_get' })
     expect(await apiPost('/champions/7/next-item', { gold: 1 })).toEqual({ ok: 'api_post' })
     expect(called()[0]).toEqual(['api_get', { path: '/truemains', query: [['page', '2']] }])
-    expect(called()[1]).toEqual(['api_post', { path: '/champions/7/next-item', query: [], request: { gold: 1 } }])
+    expect(called()[1]).toEqual(['api_post', { path: '/champions/7/next-item', query: [], request: { gold: 1 }, replaces: null }])
     await expect(useApiFetch()('/players/nobody')).rejects.toMatchObject({ statusCode: 404 })
     expect(await useApiFetch()('/players/nobody', { ignoreResponseError: true })).toBeNull()
   })

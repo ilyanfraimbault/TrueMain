@@ -68,7 +68,7 @@ describe('useChampionBuilds', () => {
     const answer = useChampionBuilds(ref(7), ref('JUNGLE'))
     await vi.waitFor(() => expect(answer.response.value).toEqual(builds))
 
-    expect(invoke).toHaveBeenCalledWith('champion_build', { championId: 7, position: 'JUNGLE', opponentChampionId: null })
+    expect(invoke).toHaveBeenCalledWith('api_get', { path: '/champions/7', query: [['position', 'JUNGLE']] })
   })
 })
 
@@ -108,8 +108,8 @@ describe('the draft requests through the shell', () => {
 
   it('ask the shell for the picks and the bans', async () => {
     inShell = true
-    invoke.mockImplementation(async (command: string) =>
-      command === 'draft_bans' ? { candidates: [] } : { enemyLanes: [], candidates: [] })
+    invoke.mockImplementation(async (_: string, args: { path: string }) =>
+      args.path === '/champions/draft/bans' ? { candidates: [] } : { enemyLanes: [], candidates: [] })
     const { useDraftRecommendation } = await import('~/composables/useDraftRecommendation')
     const { useDraftBans } = await import('~/composables/useDraftBans')
 
@@ -117,7 +117,8 @@ describe('the draft requests through the shell', () => {
     useDraftBans(ref(draft()), ref([103]), ref(true))
     await vi.advanceTimersByTimeAsync(200)
 
-    expect(invoke).toHaveBeenCalledWith('draft_recommendation', { request: expect.objectContaining({ position: 'MIDDLE' }) })
-    expect(invoke).toHaveBeenCalledWith('draft_bans', { request: expect.objectContaining({ position: 'MIDDLE' }) })
+    const post = (path: string) => ({ path, query: [], request: expect.objectContaining({ position: 'MIDDLE' }), replaces: null })
+    expect(invoke).toHaveBeenCalledWith('api_post', post('/champions/draft'))
+    expect(invoke).toHaveBeenCalledWith('api_post', post('/champions/draft/bans'))
   })
 })
