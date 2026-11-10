@@ -729,7 +729,10 @@ A `changes` job gates each of these jobs on what it compiles (#2218), as in
 `ci.yml`: the `Rust crates` job on the workspace manifests, `desktop/crates/`,
 `desktop/capture/windows/` and the fixtures their tests read (`desktop/fixtures/`,
 the app's dev scenarios); the Windows shell job on those, `desktop/src-tauri/`
-and the API's OpenAPI document its route table is checked against; the macOS
+and the API's OpenAPI document its route table is checked against, and the files
+whose copies the shell's tests pin (`src-tauri/src/pinned_settings.rs`: the
+site's image hosts and channel kinds, the app's Nuxt config, the overlay smoke
+script); the macOS
 spike on those and `desktop/capture/macos/`; the Windows overlay on the shell's
 paths and `desktop/app/`, its smoke script and the fixtures it replays; the
 `Nuxt app` job on `desktop/app/`, the site's two shared paths, the shell's route
