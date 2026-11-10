@@ -92,7 +92,6 @@ public sealed class ChampionMatchupLeadAggregationProcess(
     ILogger<ChampionMatchupLeadAggregationProcess> logger,
     IOptions<MainAnalysisOptions> analysisOptions,
     IOptions<MatchupLeadAggregationOptions> options,
-    IOptions<LaneOutcomeAggregationOptions> laneOptions,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     TimeProvider timeProvider) : IIngestorProcess
 {
@@ -119,7 +118,7 @@ public sealed class ChampionMatchupLeadAggregationProcess(
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;
         var maxPerRun = options.Value.MaxMatchesPerRun;
-        var goldLeadThreshold = laneOptions.Value.GoldLeadThreshold;
+        var goldLeadThreshold = LaneOutcomeRules.GoldLeadThreshold;
         var aggregatedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
 
         var judgedLanes = 0;

@@ -151,14 +151,17 @@ because the icon's link would otherwise navigate first. The optional hardest/eas
 strip still carries no counts or extremes — #2354.
 
 **Lane win rate stores three counters and divides by the *decided* lanes, not by games played.**
-A gold *threshold* at 15 min (`LaneOutcomeAggregation:GoldLeadThreshold`, 300) is what defines a won lane, and
+A gold *threshold* at 15 min (`LaneOutcomeRules.GoldLeadThreshold`, 300) is what defines a won lane, and
 a threshold necessarily creates a third outcome: lanes inside the band were neither won nor lost. Folding those
 into losses would print "lane lost" where nothing was decided, so wins and losses are stored separately and the
 rate divides by their sum. `LaneGames` is separate from the matchup's `Games` for a different reason: a match
 with no ingested timeline, or one that ended before 15 minutes, is a game but not a judgeable lane — dividing
-by `Games` would understate every lane win rate by the share of those. The threshold is configurable because it
-is a product judgement, but changing it re-defines every stored counter and frozen patches can never be
-recomputed (#466), so old rows keep the threshold in force when they were folded.
+by `Games` would understate every lane win rate by the share of those. The threshold is a product judgement,
+and changing it re-defines every stored counter and frozen patches can never be recomputed (#466), so old rows
+keep the threshold in force when they were folded (each fold run records it in its summary). It is one constant
+read by the fold and by the API's live passes, not an option per host: two options sharing a default let one
+deployment override split the champion page from the matchup tool (2026-11-10, revises the configurable
+threshold) — #2481.
 ⚠️ #919's own premise was stale: it assumed the per-matchup 15-min leads were already aggregated from #606/#595,
 but #889 dropped that aggregate with the "Lead vs role opponent" chart. What survives is the raw timeline
 snapshot at the canonical marks, which is why the fold flag could ship `false` and pick up the whole retained

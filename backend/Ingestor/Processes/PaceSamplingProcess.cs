@@ -1,5 +1,6 @@
 using Core;
 using Core.Lol.Identifiers;
+using Core.Lol.Map;
 using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Data.Aggregation;
@@ -58,8 +59,8 @@ public sealed class PaceSamplingProcess(
     /// <inheritdoc />
     public TimeSpan MinRunInterval => paceSamplingOptions.Value.MinRunInterval;
 
-    private const string RankedSoloQueue = "RANKED_SOLO_5x5";
-    private const int RankedSoloQueueId = 420;
+    private const string RankedSoloQueue = LeagueQueueType.RankedSolo;
+    private const int RankedSoloQueueId = (int)LolQueueId.RankedSoloDuo;
 
     /// <summary>Calls one more game costs: its match and its timeline.</summary>
     private const int CallsPerMatch = 2;

@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Core.Lol.Lane;
 using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Core.Options;
@@ -29,7 +30,7 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
     private const int Opponent = 238;    // Their lane opponent.
     private const string Position = "MIDDLE";
     private const string RawVersion = "16.4.521.123";
-    private const int Threshold = 300;
+    private const int Threshold = LaneOutcomeRules.GoldLeadThreshold;
 
     /// <summary>Experience both sides carry unless a case sets them apart.</summary>
     private const int DefaultXp = 8_000;
@@ -289,7 +290,6 @@ public sealed class ChampionMatchupLaneOutcomeIntegrationTests : IAsyncLifetime
             NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(new MainAnalysisOptions { QueueId = LolQueueId.RankedSoloDuo }),
             Microsoft.Extensions.Options.Options.Create(new MatchupLeadAggregationOptions()),
-            Microsoft.Extensions.Options.Options.Create(new LaneOutcomeAggregationOptions { GoldLeadThreshold = Threshold }),
             new TestDbContextFactory(_fixture),
             TimeProvider.System);
 

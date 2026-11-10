@@ -59,7 +59,7 @@ internal static class PlayerLaneOutcomes
 
             var gold = self.TotalGold - opponent.TotalGold;
             var tally = tallies.GetValueOrDefault(pair.Opponent);
-            var standing = LaneOutcomeRules.Judge(gold, LaneOutcomeRules.DefaultGoldLeadThreshold);
+            var standing = LaneOutcomeRules.Judge(gold, LaneOutcomeRules.GoldLeadThreshold);
             tallies[pair.Opponent] = tally with
             {
                 Wins = tally.Wins + (standing == LaneStanding.Won ? 1 : 0),

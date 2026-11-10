@@ -121,17 +121,6 @@ public static class IngestorEffectiveConfigurationCatalog
             + "watched and how often a held-back worker reads them again."
     };
 
-    private static EffectiveConfigurationSectionDescriptor LaneOutcomeAggregation { get; } = new()
-    {
-        SectionName = LaneOutcomeAggregationOptions.SectionName,
-        OptionsType = typeof(LaneOutcomeAggregationOptions),
-        Title = "Lane outcome aggregation",
-        Description =
-            "The gold gap at 15 minutes above which a lane counts as won, and below whose "
-            + "negative it counts as lost. Read by the matchup fold and by the live pass "
-            + "behind the draft tool, so both call the same lanes won."
-    };
-
     private static EffectiveConfigurationSectionDescriptor MatchDataRetention { get; } = new()
     {
         SectionName = MatchDataRetentionOptions.SectionName,
@@ -198,7 +187,6 @@ public static class IngestorEffectiveConfigurationCatalog
             IngestionBackpressure,
             Coverage,
             Intake,
-            LaneOutcomeAggregation,
             MatchDataRetention
         ]);
 }
