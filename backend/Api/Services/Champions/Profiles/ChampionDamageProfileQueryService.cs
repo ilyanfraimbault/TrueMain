@@ -42,8 +42,7 @@ public interface IChampionDamageProfileQueryService
 public sealed class ChampionDamageProfileQueryService(
     TrueMainDbContext db,
     IChampionReadCache cache,
-    IChampionStaticsProvider statics,
-    ILogger<ChampionDamageProfileQueryService> logger) : IChampionDamageProfileQueryService
+    IChampionStaticsProvider statics) : IChampionDamageProfileQueryService
 {
     public Task<ChampionDamageProfilesResponse> GetAsync(string? patch, CancellationToken ct)
     {
@@ -145,15 +144,8 @@ public sealed class ChampionDamageProfileQueryService(
         IReadOnlySet<int> measured,
         CancellationToken ct)
     {
-        IReadOnlyDictionary<int, ChampionStatics> champions;
-        try
+        if ((await statics.GetChampionsAsync(patch, ct)).Value is not { } champions)
         {
-            champions = await statics.GetChampionsAsync(patch, ct);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception,
-                "Champion statics unavailable for patch {Patch}; the damage profiles are served without fallbacks.", patch);
             return [];
         }
 

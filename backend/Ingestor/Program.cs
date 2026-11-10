@@ -100,28 +100,18 @@ builder.Services.AddSingleton<IngestionBackpressure>();
 builder.Services.AddScoped<IMainStatsCalculator, MainStatsCalculator>();
 builder.Services.AddScoped<IMainDemotionPolicy, MainDemotionPolicy>();
 builder.Services.AddScoped<IChampionCoverageProvider, ChampionCoverageProvider>();
-// CommunityDragon is a community-run mirror: it is flakier than the Riot API and lags
-// behind on patch day, so the item-metadata fetch runs behind the same standard
-// resilience handler as the Riot clients (#251). The provider fetches with
-// CancellationToken.None (it caches the in-flight task per patch), so the pipeline's
-// total timeout — and the client timeout above it — are the only bounds on the call.
+// Static game data (CommunityDragon item metadata, Data Dragon champion statics and item
+// stats) rides one client behind the standard resilience handler (#251, #1449, #1750):
+// community-run or static-file CDNs, flakier than the Riot API and late on patch day, with
+// no Retry-After semantics. The providers load with CancellationToken.None (the in-flight
+// task is shared), so the pipeline's total timeout — and the client timeout above it — are
+// the only bounds on a load.
 builder.Services
-    .AddCommunityDragonItemMetadata(ConfigureCommunityDragonClient)
+    .AddHttpClient(StaticGameDataServiceCollectionExtensions.ClientName, ConfigureCommunityDragonClient)
     .AcceptCompressedResponses()
     .AddCommunityDragonResilienceHandler();
-// Data Dragon has the same profile as CommunityDragon for our purposes — a static-file
-// CDN fetched once per patch and cached in-process, with no Retry-After semantics — so
-// the champion-statics client (#1449, the profile fold's ranged flag) rides the same
-// options and resilience pipeline rather than a third tuning of the standard handler.
-builder.Services
-    .AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>(ConfigureCommunityDragonClient)
-    .AcceptCompressedResponses()
-    .AddCommunityDragonResilienceHandler();
-// Item stats for the item-context fold's in-game axes (#1750): the same Data Dragon profile.
-builder.Services
-    .AddHttpClient<IItemStatsProvider, DataDragonItemStatsProvider>(ConfigureCommunityDragonClient)
-    .AcceptCompressedResponses()
-    .AddCommunityDragonResilienceHandler();
+builder.Services.AddStaticGameData(provider => provider.GetRequiredService<IHttpClientFactory>()
+    .CreateClient(StaticGameDataServiceCollectionExtensions.ClientName));
 builder.Services.AddScoped<ChampionPatternSourceRowReader>();
 builder.Services.AddScoped<ChampionPatternAggregateBuilder>();
 builder.Services.AddScoped<ChampionPatternAggregatePersister>();

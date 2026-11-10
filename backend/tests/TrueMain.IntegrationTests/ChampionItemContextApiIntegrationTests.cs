@@ -4,6 +4,7 @@ using AwesomeAssertions;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
+using Data.Statics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -180,8 +181,8 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
             [Cowl] = new(Cowl, 1250, true, false, false, false, false, false),
         };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Items);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Items));
     }
 
     private static ChampionItemComponentOrder Order(int item, int component, int rank, int games)

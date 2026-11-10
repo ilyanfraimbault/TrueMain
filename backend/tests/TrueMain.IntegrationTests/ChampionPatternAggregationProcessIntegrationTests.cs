@@ -5,6 +5,7 @@ using Core.Options;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.Repositories;
+using Data.Statics;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.PatternAggregation;
@@ -912,8 +913,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             [6672] = new(6672, 3000, true, false, false, false, true, false)
         };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Metadata);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Metadata));
     }
 
 }
