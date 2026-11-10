@@ -75,25 +75,6 @@ public static class PipelineCatalog
         RunsAfter = [JobMode.ManualSeedOnly, JobMode.ScoringOnly, JobMode.MainActivityOnly]
     };
 
-    public static PipelineProcess TeamPositionCorrection { get; } = new()
-    {
-        Mode = JobMode.TeamPositionCorrectionOnly,
-        Name = "MatchTeamPositionCorrection",
-        Lane = PipelineLane.Aggregate,
-        Label = "Lane Position Fix",
-        Description = "Fills in the lane of a participant Riot left blank, for the unambiguous case where only one position in the team is missing."
-    };
-
-    public static PipelineProcess RoleBoundItemBackfill { get; } = new()
-    {
-        Mode = JobMode.RoleBoundItemBackfillOnly,
-        Name = "MatchRoleBoundItemBackfill",
-        Lane = PipelineLane.Aggregate,
-        Label = "Role Slot Backfill",
-        Description = "Recovers the boots of bot laners stored before Riot's role-bound slot was recorded, from their item timeline.",
-        RunsAfter = [JobMode.TeamPositionCorrectionOnly]
-    };
-
     public static PipelineProcess MainAnalysis { get; } = new()
     {
         Mode = JobMode.MainAnalysisOnly,
@@ -236,7 +217,7 @@ public static class PipelineCatalog
         Lane = PipelineLane.Aggregate,
         Label = "Champion Game Counts",
         Description = "Recounts the stored games per champion, region, patch and lane from the raw matches, so the Champions page and the Overview read a small table instead of scanning every participant. At most every half hour, after retention, so a deleted patch stops counting.",
-        RunsAfter = [JobMode.MatchDataRetentionOnly, JobMode.TeamPositionCorrectionOnly]
+        RunsAfter = [JobMode.MatchDataRetentionOnly]
     };
 
     public static PipelineProcess CandidateStockSnapshot { get; } = new()
@@ -269,8 +250,6 @@ public static class PipelineCatalog
         Scoring,
         MainActivity,
         MatchIngestion,
-        TeamPositionCorrection,
-        RoleBoundItemBackfill,
         MainAnalysis,
         EloBracketEnrichment,
         PatternAggregation,
