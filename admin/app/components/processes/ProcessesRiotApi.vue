@@ -10,9 +10,7 @@
 //
 // This component owns every fetch and the filters; the cards below it
 // (`ProcessesRiot*`, `ProcessesIngestorMeter`) only draw what they are handed.
-import type {
-  RiotUsageWindow,
-} from '~~/shared/types/ops'
+import type { RiotUsageWindow } from '~~/shared/types/ops/riot-usage'
 import type { RiotApiCallerUsageReadModel, RiotApiEndpointUsageReadModel, RiotApiStatusCountReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 

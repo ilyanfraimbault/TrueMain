@@ -15,9 +15,7 @@
 // did not move, and the curve read as if intake had stopped. Accounts answer "is intake
 // still moving"; rows are what the queue actually holds. The rows-per-account line under
 // the chart is what tells the two kinds of change apart.
-import type {
-  IngestionTimeGranularity,
-} from '~~/shared/types/ops'
+import type { IngestionTimeGranularity } from '~~/shared/types/ops/stats'
 import type { CandidateFunnelBucket, CandidateStockAccounts, CandidateStockReadModel } from '#site-shared/contract/api'
 import { formatNumber } from '~~/shared/utils/format'
 

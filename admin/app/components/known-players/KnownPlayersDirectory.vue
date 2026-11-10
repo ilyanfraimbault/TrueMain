@@ -3,7 +3,7 @@
 // Riot accounts under, with what still needs a decision (an account in conflict,
 // one TrueMain does not track yet). A row opens the edit panel; "Add" creates one
 // by hand. `?player=<id>` deep-links the panel.
-import type { PersonaListView } from '~~/shared/types/ops'
+import type { PersonaListView } from '~~/shared/types/ops/known-players'
 import type { PersonaEditedResponse, PersonaListRowReadModel } from '#site-shared/contract/api'
 import { computed, ref, watch } from 'vue'
 import { formatNumber } from '~~/shared/utils/format'

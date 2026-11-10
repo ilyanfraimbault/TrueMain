@@ -1,4 +1,4 @@
-import type { BadgeColor } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
 import type { DetectorStatus } from '#site-shared/contract/api'
 
 /**

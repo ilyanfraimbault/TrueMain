@@ -1,7 +1,7 @@
 // What the known-players management (#2019) says about a known player and the
 // operator's edits. Kept under `shared/` so it is importable — and tested —
 // without the Nuxt runtime.
-import type { PersonaListView } from '~~/shared/types/ops'
+import type { PersonaListView } from '~~/shared/types/ops/known-players'
 import type { PersonaAdminAccountReadModel, PersonaExclusionReason, PersonaListRowReadModel } from '#site-shared/contract/api'
 import { TRACKED_REGIONS } from '~~/shared/utils/regions'
 import { riotIdError, splitRiotId } from '#site-shared/utils/riot-id'

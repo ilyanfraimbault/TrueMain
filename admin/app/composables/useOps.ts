@@ -1,5 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type { IngestionTimeGranularity, MatchTimeGranularity } from '~~/shared/types/ops'
+import type { IngestionTimeGranularity, MatchTimeGranularity } from '~~/shared/types/ops/stats'
 import type { BodyOf, GetPath, GetQuery, GetResponse, Method, PathOf, PathParamsOf, QueryOf, ResponseOf } from '#site-shared/contract/routes'
 import { fillPath } from '#site-shared/contract/routes'
 

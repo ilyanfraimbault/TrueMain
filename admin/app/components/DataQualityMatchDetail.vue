@@ -5,9 +5,7 @@
 // Extracted from pages/data-quality.vue (#992) so the page reads as the layout
 // it now is — a verdict, a list of checks and a list of flagged matches —
 // instead of burying two hundred lines of slide-over markup between them.
-import type {
-  IssueMeta,
-} from '~~/shared/types/ops'
+import type { IssueMeta } from '~/utils/data-quality'
 import type { DataQualityIssueType, MatchDataQualityDetailReadModel, MatchTeamReadModel } from '#site-shared/contract/api'
 import { POSITION_BY_VALUE } from '#site-shared/utils/positions'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'

@@ -15,10 +15,7 @@ import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 const statusFilter = ref<'all' | SeedRequestStatus>(ALL)
 const statusFilterItems = [
   { label: 'All statuses', value: ALL },
-  { label: 'Pending', value: 'Pending' },
-  { label: 'Resolving', value: 'Resolving' },
-  { label: 'Ingested', value: 'Ingested' },
-  { label: 'Failed', value: 'Failed' },
+  ...SEED_STATUSES.map(status => ({ label: status, value: status })),
 ]
 const regionFilter = ref<string>(ALL)
 const searchFilter = ref('')

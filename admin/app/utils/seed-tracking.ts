@@ -1,5 +1,4 @@
 import type { SeedRequestReadModel, SeedRequestStatus } from '#site-shared/contract/api'
-import { TERMINAL_SEED_STATUSES } from '~~/shared/types/ops'
 
 /**
  * Where the Add-mains single seed stands (#2471): one value instead of five refs
@@ -21,8 +20,16 @@ export type SeedTracking =
   | { s: 'settled', request: SeedRequestReadModel }
   | { s: 'timedOut', request: SeedRequestReadModel }
 
+/** Whether a request has settled: polling it again cannot change its answer. */
+const SEED_STATUS_TERMINAL: Record<SeedRequestStatus, boolean> = {
+  Pending: false,
+  Resolving: false,
+  Ingested: true,
+  Failed: true,
+}
+
 export function isTerminalSeedStatus(status: SeedRequestStatus): boolean {
-  return TERMINAL_SEED_STATUSES.includes(status)
+  return SEED_STATUS_TERMINAL[status]
 }
 
 /** The request a state tracks, if any. */
