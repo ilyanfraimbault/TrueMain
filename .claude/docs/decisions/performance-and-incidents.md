@@ -435,3 +435,22 @@ Rejected: a rollup table written by the aggregation lane (#1945). It would make 
 the tree-walk out of the API for a gain the warm-up already gets without a schema change.
 
 Source: #2425, #1945, #1368.
+
+## Every cached Api read goes through one door; an unavailable measurement is a value (2026-11-10)
+
+**Decision.** `ApiCache.GetOrComputeAsync(key, lifetime, compute, ct, size, failureBackoff)` is the one
+read-through primitive of the Api: presence-checked cache, a shared single flight whose pass runs detached from
+any one caller (the owner waits for it, its scoped `DbContext` being borrowed), a sized entry, and an optional
+failure backoff (keyed apart from a versioned key, so a failed read is not retried because the version moved).
+`ChampionReadCache` is that door plus the aggregation version; the leaderboard, the in-game lookup, the nav
+counts, champion stats, benchmarks, apex cutoffs, region balance, run baselines, activity bounds and the player
+performance panel go through it instead of `TryGetValue` + `Store` (+ coalescer, + backoff) by hand. A cached
+read kept warm in the background is registered by one helper (`AddWarmCachedRead`). An ops measurement that
+fails is a `Measured<T>` from one guard (`Measurements`): logged once, its reason never raw exception text in
+production — the patch-coverage and data-quality panels used to echo `ex.Message`.
+
+**Why.** Five caching primitives and four services hand-composing them, each restating the "request-scoped
+`DbContext` inside a detached task" caveat; seven more reads with no single flight; the decorator + warm-payload
+pair wired by hand four times; eight "measurement unavailable" catch blocks with eight result shapes. — #2575 (F15
+of #2481, part A; the warm pass's ambient version is part B)
+

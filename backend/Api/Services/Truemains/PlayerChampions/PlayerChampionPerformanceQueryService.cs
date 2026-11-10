@@ -96,11 +96,20 @@ public sealed class PlayerChampionPerformanceQueryService(
 
         var cacheKey = $"truemains:champion-performance:{account.Id}:{championId}"
                        + $":{normalizedPatch ?? "all"}:{normalizedPosition ?? "all"}";
-        if (cache.TryGetValue<PlayerChampionPerformanceResponse>(cacheKey, out var cached) && cached is not null)
-        {
-            return cached;
-        }
+        return await cache.GetOrComputeAsync(
+            cacheKey,
+            CacheTtl,
+            token => ComputeAsync(account, championId, normalizedPatch, normalizedPosition, token),
+            ct);
+    }
 
+    private async Task<PlayerChampionPerformanceResponse> ComputeAsync(
+        TruemainAccountRef account,
+        int championId,
+        string? normalizedPatch,
+        string? normalizedPosition,
+        CancellationToken ct)
+    {
         var queueId = (int)options.Value.QueueId;
         // The player's own rows on the champion, newest first, bounded to the
         // window. Only the match ids are needed here — every stat is re-read
@@ -126,7 +135,7 @@ public sealed class PlayerChampionPerformanceQueryService(
 
         if (windowMatchIds.Count == 0)
         {
-            return Cache(cacheKey, Empty(championId, normalizedPosition, normalizedPatch));
+            return Empty(championId, normalizedPosition, normalizedPatch);
         }
 
         var matchIds = windowMatchIds.Select(m => m.MatchId).ToList();
@@ -244,14 +253,7 @@ public sealed class PlayerChampionPerformanceQueryService(
                 topOfTeam: selfPlacement.IsMvp || selfPlacement.IsAce);
         }
 
-        return Cache(cacheKey, accumulator.ToResponse(championId, normalizedPosition, normalizedPatch));
-    }
-
-    private PlayerChampionPerformanceResponse Cache(
-        string cacheKey,
-        PlayerChampionPerformanceResponse response)
-    {
-        return cache.Store(cacheKey, response, CacheTtl);
+        return accumulator.ToResponse(championId, normalizedPosition, normalizedPatch);
     }
 
     private PlayerChampionPerformanceResponse Empty(int championId, string? position, string? patch)
