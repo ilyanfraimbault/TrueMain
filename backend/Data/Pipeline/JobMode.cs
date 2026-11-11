@@ -23,7 +23,7 @@ public enum JobMode
     MatchupLeadAggregationOnly = 10,
     EloBracketEnrichmentOnly = 11,
     // 12 was PowerspikeAggregationOnly (retired).
-    TeamPositionCorrectionOnly = 13,
+    // 13 was TeamPositionCorrectionOnly (retired #2481).
     MainActivityOnly = 14,
     SynergyAggregationOnly = 15,
     BanAggregationOnly = 16,
@@ -35,7 +35,7 @@ public enum JobMode
     CandidateStockSnapshotOnly = 23,
     ChampionProfileAggregationOnly = 24,
     ChampionItemContextAggregationOnly = 25,
-    RoleBoundItemBackfillOnly = 26,
+    // 26 was RoleBoundItemBackfillOnly (retired #2481).
     PaceSamplingOnly = 27,
     OpponentAggregationOnly = 28,
     ChampionGameCountRefreshOnly = 29,

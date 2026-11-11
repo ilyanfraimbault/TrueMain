@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Data.Entities;
 using Data.Pipeline;
 using Ingestor.Processes.Components.ItemContextAggregation;
 
@@ -22,8 +23,18 @@ namespace Ingestor.Processes.Summaries;
 /// <summary>Nothing to do: no input selected for this run.</summary>
 public sealed record NoWorkSummary(string Reason, int Selected) : IProcessRunSummary;
 
-/// <summary>The run was deliberately skipped (e.g. a cadence guard).</summary>
-public sealed record SkippedSummary(string Reason, bool Skipped) : IProcessRunSummary;
+/// <summary>
+/// The run deliberately declined its work (a cadence guard, a spent daily budget), so it is
+/// recorded <see cref="ProcessRunStatus.Skipped"/> and a cadence guard never measures from it
+/// (#1149).
+/// </summary>
+public sealed record SkippedSummary(string Reason) : IProcessRunSummary
+{
+    /// <summary>Always true; kept so the stored JSON keeps its <c>skipped</c> key.</summary>
+    public bool Skipped { get; } = true;
+
+    ProcessRunStatus IProcessRunSummary.Status => ProcessRunStatus.Skipped;
+}
 
 /// <summary>Harvest had nothing to do.</summary>
 public sealed record HarvestNoWorkSummary(
@@ -244,11 +255,7 @@ public sealed record ChampionPatternAggregationSummary(
 /// <summary>Elo-bracket enrichment outcome.</summary>
 public sealed record EloBracketEnrichmentSummary(int Stamped, int Deferred, int Batches) : IProcessRunSummary;
 
-/// <summary>Team position correction outcome.</summary>
-public sealed record TeamPositionCorrectionSummary(int CorrectedParticipants, int InspectedTeams) : IProcessRunSummary;
 
-/// <summary>Role-bound slot backfill outcome (#1612).</summary>
-public sealed record RoleBoundItemBackfillSummary(int Resolved, int InferredBoots, int Batches) : IProcessRunSummary;
 
 /// <summary>
 /// Champion synergy aggregation outcome (#922). Carries the two upsert counts on
@@ -401,8 +408,9 @@ public sealed record MatchDataRetentionSummary(
     int DeletedIntermediateSnapshots,
     int DeletedAggregateScopes,
     int DeletedMatchupStats,
-    // Pair rows and the baselines they are read against, summed (#922) — they are
-    // deleted together in one transaction, so one counter describes both.
+    // Same-team pair rows and the baselines they are read against, summed (#922) — they are
+    // deleted together in one transaction, so one counter describes both. Before #2481 (F20)
+    // the opposing pairs were counted here too; they have their own counter below.
     int DeletedSynergyStats,
     // The build half of the two-level retention (#1958): patches whose patterns and panel
     // tables this run purged (their scopes and light record stay), and the patterns removed.
@@ -410,4 +418,11 @@ public sealed record MatchDataRetentionSummary(
     int DeletedBuildPatterns,
     IReadOnlyList<RetainedPatchesSummary> RetainedPatchesByPlatform,
     // Whether this run deleted enough participants to vacuum the raw match tables (#2444).
-    bool VacuumedAfterPurge) : IProcessRunSummary;
+    bool VacuumedAfterPurge,
+    // The other panel families of the full purge (#2481, F20), counted on their own instead of
+    // folded into the synergy counter or dropped. Appended last so the earlier keys keep their
+    // wire order.
+    int DeletedOpponentStats = 0,
+    int DeletedScalingStats = 0,
+    int DeletedContextStats = 0,
+    int DeletedBenchmarkStats = 0) : IProcessRunSummary;

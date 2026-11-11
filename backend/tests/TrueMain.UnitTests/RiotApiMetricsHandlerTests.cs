@@ -4,6 +4,7 @@ using Data.Metrics.Mongo;
 using Ingestor.Riot;
 using Ingestor.Services;
 using NSubstitute;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace TrueMain.UnitTests;
 
@@ -25,10 +26,9 @@ public sealed class RiotApiMetricsHandlerTests
         // `handler` owns the inner stub; the invoker is told not to dispose the
         // handler (disposeHandler: false) so each disposable is released exactly
         // once by its own `using`.
-        using var handler = new RiotApiMetricsHandler(recorder, callerContext) { InnerHandler = new StubHandler(response) };
+        using var handler = new RiotApiMetricsHandler(recorder, callerContext, TimeProvider.System, NullLogger<RiotApiMetricsHandler>.Instance) { InnerHandler = new StubHandler(response) };
         using var invoker = new HttpMessageInvoker(handler, disposeHandler: false);
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get, "https://europe.api.riotgames.com/lol/match/v5/matches/EUW1_1");
+        using var request = RiotCall.Get(RiotEndpoint.Match, "europe", "/lol/match/v5/matches/EUW1_1");
 
         using var result = await invoker.SendAsync(request, CancellationToken.None);
 
@@ -56,10 +56,9 @@ public sealed class RiotApiMetricsHandlerTests
         response.Headers.TryAddWithoutValidation("Retry-After", "5");
         response.Headers.TryAddWithoutValidation("X-Rate-Limit-Type", "application");
 
-        using var handler = new RiotApiMetricsHandler(recorder, callerContext) { InnerHandler = new StubHandler(response) };
+        using var handler = new RiotApiMetricsHandler(recorder, callerContext, TimeProvider.System, NullLogger<RiotApiMetricsHandler>.Instance) { InnerHandler = new StubHandler(response) };
         using var invoker = new HttpMessageInvoker(handler, disposeHandler: false);
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get, "https://europe.api.riotgames.com/lol/match/v5/matches/EUW1_1/timeline");
+        using var request = RiotCall.Get(RiotEndpoint.MatchTimeline, "europe", "/lol/match/v5/matches/EUW1_1/timeline");
 
         using var result = await invoker.SendAsync(request, CancellationToken.None);
 
@@ -82,13 +81,12 @@ public sealed class RiotApiMetricsHandlerTests
         // defaults an unconfigured string member to "", so this must be explicit.
         callerContext.CurrentCaller.Returns((string?)null);
 
-        using var handler = new RiotApiMetricsHandler(recorder, callerContext)
+        using var handler = new RiotApiMetricsHandler(recorder, callerContext, TimeProvider.System, NullLogger<RiotApiMetricsHandler>.Instance)
         {
             InnerHandler = new StubHandler(new HttpRequestException("boom"))
         };
         using var invoker = new HttpMessageInvoker(handler, disposeHandler: false);
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get, "https://euw1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/PUUID");
+        using var request = RiotCall.Get(RiotEndpoint.SummonerByPuuid, "euw1", "/lol/summoner/v4/summoners/by-puuid/PUUID");
 
         var act = async () => await invoker.SendAsync(request, CancellationToken.None);
 

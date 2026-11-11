@@ -16,8 +16,9 @@ public sealed class RiotAccountClient : IRiotAccountClient
 
     public async Task<RiotAccountDto> GetAccountByPuuidAsync(string puuid, RegionalRoute region, CancellationToken ct)
     {
-        var uri = BuildRegionalUri(region, $"/riot/account/v1/accounts/by-puuid/{puuid}");
-        return await _httpClient.GetFromJsonStreamingAsync<RiotAccountDto>(uri, ct);
+        return await _httpClient.GetFromJsonStreamingAsync<RiotAccountDto>(
+            RiotCall.Get(RiotEndpoint.AccountByPuuid, region.ToRegionalHost(), $"/riot/account/v1/accounts/by-puuid/{puuid}"),
+            ct);
     }
 
     public async Task<RiotAccountDto?> GetByRiotIdAsync(string gameName, string tagLine, RegionalRoute regional, CancellationToken ct)
@@ -27,9 +28,11 @@ public sealed class RiotAccountClient : IRiotAccountClient
         // the Riot ID maps to a valid URL (e.g. a space becomes %20).
         var encodedName = Uri.EscapeDataString(gameName);
         var encodedTag = Uri.EscapeDataString(tagLine);
-        var uri = BuildRegionalUri(regional, $"/riot/account/v1/accounts/by-riot-id/{encodedName}/{encodedTag}");
-
-        using var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var request = RiotCall.Get(
+            RiotEndpoint.AccountByRiotId,
+            regional.ToRegionalHost(),
+            $"/riot/account/v1/accounts/by-riot-id/{encodedName}/{encodedTag}");
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
 
         // A 404 means Riot has no account for this Riot ID — a normal "not found"
         // outcome the seed flow surfaces to the caller, not a fault. Any other
@@ -43,12 +46,6 @@ public sealed class RiotAccountClient : IRiotAccountClient
         }
 
         await response.EnsureSuccessDrainingAsync(ct);
-        return await response.ReadFromJsonStreamingAsync<RiotAccountDto>(uri, ct);
-    }
-
-    private static Uri BuildRegionalUri(RegionalRoute region, string path)
-    {
-        var host = region.ToRegionalHost();
-        return new Uri($"https://{host}.api.riotgames.com{path}");
+        return await response.ReadFromJsonStreamingAsync<RiotAccountDto>(request.RequestUri, ct);
     }
 }

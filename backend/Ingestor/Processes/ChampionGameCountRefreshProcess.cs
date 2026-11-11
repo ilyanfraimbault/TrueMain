@@ -1,5 +1,4 @@
 using Data;
-using Data.Ops.Mongo;
 using Data.Pipeline;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
@@ -36,7 +35,7 @@ namespace Ingestor.Processes;
 /// </para>
 ///
 /// <para>
-/// Throttled to <see cref="MinRunInterval"/>, measured from the last run that did its
+/// Throttled to <see cref="RunInterval"/>, measured from the last run that did its
 /// work: the aggregate lane iterates back to back, and the operator page this feeds caches
 /// its answer for ten minutes anyway. It runs after <see cref="MatchDataRetentionProcess"/>
 /// so the count it stores is the one retention leaves, not a peak about to be deleted.
@@ -46,15 +45,17 @@ namespace Ingestor.Processes;
 public sealed class ChampionGameCountRefreshProcess(
     ILogger<ChampionGameCountRefreshProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
-    IProcessRunStore processRunStore,
-    TimeProvider timeProvider) : IIngestorProcess
+    TimeProvider timeProvider) : ICadencedProcess
 {
     /// <summary>
     /// How stale the rollup may get. Half an hour keeps the cost at two passes over the
     /// retained participants per hour at most, against an operator figure nobody reads at
     /// a finer grain than the aggregate lane's own cadence.
     /// </summary>
-    internal static readonly TimeSpan MinRunInterval = TimeSpan.FromMinutes(30);
+    internal static readonly TimeSpan RunInterval = TimeSpan.FromMinutes(30);
+
+    /// <inheritdoc />
+    public TimeSpan MinRunInterval => RunInterval;
 
     /// <summary>
     /// The bound on the single pass. Its duration swings with concurrent load — ingestion
@@ -67,16 +68,6 @@ public sealed class ChampionGameCountRefreshProcess(
     public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-
-        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.GameCountRefresh.Name, nowUtc, ct);
-        if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < MinRunInterval)
-        {
-            logger.LogInformation(
-                "Champion game count refresh skipped: last run {LastRunUtc:o} is within {Interval}.",
-                lastRunUtc,
-                MinRunInterval);
-            return new SkippedSummary("Within MinRunInterval; champion game counts skipped this iteration.", true);
-        }
 
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
         db.Database.SetCommandTimeout(CommandTimeout);
