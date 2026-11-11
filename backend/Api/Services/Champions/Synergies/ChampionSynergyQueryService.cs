@@ -301,10 +301,12 @@ public sealed class ChampionSynergyQueryService(
             && p2.ChampionId == partnerChampionId
             && p2.TeamPosition == partnerPosition));
 
+        // One constant group, so one row at most: Single says so, where First would have
+        // EF warn about taking the first of an unordered set.
         var pair = await pairRows
             .GroupBy(_ => 1)
             .Select(g => new { Games = g.Count(), Wins = g.Sum(x => x.Win ? 1 : 0) })
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct);
 
         var pairGames = pair?.Games ?? 0;
         var pairWins = pair?.Wins ?? 0;
