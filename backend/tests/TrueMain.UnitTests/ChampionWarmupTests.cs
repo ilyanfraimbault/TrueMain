@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using TrueMain.Services;
 using TrueMain.Services.Champions.Scopes;
@@ -155,7 +156,8 @@ public sealed class ChampionWarmupTests
     {
         var clock = new FakeTimeProvider(Noon);
         var version = new ChampionReadVersion(clock, Microsoft.Extensions.Options.Options.Create(Defaults));
-        var subject = new ChampionWarmupHealthCheck(version, Microsoft.Extensions.Options.Options.Create(Defaults), clock);
+        var subject = new ChampionWarmupHealthCheck(
+            version, Microsoft.Extensions.Options.Options.Create(Defaults), clock, NullLogger<ChampionWarmupHealthCheck>.Instance);
 
         (await subject.CheckHealthAsync(new HealthCheckContext())).Status.Should().Be(HealthStatus.Degraded);
 
@@ -169,7 +171,8 @@ public sealed class ChampionWarmupTests
     {
         var clock = new FakeTimeProvider(Noon);
         var version = new ChampionReadVersion(clock, Microsoft.Extensions.Options.Options.Create(Defaults));
-        var subject = new ChampionWarmupHealthCheck(version, Microsoft.Extensions.Options.Options.Create(Defaults), clock);
+        var subject = new ChampionWarmupHealthCheck(
+            version, Microsoft.Extensions.Options.Options.Create(Defaults), clock, NullLogger<ChampionWarmupHealthCheck>.Instance);
 
         clock.Advance(TimeSpan.FromSeconds(Defaults.ReadyBudgetSeconds));
 
