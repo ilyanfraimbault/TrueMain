@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { formatCompactCount } from '~~/shared/utils/counts'
 import { isLoadingStatus } from '#common/utils/async-data'
-import { championDisplayName } from '~~/shared/utils/champion-name'
 
 // The homepage title leads with the brand, so opt out of the global
 // `%s · TrueMain` template — it would duplicate the name in search results.
@@ -29,17 +28,6 @@ const championsById = useChampionsById(staticList)
 const { data: versions } = useDDragonVersions()
 const ddragonPatch = computed(() => versions.value?.[0] ?? null)
 
-// The hero's art is the splash of the champion leading this patch's "most
-// played and banned" slice: game art that says something about the data under
-// it, in place of the decorative eclipse and star field (#2552). Client-side
-// only, like both of its sources; the hero reads complete without it.
-const heroChampion = computed(() => {
-  const row = overview.value?.topRows[0]
-  const champ = row ? championsById.value.get(row.championId) : undefined
-  return row && champ ? { id: row.championId, name: championDisplayName(row.championId, champ), iconUrl: champ.iconUrl } : null
-})
-const heroSplash = useChampionSplash(() => heroChampion.value?.iconUrl)
-const { pathFor } = useChampionSlugs()
 const servedPatch = computed(() => overview.value?.patchVersion ?? null)
 
 // The tier-list panel needs both the overview (rows + tier/WR/PR) and the
@@ -82,39 +70,28 @@ const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
 await Promise.all([overviewFetch, truemainsReady])
 </script>
 
-
 <template>
   <div>
-    <!-- Hero. The negative top margin (the floating header's full height)
-         slides it up under that bar, so the splash runs to the top of the
-         viewport behind it. Left-aligned on the page's own grid, like every
-         section under it. -->
-    <section class="relative -mt-19 overflow-hidden border-b border-default/60">
-      <!-- The art sits on the right, faded into the page on its left edge, so
-           its subject stays clear of the headline on wide screens; on a phone
-           it is a dim wash behind the text. -->
-      <img
-        v-if="heroSplash"
-        :src="heroSplash"
-        alt=""
-        aria-hidden="true"
-        decoding="async"
-        class="hero-splash absolute inset-y-0 right-0 h-full w-full object-cover object-[50%_20%] md:w-[70%]"
-      >
+    <!-- Hero — the one place the eclipse shader renders. It is mounted here
+         rather than in `app.vue` so it is bounded by this section: as a
+         viewport-fixed layer it bled through the champion and leaderboard
+         tables and made rows change luminance down the length of the list.
+         `relative` + `overflow-hidden` give the absolutely-positioned backdrop
+         its bounds, and the fade below hands off to the flat page background so
+         the corona doesn't stop at a hard edge. The negative top margin (the
+         floating header's full height) slides the hero up under that bar, so
+         the eclipse runs to the top of the viewport behind it. -->
+    <section class="relative -mt-19 overflow-hidden">
+      <AppBackdrop />
       <div
         aria-hidden="true"
-        class="pointer-events-none absolute inset-0 bg-linear-to-r from-default/70 to-transparent md:from-transparent"
+        class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-32 bg-gradient-to-b from-transparent to-default"
       />
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-0 bg-linear-to-t from-default via-default/10 to-default/50"
-      />
-
-      <div class="relative mx-auto max-w-6xl px-4 pb-14 pt-32 md:px-6 sm:pb-20 sm:pt-40">
-        <h1 class="max-w-2xl text-4xl font-semibold leading-[1.1] tracking-tight text-balance text-highlighted sm:text-5xl">
+      <div class="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-16 pt-40 text-center sm:pb-24 sm:pt-52">
+        <h1 class="text-4xl font-semibold leading-[1.1] tracking-tight text-balance text-highlighted sm:text-5xl">
           League builds from the players who main the champion
         </h1>
-        <p class="mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
+        <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
           Items, runes and skill orders computed from true mains' ranked games, not from everyone who picked the champion once.
         </p>
 
@@ -137,7 +114,7 @@ await Promise.all([overviewFetch, truemainsReady])
 
         <!-- Real numbers only, skeleton until their source payload resolves.
              Both are lifetime totals, so neither names a patch (#1109). -->
-        <dl class="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+        <dl class="mt-6 flex flex-col items-center justify-center gap-x-2 gap-y-1 sm:flex-row text-sm text-muted">
           <USkeleton
             v-if="overviewPending"
             class="h-4 w-40"
@@ -156,7 +133,7 @@ await Promise.all([overviewFetch, truemainsReady])
           <span
             v-if="!overviewPending && gamesAnalyzed > 0 && trackedTruemains !== null"
             aria-hidden="true"
-            class="text-dimmed"
+            class="hidden text-dimmed sm:inline"
           >·</span>
           <div
             v-if="trackedTruemains !== null"
@@ -172,23 +149,11 @@ await Promise.all([overviewFetch, truemainsReady])
         </dl>
       </div>
 
-      <!-- Whose art this is, and why it is here. -->
-      <p
-        v-if="heroChampion && heroSplash"
-        class="absolute inset-x-0 bottom-4 mx-auto hidden max-w-6xl px-4 text-right text-xs text-dimmed sm:block md:px-6"
-      >
-        <NuxtLink
-          :to="pathFor(heroChampion.id)"
-          class="text-muted hover:text-default"
-        >
-          {{ heroChampion.name }}
-        </NuxtLink>, first of this patch's most played and banned
-      </p>
     </section>
 
     <!-- The desktop app, announced before the panels it brings into champion
          select. -->
-    <HomeDesktopBetaPanel class="pt-16 lg:pt-20" />
+    <HomeDesktopBetaPanel />
 
     <!-- Live data panels — equal-width halves so the two read as a balanced
          pair and the truemains rows have room for champion + play-rate
@@ -229,24 +194,3 @@ await Promise.all([overviewFetch, truemainsReady])
   </div>
 </template>
 
-<style scoped>
-/* The splash arrives after the page (both of its sources are client-side), so
-   it fades in rather than popping over the text already on screen. */
-.hero-splash {
-  opacity: 0.45;
-  mask-image: linear-gradient(to right, transparent, #000 45%);
-  animation: hero-splash-in 600ms ease-out both;
-}
-
-@keyframes hero-splash-in {
-  from { opacity: 0; }
-}
-
-@media (min-width: 768px) {
-  .hero-splash { opacity: 0.8; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-splash { animation: none; }
-}
-</style>

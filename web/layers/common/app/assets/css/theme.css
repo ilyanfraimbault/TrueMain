@@ -287,9 +287,11 @@
  * pin a body font-family, so without this the page would keep using the
  * browser default rather than the `--font-sans` (Inter) declared above.
  *
- * The page fill is pinned here too: the document itself paints the base of
- * the elevation ladder — otherwise overscroll and any area a page doesn't
- * cover fall through to the browser default.
+ * The page fill is pinned here too. It used to be supplied incidentally by the
+ * viewport-fixed AppBackdrop sitting behind every route; now that the backdrop
+ * is scoped to the home hero, the document itself has to paint the base of the
+ * elevation ladder — otherwise overscroll and any area a page doesn't cover
+ * fall through to the browser default.
  */
 html {
   font-family: var(--font-sans);
