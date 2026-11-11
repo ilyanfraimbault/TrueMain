@@ -162,7 +162,6 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
             NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new MatchupLeadAggregationOptions()),
-            Microsoft.Extensions.Options.Options.Create(new LaneOutcomeAggregationOptions()),
             factory,
             TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 

@@ -6,7 +6,7 @@ using Data.Logging;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Processes.Summaries;
@@ -41,7 +41,6 @@ public sealed class ManualSeedProcess(
     TimeProvider timeProvider,
     IOptions<ManualSeedOptions> manualSeedOptions) : IIngestorProcess
 {
-    private const int MaxErrorLength = 2048;
 
     // Candidate statuses a manual seed promotes to Queued. New = freshly
     // upserted; Scored = previously discovered but didn't make the competitive
@@ -145,7 +144,7 @@ public sealed class ManualSeedProcess(
             logger.LogWarning(OpsEvents.SeedRequestFailed, ex, "Seed request {SeedRequestId} failed.", request.Id);
             summary.Failed++;
             await seedRequestStore.MarkFailedAsync(
-                request.Id, Truncate(ex.Message, MaxErrorLength), timeProvider.GetUtcNow().UtcDateTime, ct);
+                request.Id, StoredText.Truncate(ex.Message, StoredText.MaxErrorLength), timeProvider.GetUtcNow().UtcDateTime, ct);
         }
     }
 
@@ -315,9 +314,6 @@ public sealed class ManualSeedProcess(
             logger,
             ct);
     }
-
-    private static string? Truncate(string? value, int maxLength)
-        => string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value[..maxLength];
 
     /// <summary>How far one request got: past this point a failure is not the seed's.</summary>
     private sealed class SeedAttempt

@@ -131,7 +131,7 @@ public sealed class AccountFetchLaneRaceIntegrationTests(PostgresFixture fixture
         var candidates = Substitute.For<ICandidateUpsertService>();
         candidates
             .UpsertAsync(
-                Arg.Any<Data.Repositories.IDataSession>(),
+                Arg.Any<Ingestor.Persistence.IDataSession>(),
                 Arg.Any<string>(),
                 Arg.Any<string>(),
                 Arg.Any<IReadOnlyCollection<RiotChampionMasteryDto>>(),
@@ -148,7 +148,6 @@ public sealed class AccountFetchLaneRaceIntegrationTests(PostgresFixture fixture
             new AccountUpsertService(),
             candidates,
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {

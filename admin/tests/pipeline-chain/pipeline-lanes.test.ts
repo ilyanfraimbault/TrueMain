@@ -51,7 +51,7 @@ describe('buildLaneBranches', () => {
   })
 
   it('marks the steps of a partially-run lane as notRun without dropping them', () => {
-    const branches = buildLaneBranches(CATALOG, [run('MatchTeamPositionCorrection'), run('MainAnalysis')])
+    const branches = buildLaneBranches(CATALOG, [run('MainAnalysis'), run('MatchParticipantEloBracketEnrichment')])
 
     expect(branches).toHaveLength(1)
     const [branch] = branches

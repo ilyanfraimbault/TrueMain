@@ -49,7 +49,7 @@ public sealed class ChampionCohortTests
     [
         "Api/Services/Truemains/PlayerChampions/PlayerChampionMatchupQueryService.cs",
         "Api/Services/Champions/Composition/CompositionMatchQueryService.cs",
-        "Data/Queries/MatchupParticipantQuery.cs"
+        "Api/Services/Sql/MatchupParticipantQuery.cs"
     ];
 
     [Theory]

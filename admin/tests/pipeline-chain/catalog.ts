@@ -13,8 +13,6 @@ const STEPS: readonly (readonly [name: string, lane: 'fetch' | 'aggregate', labe
   ['Scoring', 'fetch', 'Scoring', 'Ranks candidates on recency, rank, mastery and champion scarcity, and promotes the per-platform top N to the ingestion queue.'],
   ['MainActivity', 'fetch', 'Main Activity', 'Retires mains who stopped playing and reactivates those who came back, judged on champion-mastery last-play time. Flags rows, never deletes them.'],
   ['MatchIngestion', 'fetch', 'Match Ingestion', 'Claims queued accounts and fetches their matches and timelines — the raw rows every aggregation below reads.'],
-  ['MatchTeamPositionCorrection', 'aggregate', 'Lane Position Fix', 'Fills in the lane of a participant Riot left blank, for the unambiguous case where only one position in the team is missing.'],
-  ['MatchRoleBoundItemBackfill', 'aggregate', 'Role Slot Backfill', 'Recovers the boots of bot laners stored before Riot\'s role-bound slot was recorded, from their item timeline.'],
   ['MainAnalysis', 'aggregate', 'Main Analysis', 'Decides who is a true main of which champion, from play rate against adaptive thresholds, and demotes those who no longer qualify.'],
   ['MatchParticipantEloBracketEnrichment', 'aggregate', 'Elo Bracketing', 'Stamps each game with the rank its players were at when they played it, so every stat below can be filtered by elo.'],
   ['ChampionPatternAggregation', 'aggregate', 'Builds & Runes', 'Rebuilds the per-champion aggregates behind the build, rune, skill-order and summoner-spell panels.'],

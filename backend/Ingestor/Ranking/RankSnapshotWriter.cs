@@ -1,6 +1,6 @@
 using Core.Lol.Ranking;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 
 namespace Ingestor.Ranking;
 

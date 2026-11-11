@@ -39,7 +39,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -87,7 +86,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -120,7 +118,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -198,7 +195,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -256,7 +252,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -332,7 +327,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -366,7 +360,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -402,7 +395,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -647,7 +639,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
     private sealed class NoOpCandidateUpsertService : ICandidateUpsertService
     {
         public Task<CandidateUpsertResult> UpsertAsync(
-            Data.Repositories.IDataSession session,
+            Ingestor.Persistence.IDataSession session,
             string platformId,
             string puuid,
             IReadOnlyCollection<RiotChampionMasteryDto> masteries,

@@ -1,4 +1,3 @@
-using Core.Lol.Patches;
 using Core.Options;
 using Data;
 using Data.Aggregation;
@@ -127,50 +126,14 @@ public sealed class ChampionSynergyAggregationProcess(
         DateTime aggregatedAtUtc,
         CancellationToken ct)
     {
-        var patchByMatch = await db.Matches
-            .AsNoTracking()
-            .Where(m => matchIds.Contains(m.Id))
-            .Select(m => new { m.Id, m.GameVersion })
-            .ToDictionaryAsync(m => m.Id, m => PatchVersion.Normalize(m.GameVersion), ct);
-
-        // Who may sit on the queried side of a pairing. Every participant below is
-        // loaded regardless — an off-cohort player is still somebody's partner — and
-        // membership is tested per row against this set (ChampionCohort).
-        var cohort = await ChampionCohort.LoadAsync(db, matchIds, ct);
-
-        // A participant with an empty or garbage TeamPosition cannot be placed in a
-        // composition, so it is excluded on both sides of the pair rather than stored
-        // as a partner nobody can ask for. Same canonical set the cohort tests, so the
-        // partner side and the queried side cannot drift apart.
-        var participants = await db.MatchParticipants
-            .AsNoTracking()
-            .Where(p => matchIds.Contains(p.MatchId)
-                && ChampionCohort.CanonicalPositions.Contains(p.TeamPosition))
-            .Select(p => new ParticipantRow(
-                p.MatchId,
-                p.ParticipantId,
-                p.ChampionId,
-                p.TeamId,
-                p.TeamPosition,
-                p.EloBracket,
-                p.Win))
-            .ToListAsync(ct);
-
-        var participantsByMatch = participants
-            .GroupBy(p => p.MatchId)
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var batch = await PairFoldBatch.LoadAsync(db, matchIds, ct);
+        var cohort = batch.Cohort;
 
         var pairs = new Dictionary<SynergyKey, Accumulator>();
         var baselines = new Dictionary<BaselineKey, Accumulator>();
 
-        foreach (var (matchId, parts) in participantsByMatch)
+        foreach (var (matchId, patch, parts) in batch.Matches())
         {
-            var patch = patchByMatch.GetValueOrDefault(matchId);
-            if (string.IsNullOrEmpty(patch))
-            {
-                continue;
-            }
-
             foreach (var self in parts)
             {
                 // The queried side, and only it: a main of this champion, in a game
@@ -250,15 +213,6 @@ public sealed class ChampionSynergyAggregationProcess(
             accumulator.Wins++;
         }
     }
-
-    private sealed record ParticipantRow(
-        string MatchId,
-        int ParticipantId,
-        int ChampionId,
-        int TeamId,
-        string TeamPosition,
-        string EloBracket,
-        bool Win);
 
     private readonly record struct SynergyKey(
         int ChampionId,
