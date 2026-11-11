@@ -596,7 +596,7 @@ and counts were written by hand in ~30 places, and a missing champion name was `
 - **Signed differences** — `shared/utils/deltas.ts`: `formatSigned` (`+312`, `−1,204`, the typographic minus,
   no sign on a zero) and `formatPointDelta` for a move between two rates, always in percentage points written
   `pts` (`+3.1 pts`). Unit, sign and decimals are options, never a hand-written copy.
-- **Percentages** `formatPercentage(OrDash)`, **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
+- **Percentages** `formatPercentage(OrDash)`, whole numbers by default since #2552 (`51%`, never `50.6%`; only `formatPercentageAdaptive` keeps a decimal, under 1%), **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
   recordings), **champion names** `championDisplayName` (`Champion {id}`), and lookups by id through
   `useChampionsById`, never a linear `find`.
 - **Positions** — `web/shared/utils/positions.ts` (site, app and admin) holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the

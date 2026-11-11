@@ -58,8 +58,8 @@ const hasTrend = computed(() => rows.value.length > 1)
 const hasBanTrend = computed(() => banRows.value.length > 1)
 
 const winRateFormatter = (value: number): string => formatPercentage(value, 0)
-const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
-const banRateFormatter = (value: number): string => formatPercentage(value, 1)
+const pickRateFormatter = (value: number): string => formatPercentage(value)
+const banRateFormatter = (value: number): string => formatPercentage(value)
 
 const chartGridClass = computed(() =>
   hasBanTrend.value ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' : 'grid gap-4 sm:grid-cols-2',
