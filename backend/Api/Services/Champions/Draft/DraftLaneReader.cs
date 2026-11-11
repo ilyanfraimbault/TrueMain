@@ -155,10 +155,12 @@ public sealed class DraftLaneReader(TrueMainDbContext db, IChampionReadCache cac
             query = query.Where(b => bands.Contains(b.EloBracket));
         }
 
+        // One constant group, so one row at most: Single says so, where First would have
+        // EF warn about taking the first of an unordered set.
         var totals = await query
             .GroupBy(_ => 1)
             .Select(g => new { Games = g.Sum(b => (long)b.Games), Wins = g.Sum(b => (long)b.Wins) })
-            .FirstOrDefaultAsync(ct);
+            .SingleOrDefaultAsync(ct);
 
         return totals is null || totals.Games == 0 ? 0.5d : (double)totals.Wins / totals.Games;
     }
