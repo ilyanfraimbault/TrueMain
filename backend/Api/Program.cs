@@ -74,7 +74,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+app.UseHttpsRedirectionWhenServed();
 
 // The OpenAPI document and the Scalar UI are served in Development only.
 if (app.Environment.IsDevelopment())
