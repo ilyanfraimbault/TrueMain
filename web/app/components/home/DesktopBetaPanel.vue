@@ -72,7 +72,7 @@ useHead({
           :height="760"
           alt="The TrueMain app's dashboard: rank, recent form, match history and champions."
           priority
-          class="rounded-xl shadow-[0_30px_80px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/15"
+          class="rounded-xl ring-1 ring-white/15"
         />
       </div>
     </div>
