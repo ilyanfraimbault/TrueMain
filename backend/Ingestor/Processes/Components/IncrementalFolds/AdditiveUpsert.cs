@@ -37,6 +37,13 @@ internal sealed class AdditiveUpsert<TRow>(string table)
     /// <summary>The statement this table runs, built once from the declared columns.</summary>
     public string Sql => _sql ??= BuildSql();
 
+    /// <summary>The table it writes; <c>AdditiveUpsertModelTests</c> checks it against the EF model.</summary>
+    internal string Table => table;
+
+    /// <summary>Its columns as declared: name, SQL type and whether the value is summed (else a key).</summary>
+    internal IReadOnlyList<(string Name, string SqlType, bool Additive)> Columns
+        => _columns.Select(column => (column.Name, column.SqlType, column.Additive)).ToList();
+
     /// <summary>Upserts <paramref name="rows"/>; a no-op (no round trip) when there are none.</summary>
     public async Task ExecuteAsync(
         TrueMainDbContext db,

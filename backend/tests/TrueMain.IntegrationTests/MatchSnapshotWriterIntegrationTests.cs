@@ -27,7 +27,7 @@ public sealed class MatchSnapshotWriterIntegrationTests : IAsyncLifetime
     /// </summary>
     private static async Task<SnapshotIngestionResult> IngestSnapshotsAsync(
         MatchSnapshotWriter service,
-        Data.Repositories.IDataSession session,
+        Ingestor.Persistence.IDataSession session,
         string platformId,
         string puuid,
         RegionalRoute region,

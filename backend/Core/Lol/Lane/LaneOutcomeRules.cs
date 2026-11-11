@@ -28,15 +28,14 @@ public static class LaneOutcomeRules
     /// enough that one lucky trade does not decide the number.
     ///
     /// <para>
-    /// Exposed here as the default both consumers' options bind to, not as the value
-    /// they read directly — the ingestor's copy stays configurable because changing it
-    /// re-defines every *stored* counter (#919), while the API's recomputes per request
-    /// and could in principle follow a different one. Keeping the default in one place
-    /// is what stops the two from silently parting company; a deployment that overrides
-    /// one must override both.
+    /// The one value both consumers read (#2481, F1). It used to be the default of two
+    /// options — the ingestor's, which re-defines every stored counter (#919), and the
+    /// API's, recomputed per request — and overriding one silently split the champion
+    /// page from the matchup tool. A change is a code change on purpose: it re-defines
+    /// the stored counters, which every fold run records in its summary.
     /// </para>
     /// </summary>
-    public const int DefaultGoldLeadThreshold = 300;
+    public const int GoldLeadThreshold = 300;
 
     /// <summary>
     /// Judges one lane from the champion's signed gold gap. A *threshold* necessarily

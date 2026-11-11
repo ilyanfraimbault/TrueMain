@@ -4,7 +4,7 @@ using Core.Lol.Ranking;
 using Core.Options;
 using Data.BuildFacts;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Data.Statics;
 using Ingestor.Options;
 using Ingestor.Processes;

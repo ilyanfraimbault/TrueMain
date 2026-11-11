@@ -1,3 +1,4 @@
+using Data.Entities;
 using Data.Logging;
 using Data.Ops.Mongo;
 using Data.Pipeline;
@@ -18,11 +19,17 @@ namespace Ingestor.Processes;
 /// row IS the shared "what's running now" state. While the inner process runs, a
 /// background loop refreshes the row's heartbeat so read queries can distinguish a
 /// genuinely in-flight run from one whose host died (the latter ages out to Abandoned).
+/// <para>
+/// The status is the summary's own (<see cref="IProcessRunSummary.Status"/>); a step that is an
+/// <see cref="ICadencedProcess"/> is not called at all while its interval has not elapsed, and a
+/// <see cref="ProcessRunFailedException"/> is recorded Failed with the summary it carries.
+/// </para>
 /// </remarks>
 public sealed class RecordedProcess<TInner>(
     TInner inner,
     PipelineProcess step,
     IProcessRunRecorder recorder,
+    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
     ILogger<RecordedProcess<TInner>> logger) : IIngestorProcess
     where TInner : IIngestorProcess
@@ -50,9 +57,17 @@ public sealed class RecordedProcess<TInner>(
         var heartbeatLoop = RunHeartbeatLoopAsync(runId, heartbeatCts.Token);
         try
         {
-            var payload = await inner.RunCoreAsync(input, ct);
+            var payload = await DeclinedByCadenceAsync(startedAt, ct) ?? await inner.RunCoreAsync(input, ct);
             var finishedAt = timeProvider.GetUtcNow().UtcDateTime;
-            await recorder.RecordCompletionAsync(runId, Name, startedAt, finishedAt, payload, ct);
+            await recorder.RecordAsync(
+                runId,
+                Name,
+                startedAt,
+                finishedAt,
+                payload?.Status ?? ProcessRunStatus.Success,
+                payload,
+                null,
+                ct);
             // Ops event (#722): persisted by the Mongo sink despite being
             // Information, so every pipeline step's completion is visible and
             // filterable in the admin Logs panel alongside real diagnostics.
@@ -81,7 +96,15 @@ public sealed class RecordedProcess<TInner>(
         catch (Exception ex)
         {
             var finishedAt = timeProvider.GetUtcNow().UtcDateTime;
-            await recorder.RecordFailureAsync(runId, Name, startedAt, finishedAt, ex, ct);
+            await recorder.RecordAsync(
+                runId,
+                Name,
+                startedAt,
+                finishedAt,
+                ProcessRunStatus.Failed,
+                (ex as ProcessRunFailedException)?.Summary,
+                ex.Message,
+                ct);
             logger.LogError(
                 OpsEvents.ProcessRunFailed,
                 ex,
@@ -99,13 +122,47 @@ public sealed class RecordedProcess<TInner>(
         }
     }
 
+    /// <summary>
+    /// The skip to record instead of running a cadenced step whose last real run started less
+    /// than its interval ago, or null to run it. The run being recorded is still Running, so
+    /// the store's "last completed run" never answers with it.
+    /// </summary>
+    private async Task<IProcessRunSummary?> DeclinedByCadenceAsync(DateTime nowUtc, CancellationToken ct)
+    {
+        if (inner is not ICadencedProcess { MinRunInterval: var interval } || interval <= TimeSpan.Zero)
+        {
+            return null;
+        }
+
+        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, nowUtc, ct);
+        if (lastRunUtc is null || nowUtc - lastRunUtc.Value >= interval)
+        {
+            return null;
+        }
+
+        logger.LogInformation(
+            "{ProcessName} skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
+            Name,
+            lastRunUtc,
+            interval);
+        return new SkippedSummary($"Within MinRunInterval; {step.Label.ToLowerInvariant()} skipped this iteration.");
+    }
+
     private async Task RecordCancellationAsync(Guid runId, DateTime startedAt, DateTime cancelledAt)
     {
         using var shutdownCts = new CancellationTokenSource(ShutdownRecordBudget, timeProvider);
 
         try
         {
-            await recorder.RecordCancellationAsync(runId, Name, startedAt, cancelledAt, shutdownCts.Token);
+            await recorder.RecordAsync(
+                runId,
+                Name,
+                startedAt,
+                cancelledAt,
+                ProcessRunStatus.Cancelled,
+                null,
+                "Cancelled: the host asked the run to stop (shutdown or redeploy).",
+                shutdownCts.Token);
         }
         catch (Exception ex)
         {

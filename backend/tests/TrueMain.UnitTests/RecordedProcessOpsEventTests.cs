@@ -6,6 +6,8 @@ using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging;
 using TrueMain.UnitTests.Fixtures;
+using Data.Ops.Mongo;
+using NSubstitute;
 
 namespace TrueMain.UnitTests;
 
@@ -23,9 +25,10 @@ public sealed class RecordedProcessOpsEventTests
     {
         var logger = new CapturingLogger<RecordedProcess<StubProcess>>();
         var process = new RecordedProcess<StubProcess>(
-            new StubProcess(() => new TeamPositionCorrectionSummary(3, 1)),
+            new StubProcess(() => new EloBracketEnrichmentSummary(3, 1, 1)),
             TestPipelineSteps.Named("Stub"),
             new NoOpRecorder(),
+            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             logger);
 
@@ -50,6 +53,7 @@ public sealed class RecordedProcessOpsEventTests
             new StubProcess(() => throw boom),
             TestPipelineSteps.Named("Stub"),
             new NoOpRecorder(),
+            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             logger);
 
