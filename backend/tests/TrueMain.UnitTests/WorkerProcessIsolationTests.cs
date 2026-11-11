@@ -11,6 +11,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TrueMain.UnitTests.Fixtures;
+using Data.Ops.Mongo;
 
 namespace TrueMain.UnitTests;
 
@@ -68,6 +69,7 @@ public sealed class WorkerProcessIsolationTests
                 new ThrowingProcess("Discovery"),
                 TestPipelineSteps.Named("Discovery"),
                 recorder,
+                Substitute.For<IProcessRunStore>(),
                 TimeProvider.System,
                 NullLogger<RecordedProcess<ThrowingProcess>>.Instance));
         foreach (var step in FullSequence.Skip(1))

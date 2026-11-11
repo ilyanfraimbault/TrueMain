@@ -2,7 +2,7 @@ using AwesomeAssertions;
 using Core.Lol.Benchmarks;
 using Core.Lol.Pace;
 using Core.Lol.Ranking;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Microsoft.EntityFrameworkCore;
 using TrueMain.TestKit;
 

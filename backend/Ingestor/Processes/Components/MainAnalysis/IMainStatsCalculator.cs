@@ -1,6 +1,6 @@
 using Core.Options;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Processes.Components.Coverage;
 
 namespace Ingestor.Processes.Components.MainAnalysis;

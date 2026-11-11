@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Data.Logging;
 using Data.Ops.Mongo;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Coverage;
@@ -133,7 +133,6 @@ public sealed class HarvestProcessCoverageLoggingTests
             sessionFactory,
             harvestService,
             coverageProvider,
-            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new HarvestOptions { Platforms = ["KR"], MaxCandidatesPerRun = 20 }),
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
