@@ -1,6 +1,6 @@
 using Data.Entities;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.Intake;
@@ -19,13 +19,6 @@ public sealed class ScoringProcess(
     IOptions<MatchIngestionOptions> matchIngestionOptions,
     IOptions<IntakeOptions> intakeOptions) : IIngestorProcess
 {
-    // Weights used by the defensive fallback in ComputeScore when the configured ones sum to
-    // <= 0. They mirror the ScoringOptions defaults, except scarcity which stays 0 so the
-    // fallback ranks on merit alone. Startup validation makes that fallback unreachable in
-    // production; it only guards a bypassed validator (e.g. a direct unit test).
-    private const double FallbackRecencyWeight = 0.65;
-    private const double FallbackRankWeight = 0.20;
-    private const double FallbackPointsWeight = 0.15;
     public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var scoring = scoringOptions.Value;
@@ -233,19 +226,13 @@ public sealed class ScoringProcess(
         var scarcityWeight = Math.Max(0, scoring.ScarcityWeight);
         var scarcityScore = coverage.Deficit(candidate.PlatformId, candidate.ChampionId);
 
-        // Defensive only: startup validation guarantees the four weights sum to > 0, so this
-        // branch is unreachable in production. It guards against a divide-by-zero if the
-        // validator is ever bypassed (e.g. a future refactor or a direct test). Substituting
-        // the documented defaults keeps a usable ranking, where a flat 0 would make every
-        // candidate tie. Applied before the source split so both branches degrade the same way
-        // (#497) — the ladder branch used to own this fallback while the harvest branch fell
-        // back to a 0 score.
+        // Startup validation guarantees the four weights sum to > 0 (Scoring options). A second
+        // copy of the defaults here used to stand in when it did not; a bypassed validator is a
+        // wiring fault, not a case to rank around (#2481, F14).
         if (recencyWeight + rankWeight + pointsWeight + scarcityWeight <= 0)
         {
-            recencyWeight = FallbackRecencyWeight;
-            rankWeight = FallbackRankWeight;
-            pointsWeight = FallbackPointsWeight;
-            scarcityWeight = 0;
+            throw new InvalidOperationException(
+                "Scoring weights must sum to more than 0; startup validation should have rejected this configuration.");
         }
 
         // Harvested candidates (#485) have no mastery rank/points — only observed games

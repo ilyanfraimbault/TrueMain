@@ -21,9 +21,11 @@ benefit no user would ever see.
 
 `Data` still owns: the schema (entities, configurations, migrations, the compiled model), the Mongo-side query
 objects, and **SQL that must not diverge between two consumers** — e.g.
-`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, read by both the ingestor's rune-page repair and the
-admin duplicate detector (#924). That last one is the durable reason `Data` holds any query text at all: a
-detector that groups differently from the repair it audits reports a clean bill of health for a live bug.
+`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, read by both the dimension tables' unique-identity
+configurations and the admin duplicate detector (#924; the ingestor's rune-page repair that first shared it is
+retired). That last one is the durable reason `Data` holds any query text at all: a detector that groups
+differently from the identity it audits reports a clean bill of health for a live bug. Code with one consumer
+lives with that consumer — the Ingestor's write path in `Ingestor/Persistence` (#2481).
 
 Counts drift with every PR — re-measure rather than trusting the numbers above:
 

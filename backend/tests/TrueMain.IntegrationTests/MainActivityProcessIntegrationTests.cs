@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Data.Ops.Mongo;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
@@ -260,7 +260,6 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
             NullLogger<MainActivityProcess>.Instance,
             platformClient,
             _fixture.CreateSessionFactory(),
-            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new MainActivityOptions
             {

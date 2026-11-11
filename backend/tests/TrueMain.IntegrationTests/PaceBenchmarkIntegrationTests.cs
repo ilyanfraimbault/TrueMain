@@ -7,7 +7,7 @@ using Core.Lol.Map;
 using Core.Lol.Pace;
 using Core.Lol.Ranking;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;

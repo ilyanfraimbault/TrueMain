@@ -75,14 +75,14 @@ public sealed class MainChampionStatConfiguration : IEntityTypeConfiguration<Mai
         // the (PlatformId, Puuid, ChampionId) unique above, which Postgres already
         // uses for (PlatformId) and (PlatformId, Puuid) lookups.
 
-        // Covering index for MainChampionStatRepository.GetMainAccountsAsync,
-        // which filters on (IsMain, IsActive, PlatformId) and projects only Puuid.
-        // Including Puuid lets Postgres serve the main-account roster as an
-        // index-only scan instead of probing the heap per row.
+        // Covering index for main-account rosters filtered on (PlatformId, IsMain, IsActive)
+        // that project only Puuid, served as an index-only scan. Added for a repository read
+        // removed in #2481 (F9); kept because the planner still uses it for other reads
+        // (checked in pg_stat_user_indexes before removing the method).
         entity.HasIndex(e => new { e.PlatformId, e.IsMain, e.IsActive })
             .IncludeProperties(e => e.Puuid);
 
-        // Partial index for MainChampionStatRepository.GetMainCountsByPlatformAndChampionAsync
+        // Partial index for ActiveMainCoverageQuery.CountByPlatformAndChampionAsync
         // (WHERE IsMain AND IsActive GROUP BY PlatformId, ChampionId), the coverage signal
         // recomputed every scoring/main-analysis cycle. The (PlatformId, ...) index above
         // cannot serve it because it is not filtered to active mains, so this gives an

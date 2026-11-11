@@ -1,5 +1,5 @@
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 
 namespace Ingestor.Processes.Components.MatchIngestion;
 

@@ -8,7 +8,15 @@ namespace Ingestor.FetchWorkers;
 /// </summary>
 /// <param name="AvailableMemoryPercent"><c>MemAvailable</c> over <c>MemTotal</c>, in percent.</param>
 /// <param name="FreeDiskPercent">The free share of the watched disk, in percent.</param>
-public readonly record struct HostResourceReading(double? AvailableMemoryPercent, double? FreeDiskPercent);
+/// <param name="Failure">
+/// Why a resource the host does have could not be read, when that happened: unlike a host that
+/// simply has no <c>/proc/meminfo</c>, a failed read silently disables a safety brake, so it is
+/// reported as an error rather than taken as "nothing to report".
+/// </param>
+public readonly record struct HostResourceReading(
+    double? AvailableMemoryPercent,
+    double? FreeDiskPercent,
+    string? Failure = null);
 
 /// <summary>Reads the host resources the backpressure is computed from.</summary>
 public interface IHostResourceProbe
@@ -28,7 +36,13 @@ public sealed class HostResourceProbe : IHostResourceProbe
     private const string MemInfoPath = "/proc/meminfo";
 
     /// <inheritdoc />
-    public HostResourceReading Read(string diskPath) => new(ReadAvailableMemoryPercent(), ReadFreeDiskPercent(diskPath));
+    public HostResourceReading Read(string diskPath)
+    {
+        var (memory, memoryFailure) = ReadAvailableMemoryPercent();
+        var (disk, diskFailure) = ReadFreeDiskPercent(diskPath);
+        var failures = new[] { memoryFailure, diskFailure }.OfType<string>().ToArray();
+        return new HostResourceReading(memory, disk, failures.Length == 0 ? null : string.Join("; ", failures));
+    }
 
     /// <summary>The available share of memory in a <c>/proc/meminfo</c> text, or null when it carries none.</summary>
     public static double? ParseAvailableMemoryPercent(string memInfo)
@@ -50,32 +64,38 @@ public sealed class HostResourceProbe : IHostResourceProbe
         return total is > 0 && available is { } free ? 100d * free / total.Value : null;
     }
 
-    private static double? ReadAvailableMemoryPercent()
+    private static (double? Percent, string? Failure) ReadAvailableMemoryPercent()
     {
+        if (!File.Exists(MemInfoPath))
+        {
+            // Not Linux (a dev machine): no memory brake, and nothing went wrong.
+            return (null, null);
+        }
+
         try
         {
-            return File.Exists(MemInfoPath) ? ParseAvailableMemoryPercent(File.ReadAllText(MemInfoPath)) : null;
+            return ParseAvailableMemoryPercent(File.ReadAllText(MemInfoPath)) is { } percent
+                ? (percent, null)
+                : (null, $"{MemInfoPath} carries no MemTotal/MemAvailable");
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return null;
+            return (null, $"{MemInfoPath}: {ex.Message}");
         }
     }
 
-    private static double? ReadFreeDiskPercent(string diskPath)
+    private static (double? Percent, string? Failure) ReadFreeDiskPercent(string diskPath)
     {
         try
         {
             var drive = new DriveInfo(Path.GetFullPath(diskPath));
-            return drive.TotalSize > 0 ? 100d * drive.AvailableFreeSpace / drive.TotalSize : null;
+            return drive.TotalSize > 0
+                ? (100d * drive.AvailableFreeSpace / drive.TotalSize, null)
+                : (null, $"{diskPath}: the disk reports no size");
         }
         catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
         {
-            return null;
+            return (null, $"{diskPath}: {ex.Message}");
         }
     }
 

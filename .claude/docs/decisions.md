@@ -105,7 +105,7 @@ Last verified against `develop` on 2026-09-02.
 - The spread's rate reads "Lane WR NN% (at 15 minutes)", never "WR"; on touch a first tap selects an icon and shows its rate under the strip (2026-11-01) — #2354
 - The player champion page shows the same spread on the player's own lanes (live from their 15-min snapshots, no lane floor), replacing its sidebar list — 2026-10-22
 - The spread follows the page's lane (no picker of its own), its tooltip says only `% WR`, and its wash is the match rows' red-to-blue — 2026-10-22
-- Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
+- Lane win rate stores three counters and divides by the *decided* lanes, not by games played; the gold threshold is one constant, not a per-host option (2026-11-10) — #466, #919, #606, #2481
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - The draft assistant's lane guess is an assignment solved by exact enumeration — not per-champion arg-maxes, not Hungarian — #1674, #1706
 - Lane priors read the ally synergy baselines, not the scope table, decay over four patches rather than switching, and pool every elo band (2026-10-05) — #1674, #1706, #1707
@@ -265,7 +265,7 @@ Last verified against `develop` on 2026-09-02.
 - `ItemEvents`/`SkillEvents` use LZ4 TOAST compression per column; old rows are rewritten by the #1946 repack, not a migration (2026-10-06) — #123
 - Pattern aggregates use a junction model (`champion_aggregate_patterns` + globally deduplicated `champion_dim_*`)
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
-- A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
+- A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows were backfilled from the item timeline, not re-fetched (2026-09-17; backfill retired 2026-11-10) — #1612, #1607, #2481
 - The pace benchmark is a per-minute CS / gold-earned histogram per (patch, tier, position), folded from the timeline in memory at ingestion, once per match, the lobby at its tracked account's tier — never a per-minute grid (2026-10-05) — #1912
 - The form benchmark (KDA, KP, CS/min, deaths, vision/min) is a whole-game histogram in its own table, folded in the pace benchmark's pass under its claim, so both describe the same games; no back-fill (2026-10-20) — #2076
 - One truncated-match table outlives retention: ten seats for ~4 patches (matchups, drafts), tracked seats up to 8 (profiles); off in production until preprod has measured it (2026-11-02) — #2358, #2368
