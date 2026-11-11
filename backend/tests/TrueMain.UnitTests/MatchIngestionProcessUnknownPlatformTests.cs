@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.MatchIngestion;

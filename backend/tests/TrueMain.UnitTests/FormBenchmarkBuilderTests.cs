@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Core.Lol.Benchmarks;
 using Core.Lol.Ranking;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Processes.Components.MatchIngestion;
 
 namespace TrueMain.UnitTests;

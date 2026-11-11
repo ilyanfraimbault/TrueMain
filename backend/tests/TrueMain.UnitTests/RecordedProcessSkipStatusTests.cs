@@ -6,6 +6,7 @@ using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TrueMain.UnitTests.Fixtures;
+using Data.Ops.Mongo;
 
 namespace TrueMain.UnitTests;
 
@@ -29,7 +30,7 @@ public sealed class RecordedProcessSkipStatusTests
     public async Task RunCoreAsync_WhenTheInnerProcessSkipped_RecordsSkippedRatherThanSuccess()
     {
         var recorder = Substitute.For<IProcessRunRecorder>();
-        var process = Build(recorder, () => new SkippedSummary("Within MinRunInterval.", true));
+        var process = Build(recorder, () => new SkippedSummary("Within MinRunInterval."));
 
         await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
@@ -48,7 +49,7 @@ public sealed class RecordedProcessSkipStatusTests
     public async Task RunCoreAsync_WhenTheInnerProcessDidWork_StillRecordsSuccess()
     {
         var recorder = Substitute.For<IProcessRunRecorder>();
-        var process = Build(recorder, () => new TeamPositionCorrectionSummary(3, 1));
+        var process = Build(recorder, () => new EloBracketEnrichmentSummary(3, 1, 1));
 
         await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
@@ -85,6 +86,29 @@ public sealed class RecordedProcessSkipStatusTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task RunCoreAsync_WhenTheRunFailedAsAWhole_RecordsFailedWithItsSummary()
+    {
+        // Every Riot call of a ladder sync failing is the run failing; the calls it spent
+        // must still reach the summary its daily ceiling is charged from.
+        var recorder = Substitute.For<IProcessRunRecorder>();
+        var spent = new EloBracketEnrichmentSummary(0, 4, 1);
+        var process = Build(recorder, () => throw new ProcessRunFailedException("all calls failed", spent));
+
+        var act = () => process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ProcessRunFailedException>();
+        await recorder.Received(1).RecordAsync(
+            Arg.Any<Guid>(),
+            "Stub",
+            Arg.Any<DateTime>(),
+            Arg.Any<DateTime>(),
+            ProcessRunStatus.Failed,
+            spent,
+            "all calls failed",
+            Arg.Any<CancellationToken>());
+    }
+
     private static RecordedProcess<StubProcess> Build(
         IProcessRunRecorder recorder,
         Func<IProcessRunSummary?> payload)
@@ -92,6 +116,7 @@ public sealed class RecordedProcessSkipStatusTests
             new StubProcess(payload),
             TestPipelineSteps.Named("Stub"),
             recorder,
+            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             NullLogger<RecordedProcess<StubProcess>>.Instance);
 

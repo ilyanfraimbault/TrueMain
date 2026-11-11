@@ -15,11 +15,14 @@ internal static class RiotHttpExtensions
     // System.Text.Json: peak memory then tracks the deserialized object graph,
     // not a second full copy of the raw bytes. See issue #253.
     public static async Task<T> GetFromJsonStreamingAsync<T>(
-        this HttpClient httpClient, Uri uri, CancellationToken ct)
+        this HttpClient httpClient, HttpRequestMessage request, CancellationToken ct)
     {
-        using var response = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct);
-        await response.EnsureSuccessDrainingAsync(ct);
-        return await response.ReadFromJsonStreamingAsync<T>(uri, ct);
+        using (request)
+        {
+            using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            await response.EnsureSuccessDrainingAsync(ct);
+            return await response.ReadFromJsonStreamingAsync<T>(request.RequestUri, ct);
+        }
     }
 
     // EnsureSuccessStatusCode-equivalent that is safe under ResponseHeadersRead:
@@ -46,7 +49,7 @@ internal static class RiotHttpExtensions
     // that need to inspect the status code (e.g. treat 404 as "not found")
     // before deciding to read the payload.
     public static async Task<T> ReadFromJsonStreamingAsync<T>(
-        this HttpResponseMessage response, Uri uri, CancellationToken ct)
+        this HttpResponseMessage response, Uri? uri, CancellationToken ct)
     {
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         // RiotJson.Options carries the same JsonSerializerDefaults.Web settings

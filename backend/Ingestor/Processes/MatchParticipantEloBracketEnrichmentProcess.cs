@@ -1,7 +1,7 @@
 using Core.Lol.Ranking;
 using Data;
-using Data.Aggregation;
 using Data.Pipeline;
+using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
