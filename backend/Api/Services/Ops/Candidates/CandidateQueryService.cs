@@ -118,17 +118,16 @@ public sealed class CandidateQueryService(
 
         // Capped count (#2304): counting every row of a wide filter read the whole
         // table on each page turn. A narrow filter still gets its exact total; a
-        // wide one stops at the cap and says so.
-        var counted = await candidates.Take(TotalCap + 1).LongCountAsync(ct);
+        // wide one stops at the cap and says so. The limit walks the list's own
+        // order: the same index scan as the page, and EF no longer warns about a
+        // row limit on an unordered query (#2610).
+        var counted = await InListOrder(candidates).Take(TotalCap + 1).LongCountAsync(ct);
         var totalCapped = counted > TotalCap;
 
         // Most-relevant first: highest score, then most recently discovered. Id
         // breaks ties so paging is stable when rows share a score + time. Offset
         // rather than keyset on purpose (#1635): the operator pages by number.
-        var pageOfCandidates = candidates
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenByDescending(candidate => candidate.DiscoveredAtUtc)
-            .ThenByDescending(candidate => candidate.Id)
+        var pageOfCandidates = InListOrder(candidates)
             .Skip((effectivePage - 1) * effectivePageSize)
             .Take(effectivePageSize);
 
@@ -278,6 +277,16 @@ public sealed class CandidateQueryService(
             SeedRequest = seedRequest
         };
     }
+
+    /// <summary>
+    /// Most-relevant first, the order <c>IX_main_candidates_list_order</c> and its
+    /// Status-led twin serve; shared by the capped total and the page.
+    /// </summary>
+    private static IOrderedQueryable<MainCandidate> InListOrder(IQueryable<MainCandidate> candidates)
+        => candidates
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenByDescending(candidate => candidate.DiscoveredAtUtc)
+            .ThenByDescending(candidate => candidate.Id);
 
     private static bool TryParseStatus(string? status, out MainCandidateStatus parsed)
     {
