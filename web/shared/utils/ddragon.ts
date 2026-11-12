@@ -7,7 +7,7 @@
  */
 
 /** A 0..1 ratio as a percentage string, at a fixed precision. */
-export function formatPercentage(value: number, digits = 1): string {
+export function formatPercentage(value: number, digits = 0): string {
   return `${(value * 100).toFixed(digits)}%`
 }
 
@@ -31,7 +31,7 @@ export function formatPercentageAdaptive(value: number, digits = 0): string {
  * "Not observed" and "observed at 0%" are genuinely different answers here, so
  * the dash is the honest rendering of the first.
  */
-export function formatPercentageOrDash(value: number | null | undefined, digits = 1): string {
+export function formatPercentageOrDash(value: number | null | undefined, digits = 0): string {
   return value === null || value === undefined ? '—' : formatPercentage(value, digits)
 }
 

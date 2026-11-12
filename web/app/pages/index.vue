@@ -28,6 +28,8 @@ const championsById = useChampionsById(staticList)
 const { data: versions } = useDDragonVersions()
 const ddragonPatch = computed(() => versions.value?.[0] ?? null)
 
+const servedPatch = computed(() => overview.value?.patchVersion ?? null)
+
 // The tier-list panel needs both the overview (rows + tier/WR/PR) and the
 // static list (names + icons) — a single loading condition owned by the page,
 // so the panel and its skeleton never each decide independently and disagree.
@@ -85,16 +87,12 @@ await Promise.all([overviewFetch, truemainsReady])
         aria-hidden="true"
         class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-32 bg-gradient-to-b from-transparent to-default"
       />
-      <div class="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-16 pt-36 text-center sm:pb-24 sm:pt-44">
-        <p class="eyebrow">
-          Champion intelligence
-        </p>
-        <h1 class="mt-4 text-4xl font-semibold leading-[1.05] tracking-tighter text-highlighted sm:text-6xl">
-          Real builds from<br>
-          <span class="text-primary">real mains</span>.
+      <div class="relative mx-auto flex max-w-3xl flex-col items-center px-6 pb-16 pt-40 text-center sm:pb-24 sm:pt-52">
+        <h1 class="text-4xl font-semibold leading-[1.1] tracking-tight text-balance text-highlighted sm:text-5xl">
+          League builds from the players who main the champion
         </h1>
         <p class="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-          Builds, runes and skill orders from the players who truly mastered your champion.
+          Items, runes and skill orders computed from true mains' ranked games, not from everyone who picked the champion once.
         </p>
 
         <!-- Search is SSR'd as a plain field, but its command-palette JS
@@ -110,133 +108,89 @@ await Promise.all([overviewFetch, truemainsReady])
         <LazyAppSearch
           variant="field"
           size="lg"
-          class="mt-9 w-full max-w-xl"
+          class="mt-8 w-full max-w-xl"
           hydrate-on-idle
         />
 
-        <!-- Stat chips: real numbers only, skeletons until their source
-             payload resolves. Two of them, both lifetime totals — the third
-             ("N champions ranked") was dropped with the patch labels: it is the
-             one figure here that is inherently patch-scoped, so it could not
-             join the other two without dragging a qualifier back in. -->
-        <dl class="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm">
-          <div class="flex items-center gap-2">
-            <UIcon
-              name="i-lucide-database"
-              class="size-4 text-primary"
-            />
-            <USkeleton
-              v-if="overviewPending"
-              class="h-4 w-32"
-            />
-            <template v-else-if="gamesAnalyzed > 0">
-              <dt class="sr-only">
-                Main games analyzed
-              </dt>
-              <dd class="text-muted">
-                <span class="font-semibold tabular-nums text-default">{{ formatCompactCount(gamesAnalyzed) }}</span> main games analyzed
-              </dd>
-            </template>
+        <!-- Real numbers only, skeleton until their source payload resolves.
+             Both are lifetime totals, so neither names a patch (#1109). -->
+        <dl class="mt-6 flex flex-col items-center justify-center gap-x-2 gap-y-1 sm:flex-row text-sm text-muted">
+          <USkeleton
+            v-if="overviewPending"
+            class="h-4 w-40"
+          />
+          <div
+            v-else-if="gamesAnalyzed > 0"
+            class="flex gap-1"
+          >
+            <dt class="sr-only">
+              Main games analyzed
+            </dt>
+            <dd>
+              <span class="font-semibold tabular-nums text-default">{{ formatCompactCount(gamesAnalyzed) }}</span> main games analyzed
+            </dd>
           </div>
-
+          <span
+            v-if="!overviewPending && gamesAnalyzed > 0 && trackedTruemains !== null"
+            aria-hidden="true"
+            class="hidden text-dimmed sm:inline"
+          >·</span>
           <div
             v-if="trackedTruemains !== null"
-            class="flex items-center gap-2"
+            class="flex gap-1"
           >
-            <UIcon
-              name="i-lucide-users"
-              class="size-4 text-primary"
-            />
             <dt class="sr-only">
               Truemains tracked
             </dt>
-            <dd class="text-muted">
+            <dd>
               <span class="font-semibold tabular-nums text-default">{{ formatCompactCount(trackedTruemains) }}</span> truemains tracked
             </dd>
           </div>
         </dl>
       </div>
+
     </section>
 
-    <!-- Everything under the hero sits on the eclipse's star field, without the
-         orb or its corona (`variant="stars"`): the cards here are translucent
-         panes and the stars are what their blur shows. Even luminance — no
-         glow passes behind the tables — so the rows still scan (decision
-         "the eclipse is scoped to the home hero"). Home only. -->
-    <div class="relative overflow-hidden">
-      <AppBackdrop variant="stars" />
-      <!-- The desktop app, announced before the panels it brings into
-           champion select. -->
-      <HomeDesktopBetaPanel />
+    <!-- The desktop app, announced before the panels it brings into champion
+         select. -->
+    <HomeDesktopBetaPanel />
 
-      <!-- Live data panels — equal-width halves so the two read as a balanced
-           pair and the truemains rows have room for champion + play-rate
-           without truncating names. -->
-      <section class="mx-auto max-w-6xl px-4 pb-20 md:px-6">
-        <div class="mb-8">
-          <p class="eyebrow">
-            This patch
-          </p>
-          <h2 class="mt-2 max-w-2xl text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
-            The most played and banned champions, and the players who main them.
-          </h2>
-        </div>
-        <div class="grid gap-6 lg:grid-cols-2">
-          <!-- Tier list: rendered eagerly (no chunk to fetch on demand, no
-               intersection-observer gate — #972), so there is no window where
-               neither the skeleton nor the real panel is on screen. -->
-          <HomeTierlistPanelSkeleton v-if="tierlistPending" />
-          <HomeTierlistPanel
-            v-else
-            :top-rows="overview?.topRows ?? []"
-            :champions-by-id="championsById"
-          />
-          <!-- Truemains teaser stays eagerly SSR'd + immediately hydrated: its rows
-               come from a `server: true` fetch, and its profile-icon `v-if`/`v-else`
-               and champion enrichment resolve from `server: false` sources, so
-               delaying its hydration would flip those branches after the data lands
-               and cause a structural hydration mismatch. The ~373 KiB item map it
-               needs is instead deferred inside the panel (visibility-gated fetch). -->
-          <HomeTruemainsPanel
-            :rows="truemainRows"
-            :champions-by-id="championsById"
-            :initial-loading="truemainsInitialLoading"
-            :patch="ddragonPatch"
-          />
-        </div>
-      </section>
-
-      <!-- CTA -->
-      <section class="border-t border-default/60">
-        <div class="mx-auto max-w-3xl px-6 py-16 text-center sm:py-20">
-          <p class="eyebrow">
-            Your champion
-          </p>
-          <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Find <span class="text-primary">your</span> real build.
-          </h2>
-          <p class="mx-auto mt-3 max-w-xl text-base text-muted">
-            Open the champion you actually play and see what their mains are buying this patch.
-          </p>
-          <div class="mt-7 flex flex-wrap justify-center gap-3">
-            <UButton
-              to="/champions"
-              color="primary"
-              size="lg"
-              icon="i-lucide-swords"
-              label="Explore champions"
-            />
-            <UButton
-              to="/truemains"
-              color="neutral"
-              variant="subtle"
-              size="lg"
-              icon="i-lucide-trophy"
-              label="Truemains leaderboard"
-            />
-          </div>
-        </div>
-      </section>
-    </div>
+    <!-- Live data panels — equal-width halves so the two read as a balanced
+         pair and the truemains rows have room for champion + play-rate
+         without truncating names. -->
+    <section class="mx-auto max-w-6xl px-4 pb-20 md:px-6">
+      <div class="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 class="text-2xl font-semibold tracking-tight text-highlighted">
+          {{ servedPatch ? `Patch ${servedPatch}` : 'This patch' }}
+        </h2>
+        <p class="text-sm text-muted">
+          The most played and banned champions, and the players who main them.
+        </p>
+      </div>
+      <div class="grid gap-6 lg:grid-cols-2">
+        <!-- Tier list: rendered eagerly (no chunk to fetch on demand, no
+             intersection-observer gate — #972), so there is no window where
+             neither the skeleton nor the real panel is on screen. -->
+        <HomeTierlistPanelSkeleton v-if="tierlistPending" />
+        <HomeTierlistPanel
+          v-else
+          :top-rows="overview?.topRows ?? []"
+          :champions-by-id="championsById"
+        />
+        <!-- Truemains teaser stays eagerly SSR'd + immediately hydrated: its rows
+             come from a `server: true` fetch, and its profile-icon `v-if`/`v-else`
+             and champion enrichment resolve from `server: false` sources, so
+             delaying its hydration would flip those branches after the data lands
+             and cause a structural hydration mismatch. The ~373 KiB item map it
+             needs is instead deferred inside the panel (visibility-gated fetch). -->
+        <HomeTruemainsPanel
+          :rows="truemainRows"
+          :champions-by-id="championsById"
+          :initial-loading="truemainsInitialLoading"
+          :patch="ddragonPatch"
+        />
+      </div>
+    </section>
   </div>
 </template>
+

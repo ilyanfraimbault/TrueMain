@@ -1,6 +1,20 @@
 # Design system
 
-Part of the [decision log](../decisions.md). Format: **Decision** — why — `source`.
+## The home page keeps its eclipse and drops the template around it (2026-11-10)
+
+**Decided by the product owner in #2552, withdrawing the home page's star field (#1983) and eyebrows.**
+Visitors read the home page as AI-generated, and it carried most of the patterns that read that way: an
+accent label above every heading, a two-tone slogan ending in a full stop, icon stat chips, particles drifting
+under the whole page, a glow behind the app capture, a closing CTA band. Each was a default, not a choice.
+
+- **The eclipse stays.** It is the brand's signature and the product owner wants it; a champion splash was
+  tried in its place and rejected. It keeps its own sparse stars inside the hero; the separate star field
+  under the rest of the page is gone, and with it the `stars` variant has no caller on the home page.
+- **Plain, concrete copy.** The headline says what the site does differently (builds from true mains' games),
+  sections are titled by what they hold ("Patch 16.22", "Desktop app"), and the home page carries no eyebrow.
+- **Clean is not decoration.** Dark, rose gold, Inter and keycap surfaces stay. What goes is effects that carry
+  no information. A future "make the home page feel premium" reaches for typography and real data, not more
+  glows.
 
 ## The rose-gold-only surface rule is reversed: neutral surfaces, a scarce accent, and a data axis of its own (2026-08-10)
 

@@ -198,8 +198,8 @@ describe('championBuildSentences', () => {
     const sentences = championBuildSentences(resolve())
     const text = sentences.join(' ')
 
-    expect(text).toContain('Across 247 ranked games on patch 16.16, Ahri mains win 50.6% of their games in the mid lane.')
-    expect(text).toContain('Their most common build appears in 38.0% of those games and wins 52.1% of its 94 games.')
+    expect(text).toContain('Across 247 ranked games on patch 16.16, Ahri mains win 51% of their games in the mid lane.')
+    expect(text).toContain('Their most common build appears in 38% of those games and wins 52% of its 94 games.')
     expect(text).toContain('completes Luden\'s Companion, Shadowflame and Zhonya\'s Hourglass in that order')
     expect(text).toContain('starts Doran\'s Ring')
     expect(text).toContain('takes Sorcerer\'s Shoes')
@@ -243,7 +243,7 @@ describe('championBuildSentences', () => {
     // "summary contradicts the page" failure the block exists to avoid.
     const sentences = championBuildSentences(resolve({ totalGames: 41, totalWins: 20 }, 'Zed'))
     expect(sentences[0]).toBe(
-      'Across 41 ranked games on patch 16.16, Ahri mains win 48.8% of their games in the mid lane against Zed.',
+      'Across 41 ranked games on patch 16.16, Ahri mains win 49% of their games in the mid lane against Zed.',
     )
     expect(championBuildSentences(resolve())[0]).not.toContain(' against ')
   })
@@ -300,7 +300,7 @@ describe('championBuildSentences', () => {
 
   it('still states the sample when the slice carries no build', () => {
     expect(championBuildSentences(resolve({ builds: [] }))).toEqual([
-      'Across 247 ranked games on patch 16.16, Ahri mains win 50.6% of their games in the mid lane.',
+      'Across 247 ranked games on patch 16.16, Ahri mains win 51% of their games in the mid lane.',
     ])
   })
 })
@@ -385,7 +385,7 @@ describe('championBuildSentenceTokens', () => {
       .map(token => token.text)
     expect(values).toContain('247')
     expect(values).toContain('16.16')
-    expect(values).toContain('50.6%')
+    expect(values).toContain('51%')
   })
 })
 
