@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ChampionOverviewRow } from '~~/shared/types/champions'
-import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import type { ChampionOverviewRowReadModel as ChampionOverviewRow } from '#shared/contract/api'
+import type { LeaderboardRowReadModel as LeaderboardRowResponse } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // Variant H home, second screen: the patch at a glance — the ring's champions

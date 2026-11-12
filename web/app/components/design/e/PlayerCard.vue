@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import type { LeaderboardRowReadModel as LeaderboardRowResponse } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatCount } from '~~/shared/utils/counts'
 import { championSplashUrlFromIcon, formatPercentage } from '~~/shared/utils/ddragon'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { leaderboardChampionIcon, leaderboardChampionName } from '#common/utils/leaderboard-row'
 import { winRateTone } from '#common/utils/rate-tone'
-import { formatRank } from '#common/utils/tiers'
+import { formatRank } from '#shared/utils/ranks'
 
 // A truemain as a launcher's player card: their main champion's splash behind
 // them, the profile icon and Riot ID, the rank, the main and how much of their

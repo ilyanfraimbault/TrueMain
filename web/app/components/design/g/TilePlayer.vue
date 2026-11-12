@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import type { LeaderboardRowReadModel as LeaderboardRowResponse } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { leaderboardChampionIcon, leaderboardChampionName } from '#common/utils/leaderboard-row'
-import { formatRank } from '#common/utils/tiers'
+import { formatRank } from '#shared/utils/ranks'
 
 // The truemain at the top of the ladder (the leaderboard's first row, ranked by
 // standing): who they are, their rank, and the champion they main, whose splash

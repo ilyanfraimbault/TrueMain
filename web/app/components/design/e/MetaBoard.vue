@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionTierListResponse } from '~~/shared/types/champions'
+import type { ChampionTierListReadModel as ChampionTierListResponse } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatPercentage } from '~~/shared/utils/ddragon'

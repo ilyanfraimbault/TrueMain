@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionOverviewRow } from '~~/shared/types/champions'
+import type { ChampionOverviewRowReadModel as ChampionOverviewRow } from '#shared/contract/api'
 import type { PositionOption } from '#shared/utils/positions'
 import { formatCompactCount } from '~~/shared/utils/counts'
 import { formatPercentage } from '~~/shared/utils/ddragon'

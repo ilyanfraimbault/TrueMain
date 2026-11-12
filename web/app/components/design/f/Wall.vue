@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { POSITION_BY_VALUE } from '#shared/utils/positions'
-import type { ChampionOverviewRow } from '~~/shared/types/champions'
+import type { ChampionOverviewRowReadModel as ChampionOverviewRow } from '#shared/contract/api'
 import type { WallChampion } from './champion-filter'
 import { startWallLens } from './wall-lens'
 import type { WallLens } from './wall-lens'

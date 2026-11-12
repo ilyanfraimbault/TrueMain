@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import type { LeaderboardRowReadModel as LeaderboardRowResponse } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championSplashUrlFromIcon, formatPercentage, getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { formatCompactCount } from '~~/shared/utils/counts'

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionOverviewRow } from '~~/shared/types/champions'
+import type { ChampionOverviewRowReadModel as ChampionOverviewRow } from '#shared/contract/api'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import type { DesignHomeData } from '~/composables/useDesign'
 

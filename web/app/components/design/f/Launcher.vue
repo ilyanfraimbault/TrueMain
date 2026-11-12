@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { isNavigationFailure } from 'vue-router'
 import { formatCompactCount } from '~~/shared/utils/counts'
-import type { ChampionOverviewResponse, ChampionOverviewRow } from '~~/shared/types/champions'
+import type { ChampionOverviewReadModel as ChampionOverviewResponse, ChampionOverviewRowReadModel as ChampionOverviewRow } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { matchChampions, toWallChampion } from './champion-filter'
 import { DOCK_SEARCH_KEY, dialogOpen, isEditableTarget } from './search-context'

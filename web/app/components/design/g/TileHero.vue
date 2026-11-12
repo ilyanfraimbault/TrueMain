@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionOverviewRow } from '~~/shared/types/champions'
+import type { ChampionOverviewRowReadModel as ChampionOverviewRow } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatCount } from '~~/shared/utils/counts'

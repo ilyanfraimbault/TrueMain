@@ -89,11 +89,11 @@ export function setFxLevel(level: FxLevel) {
 
 /** Props every variant's home receives from `pages/index.vue` (the page owns the fetches). */
 export interface DesignHomeData {
-  overview: import('~~/shared/types/champions').ChampionOverviewResponse | null | undefined
+  overview: import('#shared/contract/api').ChampionOverviewReadModel | null | undefined
   overviewPending: boolean
   tierlistPending: boolean
   championsById: Map<number, import('~~/shared/types/static-data').ChampionStaticListItem>
-  truemainRows: import('~~/shared/types/leaderboard').LeaderboardRowResponse[]
+  truemainRows: import('#shared/contract/api').LeaderboardRowReadModel[]
   truemainsInitialLoading: boolean
   trackedTruemains: number | null
   gamesAnalyzed: number

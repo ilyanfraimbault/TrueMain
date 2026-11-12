@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionOverviewResponse } from '~~/shared/types/champions'
+import type { ChampionOverviewReadModel as ChampionOverviewResponse } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 // The patch's top rows (`GET /champions/overview`, tier first — a presence
