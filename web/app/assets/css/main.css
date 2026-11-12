@@ -3,6 +3,17 @@
 
 @import "../../../layers/common/app/assets/css/theme.css";
 
+/* Design exploration (prototype): motion toolkit + one stylesheet per variant. */
+@import "./fx.css";
+@import "./design-a.css";
+@import "./design-b.css";
+@import "./design-c.css";
+@import "./design-d.css";
+@import "./design-e.css";
+@import "./design-f.css";
+@import "./design-g.css";
+@import "./design-h.css";
+
 /*
  * Page transitions (#1621, #1689, #1714) — `app.pageTransition` in
  * nuxt.config.ts, a Vue `<Transition name="page">` around the page's

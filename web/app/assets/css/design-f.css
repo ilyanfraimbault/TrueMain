@@ -1,0 +1,1543 @@
+/*
+ * Design exploration — variant f, "Dock": search first, keyboard first.
+ * Every rule is scoped under `:root[data-design="f"]` so the other variants are
+ * untouched. `@property` / `@keyframes` names are global by nature, hence the
+ * `f-` prefix.
+ *
+ * Light vocabulary (edge-light.ts)
+ *   --f-mx / --f-my   cursor position, px, relative to the lit element
+ *   --f-spot          0/1, eased by a transition: is the cursor near enough to light it
+ * All non-inherited, so a write restyles one element, never its subtree.
+ */
+
+@property --f-mx { syntax: "<length>"; inherits: false; initial-value: -2000px; }
+@property --f-my { syntax: "<length>"; inherits: false; initial-value: -2000px; }
+@property --f-spot { syntax: "<number>"; inherits: false; initial-value: 0; }
+@property --f-fill { syntax: "<color>"; inherits: false; initial-value: transparent; }
+
+:root[data-design="f"] {
+  /* No top bar: the loading bar (top: header height + 0.75rem) lands on the viewport's top edge. */
+  --ui-header-height: -0.75rem;
+  --f-rim: 229 143 131;
+  --f-core: 255 232 218;
+  --f-champagne: 242 207 166;
+  --f-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --f-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --f-tile: 46px;
+  scrollbar-color: #2a2a31 transparent;
+}
+
+:root[data-design="f"] ::selection {
+  background: rgb(229 143 131 / 0.32);
+  color: #fff;
+}
+
+/* Keycaps — Geist Mono, a pressed key on the dark ground. */
+:root[data-design="f"] .f-key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ui-text-muted);
+  background: rgb(255 255 255 / 0.06);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), inset 0 -1px 0 rgb(0 0 0 / 0.35), 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
+:root[data-design="f"] .f-key-group {
+  display: inline-flex;
+  gap: 2px;
+}
+
+/* ─── Frame ──────────────────────────────────────────────────────────────── */
+
+:root[data-design="f"] .f-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+:root[data-design="f"] .f-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 96rem;
+  height: 60px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+:root[data-design="f"] .f-top__logo {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 4px;
+  margin-left: -4px;
+  border-radius: 10px;
+  transition: filter 300ms var(--f-ease);
+}
+
+:root[data-design="f"] .f-top__logo:hover {
+  filter: drop-shadow(0 0 12px rgb(var(--f-rim) / 0.4));
+}
+
+:root[data-design="f"] .f-top__logo:focus-visible,
+:root[data-design="f"] .f-top__search:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+/* The search lives in the dock on a desktop; on a phone, the tab bar has no room for it. */
+:root[data-design="f"] .f-top__search {
+  display: none;
+}
+
+:root[data-design="f"] .f-main {
+  min-height: calc(100vh - 60px);
+}
+
+/* ─── Footer ─────────────────────────────────────────────────────────────── */
+
+:root[data-design="f"] .f-footer {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 40px 24px calc(124px + env(safe-area-inset-bottom));
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.08) 30%, rgb(255 255 255 / 0.08) 70%, transparent) top / 100% 1px no-repeat;
+}
+
+:root[data-design="f"] .f-footer__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+:root[data-design="f"] .f-footer__stamp {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="f"] .f-footer__links {
+  display: flex;
+  gap: 4px;
+  margin-right: -8px;
+}
+
+:root[data-design="f"] .f-footer__link {
+  padding: 4px 8px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--ui-text-muted);
+  transition: color 150ms ease;
+}
+
+:root[data-design="f"] .f-footer__link:hover {
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="f"] .f-footer__link:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 1px;
+}
+
+:root[data-design="f"] .f-footer__legal {
+  max-width: 46rem;
+  margin-top: 16px;
+  font-size: 11.5px;
+  color: var(--ui-text-dimmed);
+}
+
+/* ─── Dock ───────────────────────────────────────────────────────────────── */
+
+:root[data-design="f"] .f-dock {
+  position: fixed;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  transition:
+    translate 480ms var(--f-ease),
+    scale 480ms var(--f-ease),
+    opacity 360ms ease;
+}
+
+:root[data-design="f"] .f-dock.is-receded {
+  translate: 0 26px;
+  scale: 0.9;
+  opacity: 0.5;
+}
+
+:root[data-design="f"] .f-dock.is-receded:hover,
+:root[data-design="f"] .f-dock.is-receded:focus-within {
+  translate: 0 0;
+  scale: 1;
+  opacity: 1;
+}
+
+:root[data-design="f"] .f-dock__body {
+  position: relative;
+  padding: 7px 8px 9px;
+  pointer-events: auto;
+}
+
+:root[data-design="f"] .f-dock__shelf {
+  position: absolute;
+  inset: 0;
+  border-radius: 21px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.015) 45%, rgb(255 255 255 / 0.03)),
+    rgb(14 14 18 / 0.66);
+  backdrop-filter: blur(22px) saturate(1.6);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    inset 0 0 0 1px rgb(255 255 255 / 0.07),
+    0 22px 50px -16px rgb(0 0 0 / 0.9),
+    0 3px 12px -4px rgb(0 0 0 / 0.6);
+  transform-origin: 50% 50%;
+}
+
+:root[data-design="f"] .f-dock__list {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* While the dock is pointed at, the band the magnified tiles grow into stays
+   part of it, so crossing a gap between two raised tiles does not drop them. */
+:root[data-design="f"] .f-dock__list::before {
+  content: "";
+  position: absolute;
+  left: -24px;
+  right: -24px;
+  bottom: 100%;
+  height: 46px;
+  pointer-events: none;
+}
+
+:root[data-design="f"] .f-dock__list:hover::before {
+  pointer-events: auto;
+}
+
+:root[data-design="f"] .f-dock__slot {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+:root[data-design="f"] .f-dock__tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--f-tile);
+  height: var(--f-tile);
+  border-radius: 13px;
+  color: var(--ui-text-toned);
+  background: linear-gradient(180deg, #27272d, #17171b);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    inset 0 0 0 1px rgb(255 255 255 / 0.05),
+    0 6px 14px -6px rgb(0 0 0 / 0.8);
+  transform-origin: 50% 100%;
+  transition: color 160ms ease, background-color 160ms ease, scale 200ms var(--f-ease);
+}
+
+:root[data-design="f"] .f-dock__tile:hover,
+:root[data-design="f"] .f-dock__slot[data-near] .f-dock__tile {
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="f"] .f-dock__tile:focus-visible,
+:root[data-design="f"] .f-dock__search button:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 3px;
+}
+
+:root[data-design="f"] .f-dock__tile:focus-visible {
+  scale: 1.12;
+}
+
+:root[data-design="f"] .f-dock__icon {
+  width: 21px;
+  height: 21px;
+}
+
+:root[data-design="f"] .f-dock__mark {
+  width: 26px;
+  height: 26px;
+}
+
+:root[data-design="f"] .f-dock__caption {
+  display: none;
+}
+
+:root[data-design="f"] .f-dock__slot.is-active .f-dock__tile {
+  color: var(--color-rosegold-300);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgb(var(--f-rim) / 0.22), transparent 70%),
+    linear-gradient(180deg, #2b2427, #19171a);
+  box-shadow:
+    inset 0 1px 0 rgb(255 225 215 / 0.14),
+    inset 0 0 0 1px rgb(var(--f-rim) / 0.22),
+    0 6px 16px -6px rgb(var(--f-rim) / 0.35);
+}
+
+:root[data-design="f"] .f-dock__dot {
+  position: absolute;
+  bottom: -6.5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: rgb(var(--f-core));
+  box-shadow: 0 0 6px 1px rgb(var(--f-rim) / 0.9);
+  opacity: 0;
+  scale: 0.4;
+  transition: opacity 250ms ease, scale 300ms var(--f-ease);
+}
+
+:root[data-design="f"] .f-dock__slot.is-active .f-dock__dot {
+  opacity: 1;
+  scale: 1;
+}
+
+:root[data-design="f"] .f-dock__beta {
+  position: absolute;
+  top: -5px;
+  right: -8px;
+  padding: 2.5px 4px 2px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #2a1a0c;
+  background: linear-gradient(180deg, #f2dcae, #d9b676);
+  box-shadow: 0 2px 6px -2px rgb(0 0 0 / 0.8);
+}
+
+:root[data-design="f"] .f-dock__sep {
+  align-self: center;
+  width: 1px;
+  height: 32px;
+  margin: 0 4px;
+  background: linear-gradient(180deg, transparent, rgb(255 255 255 / 0.16), transparent);
+}
+
+/* The label above the tile the cursor points at (or the keyboard is on). The
+   lens lifts it with `transform`; `translate` centres it. */
+:root[data-design="f"] .f-dock__label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px 5px 10px;
+  border-radius: 9px;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--ui-text-highlighted);
+  background: rgb(18 18 22 / 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), 0 10px 24px -10px rgb(0 0 0 / 0.9);
+  pointer-events: none;
+  opacity: 0;
+  translate: -50% 4px;
+  transition: opacity 140ms ease, translate 200ms var(--f-ease);
+}
+
+:root[data-design="f"] .f-dock__slot--home .f-dock__label {
+  padding-right: 10px;
+}
+
+:root[data-design="f"] .f-dock__slot[data-near] .f-dock__label,
+:root[data-design="f"] .f-dock__slot:has(:focus-visible) .f-dock__label {
+  opacity: 1;
+  translate: -50% 0;
+}
+
+/* Keyboard focus raises the tile a little, so the label must clear it too. */
+:root[data-design="f"] .f-dock__slot:has(.f-dock__tile:focus-visible) .f-dock__label {
+  bottom: calc(100% + 18px);
+}
+
+:root[data-design="f"] .f-dock__label-beta {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-gold);
+}
+
+/* The palette's trigger, filling its tile. */
+:root[data-design="f"] .f-dock__search > div {
+  width: 100%;
+  height: 100%;
+}
+
+:root[data-design="f"] .f-dock__search button {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border-radius: inherit;
+  color: inherit;
+  background: transparent;
+}
+
+:root[data-design="f"] .f-dock__search button:hover {
+  background: transparent;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="f"] .f-dock__search button .iconify {
+  width: 20px;
+  height: 20px;
+}
+
+/* Dev only: Nuxt DevTools parks its pill at the bottom centre, on the dock. */
+:root[data-design="f"] #nuxt-devtools-container {
+  display: none !important;
+}
+
+/* ─── Page transitions: the page rises into place, quick and quiet ───────── */
+
+:root[data-design="f"] .page-enter-active {
+  transition: opacity 280ms var(--f-ease), transform 420ms var(--f-ease-out);
+}
+
+:root[data-design="f"] .page-enter-from {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+}
+
+/* ─── Surfaces, site-wide: panel edges catch the cursor's light ──────────── */
+
+:root[data-design="f"] .surface {
+  --f-fill: rgb(15 15 19 / 0.9);
+  border-color: transparent;
+  background-image:
+    radial-gradient(520px circle at var(--f-mx) var(--f-my), rgb(var(--f-rim) / calc(var(--f-spot) * 0.06)), transparent 62%),
+    linear-gradient(var(--f-fill), var(--f-fill)),
+    radial-gradient(
+      320px circle at var(--f-mx) var(--f-my),
+      rgb(var(--f-core) / calc(var(--f-spot) * 0.55)),
+      rgb(var(--f-rim) / calc(var(--f-spot) * 0.22)) 38%,
+      transparent 72%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.035) 32%, rgb(255 255 255 / 0.045));
+  background-clip: padding-box, padding-box, border-box, border-box;
+  background-origin: border-box;
+  background-repeat: no-repeat;
+  transition:
+    --f-spot 550ms var(--f-ease),
+    --f-fill 180ms ease,
+    background-color 150ms ease;
+}
+
+:root[data-design="f"] .surface.surface-hover:hover,
+:root[data-design="f"] .surface.surface-hover:focus-visible {
+  --f-fill: rgb(30 30 36 / 0.94);
+}
+
+/* Rows in panels and list tables: a rose wash from the left and a lit hairline. */
+:root[data-design="f"] .surface li > a,
+:root[data-design="f"] tbody > tr[data-selectable="true"] {
+  transition: background-color 180ms ease, box-shadow 200ms ease;
+}
+
+:root[data-design="f"] .surface li > a {
+  min-width: 0;
+}
+
+:root[data-design="f"] .surface li > a:hover,
+:root[data-design="f"] tbody > tr[data-selectable="true"]:hover {
+  background-color: rgb(255 255 255 / 0.02);
+  background-image: linear-gradient(90deg, rgb(var(--f-rim) / 0.1), rgb(var(--f-rim) / 0.03) 42%, transparent 85%);
+  box-shadow: inset 2px 0 0 rgb(var(--f-rim) / 0.85);
+}
+
+/* Solid primary buttons across the pages: a lit rose-gold key. */
+:root[data-design="f"] .keycap.bg-primary.text-inverted {
+  color: #2a1013;
+  background-image: linear-gradient(180deg, #f4bcb0 0%, #e8978b 46%, #cf7770 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 rgb(80 20 24 / 0.35),
+    0 10px 26px -12px rgb(var(--f-rim) / 0.7);
+  transition: box-shadow 250ms var(--f-ease), filter 200ms ease;
+}
+
+:root[data-design="f"] .keycap.bg-primary.text-inverted:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    inset 0 -1px 0 rgb(80 20 24 / 0.35),
+    0 14px 34px -10px rgb(var(--f-rim) / 0.8);
+}
+
+/* ─── Home: the field ────────────────────────────────────────────────────── */
+
+:root[data-design="f"] .f-home {
+  overflow-x: clip;
+}
+
+:root[data-design="f"] .f-launch {
+  position: relative;
+  isolation: isolate;
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: clamp(36px, 8vh, 88px) 24px 0;
+}
+
+:root[data-design="f"] .f-launch__glow {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: -80px;
+  width: min(1100px, 130vw);
+  height: 560px;
+  translate: -50% 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 38% at 50% 42%, rgb(var(--f-rim) / 0.13), transparent 72%),
+    radial-gradient(26% 22% at 50% 44%, rgb(var(--f-champagne) / 0.06), transparent 70%);
+}
+
+:root[data-design="f"] .f-launch__head {
+  max-width: 47rem;
+  margin: 0 auto;
+}
+
+:root[data-design="f"] .f-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 18px;
+  min-height: 24px;
+  font-size: 13px;
+  color: var(--ui-text-muted);
+}
+
+:root[data-design="f"] .f-meta > span + span::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin: 0 18px 2px 0;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: rgb(255 255 255 / 0.22);
+}
+
+:root[data-design="f"] .f-meta__patch {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--color-rosegold-300);
+  background: rgb(var(--f-rim) / 0.1);
+  box-shadow: inset 0 0 0 1px rgb(var(--f-rim) / 0.2);
+}
+
+:root[data-design="f"] .f-meta > .f-meta__patch + span::before {
+  display: none;
+}
+
+:root[data-design="f"] .f-meta__num {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="f"] .f-title {
+  margin-top: 18px;
+  text-align: center;
+  font-size: clamp(32px, 4.4vw, 54px);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.038em;
+  text-wrap: balance;
+  color: var(--ui-text-highlighted);
+}
+
+/* Rose gold with one pass of light across it as the page opens. */
+:root[data-design="f"] .f-title__accent {
+  background: linear-gradient(100deg, #e58f83 0%, #f2cfa6 30%, #e58f83 45%, #e58f83 55%, #fff1e6 62%, #e58f83 70%, #d9b676 100%) 0 0 / 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  forced-color-adjust: none;
+  animation: f-sheen 2.4s var(--f-ease) 300ms both;
+}
+
+@keyframes f-sheen {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+:root[data-design="f"] .f-find {
+  --bx: var(--f-mx);
+  --by: var(--f-my);
+  --bs: var(--f-spot);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 72px;
+  margin-top: 30px;
+  padding: 0 12px 0 24px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0.015)),
+    #111115;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    0 34px 70px -34px rgb(0 0 0 / 0.95),
+    0 0 0 0 rgb(var(--f-rim) / 0);
+  transition: box-shadow 220ms var(--f-ease), --f-spot 500ms var(--f-ease);
+}
+
+/* The rim: a hairline that the cursor's light runs along, rose while focused. */
+:root[data-design="f"] .f-find::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(260px circle at var(--bx) var(--by), rgb(var(--f-core) / calc(var(--bs) * 0.7)), rgb(var(--f-rim) / calc(var(--bs) * 0.3)) 40%, transparent 70%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.06));
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  transition: opacity 200ms ease;
+}
+
+:root[data-design="f"] .f-find.is-focused {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 34px 80px -30px rgb(var(--f-rim) / 0.32),
+    0 0 0 4px rgb(var(--f-rim) / 0.13);
+}
+
+:root[data-design="f"] .f-find.is-focused::before {
+  background:
+    radial-gradient(260px circle at var(--bx) var(--by), rgb(var(--f-core) / calc(var(--bs) * 0.7)), transparent 70%),
+    linear-gradient(180deg, rgb(var(--f-rim) / 0.85), rgb(var(--f-rim) / 0.45));
+}
+
+:root[data-design="f"] .f-find__icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--ui-text-dimmed);
+  transition: color 160ms ease;
+}
+
+:root[data-design="f"] .f-find.is-focused .f-find__icon {
+  color: var(--ui-primary);
+}
+
+:root[data-design="f"] .f-find__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  appearance: none;
+  background: none;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.022em;
+  color: var(--ui-text-highlighted);
+  caret-color: var(--ui-primary);
+  text-overflow: ellipsis;
+}
+
+:root[data-design="f"] .f-find__input::placeholder {
+  color: rgb(255 255 255 / 0.3);
+}
+
+:root[data-design="f"] .f-find__input::-webkit-search-cancel-button {
+  display: none;
+}
+
+:root[data-design="f"] .f-find__clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: var(--ui-text-dimmed);
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+:root[data-design="f"] .f-find__clear:hover {
+  color: var(--ui-text-highlighted);
+  background: rgb(255 255 255 / 0.06);
+}
+
+:root[data-design="f"] .f-find__players {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 9px 0 15px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ui-text-muted);
+  background: rgb(255 255 255 / 0.04);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  transition: color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+:root[data-design="f"] .f-find__players:hover {
+  color: var(--ui-text-highlighted);
+  background: rgb(var(--f-rim) / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(var(--f-rim) / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+:root[data-design="f"] .f-find__clear:focus-visible,
+:root[data-design="f"] .f-find__players:focus-visible,
+:root[data-design="f"] .f-link:focus-visible,
+:root[data-design="f"] .f-cta:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+:root[data-design="f"] .f-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 20px;
+  min-height: 22px;
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="f"] .f-hint__lead {
+  color: var(--ui-text-muted);
+}
+
+:root[data-design="f"] .f-hint__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+:root[data-design="f"] .f-hint__keys .f-key + :not(.f-key) {
+  margin-left: 2px;
+}
+
+:root[data-design="f"] .f-hint strong {
+  font-weight: 600;
+  color: var(--ui-text-highlighted);
+}
+
+/* ─── Home: the wall ─────────────────────────────────────────────────────── */
+
+:root[data-design="f"] .f-launch__wall {
+  margin-top: clamp(40px, 7vh, 72px);
+}
+
+:root[data-design="f"] .f-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  min-height: 18px;
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="f"] .f-legend__hot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+:root[data-design="f"] .f-legend__ring {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1.5px rgb(var(--f-rim)), 0 0 8px rgb(var(--f-rim) / 0.6);
+}
+
+:root[data-design="f"] .f-wall {
+  position: relative;
+  min-height: 180px;
+}
+
+/* While filtering, the wall keeps a few rows' height: the sections below do
+   not jump up and down with every key. */
+:root[data-design="f"] .f-wall.is-filtering {
+  min-height: 228px;
+}
+
+:root[data-design="f"] .f-wall__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 14px 12px;
+}
+
+:root[data-design="f"] .f-wall__more {
+  display: none;
+}
+
+:root[data-design="f"] .f-wall__grid > li {
+  position: relative;
+  aspect-ratio: 1;
+}
+
+:root[data-design="f"] .f-wall__grid > li[data-lens] {
+  z-index: 3;
+}
+
+:root[data-design="f"] .f-tile {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 14px;
+  outline: none;
+  transform-origin: 50% 50%;
+  transition: scale 200ms var(--f-ease);
+  scroll-margin: 140px 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root[data-design="f"] .f-tile__face {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  background: #17171b;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.07), 0 8px 16px -10px rgb(0 0 0 / 0.95);
+  animation: f-tile-in 260ms var(--f-ease-out) both;
+  transition: box-shadow 180ms ease, filter 180ms ease;
+}
+
+:root[data-design="f"] .f-wall.is-entering .f-tile__face {
+  animation-duration: 680ms;
+  animation-delay: calc(var(--f-d, 0) * 15ms);
+}
+
+@keyframes f-tile-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.7);
+  }
+}
+
+:root[data-design="f"] .f-tile__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  scale: 1.1;
+  user-select: none;
+}
+
+:root[data-design="f"] .f-tile:hover .f-tile__face {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.2), 0 16px 30px -12px rgb(0 0 0 / 0.95);
+}
+
+:root[data-design="f"] .f-tile.is-hot .f-tile__face {
+  box-shadow:
+    0 0 0 1.5px rgb(var(--f-rim)),
+    0 0 16px -3px rgb(var(--f-rim) / 0.75),
+    0 8px 16px -10px rgb(0 0 0 / 0.95);
+}
+
+:root[data-design="f"] .f-tile.is-hl,
+:root[data-design="f"] .f-tile:focus-visible {
+  scale: 1.14;
+}
+
+:root[data-design="f"] .f-tile.is-hl .f-tile__face,
+:root[data-design="f"] .f-tile:focus-visible .f-tile__face {
+  box-shadow:
+    0 0 0 2px rgb(var(--f-core)),
+    0 0 0 5px rgb(var(--f-rim) / 0.35),
+    0 14px 30px -10px rgb(var(--f-rim) / 0.6);
+}
+
+:root[data-design="f"] .f-wall__grid > li:has(.is-hl) {
+  z-index: 2;
+}
+
+:root[data-design="f"] .f-tile__hot {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  font-size: 11px;
+  color: #2a1013;
+  background: linear-gradient(180deg, #f6c3b6, #d9736c);
+  box-shadow: 0 0 0 2px var(--ui-bg), 0 3px 10px -2px rgb(var(--f-rim) / 0.7);
+}
+
+:root[data-design="f"] .f-tile__skel {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.035);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.03);
+  animation: f-skel 1.6s ease-in-out infinite;
+}
+
+@keyframes f-skel {
+  50% { background-color: rgb(255 255 255 / 0.06); }
+}
+
+:root[data-design="f"] .f-empty {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 16px 0;
+  text-align: center;
+  animation: f-fade-up 260ms var(--f-ease-out) both;
+}
+
+@keyframes f-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+
+:root[data-design="f"] .f-empty__icon {
+  width: 26px;
+  height: 26px;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="f"] .f-empty__title {
+  margin-top: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="f"] .f-empty__text {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--ui-text-muted);
+}
+
+:root[data-design="f"] .f-link {
+  margin-left: 6px;
+  font-weight: 500;
+  color: var(--ui-primary);
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--f-rim) / 0.4);
+  text-underline-offset: 3px;
+  border-radius: 4px;
+}
+
+:root[data-design="f"] .f-link:hover {
+  text-decoration-color: currentColor;
+}
+
+/* The card that glides from tile to tile. */
+:root[data-design="f"] .f-card {
+  position: absolute;
+  z-index: 6;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: transform 170ms var(--f-ease), opacity 130ms ease;
+}
+
+:root[data-design="f"] .f-card.is-shown {
+  opacity: 1;
+}
+
+:root[data-design="f"] .f-card.is-instant {
+  transition: opacity 130ms ease;
+}
+
+:root[data-design="f"] .f-card__body {
+  translate: -50% -100%;
+  padding: 7px 12px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+  text-align: center;
+  background: rgb(16 16 20 / 0.94);
+  backdrop-filter: blur(12px);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.09), inset 0 1px 0 rgb(255 255 255 / 0.06), 0 16px 34px -14px rgb(0 0 0 / 0.95);
+}
+
+:root[data-design="f"] .f-card__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="f"] .f-card__stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--ui-text-muted);
+}
+
+:root[data-design="f"] .f-card__lane {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+:root[data-design="f"] .f-card__lane img {
+  width: 14px;
+  height: 14px;
+  opacity: 0.85;
+}
+
+:root[data-design="f"] .f-card__wr {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--f-core));
+}
+
+:root[data-design="f"] .f-card__wr span {
+  font-weight: 500;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="f"] .f-card__hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ui-text-dimmed);
+}
+
+/* ─── Home: the sections below the wall ──────────────────────────────────── */
+
+:root[data-design="f"] .f-section {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: clamp(96px, 15vh, 152px) 24px 0;
+}
+
+:root[data-design="f"] .f-home > .f-section:last-child {
+  padding-bottom: clamp(96px, 14vh, 140px);
+}
+
+:root[data-design="f"] .f-split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.25fr);
+  align-items: center;
+  gap: 56px;
+}
+
+:root[data-design="f"] .f-h2 {
+  margin-top: 10px;
+  font-size: clamp(28px, 3.1vw, 40px);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.032em;
+  text-wrap: balance;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="f"] .f-lede {
+  max-width: 30rem;
+  margin-top: 14px;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--ui-text-muted);
+}
+
+:root[data-design="f"] .f-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+:root[data-design="f"] .f-figure__num {
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="f"] .f-figure__caption {
+  font-size: 14px;
+  color: var(--ui-text-muted);
+}
+
+:root[data-design="f"] .f-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding: 0 9px 0 16px;
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: background-color 200ms ease, box-shadow 250ms var(--f-ease), filter 200ms ease;
+}
+
+:root[data-design="f"] .f-cta--ghost {
+  margin-top: 28px;
+  color: var(--ui-text-highlighted);
+  background: rgb(255 255 255 / 0.04);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1), inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+:root[data-design="f"] .f-cta--ghost:hover {
+  background: rgb(var(--f-rim) / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(var(--f-rim) / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.08), 0 12px 30px -14px rgb(var(--f-rim) / 0.55);
+}
+
+:root[data-design="f"] .f-cta--primary {
+  padding-left: 14px;
+  color: #2a1013;
+  background-image: linear-gradient(180deg, #f4bcb0 0%, #e8978b 46%, #cf7770 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 rgb(80 20 24 / 0.35),
+    0 12px 30px -12px rgb(var(--f-rim) / 0.75);
+}
+
+:root[data-design="f"] .f-cta--primary:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    inset 0 -1px 0 rgb(80 20 24 / 0.35),
+    0 16px 38px -10px rgb(var(--f-rim) / 0.85);
+}
+
+:root[data-design="f"] .f-cta--primary .f-key {
+  color: #5a2a2c;
+  background: rgb(80 20 24 / 0.12);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 0 0 1px rgb(80 20 24 / 0.18);
+}
+
+:root[data-design="f"] .f-beta {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  background: rgb(217 182 118 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(217 182 118 / 0.25);
+}
+
+/* The desktop capture: tilts with a glare, its edge lit by the cursor. */
+:root[data-design="f"] .f-shot-wrap {
+  position: relative;
+}
+
+:root[data-design="f"] .f-shot-wrap::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 12% 8% 0;
+  border-radius: 50%;
+  background: rgb(var(--f-rim) / 0.14);
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+:root[data-design="f"] .f-shot {
+  --sx: var(--f-mx);
+  --sy: var(--f-my);
+  --ss: var(--f-spot);
+  position: relative;
+  border-radius: 14px;
+  transition: --f-spot 500ms var(--f-ease);
+}
+
+:root[data-design="f"] .f-shot.fx-tilt {
+  transition: transform 600ms var(--ease-out-expo), --f-spot 500ms var(--f-ease);
+}
+
+:root[data-design="f"] .f-shot.fx-tilt.fx-tilt-active {
+  transition: transform 120ms linear, --f-spot 500ms var(--f-ease);
+}
+
+:root[data-design="f"] .f-shot::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(300px circle at var(--sx) var(--sy), rgb(var(--f-core) / calc(var(--ss) * 0.85)), rgb(var(--f-rim) / calc(var(--ss) * 0.35)) 40%, transparent 70%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0.05));
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+:root[data-design="f"] .f-shot__picture {
+  overflow: hidden;
+  border-radius: inherit;
+  box-shadow: 0 40px 90px -30px rgb(0 0 0 / 0.95);
+}
+
+:root[data-design="f"] .f-shot__glare {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(520px circle at var(--gx, 50%) var(--gy, 0%), rgb(255 240 232 / 0.13), transparent 50%);
+  transition: opacity 400ms ease;
+}
+
+:root[data-design="f"] .f-shot.fx-tilt-active .f-shot__glare {
+  opacity: 1;
+}
+
+@media (max-width: 1023px) {
+  :root[data-design="f"] .f-split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+}
+
+/* ─── Phones: the dock becomes a tab bar ─────────────────────────────────── */
+
+@media (max-width: 767px) {
+  :root[data-design="f"] .f-top {
+    height: 56px;
+    padding: 0 16px;
+  }
+
+  :root[data-design="f"] .f-top__search {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    margin-right: -4px;
+    border-radius: 12px;
+    color: var(--ui-text-toned);
+    background: rgb(255 255 255 / 0.04);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  }
+
+  :root[data-design="f"] .f-main {
+    min-height: calc(100vh - 56px);
+  }
+
+  :root[data-design="f"] .f-footer {
+    padding: 32px 16px calc(104px + env(safe-area-inset-bottom));
+  }
+
+  :root[data-design="f"] .f-dock {
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  :root[data-design="f"] .f-dock.is-receded,
+  :root[data-design="f"] .f-dock.is-receded:hover {
+    translate: 0 calc(100% + 24px);
+    scale: 1;
+    opacity: 1;
+  }
+
+  :root[data-design="f"] .f-dock__body {
+    width: 100%;
+    padding: 5px;
+  }
+
+  :root[data-design="f"] .f-dock__shelf {
+    border-radius: 22px;
+    transform: none !important;
+  }
+
+  :root[data-design="f"] .f-dock__list {
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  :root[data-design="f"] .f-dock__list::before,
+  :root[data-design="f"] .f-dock__slot--home,
+  :root[data-design="f"] .f-dock__slot--search,
+  :root[data-design="f"] .f-dock__sep,
+  :root[data-design="f"] .f-dock__label,
+  :root[data-design="f"] .f-dock__dot {
+    display: none;
+  }
+
+  :root[data-design="f"] .f-dock__slot {
+    flex: 1 1 0;
+    min-width: 0;
+    transform: none !important;
+  }
+
+  :root[data-design="f"] .f-dock__tile,
+  :root[data-design="f"] .f-dock__slot.is-active .f-dock__tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    height: 54px;
+    border-radius: 17px;
+    background: none;
+    box-shadow: none;
+    transform: none !important;
+  }
+
+  :root[data-design="f"] .f-dock__slot.is-active .f-dock__tile {
+    background: rgb(var(--f-rim) / 0.1);
+    box-shadow: inset 0 0 0 1px rgb(var(--f-rim) / 0.14);
+  }
+
+  :root[data-design="f"] .f-dock__tile:focus-visible {
+    scale: 1;
+    outline-offset: -2px;
+  }
+
+  :root[data-design="f"] .f-dock__icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  :root[data-design="f"] .f-dock__caption {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  :root[data-design="f"] .f-dock__beta {
+    top: 5px;
+    right: calc(50% - 22px);
+    font-size: 6.5px;
+    padding: 2px 3px 1.5px;
+  }
+
+}
+
+@media (max-width: 767px) {
+  :root[data-design="f"] .f-launch {
+    padding: 24px 16px 0;
+  }
+
+  :root[data-design="f"] .f-launch__glow {
+    top: -40px;
+    height: 380px;
+  }
+
+  :root[data-design="f"] .f-meta {
+    gap: 6px 12px;
+    font-size: 12px;
+  }
+
+  :root[data-design="f"] .f-title {
+    margin-top: 14px;
+  }
+
+  :root[data-design="f"] .f-find {
+    height: 56px;
+    gap: 10px;
+    margin-top: 22px;
+    padding: 0 8px 0 16px;
+    border-radius: 17px;
+  }
+
+  :root[data-design="f"] .f-find__icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* 17px: under 16px iOS zooms the page when the field takes the focus. */
+  :root[data-design="f"] .f-find__input {
+    font-size: 17px;
+  }
+
+  /* The player search sits top-right on a phone. */
+  :root[data-design="f"] .f-find__players {
+    display: none;
+  }
+
+  :root[data-design="f"] .f-launch__wall {
+    margin-top: 32px;
+  }
+
+  :root[data-design="f"] .f-wall {
+    --f-cols: 6;
+  }
+
+  :root[data-design="f"] .f-wall__grid {
+    grid-template-columns: repeat(var(--f-cols), minmax(0, 1fr));
+    gap: 10px 9px;
+  }
+
+  /* Folded: seven and a half rows, fading out over the last one. The padding
+     (taken back by the margin) leaves the first row's flame badges room. */
+  :root[data-design="f"] .f-wall.is-collapsible .f-wall__grid {
+    max-height: calc(((100vw - 32px - (var(--f-cols) - 1) * 9px) / var(--f-cols) + 10px) * 7.5 + 8px);
+    margin: -8px;
+    padding: 8px;
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 96px), transparent);
+  }
+
+  :root[data-design="f"] .f-wall.is-collapsible .f-wall__more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    height: 44px;
+    margin-top: 4px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ui-text-highlighted);
+    background: rgb(255 255 255 / 0.04);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  }
+
+  :root[data-design="f"] .f-meta > span + span::before {
+    display: none;
+  }
+
+  :root[data-design="f"] .f-tile,
+  :root[data-design="f"] .f-tile__skel {
+    border-radius: 11px;
+  }
+
+  :root[data-design="f"] .f-tile__hot {
+    top: -5px;
+    right: -5px;
+    width: 16px;
+    height: 16px;
+    font-size: 9.5px;
+  }
+
+  :root[data-design="f"] .f-section {
+    padding: 88px 16px 0;
+  }
+
+  :root[data-design="f"] .f-home > .f-section:last-child {
+    padding-bottom: 72px;
+  }
+}
+
+@media (max-width: 359px) {
+  :root[data-design="f"] .f-wall {
+    --f-cols: 5;
+  }
+}
+
+/* No keyboard hints where there is no keyboard to press them on. */
+@media (hover: none) {
+  :root[data-design="f"] .f-cta .f-key {
+    display: none;
+  }
+
+  :root[data-design="f"] .f-hint__keys--wide,
+  :root[data-design="f"] .f-hint__lead + .f-hint__keys,
+  :root[data-design="f"] .f-hint__lead ~ .f-hint__keys {
+    display: none;
+  }
+}
+
+/* The prototype's variant badge (bottom-left) would sit on the tab bar, or
+   under a magnified dock on a narrow desktop: lift it above. */
+@media (max-width: 1023px) {
+  :root[data-design="f"] body .fixed.bottom-3.left-3 {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ─── Lite FX: no staggered wave, no blur behind the small floating labels ── */
+
+:root[data-design="f"][data-fx="lite"] .f-wall.is-entering .f-tile__face {
+  animation-duration: 260ms;
+  animation-delay: 0ms;
+}
+
+:root[data-design="f"][data-fx="lite"] .f-card__body,
+:root[data-design="f"][data-fx="lite"] .f-dock__label {
+  backdrop-filter: none;
+  background: rgb(16 16 20 / 0.98);
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="f"] .f-dock,
+  :root[data-design="f"] .f-dock__label,
+  :root[data-design="f"] .f-dock__dot,
+  :root[data-design="f"] .f-dock__tile {
+    transition: none;
+  }
+
+  :root[data-design="f"] .page-enter-active {
+    transition: none;
+  }
+
+  :root[data-design="f"] .f-tile__face,
+  :root[data-design="f"] .f-wall.is-entering .f-tile__face,
+  :root[data-design="f"] .f-title__accent {
+    animation: none;
+  }
+
+  :root[data-design="f"] .f-card,
+  :root[data-design="f"] .f-tile {
+    transition: none;
+  }
+}

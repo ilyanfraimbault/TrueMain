@@ -33,6 +33,11 @@ const cachedIpxHandler = defineNuxtModule({
 })
 
 export default defineNuxtConfig({
+  // Design exploration: several `nuxt dev` processes run side by side from this
+  // directory, one per design variant and port, so each needs its own build and
+  // Vite cache directory.
+  ...(process.env.NUXT_BUILD_DIR ? { buildDir: process.env.NUXT_BUILD_DIR } : {}),
+  ...(process.env.NUXT_VITE_CACHE_DIR ? { vite: { cacheDir: process.env.NUXT_VITE_CACHE_DIR } } : {}),
   // `cachedIpxHandler` must come before `@nuxt/image` so the route is already
   // registered when the module decides whether to install its own.
   modules: [cachedIpxHandler, '@nuxt/ui', '@nuxt/image', '@nuxt/fonts', 'nuxt-charts', '@nuxtjs/seo', '@nuxt/scripts', '@nuxt/eslint'],
@@ -309,9 +314,15 @@ export default defineNuxtConfig({
     // The TTL matches the champion slug map's own server cache
     // (`layers/nitro/server/api/static/champion-slugs.get.ts`), so a cached page is never
     // staler than an SSR one.
-    '/about': { swr: STATIC_PAGE_SWR_SECONDS },
-    '/privacy': { swr: STATIC_PAGE_SWR_SECONDS },
-    '/terms': { swr: STATIC_PAGE_SWR_SECONDS },
+    // Design exploration: the hub serves every variant from one process, and a
+    // cached page would ignore which variant asked for it.
+    ...(process.env.NUXT_BUILD_DIR
+      ? {}
+      : {
+          '/about': { swr: STATIC_PAGE_SWR_SECONDS },
+          '/privacy': { swr: STATIC_PAGE_SWR_SECONDS },
+          '/terms': { swr: STATIC_PAGE_SWR_SECONDS },
+        }),
   },
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
@@ -354,6 +365,9 @@ export default defineNuxtConfig({
         host: '',
         websiteId: '',
       },
+      // Design exploration: which variant this process renders (`a` / `b` / `c`),
+      // from NUXT_PUBLIC_DESIGN_VARIANT. Empty renders the current design.
+      designVariant: '',
     },
   },
   // Production-only overrides. `$production` applies on `nuxt build` and is

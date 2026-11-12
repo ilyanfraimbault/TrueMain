@@ -1,0 +1,1963 @@
+/*
+ * Design exploration — variant g, "Bento": the home is a grid of live tiles.
+ * Every rule is scoped under `:root[data-design="g"]` so the other variants are
+ * untouched. `@property` and `@keyframes` are global by nature, hence the `g-`
+ * prefix: no other variant reads them.
+ *
+ * Light vocabulary (written by components/design/g/light-engine.ts)
+ *   --g-mx / --g-my   cursor position, px, relative to the element
+ *   --g-u  / --g-v    the same as 0..1 fractions of the element's box
+ *   --g-spot          0/1, eased by a transition: is the cursor near enough to light it
+ * All non-inherited, so a write restyles one element, never its subtree. A
+ * child that needs them reads an unregistered bridge variable declared on its
+ * element, and only in the state that needs it (`:hover`).
+ */
+
+@property --g-mx { syntax: "<length>"; inherits: false; initial-value: -2000px; }
+@property --g-my { syntax: "<length>"; inherits: false; initial-value: -2000px; }
+@property --g-u { syntax: "<number>"; inherits: false; initial-value: 0.5; }
+@property --g-v { syntax: "<number>"; inherits: false; initial-value: 0.5; }
+@property --g-spot { syntax: "<number>"; inherits: false; initial-value: 0; }
+@property --g-fill { syntax: "<color>"; inherits: false; initial-value: #0e0e11; }
+@property --g-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+:root[data-design="g"] {
+  /* The pill: 52px tall, 12px under the top edge (AppLoadingBar adds 0.75rem). */
+  --ui-header-height: 3.25rem;
+  --g-rim: 229 143 131;
+  --g-core: 255 232 218;
+  --g-champagne: 242 207 166;
+  --g-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --g-radius: 22px;
+  scrollbar-color: #2a2a31 transparent;
+}
+
+:root[data-design="g"] ::selection {
+  background: rgb(229 143 131 / 0.32);
+  color: #fff;
+}
+
+/* ─── Frame ─────────────────────────────────────────────────────────────── */
+
+:root[data-design="g"] .g-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+:root[data-design="g"] .g-main {
+  flex: 1 0 auto;
+  overflow-x: clip;
+}
+
+:root[data-design="g"] .g-header-sentinel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 8px;
+  pointer-events: none;
+}
+
+/* ─── Header: one floating pill ─────────────────────────────────────────── */
+
+:root[data-design="g"] .g-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 0.75rem 0.75rem 0;
+  /* The transparent strip around the pill lets clicks through to the page. */
+  pointer-events: none;
+}
+
+:root[data-design="g"] .g-pill {
+  --bx: var(--g-mx);
+  --by: var(--g-my);
+  --bs: var(--g-spot);
+  position: relative;
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  border-radius: 26px;
+  background-color: rgb(14 14 17 / 0.6);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 12px 32px -18px rgb(0 0 0 / 0.85);
+  pointer-events: auto;
+  transition:
+    background-color 400ms var(--g-ease),
+    box-shadow 400ms var(--g-ease),
+    border-radius 400ms var(--g-ease),
+    --g-spot 500ms var(--g-ease);
+}
+
+/* The rim: a hairline lit from above, brightened where the cursor is near. */
+:root[data-design="g"] .g-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      240px circle at var(--bx) var(--by),
+      rgb(var(--g-core) / calc(var(--bs) * 0.7)),
+      rgb(var(--g-rim) / calc(var(--bs) * 0.28)) 40%,
+      transparent 70%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.05));
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+:root[data-design="g"] .g-header.is-scrolled .g-pill,
+:root[data-design="g"] .g-header.is-open .g-pill {
+  background-color: rgb(14 14 17 / 0.84);
+  box-shadow: 0 18px 44px -18px rgb(0 0 0 / 0.95);
+}
+
+:root[data-design="g"] .g-header.is-open .g-pill {
+  border-radius: 24px;
+}
+
+@media (min-width: 1024px) {
+  :root[data-design="g"] .g-pill {
+    width: max-content;
+  }
+}
+
+:root[data-design="g"] .g-pill__row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--ui-header-height);
+  padding: 0 8px 0 14px;
+}
+
+:root[data-design="g"] .g-logo {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 6px;
+  border-radius: 12px;
+  transition: filter 300ms var(--g-ease);
+}
+
+:root[data-design="g"] .g-logo:hover {
+  filter: drop-shadow(0 0 12px rgb(var(--g-rim) / 0.5));
+}
+
+:root[data-design="g"] .g-logo:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+:root[data-design="g"] .g-pill__rule {
+  display: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 8px;
+  background: rgb(255 255 255 / 0.09);
+}
+
+:root[data-design="g"] .g-nav {
+  position: relative;
+  display: none;
+  align-items: center;
+  align-self: stretch;
+  gap: 2px;
+}
+
+:root[data-design="g"] .g-pill__end {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+@media (min-width: 1024px) {
+  :root[data-design="g"] .g-pill__rule,
+  :root[data-design="g"] .g-nav {
+    display: flex;
+  }
+
+  :root[data-design="g"] .g-pill__end {
+    margin-left: 0;
+  }
+}
+
+:root[data-design="g"] .g-nav__link {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  white-space: nowrap;
+  color: var(--ui-text-muted);
+  transition: color 180ms ease;
+}
+
+:root[data-design="g"] .g-nav__link:hover,
+:root[data-design="g"] .g-nav__link.is-active {
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="g"] .g-nav__link:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 1px;
+}
+
+/* The light that glides under the nav: a soft pill behind the label and a
+   filament on the bar's bottom edge, brightest when it rests on the page. */
+:root[data-design="g"] .g-nav__light {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+:root[data-design="g"] .g-nav__light.is-placed {
+  transition:
+    transform 420ms var(--ease-out-expo),
+    width 420ms var(--ease-out-expo),
+    opacity 200ms ease;
+}
+
+:root[data-design="g"] .g-nav__light.is-shown {
+  opacity: 1;
+}
+
+:root[data-design="g"] .g-nav__light::before {
+  content: "";
+  position: absolute;
+  inset: calc(50% - 17px) 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.035));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), inset 0 0 0 1px rgb(255 255 255 / 0.03);
+}
+
+:root[data-design="g"] .g-nav__light::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(var(--g-core)) 50%, transparent);
+  box-shadow: 0 0 8px 1px rgb(var(--g-rim) / 0.7), 0 4px 18px 3px rgb(var(--g-rim) / 0.2);
+  opacity: 0.45;
+  transition: opacity 250ms ease;
+}
+
+:root[data-design="g"] .g-nav__light.is-resting::after {
+  opacity: 1;
+}
+
+:root[data-design="g"] .g-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgb(var(--g-champagne));
+  background: rgb(var(--g-champagne) / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(var(--g-champagne) / 0.22);
+}
+
+:root[data-design="g"] .g-pill__search button {
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+/* Burger: two bars that cross into an X. */
+:root[data-design="g"] .g-burger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  color: var(--ui-text-highlighted);
+  transition: background-color 180ms ease;
+}
+
+:root[data-design="g"] .g-burger:hover {
+  background-color: rgb(255 255 255 / 0.06);
+}
+
+:root[data-design="g"] .g-burger:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 1px;
+}
+
+:root[data-design="g"] .g-burger__bars,
+:root[data-design="g"] .g-burger__bars::before,
+:root[data-design="g"] .g-burger__bars::after {
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  border-radius: 2px;
+}
+
+:root[data-design="g"] .g-burger__bars {
+  position: relative;
+}
+
+:root[data-design="g"] .g-burger__bars::before,
+:root[data-design="g"] .g-burger__bars::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  background: currentColor;
+  transition: translate 300ms var(--g-ease), rotate 300ms var(--g-ease);
+}
+
+:root[data-design="g"] .g-burger__bars::before {
+  translate: 0 -3.5px;
+}
+
+:root[data-design="g"] .g-burger__bars::after {
+  translate: 0 3.5px;
+}
+
+:root[data-design="g"] .g-header.is-open .g-burger__bars::before {
+  translate: 0 0;
+  rotate: 45deg;
+}
+
+:root[data-design="g"] .g-header.is-open .g-burger__bars::after {
+  translate: 0 0;
+  rotate: -45deg;
+}
+
+@media (min-width: 1024px) {
+  :root[data-design="g"] .g-burger,
+  :root[data-design="g"] .g-menu,
+  :root[data-design="g"] .g-scrim {
+    display: none;
+  }
+}
+
+/* The menu: the pill grows downward into a grid of destination tiles. */
+:root[data-design="g"] .g-menu {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 420ms var(--ease-out-expo);
+}
+
+:root[data-design="g"] .g-header.is-open .g-menu {
+  grid-template-rows: 1fr;
+}
+
+:root[data-design="g"] .g-menu__clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+:root[data-design="g"] .g-menu__nav {
+  padding: 2px 8px 8px;
+}
+
+:root[data-design="g"] .g-menu__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+:root[data-design="g"] .g-menu__tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  min-height: 78px;
+  padding: 12px 13px;
+  border-radius: 17px;
+  background: rgb(255 255 255 / 0.035);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.05);
+  color: var(--ui-text-muted);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+:root[data-design="g"] .g-menu__icon {
+  width: 18px;
+  height: 18px;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="g"] .g-menu__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+:root[data-design="g"] .g-menu__label {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="g"] .g-menu__tile:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+
+:root[data-design="g"] .g-menu__tile.is-active {
+  background: rgb(var(--g-rim) / 0.09);
+  box-shadow: inset 0 0 0 1px rgb(var(--g-rim) / 0.32);
+}
+
+:root[data-design="g"] .g-menu__tile.is-active .g-menu__icon {
+  color: var(--ui-primary);
+}
+
+:root[data-design="g"] .g-menu__tile:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: -2px;
+}
+
+:root[data-design="g"] .g-header.is-open .g-menu__grid li {
+  animation: g-menu-in 480ms var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i) * 30ms + 60ms);
+}
+
+:root[data-design="g"] .g-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: rgb(5 5 7 / 0.55);
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
+}
+
+:root[data-design="g"] .g-scrim-enter-active,
+:root[data-design="g"] .g-scrim-leave-active {
+  transition: opacity 280ms var(--g-ease);
+}
+
+:root[data-design="g"] .g-scrim-enter-from,
+:root[data-design="g"] .g-scrim-leave-to {
+  opacity: 0;
+}
+
+/* ─── Home ──────────────────────────────────────────────────────────────── */
+
+:root[data-design="g"] .g-home {
+  position: relative;
+  isolation: isolate;
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+@media (min-width: 768px) {
+  :root[data-design="g"] .g-home {
+    padding: 0 1.5rem;
+  }
+}
+
+/* A warm light above the grid, as if it hung under a softbox. Static. */
+:root[data-design="g"] .g-home::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -6rem;
+  left: 50%;
+  width: min(1400px, 140%);
+  height: 760px;
+  translate: -50% 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 46% at 32% 30%, rgb(var(--g-rim) / 0.11), transparent 70%),
+    radial-gradient(30% 34% at 78% 18%, rgb(var(--g-champagne) / 0.06), transparent 70%);
+}
+
+:root[data-design="g"] .g-intro {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.75rem 0.25rem 1.25rem;
+  animation: g-rise 900ms var(--ease-out-expo) backwards;
+}
+
+@media (min-width: 900px) {
+  :root[data-design="g"] .g-intro {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 21rem);
+    align-items: end;
+    gap: 2rem;
+    padding: 2.5rem 0.25rem 1.75rem;
+  }
+}
+
+:root[data-design="g"] .g-intro__title {
+  font-size: clamp(2.1rem, 4.6vw, 3.6rem);
+  font-weight: 650;
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="g"] .g-intro__accent {
+  background: linear-gradient(180deg, #fbe7e2 0%, #eeaea3 45%, #d9736c 100%);
+  background-clip: text;
+  color: transparent;
+}
+
+:root[data-design="g"] .g-intro__lede {
+  max-width: 26rem;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ui-text-muted);
+  text-wrap: pretty;
+}
+
+/* ─── The bento ─────────────────────────────────────────────────────────── */
+
+:root[data-design="g"] .g-bento {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 150px;
+  gap: 10px;
+  grid-template-areas:
+    "hero    hero"
+    "hero    hero"
+    "ban     win"
+    "ban     win"
+    "games   tracked"
+    "player  player"
+    "search  search"
+    "app     app"
+    "app     app"
+    "tier    tier";
+}
+
+@media (min-width: 768px) {
+  :root[data-design="g"] .g-bento {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: 164px;
+    gap: 12px;
+    grid-template-areas:
+      "hero    hero     ban     win"
+      "hero    hero     ban     win"
+      "games   tracked  player  player"
+      "search  search   app     app"
+      "tier    tier     app     app";
+  }
+}
+
+@media (min-width: 1280px) {
+  :root[data-design="g"] .g-bento {
+    grid-auto-rows: 176px;
+    gap: 14px;
+  }
+}
+
+:root[data-design="g"] .g-tile--hero { grid-area: hero; }
+:root[data-design="g"] .g-tile--ban { grid-area: ban; }
+:root[data-design="g"] .g-tile--win { grid-area: win; }
+:root[data-design="g"] .g-tile--games { grid-area: games; }
+:root[data-design="g"] .g-tile--tracked { grid-area: tracked; }
+:root[data-design="g"] .g-tile--player { grid-area: player; }
+:root[data-design="g"] .g-tile--search { grid-area: search; }
+:root[data-design="g"] .g-tile--app { grid-area: app; }
+:root[data-design="g"] .g-tile--tier { grid-area: tier; }
+
+/* A tile: a dark pane whose 1px rim is lit from above and, near the cursor,
+   from the cursor — the fill is clipped to the padding box, the light to the
+   border box, so the rim costs no extra element. */
+:root[data-design="g"] .g-tile {
+  --g-fill: #0f0f12;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  isolation: isolate;
+  container-type: inline-size;
+  border: 1px solid transparent;
+  border-radius: var(--g-radius);
+  background:
+    radial-gradient(440px circle at var(--g-mx) var(--g-my), rgb(var(--g-rim) / calc(var(--g-spot) * 0.075)), transparent 62%) padding-box,
+    linear-gradient(var(--g-fill), var(--g-fill)) padding-box,
+    radial-gradient(
+      260px circle at var(--g-mx) var(--g-my),
+      rgb(var(--g-core) / calc(var(--g-spot) * 0.72)),
+      rgb(var(--g-rim) / calc(var(--g-spot) * 0.28)) 40%,
+      transparent 72%
+    ) border-box,
+    linear-gradient(180deg, rgb(255 255 255 / 0.13), rgb(255 255 255 / 0.04) 38%, rgb(255 255 255 / 0.06)) border-box;
+  box-shadow: 0 24px 48px -30px rgb(0 0 0 / 0.95);
+  color: var(--ui-text);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    --g-spot 500ms var(--g-ease),
+    --g-fill 200ms ease,
+    transform 450ms var(--ease-out-expo),
+    box-shadow 450ms var(--g-ease);
+  animation: g-tile-in 900ms var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 55ms + 80ms);
+}
+
+/* The rest of the grid steps back while one tile has the cursor. */
+:root[data-design="g"] .g-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  background: rgb(6 6 8 / 0.34);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms var(--g-ease);
+}
+
+:root[data-design="g"] .g-tile:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 3px;
+}
+
+:root[data-design="g"] .g-tile__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px 18px 18px;
+}
+
+@media (min-width: 768px) {
+  :root[data-design="g"] .g-tile__body {
+    padding: 18px 20px 20px;
+  }
+}
+
+:root[data-design="g"] .g-tile__label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 18px;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: rgb(255 255 255 / 0.66);
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.5);
+}
+
+:root[data-design="g"] .g-tile__icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ui-primary);
+}
+
+:root[data-design="g"] .g-tile__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgb(255 255 255 / 0.45);
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-design="g"] .g-tile__meta::before {
+  content: "";
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+:root[data-design="g"] .g-tile__go {
+  display: inline-flex;
+  margin-left: auto;
+  color: rgb(255 255 255 / 0.45);
+  transition: translate 220ms var(--g-ease), color 220ms ease;
+}
+
+:root[data-design="g"] .g-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 600ms var(--g-ease);
+}
+
+:root[data-design="g"] .g-art.is-loaded {
+  opacity: 1;
+}
+
+:root[data-design="g"] .g-skel {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(110deg, rgb(255 255 255 / 0.045) 30%, rgb(255 255 255 / 0.09) 50%, rgb(255 255 255 / 0.045) 70%);
+  background-size: 250% 100%;
+  animation: g-shimmer 1.6s linear infinite;
+}
+
+:root[data-design="g"] .g-in {
+  animation: g-fade-in 520ms var(--g-ease) backwards;
+}
+
+:root[data-design="g"] .g-empty {
+  margin-top: auto;
+  font-size: 13px;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="g"] .g-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.35);
+}
+
+/* ─── Tile: the most present champion ───────────────────────────────────── */
+
+:root[data-design="g"] .g-hero__art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #0b0b0d;
+}
+
+:root[data-design="g"] .g-hero__art .g-art {
+  scale: 1.04;
+  translate: 0 0;
+  transition:
+    opacity 600ms var(--g-ease),
+    scale 1.2s var(--ease-out-expo),
+    translate 900ms var(--ease-out-expo);
+}
+
+:root[data-design="g"] .g-hero__shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(8 8 10 / 0.55) 0%, transparent 26%),
+    linear-gradient(0deg, rgb(8 8 10 / 0.96) 0%, rgb(8 8 10 / 0.72) 30%, transparent 62%),
+    linear-gradient(90deg, rgb(8 8 10 / 0.55) 0%, transparent 55%);
+}
+
+:root[data-design="g"] .g-hero__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: auto;
+}
+
+:root[data-design="g"] .g-hero__tier {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+}
+
+:root[data-design="g"] .g-hero__lane,
+:root[data-design="g"] .g-card__lane {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.66);
+}
+
+:root[data-design="g"] .g-hero__name {
+  margin-top: 4px;
+  font-size: clamp(2.2rem, 8.6cqi, 3.9rem);
+  font-weight: 650;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  color: #fff;
+  text-shadow: 0 2px 24px rgb(0 0 0 / 0.5);
+}
+
+:root[data-design="g"] .g-hero__stats {
+  display: flex;
+  gap: clamp(18px, 5cqi, 34px);
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+}
+
+:root[data-design="g"] .g-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+:root[data-design="g"] .g-stat__value {
+  font-size: clamp(16px, 3.6cqi, 21px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #fff;
+}
+
+:root[data-design="g"] .g-stat__label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.5);
+}
+
+:root[data-design="g"] .g-hero__go {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  font-size: 18px;
+  color: #fff;
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  backdrop-filter: blur(10px);
+  transition: background-color 250ms ease, translate 300ms var(--g-ease), color 250ms ease;
+}
+
+/* ─── Tiles: the champion cards (most banned, highest win rate) ─────────── */
+
+:root[data-design="g"] .g-card__art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #0b0b0d;
+}
+
+:root[data-design="g"] .g-card__art .g-art {
+  scale: 1.02;
+  transition:
+    opacity 600ms var(--g-ease),
+    scale 1.2s var(--ease-out-expo),
+    filter 450ms var(--g-ease);
+}
+
+:root[data-design="g"] .g-card__shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(8 8 10 / 0.72) 0%, transparent 24%),
+    linear-gradient(0deg, rgb(8 8 10 / 0.97) 0%, rgb(8 8 10 / 0.82) 28%, transparent 58%);
+}
+
+/* The ban: greyed and struck through, as champion select draws it. */
+:root[data-design="g"] .g-card--ban .g-art {
+  filter: grayscale(0.9) brightness(0.72) contrast(1.06);
+}
+
+:root[data-design="g"] .g-card__strike {
+  position: absolute;
+  top: 38%;
+  left: -20%;
+  width: 140%;
+  height: 2px;
+  rotate: -38deg;
+  transform-origin: 50% 50%;
+  background: linear-gradient(90deg, transparent 6%, rgb(var(--g-rim) / 0.9) 24%, rgb(var(--g-core)) 50%, rgb(var(--g-rim) / 0.9) 76%, transparent 94%);
+  box-shadow: 0 0 14px rgb(var(--g-rim) / 0.55);
+  transition: scale 420ms var(--g-ease), opacity 320ms ease;
+}
+
+:root[data-design="g"] .g-card__glare {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--gx, 50%) var(--gy, 0%), rgb(255 238 226 / 0.4), rgb(255 220 200 / 0.08) 34%, transparent 60%);
+  mix-blend-mode: overlay;
+  opacity: 0;
+  transition: opacity 400ms var(--g-ease);
+}
+
+:root[data-design="g"] .g-card__content {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  min-width: 0;
+}
+
+:root[data-design="g"] .g-card__name {
+  margin-top: 3px;
+  font-size: clamp(1.05rem, 8.4cqi, 1.6rem);
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+:root[data-design="g"] .g-card__figure {
+  margin-top: 8px;
+  font-size: clamp(1.7rem, 15cqi, 2.6rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: #fff;
+}
+
+:root[data-design="g"] .g-card--win .g-card__figure {
+  background: linear-gradient(180deg, #fbe7e2, #e58f83);
+  background-clip: text;
+  color: transparent;
+}
+
+:root[data-design="g"] .g-card__unit {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgb(255 255 255 / 0.5);
+}
+
+:root[data-design="g"] .g-meter {
+  position: relative;
+  display: block;
+  height: 3px;
+  margin-top: 12px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.12);
+}
+
+:root[data-design="g"] .g-meter__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: left center;
+  scale: var(--fill) 1;
+  background: linear-gradient(90deg, rgb(var(--g-rim) / 0.55), rgb(var(--g-core)));
+  box-shadow: 0 0 10px rgb(var(--g-rim) / 0.45);
+  animation: g-meter-in 1400ms var(--ease-out-expo) 250ms backwards;
+}
+
+:root[data-design="g"] .g-meter__mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 50%;
+  width: 1px;
+  background: rgb(255 255 255 / 0.55);
+}
+
+/* ─── Tiles: the totals ─────────────────────────────────────────────────── */
+
+:root[data-design="g"] .g-statile .g-tile__body::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: -25%;
+  bottom: -55%;
+  width: 95%;
+  height: 110%;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgb(var(--g-rim) / 0.1), transparent);
+}
+
+:root[data-design="g"] .g-statile__figure {
+  display: flex;
+  align-items: flex-end;
+  margin-top: auto;
+  font-size: clamp(2rem, 18cqi, 3.5rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="g"] .g-crowd {
+  position: absolute;
+  right: 18px;
+  bottom: 20px;
+  display: flex;
+}
+
+:root[data-design="g"] .g-crowd__face {
+  width: 28px;
+  height: 28px;
+  margin-left: -9px;
+  border-radius: 9px;
+  box-shadow: 0 0 0 2px #0f0f12;
+  transition: translate 380ms var(--ease-spring);
+}
+
+@container (max-width: 230px) {
+  :root[data-design="g"] .g-crowd {
+    display: none;
+  }
+}
+
+/* ─── Odometer ──────────────────────────────────────────────────────────── */
+
+:root[data-design="g"] .g-odo {
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-design="g"] .g-odo__face {
+  display: inline-flex;
+  align-items: flex-start;
+}
+
+:root[data-design="g"] .g-odo__cell,
+:root[data-design="g"] .g-odo__sep {
+  --h: 1.1em;
+  display: inline-block;
+  height: var(--h);
+  line-height: var(--h);
+}
+
+:root[data-design="g"] .g-odo__cell {
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, transparent 0, #000 13%, #000 87%, transparent 100%);
+}
+
+:root[data-design="g"] .g-odo__wheel {
+  display: block;
+  translate: 0 calc((var(--d) + 10) * var(--h) * -1);
+}
+
+:root[data-design="g"] .g-odo__wheel > span {
+  display: block;
+  height: var(--h);
+  text-align: center;
+}
+
+:root[data-design="g"] .g-odo.is-intro .g-odo__wheel {
+  animation: g-odo-intro var(--dur) cubic-bezier(0.16, 0.72, 0.1, 1) var(--delay) backwards;
+}
+
+:root[data-design="g"] .g-odo.is-spin .g-odo__wheel {
+  animation: g-odo-spin var(--dur) cubic-bezier(0.32, 0.7, 0.2, 1) var(--delay) backwards;
+}
+
+/* ─── Tile: the top truemain ────────────────────────────────────────────── */
+
+:root[data-design="g"] .g-player__art {
+  position: absolute;
+  inset: 0 0 0 40%;
+  z-index: 0;
+  opacity: 0.42;
+  translate: 28px 0;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 70%);
+  transition: opacity 500ms var(--g-ease), translate 800ms var(--ease-out-expo);
+}
+
+/* Narrow player tile: the art keeps to the far edge, behind no text. */
+@container (max-width: 420px) {
+  :root[data-design="g"] .g-player__art {
+    inset: 0 0 0 58%;
+    opacity: 0.3;
+  }
+}
+
+:root[data-design="g"] .g-player__content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  margin-top: auto;
+}
+
+:root[data-design="g"] .g-player__avatar {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: #18181c;
+}
+
+/* A rose-gold ring around the icon that turns once under the cursor. */
+:root[data-design="g"] .g-player__avatar::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: 18px;
+  background: conic-gradient(from var(--g-angle), rgb(var(--g-rim)), rgb(var(--g-champagne)) 25%, rgb(var(--g-rim) / 0.15) 50%, rgb(var(--g-champagne) / 0.6) 75%, rgb(var(--g-rim)));
+  transition: --g-angle 1.1s var(--g-ease);
+}
+
+:root[data-design="g"] .g-player__avatar img {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+}
+
+:root[data-design="g"] .g-player__who {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+:root[data-design="g"] .g-player__name {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="g"] .g-player__tag {
+  flex: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="g"] .g-player__line,
+:root[data-design="g"] .g-player__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 12.5px;
+  color: var(--ui-text-muted);
+}
+
+:root[data-design="g"] .g-player__rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 500;
+  color: var(--ui-text-default);
+}
+
+:root[data-design="g"] .g-player__persona {
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgb(var(--g-champagne));
+  background: rgb(var(--g-champagne) / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(var(--g-champagne) / 0.2);
+}
+
+:root[data-design="g"] .g-player__champ {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+/* ─── Tile: search ──────────────────────────────────────────────────────── */
+
+:root[data-design="g"] .g-searchtile {
+  cursor: pointer;
+}
+
+:root[data-design="g"] .g-searchtile__hint {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="g"] .g-search {
+  margin-top: auto;
+}
+
+:root[data-design="g"] .g-search button {
+  height: 3.25rem;
+  border-radius: 16px;
+  border-color: rgb(255 255 255 / 0.08);
+  background-color: rgb(255 255 255 / 0.03);
+  transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
+}
+
+:root[data-design="g"] .g-search kbd {
+  transition: translate 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+@container (max-width: 380px) {
+  :root[data-design="g"] .g-searchtile__hint {
+    display: none;
+  }
+}
+
+/* ─── Tile: tier list ───────────────────────────────────────────────────── */
+
+:root[data-design="g"] .g-tiertile__row {
+  display: flex;
+  gap: clamp(10px, 2.6cqi, 16px);
+  margin-top: auto;
+}
+
+:root[data-design="g"] .g-tiertile__pick {
+  position: relative;
+  transition: translate 420ms var(--ease-spring);
+  transition-delay: calc(var(--k, 0) * 35ms);
+}
+
+:root[data-design="g"] .g-tiertile__icon {
+  display: block;
+  width: clamp(42px, 9.4cqi, 56px);
+  height: clamp(42px, 9.4cqi, 56px);
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08), 0 10px 20px -10px rgb(0 0 0 / 0.8);
+}
+
+/* The tier letter worn on the portrait's corner. */
+:root[data-design="g"] .g-tiertile__tier {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  background: #0f0f12;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+:root[data-design="g"] .g-tiertile__tier > span {
+  height: auto;
+  min-width: 0;
+  font-size: 11px;
+}
+
+:root[data-design="g"] .g-tiertile__cta {
+  margin-top: 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ui-text-muted);
+  transition: color 200ms ease;
+}
+
+/* Five portraits where the tile is narrow, all eight where it is wide. */
+@container (max-width: 540px) {
+  :root[data-design="g"] .g-tiertile__pick:nth-child(n + 6) {
+    display: none;
+  }
+}
+
+/* ─── Tile: the desktop app, under a lamp ───────────────────────────────── */
+
+:root[data-design="g"] .g-app {
+  /* The lamp's lean: -0.5..0.5 toward the cursor, 0 when it is away. */
+  --lt: calc((clamp(0, var(--g-u), 1) - 0.5) * var(--g-spot));
+  --ls: var(--g-spot);
+}
+
+:root[data-design="g"] .g-app__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+:root[data-design="g"] .g-app__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 15.5rem;
+  margin-top: 14px;
+}
+
+:root[data-design="g"] .g-app__title {
+  font-size: clamp(1.15rem, 3.8cqi, 1.45rem);
+  font-weight: 650;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--ui-text-highlighted);
+  text-wrap: balance;
+}
+
+:root[data-design="g"] .g-app__lede {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ui-text-muted);
+}
+
+:root[data-design="g"] .g-app__os {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="g"] .g-app__window {
+  position: absolute;
+  right: -5%;
+  bottom: -9%;
+  width: 60%;
+  aspect-ratio: 1180 / 800;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0b0b0d;
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.1);
+  transition: translate 700ms var(--ease-out-expo);
+}
+
+:root[data-design="g"] .g-app__bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 9px;
+  background: #141417;
+  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+}
+
+:root[data-design="g"] .g-app__bar i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.16);
+}
+
+:root[data-design="g"] .g-app__screens {
+  position: absolute;
+  inset: 20px 0 0;
+}
+
+:root[data-design="g"] .g-app__screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 0 0;
+  opacity: 0;
+}
+
+:root[data-design="g"] .g-app__screen:first-child {
+  opacity: 1;
+}
+
+:root[data-design="g"] .g-app__stage.is-live .g-app__screen {
+  animation: g-screens 12s linear infinite;
+  animation-delay: calc(var(--s) * 4s - 0.6s);
+}
+
+/* The pool the lamp throws on the window, and the shade around it. */
+:root[data-design="g"] .g-app__pool {
+  position: absolute;
+  inset: -60%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 22% 30% at 50% 34%, rgb(255 222 200 / 0.2), transparent 72%),
+    radial-gradient(ellipse 30% 40% at 50% 38%, transparent 45%, rgb(5 5 7 / 0.45) 100%);
+  translate: calc(var(--lt) * 24%) 0;
+  transition: translate 1.1s cubic-bezier(0.2, 1.25, 0.35, 1);
+}
+
+:root[data-design="g"] .g-app__pivot {
+  position: absolute;
+  top: 0;
+  left: 75%;
+  z-index: 2;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+:root[data-design="g"] .g-app__stage.is-live .g-app__pivot {
+  animation: g-sway 7s ease-in-out infinite alternate;
+}
+
+:root[data-design="g"] .g-app__lamp {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  rotate: calc(var(--lt) * -24deg);
+  transition: rotate 1.1s cubic-bezier(0.2, 1.25, 0.35, 1);
+}
+
+:root[data-design="g"] .g-lamp__cord {
+  position: absolute;
+  top: 0;
+  left: -0.5px;
+  width: 1px;
+  height: 38px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.32));
+}
+
+:root[data-design="g"] .g-lamp__shade {
+  position: absolute;
+  top: 36px;
+  left: -34px;
+  width: 68px;
+  height: 36px;
+  overflow: visible;
+  filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.7));
+}
+
+:root[data-design="g"] .g-lamp__cone {
+  position: absolute;
+  top: 68px;
+  left: -190px;
+  width: 380px;
+  height: 300px;
+  opacity: calc(0.7 + 0.3 * var(--ls));
+  filter: blur(10px);
+}
+
+:root[data-design="g"] .g-lamp__cone::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
+  background:
+    radial-gradient(18% 30% at 50% 0%, rgb(255 240 226 / 0.32), transparent 100%),
+    linear-gradient(180deg, rgb(255 228 206 / 0.3), rgb(242 180 160 / 0.1) 42%, transparent 85%);
+}
+
+:root[data-design="g"] .g-lamp__cone::after {
+  content: "";
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  width: 110px;
+  height: 44px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 236 220 / 0.7), rgb(242 190 160 / 0.22) 50%, transparent);
+}
+
+/* Narrow tile (phones): the copy on top, the window below it, no lamp. */
+@container (max-width: 470px) {
+  :root[data-design="g"] .g-app__lede,
+  :root[data-design="g"] .g-app__pivot {
+    display: none;
+  }
+
+  :root[data-design="g"] .g-app__copy {
+    max-width: none;
+  }
+
+  :root[data-design="g"] .g-app__window {
+    right: 9%;
+    bottom: -14%;
+    width: 82%;
+  }
+}
+
+/* ─── Hover: one tile at a time ─────────────────────────────────────────── */
+
+@media (hover: hover) and (pointer: fine) {
+  :root[data-design="g"] .g-bento:hover .g-tile:not(:hover)::after {
+    opacity: 1;
+  }
+
+  :root[data-design="g"] .g-tile.is-link:hover {
+    transform: translate3d(0, -3px, 0);
+    box-shadow: 0 34px 60px -30px rgb(0 0 0 / 0.95), 0 0 50px -24px rgb(var(--g-rim) / 0.4);
+  }
+
+  :root[data-design="g"] .g-tile--hero:hover {
+    --hu: clamp(0, var(--g-u), 1);
+    --hv: clamp(0, var(--g-v), 1);
+  }
+
+  :root[data-design="g"] .g-tile--hero:hover .g-hero__art .g-art {
+    scale: 1.08;
+    translate: calc((0.5 - var(--hu)) * 22px) calc((0.5 - var(--hv)) * 14px);
+    transition:
+      opacity 600ms var(--g-ease),
+      scale 1.2s var(--ease-out-expo),
+      translate 260ms ease-out;
+  }
+
+  :root[data-design="g"] .g-tile--hero:hover .g-hero__go {
+    background-color: rgb(var(--g-rim) / 0.9);
+    color: #2a1013;
+    translate: 2px -2px;
+  }
+
+  /* Champion cards: tilt toward the cursor, glare where it points. */
+  :root[data-design="g"] .g-card.is-link:hover {
+    --gx: calc(clamp(0, var(--g-u), 1) * 100%);
+    --gy: calc(clamp(0, var(--g-v), 1) * 100%);
+    transform:
+      perspective(900px)
+      rotateX(calc((0.5 - clamp(0, var(--g-v), 1)) * 8deg))
+      rotateY(calc((clamp(0, var(--g-u), 1) - 0.5) * 8deg))
+      translate3d(0, -3px, 0);
+    transition:
+      --g-spot 500ms var(--g-ease),
+      transform 160ms ease-out,
+      box-shadow 450ms var(--g-ease);
+  }
+
+  :root[data-design="g"] .g-card:hover .g-card__glare {
+    opacity: 1;
+  }
+
+  :root[data-design="g"] .g-card:hover .g-art {
+    scale: 1.08;
+  }
+
+  :root[data-design="g"] .g-card--ban:hover .g-art {
+    filter: none;
+  }
+
+  :root[data-design="g"] .g-card--ban:hover .g-card__strike {
+    scale: 0 1;
+    opacity: 0;
+  }
+
+  :root[data-design="g"] .g-statile:hover .g-crowd__face {
+    translate: calc((var(--k) - 4) * 8px) 0;
+  }
+
+  :root[data-design="g"] .g-player:hover .g-player__art {
+    opacity: 0.95;
+    translate: 0 0;
+  }
+
+  :root[data-design="g"] .g-player:hover .g-player__avatar::before {
+    --g-angle: 360deg;
+  }
+
+  :root[data-design="g"] .g-searchtile:hover .g-search button {
+    border-color: rgb(var(--g-rim) / 0.45);
+    background-color: rgb(var(--g-rim) / 0.05);
+    box-shadow: 0 0 0 4px rgb(var(--g-rim) / 0.06);
+  }
+
+  :root[data-design="g"] .g-searchtile:hover .g-search kbd {
+    translate: 0 1.5px;
+    box-shadow: none;
+    background-color: rgb(var(--g-rim) / 0.14);
+  }
+
+  :root[data-design="g"] .g-searchtile:hover .g-search kbd + kbd {
+    transition-delay: 70ms;
+  }
+
+  :root[data-design="g"] .g-tiertile:hover .g-tiertile__pick {
+    translate: 0 -6px;
+  }
+
+  :root[data-design="g"] .g-tiertile:hover .g-tiertile__cta {
+    color: var(--ui-primary);
+  }
+
+  :root[data-design="g"] .g-tiertile:hover .g-tile__go,
+  :root[data-design="g"] .g-tile--hero:hover .g-tile__go {
+    translate: 3px 0;
+    color: var(--ui-primary);
+  }
+
+  :root[data-design="g"] .g-app:hover .g-app__window {
+    translate: 0 -6px;
+  }
+}
+
+/* ─── Home: the full panels under the grid ──────────────────────────────── */
+
+:root[data-design="g"] .g-more {
+  padding: 4.5rem 0 3.5rem;
+}
+
+:root[data-design="g"] .g-more__head {
+  max-width: 40rem;
+  margin-bottom: 1.75rem;
+  padding: 0 0.25rem;
+}
+
+:root[data-design="g"] .g-more__title {
+  margin-top: 0.4rem;
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="g"] .g-more__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+@media (min-width: 1024px) {
+  :root[data-design="g"] .g-more__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+:root[data-design="g"] .g-more__grid > section > header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="g"] .g-more .surface {
+  border-radius: var(--g-radius);
+}
+
+/* ─── Site-wide: panels, rows, buttons ──────────────────────────────────── */
+
+:root[data-design="g"] .surface {
+  --g-fill: rgb(15 15 18 / 0.92);
+  border-color: transparent;
+  background-image:
+    radial-gradient(520px circle at var(--g-mx) var(--g-my), rgb(var(--g-rim) / calc(var(--g-spot) * 0.06)), transparent 62%),
+    linear-gradient(var(--g-fill), var(--g-fill)),
+    radial-gradient(
+      300px circle at var(--g-mx) var(--g-my),
+      rgb(var(--g-core) / calc(var(--g-spot) * 0.55)),
+      rgb(var(--g-rim) / calc(var(--g-spot) * 0.22)) 40%,
+      transparent 72%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.035) 32%, rgb(255 255 255 / 0.045));
+  background-clip: padding-box, padding-box, border-box, border-box;
+  background-origin: border-box;
+  background-repeat: no-repeat;
+  transition:
+    --g-spot 500ms var(--g-ease),
+    --g-fill 160ms ease,
+    background-color 150ms ease;
+}
+
+:root[data-design="g"] .surface.surface-hover:hover,
+:root[data-design="g"] .surface.surface-hover:focus-visible {
+  --g-fill: rgb(30 30 36 / 0.95);
+}
+
+:root[data-design="g"] .surface li > a {
+  min-width: 0;
+}
+
+:root[data-design="g"] .surface li > a,
+:root[data-design="g"] tbody > tr[data-selectable="true"] {
+  transition: background-color 160ms ease, box-shadow 200ms ease;
+}
+
+:root[data-design="g"] .surface li > a:hover,
+:root[data-design="g"] tbody > tr[data-selectable="true"]:hover {
+  background-color: rgb(255 255 255 / 0.02);
+  background-image: linear-gradient(90deg, rgb(var(--g-rim) / 0.1), rgb(var(--g-rim) / 0.025) 40%, transparent 80%);
+  box-shadow: inset 2px 0 0 rgb(var(--g-rim) / 0.8);
+}
+
+/* Solid primary (`keycap bg-primary text-inverted`): a lit rose-gold key with a
+   sheen that crosses it once on hover. */
+:root[data-design="g"] .keycap.bg-primary.text-inverted {
+  position: relative;
+  overflow: hidden;
+  color: #2a1013;
+  background-image: linear-gradient(180deg, #f4bcb0 0%, #e8978b 48%, #d07a72 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 rgb(80 20 24 / 0.3),
+    0 10px 26px -14px rgb(var(--g-rim) / 0.8);
+  transition: box-shadow 300ms var(--g-ease);
+}
+
+:root[data-design="g"] .keycap.bg-primary.text-inverted::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.5) 50%, transparent 70%);
+  translate: -120% 0;
+}
+
+:root[data-design="g"] .keycap.bg-primary.text-inverted:hover {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    inset 0 -1px 0 rgb(80 20 24 / 0.3),
+    0 14px 34px -12px rgb(var(--g-rim) / 0.85);
+}
+
+:root[data-design="g"] .keycap.bg-primary.text-inverted:hover::after {
+  translate: 120% 0;
+  transition: translate 800ms var(--g-ease);
+}
+
+/* Page banners (champion, profile) take the tiles' radius. */
+:root[data-design="g"] .g-main section.rounded-lg.border.bg-ink-950 {
+  border-radius: var(--g-radius);
+  border-color: rgb(255 255 255 / 0.08);
+  box-shadow: 0 30px 60px -36px rgb(0 0 0 / 0.95);
+}
+
+:root[data-design="g"] .g-main .surface.rounded-2xl {
+  border-radius: 20px;
+}
+
+:root[data-design="g"] .g-main header.space-y-3 h1 {
+  letter-spacing: -0.035em;
+}
+
+/* ─── Page transitions: the new page settles in from just below ─────────── */
+
+:root[data-design="g"] .page-enter-active {
+  transition: opacity 320ms var(--g-ease), transform 480ms var(--ease-out-expo);
+}
+
+:root[data-design="g"] .page-enter-from {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+}
+
+/* ─── Footer ────────────────────────────────────────────────────────────── */
+
+:root[data-design="g"] .g-footer {
+  position: relative;
+  overflow: hidden;
+  margin-top: 2rem;
+  border-top: 1px solid rgb(255 255 255 / 0.06);
+}
+
+:root[data-design="g"] .g-footer__inner {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.25rem 2rem;
+}
+
+@media (min-width: 768px) {
+  :root[data-design="g"] .g-footer__inner {
+    padding-inline: 1.75rem;
+  }
+}
+
+:root[data-design="g"] .g-footer__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.5rem;
+}
+
+@media (min-width: 768px) {
+  :root[data-design="g"] .g-footer__top {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+:root[data-design="g"] .g-footer__tagline {
+  max-width: 22rem;
+  margin-top: 0.85rem;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ui-text-muted);
+}
+
+:root[data-design="g"] .g-footer__nav {
+  display: flex;
+  gap: 4rem;
+}
+
+:root[data-design="g"] .g-footer__heading {
+  margin-bottom: 0.9rem;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ui-text-dimmed);
+}
+
+:root[data-design="g"] .g-footer__nav ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+:root[data-design="g"] .g-footer__link {
+  font-size: 14px;
+  color: var(--ui-text-muted);
+  transition: color 180ms ease;
+}
+
+:root[data-design="g"] .g-footer__link:hover {
+  color: var(--ui-text-highlighted);
+}
+
+:root[data-design="g"] .g-footer__link:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* The wordmark set into the ground: barely there until the light passes. */
+:root[data-design="g"] .g-footer__mark {
+  margin-top: 3.5rem;
+  font-size: min(17vw, 210px);
+  font-weight: 700;
+  line-height: 0.8;
+  letter-spacing: -0.065em;
+  white-space: nowrap;
+  text-align: center;
+  user-select: none;
+  background-image:
+    radial-gradient(
+      300px circle at var(--g-mx) var(--g-my),
+      rgb(var(--g-core) / calc(var(--g-spot) * 0.6)),
+      rgb(var(--g-rim) / calc(var(--g-spot) * 0.32)) 35%,
+      transparent 70%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.01) 85%);
+  background-clip: text;
+  color: transparent;
+  transition: --g-spot 800ms var(--g-ease);
+}
+
+:root[data-design="g"] .g-footer__bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgb(255 255 255 / 0.06);
+}
+
+@media (min-width: 768px) {
+  :root[data-design="g"] .g-footer__bottom {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 3rem;
+  }
+}
+
+/* ─── Keyframes ─────────────────────────────────────────────────────────── */
+
+@keyframes g-tile-in {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+    scale: 0.97;
+  }
+}
+
+@keyframes g-rise {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+}
+
+@keyframes g-fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes g-menu-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+
+@keyframes g-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -150% 0; }
+}
+
+@keyframes g-meter-in {
+  from { scale: 0 1; }
+}
+
+@keyframes g-odo-intro {
+  from { translate: 0 calc(var(--d) * var(--h) * -1); }
+  to { translate: 0 calc((var(--d) + 20) * var(--h) * -1); }
+}
+
+@keyframes g-odo-spin {
+  from { translate: 0 calc((var(--d) + 10) * var(--h) * -1); }
+  to { translate: 0 calc((var(--d) + 20) * var(--h) * -1); }
+}
+
+@keyframes g-screens {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  33% { opacity: 1; }
+  37% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes g-sway {
+  from { rotate: -1.4deg; }
+  to { rotate: 1.4deg; }
+}
+
+/* ─── Lite: no continuous loops, no 3D, lighter glass ───────────────────── */
+
+:root[data-design="g"][data-fx="lite"] .g-app__stage .g-app__screen,
+:root[data-design="g"][data-fx="lite"] .g-app__stage .g-app__pivot {
+  animation: none;
+}
+
+:root[data-design="g"][data-fx="lite"] .g-pill {
+  backdrop-filter: blur(8px);
+}
+
+:root[data-design="g"][data-fx="lite"] .g-card.is-link:hover {
+  transform: translate3d(0, -3px, 0);
+}
+
+:root[data-design="g"][data-fx="lite"] .g-card__glare {
+  display: none;
+}
+
+:root[data-design="g"][data-fx="lite"] .g-tile--hero:hover .g-hero__art .g-art {
+  translate: 0 0;
+}
+
+/* ─── Reduced motion: light stays, motion goes ──────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="g"] .g-tile,
+  :root[data-design="g"] .g-intro,
+  :root[data-design="g"] .g-in,
+  :root[data-design="g"] .g-meter__fill,
+  :root[data-design="g"] .g-skel,
+  :root[data-design="g"] .g-header.is-open .g-menu__grid li,
+  :root[data-design="g"] .g-app__stage .g-app__screen,
+  :root[data-design="g"] .g-app__stage .g-app__pivot,
+  :root[data-design="g"] .g-odo .g-odo__wheel {
+    animation: none;
+  }
+
+  :root[data-design="g"] .g-tile,
+  :root[data-design="g"] .g-tile.is-link:hover,
+  :root[data-design="g"] .g-card.is-link:hover,
+  :root[data-design="g"] .g-app__lamp,
+  :root[data-design="g"] .g-app__pool,
+  :root[data-design="g"] .g-menu,
+  :root[data-design="g"] .page-enter-active {
+    transform: none;
+    transition: none;
+  }
+
+  :root[data-design="g"] .g-tile--hero:hover .g-hero__art .g-art,
+  :root[data-design="g"] .g-tiertile:hover .g-tiertile__pick,
+  :root[data-design="g"] .g-statile:hover .g-crowd__face,
+  :root[data-design="g"] .g-app:hover .g-app__window {
+    translate: none;
+  }
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { formatCompactCount } from '~~/shared/utils/counts'
 import { isLoadingStatus } from '#common/utils/async-data'
+import type { DesignHomeData } from '~/composables/useDesign'
 
 // The homepage title leads with the brand, so opt out of the global
 // `%s · TrueMain` template — it would duplicate the name in search results.
@@ -63,13 +64,60 @@ const overviewPending = computed(() => isLoadingStatus(overviewStatus.value))
 // reads as data loss. This one only grows.
 const gamesAnalyzed = computed(() => overview.value?.gamesAnalyzed ?? 0)
 
+// Design exploration (prototype): each variant renders its own home from the
+// same data the current one reads.
+const design = useDesignVariant()
+const designData = computed<DesignHomeData>(() => ({
+  overview: overview.value,
+  overviewPending: overviewPending.value,
+  tierlistPending: tierlistPending.value,
+  championsById: championsById.value,
+  truemainRows: truemainRows.value,
+  truemainsInitialLoading: truemainsInitialLoading.value,
+  trackedTruemains: trackedTruemains.value,
+  gamesAnalyzed: gamesAnalyzed.value,
+  ddragonPatch: ddragonPatch.value,
+}))
+
 // A client-side navigation keeps the outgoing page under the loading bar until
 // the API has answered (#1689); the static lookups keep their skeleton.
 await Promise.all([overviewFetch, truemainsReady])
 </script>
 
 <template>
-  <div>
+  <DesignAHome
+    v-if="design === 'a'"
+    v-bind="designData"
+  />
+  <DesignBHome
+    v-else-if="design === 'b'"
+    v-bind="designData"
+  />
+  <DesignCHome
+    v-else-if="design === 'c'"
+    v-bind="designData"
+  />
+  <DesignDHome
+    v-else-if="design === 'd'"
+    v-bind="designData"
+  />
+  <DesignEHome
+    v-else-if="design === 'e'"
+    v-bind="designData"
+  />
+  <DesignFHome
+    v-else-if="design === 'f'"
+    v-bind="designData"
+  />
+  <DesignGHome
+    v-else-if="design === 'g'"
+    v-bind="designData"
+  />
+  <DesignHHome
+    v-else-if="design === 'h'"
+    v-bind="designData"
+  />
+  <div v-else>
     <!-- Hero — the one place the eclipse shader renders. It is mounted here
          rather than in `app.vue` so it is bounded by this section: as a
          viewport-fixed layer it bled through the champion and leaderboard
