@@ -3,7 +3,7 @@ import type { ChampionOverviewRow } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { championLoadingUrlFromIcon } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { createRingEngine, wrapOffset } from './ring-engine'
 import type { RingEngine } from './ring-engine'
 

@@ -3,7 +3,7 @@ import type { ChampionOverviewRow } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { championLoadingUrlFromIcon, formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 // Variant A — the patch's most present champions as tall loading-art cards,
 // each with a liquid-glass plate refracting its art. Scrolls sideways (snap),

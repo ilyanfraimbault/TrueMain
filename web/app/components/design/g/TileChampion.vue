@@ -3,7 +3,7 @@ import type { ChampionOverviewRow } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { championLoadingUrlFromIcon, formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 // A champion card on its loading-screen art, for one superlative of the
 // patch's most present rows: the most banned, or the highest win rate. The card

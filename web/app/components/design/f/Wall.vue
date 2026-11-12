@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import type { ChampionOverviewRow } from '~~/shared/types/champions'
 import type { WallChampion } from './champion-filter'
 import { startWallLens } from './wall-lens'

@@ -4,7 +4,7 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatCompactCount } from '~~/shared/utils/counts'
 import { championLoadingUrlFromIcon, formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { winRateTone } from '#common/utils/rate-tone'
 
 // One champion of the patch's top rows, on its loading-screen art. The card

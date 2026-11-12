@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 // Variant E home, round 3: the visitor's starred champions, one click away.
 // Read from localStorage after mount (`useFavoriteChampions`), so nothing shows

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { POSITION_OPTIONS } from '#common/utils/positions'
+import { POSITION_OPTIONS } from '#shared/utils/positions'
 
 // The tier list's door, as a launcher's mode select: one tile per lane, each
 // opening the tier list on that lane (`?position=`), and one for every lane.

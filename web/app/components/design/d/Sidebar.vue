@@ -3,7 +3,7 @@ import type { RouteLocationRaw } from 'vue-router'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { getProfileIconUrl } from '~~/shared/utils/ddragon'
 import { truemainProfilePath } from '~~/shared/utils/truemain-path'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { navGroups, shortPatch } from './nav'
 
 // Variant D ("Cockpit"): the sidebar's content — brand, search, the grouped

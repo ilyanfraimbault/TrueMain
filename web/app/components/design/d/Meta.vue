@@ -4,7 +4,7 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatCompactCount } from '~~/shared/utils/counts'
 import { championSplashUrlFromIcon, formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { banRateTone, pickRateTone, winRateTone } from '#common/utils/rate-tone'
 
 // Variant D ("Cockpit"): the patch's meta as a master–detail panel. On the

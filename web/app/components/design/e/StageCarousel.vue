@@ -4,7 +4,7 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatCount } from '~~/shared/utils/counts'
 import { championLoadingUrlFromIcon, formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { winRateTone } from '#common/utils/rate-tone'
 
 // The stage on a phone (<768px): the same top champions as pick cards in a

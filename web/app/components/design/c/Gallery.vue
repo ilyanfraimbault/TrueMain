@@ -4,7 +4,7 @@ import type { ChampionOverviewRow } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championSplashUrlFromIcon, formatPercentage, formatPercentageOrDash } from '~~/shared/utils/ddragon'
 import { formatCount } from '~~/shared/utils/counts'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { clamp01, documentTop, useScrollScene, writeVar } from './scroll-scenes'
 
 /**

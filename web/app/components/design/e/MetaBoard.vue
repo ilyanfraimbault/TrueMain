@@ -3,7 +3,7 @@ import type { ChampionTierListResponse } from '~~/shared/types/champions'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_OPTIONS } from '#common/utils/positions'
+import { POSITION_OPTIONS } from '#shared/utils/positions'
 
 // Variant E home, round 3: the patch's meta lane by lane. Each column's head is
 // the way into the tier list for that lane; below it, the lane's strongest

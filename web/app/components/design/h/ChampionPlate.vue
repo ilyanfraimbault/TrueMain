@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ChampionOverviewRow } from '~~/shared/types/champions'
-import type { PositionOption } from '#common/utils/positions'
+import type { PositionOption } from '#shared/utils/positions'
 import { formatCompactCount } from '~~/shared/utils/counts'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { winRateTone } from '#common/utils/rate-tone'

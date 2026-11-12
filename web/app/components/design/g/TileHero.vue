@@ -4,7 +4,7 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatCount } from '~~/shared/utils/counts'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { winRateTone } from '#common/utils/rate-tone'
 
 // The bento's anchor: the patch's most present champion (the overview's first

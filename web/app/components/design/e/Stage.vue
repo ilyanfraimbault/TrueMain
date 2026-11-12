@@ -5,7 +5,7 @@ import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatCompactCount, formatCount } from '~~/shared/utils/counts'
 import { championLoadingUrlFromIcon, championSplashUrlFromIcon, formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 import { winRateTone } from '#common/utils/rate-tone'
 import { trackPointer } from './light-engine'
 
