@@ -156,8 +156,8 @@ public sealed class DraftRecommendationQueryServiceTests
         Assert.Equal(2_000, fitted.TeamFitGames);
         var reason = Assert.Single(fitted.Reasons);
         Assert.Equal(DraftReasonKind.TeamFit, reason.Kind);
-        Assert.Equal("AllyMagicDamage", reason.Axis);
-        Assert.Equal("Low", reason.Bucket);
+        Assert.Equal(ItemContextAxis.AllyMagicDamage, reason.Axis);
+        Assert.Equal(ItemContextBucket.Low, reason.Bucket);
         Assert.True(reason.Tentative);
 
         var request = Assert.Single(teamFits.Requests);
@@ -370,30 +370,24 @@ public sealed class DraftRecommendationQueryServiceTests
         public List<(int Ally, string AllyPosition, string? Patch, string? PartnerPosition, string? EloBracket)> Requests { get; } = [];
 
         public Task<ChampionSynergiesResponse> GetSynergiesAsync(
-            int championId,
-            string position,
-            string? patch,
+            ChampionScope scope,
             string? partnerPosition,
-            string? eloBracket,
             CancellationToken ct)
         {
-            Requests.Add((championId, position, patch, partnerPosition, eloBracket));
+            Requests.Add((scope.ChampionId, scope.RequiredPosition, scope.Patch, partnerPosition, scope.EloBracket));
             return Task.FromResult(new ChampionSynergiesResponse
             {
-                ChampionId = championId,
-                Position = position,
-                Patch = patch,
-                Partners = Partners.GetValueOrDefault((championId, patch), []),
+                ChampionId = scope.ChampionId,
+                Position = scope.RequiredPosition,
+                Patch = scope.Patch,
+                Partners = Partners.GetValueOrDefault((scope.ChampionId, scope.Patch), []),
             });
         }
 
         public Task<ChampionTrioSynergiesResponse> GetTrioSynergiesAsync(
-            int championId,
-            string position,
+            ChampionScope scope,
             int partnerChampionId,
             string partnerPosition,
-            string? patch,
-            string? eloBracket,
             CancellationToken ct)
             => throw new NotSupportedException("The draft never reads trios.");
     }

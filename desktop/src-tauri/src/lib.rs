@@ -8,12 +8,15 @@
 mod api;
 mod champselect;
 mod channels;
+mod contract;
 mod game;
 mod itemsets;
 mod kits;
 mod loading;
 mod menu;
 mod overlay;
+#[cfg(test)]
+mod pinned_settings;
 mod record;
 mod recording;
 mod runes;
@@ -28,10 +31,10 @@ use std::sync::{Arc, Mutex};
 
 use tauri::Manager;
 
-use api::{ApiClient, SharedReads};
+use api::{ApiClient, ReplacedReads, SharedReads};
 use game::SharedGame;
 use record::{GameCache, SharedClient};
-use shell_state::{AppState, Screen};
+use shell_state::{AppState, AppView};
 use supervisor::SharedState;
 
 /// The state the frontend reads on mount.
@@ -40,277 +43,16 @@ use supervisor::SharedState;
 /// already published; without this it would sit on a default state until the
 /// player's next action changed something.
 #[tauri::command]
-fn current_state(shared: tauri::State<'_, SharedState>) -> AppState {
-    shared.lock().expect("state mutex poisoned").clone()
-}
-
-/// Which screen the current state calls for. Derived in Rust so the rule has
-/// exactly one implementation.
-#[tauri::command]
-fn current_screen(shared: tauri::State<'_, SharedState>) -> Screen {
-    shared.lock().expect("state mutex poisoned").screen()
-}
-
-/// Ask TrueMain to read one champion-select state.
-///
-/// Proxied through Rust rather than fetched from the webview: see `api.rs` for
-/// why (CORS against an origin the site never expected, and a CSP that would
-/// have to be opened to a remote host).
-#[tauri::command]
-async fn draft_recommendation(
-    client: tauri::State<'_, ApiClient>,
-    request: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    client.post("/champions/draft", &request).await
-}
-
-/// Ask TrueMain which champions to ban in one champion-select state (#1906):
-/// the threats to the player's declared pick, or to their pool.
-#[tauri::command]
-async fn draft_bans(
-    client: tauri::State<'_, ApiClient>,
-    request: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    client.post("/champions/draft/bans", &request).await
-}
-
-/// The composition build request currently in flight, if any.
-#[derive(Default)]
-struct BuildInFlight(Mutex<Option<tokio::task::AbortHandle>>);
-
-/// The build for one champion against the draft as it stands — both teams'
-/// locked picks, each on its lane — from the endpoint behind the site's
-/// matchup page.
-///
-/// Champion select moves faster than the API answers: a lock landing while a
-/// request is out makes that request's answer obsolete. So each call aborts the
-/// one before it rather than queueing behind it, and the superseded call
-/// returns an error the frontend recognises and drops.
-#[tauri::command]
-async fn composition_build(
-    client: tauri::State<'_, ApiClient>,
-    in_flight: tauri::State<'_, BuildInFlight>,
-    champion_id: i64,
-    request: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    let client = client.inner().clone();
-    let path = format!("/champions/{champion_id}/composition-build");
-    let task = tokio::spawn(async move {
-        client
-            .post_within(&path, &request, COMPOSITION_TIMEOUT)
-            .await
-    });
-
-    let previous = in_flight
-        .0
-        .lock()
-        .expect("in-flight mutex poisoned")
-        .replace(task.abort_handle());
-    if let Some(previous) = previous {
-        previous.abort();
-    }
-
-    match task.await {
-        Ok(answer) => answer,
-        Err(error) if error.is_cancelled() => Err(SUPERSEDED.to_string()),
-        Err(error) => Err(format!("the build request failed: {error}")),
-    }
-}
-
-/// A full ten-pick composition is the slowest query the API runs, and an
-/// uncached one can take well past the client-wide eight seconds. Failing it
-/// would drop the very drafts that matter most; a newer lock aborts a slow
-/// request anyway, so a long deadline never leaves the panel waiting on a
-/// draft that no longer exists.
-const COMPOSITION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-
-/// What a request replaced by a newer one answers. Matched by the frontend.
-const SUPERSEDED: &str = "superseded";
-
-/// The build, runes and summoner spells for one champion on one lane —
-/// narrowed to the lane opponent when there is one.
-///
-/// Answered by the same endpoint as the site's champion page, so the desktop
-/// shows the build the site shows.
-#[tauri::command]
-async fn champion_build(
-    client: tauri::State<'_, ApiClient>,
-    champion_id: i64,
-    position: String,
-    opponent_champion_id: Option<i64>,
-) -> Result<serde_json::Value, String> {
-    let mut query = vec![("position", position)];
-    if let Some(opponent) = opponent_champion_id {
-        query.push(("opponentChampionId", opponent.to_string()));
-    }
-    client
-        .get(&format!("/champions/{champion_id}"), &query)
-        .await
-}
-
-/// The reads the pages outside the draft make — the tier list, the champion
-/// directory, the true mains leaderboard and its search. Listed rather than
-/// open: the shell forwards these and nothing else, so the webview cannot turn
-/// it into a general proxy onto the API.
-const READABLE_PATHS: &[&str] = &[
-    "/champions/tierlist",
-    "/champions/directory",
-    // Every champion's damage profile, for the draft's team damage bars (#1905).
-    "/champions/damage-profiles",
-    // The in-game shop's class of every item, for the kit editor's item picker.
-    "/items/classes",
-    "/truemains",
-    "/truemains/search",
-    "/truemains/lookup",
-    // The overlay's pace reference (#1912): every tier of one position, so the
-    // tier is picked here and never sent.
-    "/benchmarks/pace",
-    // The dashboard's form tiles' tier reference (#2076), by the same rule.
-    "/benchmarks/form",
-];
-
-/// A path the app may read: one of `READABLE_PATHS`, or one true main's
-/// reads under `/truemains/{nameTag}` — their build on a champion
-/// (`/champions/{championId}`), their profile, its LP curve (`/rank-history`)
-/// and activity grid (`/activity`), their match list and one of their matches
-/// (`/matches/{matchId}`): the favorites page and the in-app profile page. The
-/// Riot ID is percent-encoded into one segment, the champion a number and the
-/// match a Riot match id (`EUW1_7123456789`). Or one known player's page
-/// (`/players/{slug}`).
-fn readable(path: &str) -> bool {
-    if READABLE_PATHS.contains(&path) {
-        return true;
-    }
-    if let Some(slug) = path.strip_prefix("/players/") {
-        return is_player_slug(slug);
-    }
-    if let Some(rest) = path.strip_prefix("/champions/") {
-        let segments: Vec<&str> = rest.split('/').collect();
-        // A lane's matchup, for the Game page's lane chance (#1863), and a
-        // lane's patch figures, for the champion page's banner (#2026).
-        return matches!(
-            segments.as_slice(),
-            [champion_id, "item-context" | "matchups" | "trend"] if is_id(champion_id)
-        );
-    }
-    let Some(rest) = path.strip_prefix("/truemains/") else {
-        return false;
-    };
-    let segments: Vec<&str> = rest.split('/').collect();
-    let Some((name_tag, tail)) = segments.split_first() else {
-        return false;
-    };
-    let name_tag_ok = !name_tag.is_empty()
-        && *name_tag != "."
-        && *name_tag != ".."
-        && name_tag
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"-_.~%".contains(&b));
-    let tail_ok = match tail {
-        ["profile"] | ["matches"] | ["rank-history"] | ["activity"] => true,
-        ["champions", champion_id] => {
-            !champion_id.is_empty() && champion_id.bytes().all(|b| b.is_ascii_digit())
-        }
-        ["matches", match_id] => {
-            !match_id.is_empty()
-                && match_id
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'_')
-        }
-        _ => false,
-    };
-    name_tag_ok && tail_ok
-}
-
-/// A champion id: a non-empty run of digits.
-fn is_id(segment: &str) -> bool {
-    !segment.is_empty() && segment.bytes().all(|b| b.is_ascii_digit())
-}
-
-/// A known player's slug, as the API writes them (`PersonaUpsertService`): up to
-/// 64 characters of lowercase kebab case.
-fn is_player_slug(segment: &str) -> bool {
-    segment.len() <= 64
-        && segment.split('-').all(|part| {
-            !part.is_empty()
-                && part
-                    .bytes()
-                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
-        })
-}
-
-/// The POSTs the app makes: a champion's composition build against a draft and
-/// the games behind it (the shared matchup page, #1732), and the next item to
-/// complete in a live game (#1751). Reads that take a game state as a body,
-/// listed like `READABLE_PATHS`.
-fn postable(path: &str) -> bool {
-    let Some(rest) = path.strip_prefix("/champions/") else {
-        return false;
-    };
-    let segments: Vec<&str> = rest.split('/').collect();
-    match segments.as_slice() {
-        [champion_id, "composition-build"]
-        | [champion_id, "composition-build", "games"]
-        | [champion_id, "next-item"] => is_id(champion_id),
-        _ => false,
-    }
-}
-
-/// One POST read of a `postable` path. The composition build is the slowest
-/// query the API runs, hence its deadline rather than the client-wide one.
-/// Asked identically by two webviews at once, it is sent once (`SharedReads`).
-#[tauri::command]
-async fn api_post(
-    client: tauri::State<'_, ApiClient>,
-    reads: tauri::State<'_, SharedReads>,
-    path: String,
-    query: Vec<(String, String)>,
-    request: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    if !postable(&path) {
-        return Err(format!("{path} is not readable from the app"));
-    }
-    let key = format!("POST {path} {query:?} {request}");
-    reads
-        .read(key, || {
-            client.post_query_within(&path, &query, &request, COMPOSITION_TIMEOUT)
-        })
-        .await
-}
-
-/// The tier list is computed on the first read after the API starts — about
-/// ten seconds, past the client-wide deadline (#1783). Abandoning it there
-/// left the draft's pick panel empty for the whole champion select.
-const TIER_LIST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-
-/// One read-only GET of a `readable` path, with its query as key/value pairs.
-/// Shared like `api_post`'s.
-#[tauri::command]
-async fn api_get(
-    client: tauri::State<'_, ApiClient>,
-    reads: tauri::State<'_, SharedReads>,
-    path: String,
-    query: Vec<(String, String)>,
-) -> Result<serde_json::Value, String> {
-    if !readable(&path) {
-        return Err(format!("{path} is not readable from the app"));
-    }
-    let key = format!("GET {path} {query:?}");
-    reads
-        .read(key, || async {
-            if path == "/champions/tierlist" {
-                client.get_within(&path, &query, TIER_LIST_TIMEOUT).await
-            } else {
-                client.get(&path, &query).await
-            }
-        })
-        .await
+#[specta::specta]
+fn current_state(shared: tauri::State<'_, SharedState>) -> AppView {
+    shared.lock().expect("state mutex poisoned").clone().into()
 }
 
 /// Open one of the site's pages in the player's browser — the site this build
 /// belongs to (`site.rs`), so a preprod build never sends a player to
 /// production. The webview names the path only; the host is the shell's.
 #[tauri::command]
+#[specta::specta]
 fn open_on_site(app: tauri::AppHandle, path: String) -> Result<(), String> {
     use tauri_plugin_shell::ShellExt;
 
@@ -329,6 +71,7 @@ fn open_on_site(app: tauri::AppHandle, path: String) -> Result<(), String> {
 /// Open a known player's channel in the player's browser — Twitch, YouTube or X,
 /// nothing else (`channels.rs`).
 #[tauri::command]
+#[specta::specta]
 fn open_channel(app: tauri::AppHandle, url: String) -> Result<(), String> {
     use tauri_plugin_shell::ShellExt;
 
@@ -363,9 +106,12 @@ pub fn run() {
         .manage(shared.clone())
         .manage(ApiClient::new())
         .manage(SharedReads::default())
-        .manage(BuildInFlight::default())
+        .manage(ReplacedReads::default())
         .manage(client.clone())
-        .manage(champselect::ChampSelectWriter::new(client.clone()))
+        .manage(champselect::ChampSelectWriter::new(
+            &supervisor::Origin::from_env(),
+            client.clone(),
+        ))
         .manage(GameCache::default())
         .manage(SharedGame::default())
         .manage(loading::SharedLoading::default())
@@ -387,60 +133,7 @@ pub fn run() {
                 });
             },
         )
-        .invoke_handler(tauri::generate_handler![
-            current_state,
-            current_screen,
-            game::current_game,
-            draft_recommendation,
-            draft_bans,
-            champion_build,
-            composition_build,
-            api_get,
-            api_post,
-            open_on_site,
-            open_channel,
-            record::player_record,
-            record::player_history,
-            record::player_game,
-            recording::recording_settings,
-            recording::set_recording_settings,
-            recording::recording_check_mark_key,
-            recording::recording_status,
-            recording::request_capture_permission,
-            recording::recording_library,
-            recording::recording_get,
-            recording::recording_win_probability,
-            recording::recording_set_kept,
-            recording::recording_delete,
-            recording::clip_save,
-            recording::clip_update,
-            recording::clip_delete,
-            recording::reveal_recording_file,
-            recording::open_youtube_upload,
-            recording::clip_open_youtube,
-            recording::clip_set_youtube_url,
-            recording::clip_start_drag,
-            recording::clip_delete_video,
-            recording::clip_youtube_embed,
-            overlay::overlay_view,
-            overlay::set_overlay_settings,
-            overlay::overlay_check_trigger,
-            overlay::overlay_read_binds,
-            overlay::overlay_preview,
-            overlay::overlay_fit,
-            overlay::overlay_confirmation,
-            loading::loading_players,
-            runes::import_runes,
-            itemsets::import_item_set,
-            itemsets::import_kit_item_set,
-            kits::kits_get,
-            kits::kits_set,
-            champselect::champ_select_hover,
-            champselect::champ_select_lock,
-            champselect::champ_select_choices,
-            champselect::champ_select_spells,
-            telemetry::telemetry_page
-        ])
+        .invoke_handler(contract::builder().invoke_handler())
         // The overlay's panel is a window too: without this, closing the
         // app's window would leave the app running with no window to show.
         .on_window_event(|window, event| {
@@ -472,80 +165,4 @@ pub fn run() {
                 telemetry::send_at_exit(app);
             }
         });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{postable, readable};
-
-    #[test]
-    fn reads_the_listed_paths_and_a_true_mains_build() {
-        assert!(readable("/truemains"));
-        assert!(readable("/truemains/lookup"));
-        assert!(readable("/champions/tierlist"));
-        assert!(readable("/champions/directory"));
-        assert!(readable("/champions/damage-profiles"));
-        assert!(readable("/items/classes"));
-        assert!(readable("/benchmarks/pace"));
-        assert!(readable("/benchmarks/form"));
-        assert!(readable("/truemains/ttv%20ronaldoo-back/champions/8"));
-        assert!(readable("/truemains/Faker-KR1/champions/7"));
-        assert!(readable("/truemains/Faker-KR1/profile"));
-        assert!(readable("/truemains/Faker-KR1/matches"));
-        assert!(readable("/truemains/Faker-KR1/rank-history"));
-        assert!(readable("/truemains/Faker-KR1/activity"));
-        assert!(readable("/truemains/Faker-KR1/matches/KR_7123456789"));
-        assert!(readable("/champions/103/item-context"));
-        assert!(readable("/champions/234/matchups"));
-        assert!(readable("/champions/266/trend"));
-        assert!(readable("/players/faker"));
-        assert!(readable("/players/t1-faker-2"));
-        assert!(readable(&format!("/players/{}", "a".repeat(64))));
-    }
-
-    #[test]
-    fn posts_only_the_composition_build_and_its_games() {
-        assert!(postable("/champions/103/composition-build"));
-        assert!(postable("/champions/103/composition-build/games"));
-        assert!(postable("/champions/103/next-item"));
-        assert!(!postable("/champions/x/next-item"));
-        assert!(!postable("/champions/draft"));
-        assert!(!postable("/champions/x/composition-build"));
-        assert!(!postable("/champions//composition-build"));
-        assert!(!postable("/champions/103/composition-build/games/1"));
-        assert!(!postable("/truemains/Faker-KR1/profile"));
-    }
-
-    #[test]
-    fn refuses_anything_else() {
-        assert!(!readable("/players"));
-        assert!(!readable("/players/"));
-        assert!(!readable("/players/faker/accounts"));
-        assert!(!readable("/players/Faker"));
-        assert!(!readable("/players/fa_ker"));
-        assert!(!readable("/players/fa%6Ber"));
-        assert!(!readable("/players/fa.ker"));
-        assert!(!readable("/players/.."));
-        assert!(!readable("/players/-faker"));
-        assert!(!readable("/players/faker-"));
-        assert!(!readable("/players/fa--ker"));
-        assert!(!readable("/players/faker?x=1"));
-        assert!(!readable(&format!("/players/{}", "a".repeat(65))));
-        assert!(!readable("/champions/8"));
-        assert!(!readable("/champions/x/item-context"));
-        assert!(!readable("/champions/x/matchups"));
-        assert!(!readable("/champions/234/matchups/1"));
-        assert!(!readable("/champions/8/item-context/1"));
-        assert!(!readable("/truemains/Faker-KR1/activity/day"));
-        assert!(!readable("/truemains/lookup/1"));
-        assert!(!readable("/truemains/Faker-KR1/matches/KR_1/timeline"));
-        assert!(!readable("/truemains/Faker-KR1/matches/KR-1"));
-        assert!(!readable("/truemains/Faker-KR1/matches/"));
-        assert!(!readable("/truemains/Faker-KR1/champions/7/matchups"));
-        assert!(!readable("/truemains/../champions/7"));
-        assert!(!readable("/truemains/a/b/champions/7"));
-        assert!(!readable("/truemains/Faker?x=1/champions/7"));
-        assert!(!readable("/truemains/Faker-KR1/champions/7x"));
-        assert!(!readable("/truemains//champions/7"));
-    }
 }

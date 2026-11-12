@@ -62,7 +62,7 @@ public sealed class ChampionProfileAggregationProcess(
 {
     private const int EarlyMinute = 10;
     private const int LaneMinute = 15;
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;
@@ -75,10 +75,10 @@ public sealed class ChampionProfileAggregationProcess(
         var participants = 0;
         var rows = 0;
 
-        // Per-run caches: one metadata and one statics lookup per patch, however many
-        // batches touch it. Statics failures are remembered per patch too, so an outage
-        // costs one warning per patch per run rather than one per batch.
-        var itemMetadataByPatch = new Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>>(StringComparer.Ordinal);
+        // The item metadata is cached per patch by its provider (#2574). What is cached here is
+        // derived: the ranged flag per champion, built once per patch per run, and the patches
+        // whose statics were unavailable — so an outage costs one warning per patch per run
+        // rather than one per match, since the provider does not remember a failed load.
         var rangedByPatch = new Dictionary<string, IReadOnlyDictionary<int, bool>?>(StringComparer.Ordinal);
 
         while (maxPerRun == 0 || processedMatches < maxPerRun)
@@ -107,7 +107,7 @@ public sealed class ChampionProfileAggregationProcess(
             }
 
             var written = await ProcessBatchAsync(
-                db, matchIds, itemMetadataByPatch, rangedByPatch, rangedThreshold, aggregatedAtUtc, ct);
+                db, matchIds, rangedByPatch, rangedThreshold, aggregatedAtUtc, ct);
 
             processedMatches += matchIds.Count;
             participants += written.Participants;
@@ -134,7 +134,6 @@ public sealed class ChampionProfileAggregationProcess(
     private async Task<WrittenRows> ProcessBatchAsync(
         TrueMainDbContext db,
         List<string> matchIds,
-        Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>> itemMetadataByPatch,
         Dictionary<string, IReadOnlyDictionary<int, bool>?> rangedByPatch,
         int rangedThreshold,
         DateTime aggregatedAtUtc,
@@ -208,7 +207,7 @@ public sealed class ChampionProfileAggregationProcess(
                 continue;
             }
 
-            var itemMetadata = await GetItemMetadataAsync(itemMetadataByPatch, patch, match.GameVersion, ct);
+            var itemMetadata = (await itemMetadataProvider.GetItemsAsync(match.GameVersion, ct)).Require("Item metadata");
             var ranged = await GetRangedAsync(rangedByPatch, patch, match.GameVersion, rangedThreshold, ct);
 
             var parts = participantsByMatch[matchId];
@@ -322,21 +321,6 @@ public sealed class ChampionProfileAggregationProcess(
         return new WrittenRows(folded, profiles.Count);
     }
 
-    private async Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemMetadataAsync(
-        Dictionary<string, IReadOnlyDictionary<int, ItemMetadata>> cache,
-        string patch,
-        string gameVersion,
-        CancellationToken ct)
-    {
-        if (!cache.TryGetValue(patch, out var metadata))
-        {
-            metadata = await itemMetadataProvider.GetItemsAsync(gameVersion, ct);
-            cache[patch] = metadata;
-        }
-
-        return metadata;
-    }
-
     private async Task<IReadOnlyDictionary<int, bool>?> GetRangedAsync(
         Dictionary<string, IReadOnlyDictionary<int, bool>?> cache,
         string patch,
@@ -349,19 +333,10 @@ public sealed class ChampionProfileAggregationProcess(
             return ranged;
         }
 
-        try
-        {
-            var statics = await championStaticsProvider.GetChampionsAsync(gameVersion, ct);
-            ranged = statics.ToDictionary(kv => kv.Key, kv => kv.Value.AttackRange >= rangedThreshold);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            // A static attribute must never abort a fold: the flag is COALESCEd on write,
-            // so the next batch or run that can reach Data Dragon fills it in.
-            logger.LogWarning(exception,
-                "Champion statics unavailable for patch {Patch}; the ranged flag is left for a later run.", patch);
-            ranged = null;
-        }
+        // A static attribute must never abort a fold: the flag is COALESCEd on write, so the
+        // next batch or run that can reach Data Dragon fills it in.
+        var statics = await championStaticsProvider.GetChampionsAsync(gameVersion, ct);
+        ranged = statics.Value?.ToDictionary(kv => kv.Key, kv => kv.Value.AttackRange >= rangedThreshold);
 
         cache[patch] = ranged;
         return ranged;

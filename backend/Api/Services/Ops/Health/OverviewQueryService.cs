@@ -34,7 +34,7 @@ public interface IOverviewQueryService
 /// </summary>
 public sealed class OverviewQueryService(
     IDbContextFactory<TrueMainDbContext> dbFactory,
-    ILogger<OverviewQueryService> logger) : IOverviewQueryService
+    Measurements<OverviewQueryService> measurements) : IOverviewQueryService
 {
     internal const string EstimatesUnavailable = "The planner estimates could not be read.";
 
@@ -123,38 +123,32 @@ public sealed class OverviewQueryService(
     /// </summary>
     private async Task<OverviewEstimates> SafeEstimatesAsync(CancellationToken ct)
     {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var corpus = await RawCorpusEstimates.ReadAsync(db, ct);
-            if (corpus.Matches is null)
-            {
-                return new OverviewEstimates(null, corpus.Participants, null, null, corpus.UnknownReason);
-            }
+        var estimates = await measurements.TryAsync("Overview planner estimates", () => ReadEstimatesAsync(ct), ct);
+        return estimates.IsMeasured ? estimates.Value! : new OverviewEstimates(null, null, null, null, EstimatesUnavailable);
+    }
 
-            await db.Database.OpenConnectionAsync(ct);
-            var connection = db.Database.GetDbConnection();
-            var last7Days = await PlanRowsAsync(connection, Last7DaysPlan, ct);
-            var last30Days = await PlanRowsAsync(connection, Last30DaysPlan, ct);
+    private async Task<OverviewEstimates> ReadEstimatesAsync(CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var corpus = await RawCorpusEstimates.ReadAsync(db, ct);
+        if (corpus.Matches is null)
+        {
+            return new OverviewEstimates(null, corpus.Participants, null, null, corpus.UnknownReason);
+        }
 
-            // The planner never estimates fewer than one row, and its histogram can trail the
-            // live tuple count: a window cannot hold more matches than the table.
-            return new OverviewEstimates(
-                corpus.Matches,
-                corpus.Participants,
-                Math.Min(last7Days, corpus.Matches.Value),
-                Math.Min(last30Days, corpus.Matches.Value),
-                corpus.UnknownReason);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Overview planner estimates failed to read");
-            return new OverviewEstimates(null, null, null, null, EstimatesUnavailable);
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        await db.Database.OpenConnectionAsync(ct);
+        var connection = db.Database.GetDbConnection();
+        var last7Days = await PlanRowsAsync(connection, Last7DaysPlan, ct);
+        var last30Days = await PlanRowsAsync(connection, Last30DaysPlan, ct);
+
+        // The planner never estimates fewer than one row, and its histogram can trail the
+        // live tuple count: a window cannot hold more matches than the table.
+        return new OverviewEstimates(
+            corpus.Matches,
+            corpus.Participants,
+            Math.Min(last7Days, corpus.Matches.Value),
+            Math.Min(last30Days, corpus.Matches.Value),
+            corpus.UnknownReason);
     }
 
     // The planner's row estimates for the matches started in each window: EXPLAIN plans the

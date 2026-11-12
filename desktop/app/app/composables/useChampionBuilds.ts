@@ -1,4 +1,5 @@
 import type { ChampionResponse } from '#shared/contract/api'
+import { apiGet } from '~/composables/useApi'
 
 /**
  * A champion's builds on one lane — the site's champion page endpoint, one
@@ -17,11 +18,7 @@ export function useChampionBuilds(championId: Ref<number | null>, position: Ref<
   let latest = 0
 
   async function fetchBuilds(champion: number, lane: string): Promise<ChampionResponse> {
-    if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<ChampionResponse>('champion_build', { championId: champion, position: lane, opponentChampionId: null })
-    }
-    return await $fetch<ChampionResponse>(`/api/champions/${champion}`, { query: { position: lane } })
+    return await apiGet<ChampionResponse>(`/champions/${champion}`, { position: lane }, { background: true })
   }
 
   watch(key, async (next) => {

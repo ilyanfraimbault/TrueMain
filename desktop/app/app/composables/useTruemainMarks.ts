@@ -60,10 +60,6 @@ function useMarksState() {
 }
 
 async function lookup(platformId: string, players: string[]): Promise<TruemainMark[]> {
-  if (import.meta.dev && !insideTauri()) {
-    const { devTruemainMarks } = await import('~/utils/loading-dev')
-    return devTruemainMarks()
-  }
   const answer = await apiGet<{ players: TruemainMark[] }>('/truemains/lookup', { platformId, player: players }, { background: true })
   return answer.players
 }

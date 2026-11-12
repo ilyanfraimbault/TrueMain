@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Data;
 using Data.DataQuality;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Testcontainers.PostgreSql;

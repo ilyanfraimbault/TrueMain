@@ -21,9 +21,11 @@ benefit no user would ever see.
 
 `Data` still owns: the schema (entities, configurations, migrations, the compiled model), the Mongo-side query
 objects, and **SQL that must not diverge between two consumers** — e.g.
-`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, read by both the ingestor's rune-page repair and the
-admin duplicate detector (#924). That last one is the durable reason `Data` holds any query text at all: a
-detector that groups differently from the repair it audits reports a clean bill of health for a live bug.
+`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, read by both the dimension tables' unique-identity
+configurations and the admin duplicate detector (#924; the ingestor's rune-page repair that first shared it is
+retired). That last one is the durable reason `Data` holds any query text at all: a detector that groups
+differently from the identity it audits reports a clean bill of health for a live bug. Code with one consumer
+lives with that consumer — the Ingestor's write path in `Ingestor/Persistence` (#2481).
 
 Counts drift with every PR — re-measure rather than trusting the numbers above:
 
@@ -238,6 +240,24 @@ its registration there too.
 
 Source: #2489, #2481.
 
+## Champion reads take a `ChampionScope`, parsed once per route (2026-11-10)
+
+**Decision.** Every champion read — global or player-scoped — takes a `ChampionScope` (champion,
+position, patch, elo bracket, population) built by `Http/ChampionScopeParameter.TryParseChampionScope`.
+The scope is canonical by construction: Riot's upper-case lane, `major.minor` patch, canonical bracket;
+a position or bracket that names nothing throws instead of widening. Each route names its
+`PositionRule` — what a blank `position` means (rejected, the read resolves the dominant lane, or every
+position) and whether the explicit `ALL` token is accepted. A matchup is a `LaneMatchupScope`, whose
+factory owns the two aggregate rules (a lane is required, truemains only). One player's matchups are
+their own service (`PlayerChampionMatchupQueryService`, a live join); the global matchup service takes
+no account.
+
+**Why.** Each controller re-parsed position / patch / elo by hand and each service took loose strings
+plus caller-specific flags: the global matchup service carried a `riotAccountId` only its one player
+caller used, a blank `position` meant "dominant lane" on one player route and "every position" on the
+next through the same parser, the matchup population rule was two `if`s in a controller, and services
+re-normalised their own input "in case". — #2571 (F17 of #2481)
+
 ## A child table with a natural key uses it as its primary key — no surrogate `Guid` beside it (2026-09-25)
 
 **When every row of a table is identified by columns it already carries — `(MatchId, ParticipantId,
@@ -394,7 +414,9 @@ committed: a frontend builds without the .NET SDK and a contract change shows in
 `ProcessRunReadModel`) — no alias layer; hand-written types remain only for shapes the front end builds itself. The
 admin's `useOps` / `opsCall` are typed by path through `contract/routes.ts`, so a renamed route is a type error. An
 ordered list of an enum's values comes from the contract too (`--enum-values`: `performanceComponentKindValues`), never
-a copied array. A wire value the API relays from storage it does not own (log level, link kind), or one with no name for every row
+a copied array. An enum some read model holds as nullable is the exception: the generator lists `null` among
+the component's values, so its union carries `null` (a table keys on `NonNullable<…>`) and no `…Values` array is
+emitted; a test that needs that list keeps a typed copy (`ItemContextAxis`, #2550). A wire value the API relays from storage it does not own (log level, link kind), or one with no name for every row
 (the region slug is `""` on a shard without a region), stays a `string`: the front end narrows it where it keys a
 table, with a fallback. Regenerating:
 `docs/ci.md` → "The API contract" — #2493, #2481.

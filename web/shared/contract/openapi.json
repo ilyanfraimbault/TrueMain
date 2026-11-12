@@ -9015,8 +9015,8 @@
         "type": "object",
         "properties": {
           "archetype": {
-            "type": "string",
-            "description": "`AbilityPower`, `Crit`, `ArmorPenetration`, `OnHit`, `Tank` or `None`."
+            "description": "`AbilityPower`, `Crit`, `ArmorPenetration`, `OnHit`, `Tank` or `None`.",
+            "$ref": "#/components/schemas/ItemArchetype"
           },
           "games": {
             "type": "integer",
@@ -9079,8 +9079,8 @@
             "description": "The lane the numbers were measured at: string? ChampionDamageProfileReadModel.Position itself, the champion's\nbest-covered lane on a champion-wide entry, null on a static fallback."
           },
           "source": {
-            "type": "string",
-            "description": "`measured` (folded from games) or `fallback` (a static classification, no shares)."
+            "description": "`measured` (folded from games) or `fallback` (a static classification, no shares).",
+            "$ref": "#/components/schemas/ChampionDamageProfileSource"
           },
           "patch": {
             "type": [
@@ -9146,6 +9146,13 @@
           }
         },
         "description": "One champion's damage profile, at one position or champion-wide."
+      },
+      "ChampionDamageProfileSource": {
+        "enum": [
+          "measured",
+          "fallback"
+        ],
+        "description": "Where a champion's damage profile comes from."
       },
       "ChampionDamageProfilesResponse": {
         "required": [
@@ -9268,12 +9275,12 @@
         "type": "object",
         "properties": {
           "axis": {
-            "type": "string",
-            "description": "The situation, e.g. `EnemyMagicDamage`. The client owns the wording."
+            "description": "The situation, e.g. `EnemyMagicDamage`. The client owns the wording.",
+            "$ref": "#/components/schemas/ItemContextAxis"
           },
           "bucket": {
-            "type": "string",
-            "description": "`High` or `Low` — the end of the axis where the item is picked more."
+            "description": "`High` or `Low` — the end of the axis where the item is picked more.",
+            "$ref": "#/components/schemas/ItemContextBucket"
           },
           "draftTime": {
             "type": "boolean",
@@ -11336,12 +11343,12 @@
             "format": "double"
           },
           "unit": {
-            "type": "string",
-            "description": "Unit of the two levels: `count`, `percent`, `hours` or `ratio`."
+            "description": "Unit of the two levels.",
+            "$ref": "#/components/schemas/DetectorThresholdUnit"
           },
           "direction": {
-            "type": "string",
-            "description": "Which side of the level is the bad one: `above` (a count, an age or a share\nthat has to stay low) or `below` (a floor — a patch whose match volume has to\nstay near the median). The panel cannot infer this from the number, and without it\na printed level is ambiguous: \"warning at 40%\" reads as a ceiling when it is a\nfloor."
+            "description": "Which side of the level is the bad one: `above` (a count, an age or a share\nthat has to stay low) or `below` (a floor — a patch whose match volume has to\nstay near the median). The panel cannot infer this from the number, and without it\na printed level is ambiguous: \"warning at 40%\" reads as a ceiling when it is a\nfloor.",
+            "$ref": "#/components/schemas/DetectorThresholdDirection"
           }
         },
         "description": "One configured green/amber/red boundary, echoed for display."
@@ -12138,6 +12145,22 @@
         ],
         "description": "A detector verdict. Ordered by declaration only; precedence lives in\n    `DataQualityDetectorEvaluator.Worst`."
       },
+      "DetectorThresholdDirection": {
+        "enum": [
+          "above",
+          "below"
+        ],
+        "description": "Which side of a detector's level is the bad one."
+      },
+      "DetectorThresholdUnit": {
+        "enum": [
+          "count",
+          "percent",
+          "hours",
+          "ratio"
+        ],
+        "description": "The unit a detector's levels are written in."
+      },
       "DraftBanCandidateReadModel": {
         "required": [
           "championId",
@@ -12271,8 +12294,7 @@
             "type": "string"
           },
           "target": {
-            "type": "string",
-            "description": "One of DraftBanTargets."
+            "$ref": "#/components/schemas/DraftBanTarget"
           },
           "targetChampionIds": {
             "type": "array",
@@ -12291,6 +12313,14 @@
           }
         },
         "description": "The ban suggestions for one champion-select state."
+      },
+      "DraftBanTarget": {
+        "enum": [
+          "pick",
+          "pool",
+          "none"
+        ],
+        "description": "What the ban suggestions protect."
       },
       "DraftBlindReadModel": {
         "required": [
@@ -12549,18 +12579,26 @@
             "format": "int32"
           },
           "axis": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "description": "The composition axis a `teamFit` reason reads."
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The composition axis a `teamFit` reason reads.",
+                "$ref": "#/components/schemas/ItemContextAxis"
+              }
+            ]
           },
           "bucket": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "description": "The band of string? DraftReasonReadModel.Axis the board puts our team in."
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The band of ItemContextAxis? DraftReasonReadModel.Axis the board puts our team in.",
+                "$ref": "#/components/schemas/ItemContextBucket"
+              }
+            ]
           },
           "of": {
             "type": [
@@ -13552,6 +13590,10 @@
         },
         "description": "The Ingestor's own meter over a window, for the admin Riot API tab (#1636): every\ninstrument it recorded, each split by tag set. Summed from the per-minute rollups its\nmeter exporter writes; an instrument that recorded nothing in the window is absent."
       },
+      "ItemArchetype": {
+        "type": "string",
+        "description": "The item archetypes a champion's final inventory is classified into (#1449) — a\nbit set, since one item can belong to several and one inventory usually does."
+      },
       "ItemClassesResponse": {
         "required": [
           "patch",
@@ -13593,6 +13635,43 @@
           }
         },
         "description": "One item's shop classes."
+      },
+      "ItemContextAxis": {
+        "enum": [
+          "Overall",
+          "EnemyMagicDamage",
+          "EnemyPhysicalDamage",
+          "EnemySustain",
+          "EnemyCrowdControl",
+          "EnemyFrontline",
+          "EnemyMelee",
+          "EnemyCrit",
+          "EnemyArmorPenetration",
+          "OpponentRanged",
+          "OpponentLanePressure",
+          "OpponentMagicDamage",
+          "OpponentSustain",
+          "AllyMagicDamage",
+          "AllyFrontline",
+          "OwnGoldLeadAt15",
+          "EnemyArmorBuilt",
+          "EnemyMagicResistBuilt",
+          "OpponentArmorBuilt",
+          "OpponentMagicResistBuilt",
+          "EnemyHealingBuilt",
+          "EnemyMagicDamageBuilt",
+          "EnemyCritBuilt",
+          null
+        ]
+      },
+      "ItemContextBucket": {
+        "enum": [
+          "All",
+          "Low",
+          "Mid",
+          "High",
+          null
+        ]
       },
       "ItemContextClass": {
         "enum": [
@@ -13657,6 +13736,38 @@
           }
         },
         "description": "One component on the way to an item (#2183), at its place in the order the champion's\nmains buy them — or, when too few games measured it, at its place in the recipe."
+      },
+      "JobMode": {
+        "enum": [
+          "Full",
+          "DiscoveryOnly",
+          "ManualSeedOnly",
+          "ScoringOnly",
+          "MatchIngestionOnly",
+          "MainAnalysisOnly",
+          "PatternAggregationOnly",
+          "AccountRefreshOnly",
+          "MatchDataRetentionOnly",
+          "HarvestOnly",
+          "MatchupLeadAggregationOnly",
+          "EloBracketEnrichmentOnly",
+          "MainActivityOnly",
+          "SynergyAggregationOnly",
+          "BanAggregationOnly",
+          "StorageSnapshotOnly",
+          "LadderSyncOnly",
+          "FetchLane",
+          "AggregateLane",
+          "CandidateStockSnapshotOnly",
+          "ChampionProfileAggregationOnly",
+          "ChampionItemContextAggregationOnly",
+          "PaceSamplingOnly",
+          "OpponentAggregationOnly",
+          "ChampionGameCountRefreshOnly",
+          "FetchWorkers",
+          "ScalingAggregationOnly"
+        ],
+        "description": "What an ingestor container runs (`Job:Mode`): one process, or a composite that\nexpands to several (IReadOnlyList&lt;PipelineProcess&gt; PipelineCatalog.StepsOwnedBy(JobMode mode))."
       },
       "JsonElement": { },
       "LaneDutyCycleReadModel": {
@@ -15370,6 +15481,14 @@
         },
         "description": "An enemy and the lane the situation placed it on."
       },
+      "NextItemOrderState": {
+        "enum": [
+          "Completed",
+          "Next",
+          "Upcoming"
+        ],
+        "description": "Where a step of the build order stands."
+      },
       "NextItemOrderStepReadModel": {
         "required": [
           "itemId",
@@ -15387,8 +15506,8 @@
             "description": "True for the boots, whose place in the order is measured apart from the legendaries."
           },
           "state": {
-            "type": "string",
-            "description": "NextItemOrderState: `Completed`, `Next` or `Upcoming`."
+            "description": "Where this step stands in the order.",
+            "$ref": "#/components/schemas/NextItemOrderState"
           }
         },
         "description": "One step of the build order."
@@ -15402,12 +15521,12 @@
         "type": "object",
         "properties": {
           "axis": {
-            "type": "string",
-            "description": "The axis, named as the item-context read names it, so the site's wording applies."
+            "description": "The axis, named as the item-context read names it, so the site's wording applies.",
+            "$ref": "#/components/schemas/ItemContextAxis"
           },
           "bucket": {
-            "type": "string",
-            "description": "`Low` or `High` — the middle of an axis moves a share but has no wording, so it is never a reason."
+            "description": "`Low` or `High` — the middle of an axis moves a share but has no wording, so it is never a reason.",
+            "$ref": "#/components/schemas/ItemContextBucket"
           },
           "factor": {
             "type": "number",
@@ -16342,7 +16461,7 @@
             "type": "string"
           },
           "source": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "riotAccountId": {
             "type": [
@@ -16409,8 +16528,8 @@
             "type": "string"
           },
           "source": {
-            "type": "string",
-            "description": "The source of the claim."
+            "description": "The source of the claim.",
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "lastSeenAtUtc": {
             "type": "string",
@@ -16449,7 +16568,7 @@
             "type": "string"
           },
           "source": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "displayNameLocked": {
             "type": "boolean"
@@ -16563,7 +16682,7 @@
             "type": "string"
           },
           "source": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "createdAtUtc": {
             "type": "string",
@@ -16998,7 +17117,7 @@
             "type": "string"
           },
           "source": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "createdAtUtc": {
             "type": "string",
@@ -17051,8 +17170,8 @@
             ]
           },
           "source": {
-            "type": "string",
-            "description": "The source of the claim."
+            "description": "The source of the claim.",
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "firstSeenAtUtc": {
             "type": "string",
@@ -17468,7 +17587,7 @@
             "type": "string"
           },
           "source": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "createdAtUtc": {
             "type": "string",
@@ -17583,8 +17702,8 @@
             "type": "string"
           },
           "source": {
-            "type": "string",
-            "description": "The source that first published the persona."
+            "description": "The source that first published the persona.",
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "displayNameLocked": {
             "type": "boolean",
@@ -17649,7 +17768,7 @@
             "type": "string"
           },
           "source": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "riotAccountId": {
             "type": [
@@ -17680,7 +17799,7 @@
             "type": "string"
           },
           "source": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaSource"
           }
         }
       },
@@ -17707,7 +17826,7 @@
             "type": "string"
           },
           "source": {
-            "type": "string"
+            "$ref": "#/components/schemas/PersonaSource"
           },
           "createdAtUtc": {
             "type": "string",
@@ -17794,6 +17913,17 @@
             "type": "string"
           }
         }
+      },
+      "PersonaSource": {
+        "enum": [
+          "Manual",
+          "Leaguepedia",
+          "LoLPros",
+          "TrackingThePros",
+          "Dpm",
+          "DeepLol"
+        ],
+        "description": "The public source that published a persona, one of its links or one of its accounts. Stored as\ntext: an operator reads it to judge — or take down — a link (enum persistence rule, #1251)."
       },
       "PersonasPageReadModel": {
         "required": [
@@ -18103,7 +18233,7 @@
           "jobModes": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/JobMode"
             },
             "description": "The `Job:Mode` values whose passes run this lane."
           },
@@ -18131,8 +18261,8 @@
             "description": "The `processName` its runs are recorded under."
           },
           "jobMode": {
-            "type": "string",
-            "description": "The `Job:Mode` that runs this step alone."
+            "description": "The `Job:Mode` that runs this step alone.",
+            "$ref": "#/components/schemas/JobMode"
           },
           "lane": {
             "type": "string",
@@ -19794,8 +19924,8 @@
             "type": "string"
           },
           "kind": {
-            "type": "string",
-            "description": "`regional` or `platform` — two budget families, never added."
+            "description": "The route's budget family: regional and platform budgets are never added.",
+            "$ref": "#/components/schemas/RiotRouteKind"
           },
           "observedCallsPerDay": {
             "type": "number",
@@ -19833,6 +19963,14 @@
         },
         "description": "One routing host's headroom (#1894): its calls/day over the covered span, that cost per\ntracked account, and what is left under the binding window of the limit it advertised.\nRiotApiBindingLimitReadModel? RiotRouteHeadroomReadModel.BindingLimit, double? RiotRouteHeadroomReadModel.SpareCallsPerDay and\nlong? RiotRouteHeadroomReadModel.AdditionalAccountsHeadroom are null when the host returned no parseable\n`X-App-Rate-Limit` header."
       },
+      "RiotRouteKind": {
+        "enum": [
+          "regional",
+          "platform",
+          "unknown"
+        ],
+        "description": "The budget family a Riot route draws from: a regional route (account, match) and a platform\nroute (league, summoner) count against separate limits, never added."
+      },
       "RiotRouteQuotaReadModel": {
         "required": [
           "route",
@@ -19857,7 +19995,7 @@
             "type": "string"
           },
           "kind": {
-            "type": "string"
+            "$ref": "#/components/schemas/RiotRouteKind"
           },
           "calls": {
             "type": "integer",
@@ -19943,7 +20081,7 @@
             }
           }
         },
-        "description": "One routing host's budget. string RiotRouteQuotaReadModel.Kind is `regional` (americas, europe,\nasia, sea — account-v1 and match-v5), `platform` (euw1, na1, kr… — summoner,\nleague, mastery) or `unknown`. The utilisation fields are null when the host\nreturned no parseable `X-App-Rate-Limit` in the window: without the advertised\nlimit there is nothing to divide by."
+        "description": "One routing host's budget. RiotRouteKind RiotRouteQuotaReadModel.Kind is `regional` (americas, europe,\nasia, sea — account-v1 and match-v5), `platform` (euw1, na1, kr… — summoner,\nleague, mastery) or `unknown`. The utilisation fields are null when the host\nreturned no parseable `X-App-Rate-Limit` in the window: without the advertised\nlimit there is nothing to divide by."
       },
       "RouteLatencyPointReadModel": {
         "required": [

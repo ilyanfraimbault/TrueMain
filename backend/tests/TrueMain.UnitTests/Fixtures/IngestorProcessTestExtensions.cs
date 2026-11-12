@@ -4,6 +4,8 @@ using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Data.Ops.Mongo;
+using NSubstitute;
 
 namespace TrueMain.UnitTests.Fixtures;
 
@@ -23,7 +25,8 @@ internal static class IngestorProcessTestExtensions
                 process,
                 PipelineCatalog.Get(typeof(T).GetCustomAttribute<PipelineStepAttribute>()!.Mode),
                 recorder,
+                Substitute.For<IProcessRunStore>(),
                 TimeProvider.System,
                 NullLogger<RecordedProcess<T>>.Instance)
-            .RunCoreAsync(ct);
+            .RunCoreAsync(RunInput.Whole, ct);
 }

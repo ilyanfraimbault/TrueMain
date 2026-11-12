@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Ingestor.Options;
 
 namespace Ingestor.Processes.Components.LadderSync;
@@ -94,7 +95,9 @@ internal sealed record LadderSyncRunLedger(int PagedCallsToday, DateTime? LastAp
         {
             using var document = JsonDocument.Parse(summaryJson);
             var root = document.RootElement;
-            return (ReadInt(root, "pagedCalls"), ReadInt(root, "apexCalls"));
+            return (
+                ReadInt(root, RunSummaryFields.LadderSync.PagedCalls),
+                ReadInt(root, RunSummaryFields.LadderSync.ApexCalls));
         }
         catch (JsonException)
         {

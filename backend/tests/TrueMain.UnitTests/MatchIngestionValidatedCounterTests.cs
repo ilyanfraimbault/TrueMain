@@ -1,6 +1,6 @@
 using AwesomeAssertions;
 using Data.Logging;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -106,7 +106,7 @@ public sealed class MatchIngestionValidatedCounterTests
                 BatchSize = claimed.Count
             }));
 
-        return await process.RunCoreAsync(CancellationToken.None);
+        return await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private static IMatchSnapshotWriter SucceedingSnapshotWriter()

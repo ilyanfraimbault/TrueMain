@@ -1,9 +1,10 @@
 using Core.Options;
 using Data;
+using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Intake;
 using Ingestor.Processes.Components.Retention;
@@ -25,7 +26,7 @@ public sealed class MatchDataRetentionProcess(
     IOptions<IntakeOptions> intakeOptions,
     IItemMetadataProvider itemMetadataProvider) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         // Prune stale never-promoted candidates first (#487) — independent of match
         // retention, so it runs even when there is nothing to delete below.
@@ -373,7 +374,9 @@ public sealed class MatchDataRetentionProcess(
         var deletedMatches = 0;
         var deletedParticipants = 0;
         var truncatedSeats = 0;
-        var itemMetadata = TruncatedMatchRetention.ItemMetadataReader(itemMetadataProvider, logger);
+        // Item data down: the truncated seats keep every fact but the items rather than failing the batch.
+        Func<string, CancellationToken, Task<IReadOnlyDictionary<int, ItemMetadata>?>> itemMetadata =
+            async (gameVersion, token) => (await itemMetadataProvider.GetItemsAsync(gameVersion, token)).Value;
 
         foreach (var batchIds in deletableMatchIds.Chunk(batchSize))
         {
@@ -469,30 +472,18 @@ public sealed class MatchDataRetentionProcess(
             snapshotPrune.PrunedMatches,
             snapshotPrune.DeletedSnapshots,
             aggregateDeletion.DeletedScopes,
-            aggregateDeletion.DeletedMatchupStats,
-            aggregateDeletion.DeletedSynergyStats,
+            aggregateDeletion.Deleted(PatchPanelFamily.Matchups),
+            aggregateDeletion.Deleted(PatchPanelFamily.Synergies),
             buildPurge.PurgedPatches,
             buildPurge.DeletedPatterns,
             retentionPlan.RetainedPatchesByPlatform
                 .OrderBy(entry => entry.Key)
                 .Select(entry => new RetainedPatchesSummary(entry.Key, entry.Value.Order().ToList()))
                 .ToList(),
-            vacuumedAfterPurge);
+            vacuumedAfterPurge,
+            aggregateDeletion.Deleted(PatchPanelFamily.Opponents),
+            aggregateDeletion.Deleted(PatchPanelFamily.Scaling),
+            aggregateDeletion.Deleted(PatchPanelFamily.Context),
+            aggregateDeletion.Deleted(PatchPanelFamily.Benchmarks));
     }
-
-    private sealed record SnapshotPruneResult(int PrunedMatches, int DeletedSnapshots)
-    {
-        public static SnapshotPruneResult Empty { get; } = new(0, 0);
-    }
-
-    private sealed record DeletionResult(int DeletedMatches, int DeletedParticipants, int TruncatedSeats = 0)
-    {
-        public static DeletionResult Empty { get; } = new(0, 0);
-    }
-
-    private sealed record RetentionPlan(
-        int RetainedPatchCount,
-        int QueueId,
-        IReadOnlyDictionary<string, HashSet<string>> RetainedPatchesByPlatform,
-        IReadOnlyList<string> DeletableMatchIds);
 }

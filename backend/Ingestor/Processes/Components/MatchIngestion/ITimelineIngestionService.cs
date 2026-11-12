@@ -1,5 +1,5 @@
 using Core.Lol.Identifiers;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Riot.Dto;
 
 namespace Ingestor.Processes.Components.MatchIngestion;

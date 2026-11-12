@@ -318,7 +318,10 @@ freeze: `ingestor` kept running the whole pipeline next to the new aggregate
 container, and every aggregate step ran twice for about twenty hours (#1493).
 `.github/scripts/check-job-mode.sh` therefore fails the preflight when the
 compose file declares `ingestor-aggregate` and the env file sets the variable to
-`Full` in any casing. An unset variable and the single-process freeze modes
+a composite mode that runs the aggregate lane (`Full`, `AggregateLane`) in any
+casing. The script keeps that list itself; `PipelineCatalogJobModeCheckTests`
+pins it to `PipelineCatalog.ModesRunning(PipelineLane.Aggregate)`, so a new
+composite mode breaks a unit test rather than slipping past the check. An unset variable and the single-process freeze modes
 `docs/riot-key-switch.md` relies on stay allowed, so the lever keeps working.
 The env file reaches the script through an environment variable, never argv,
 and only the offending mode is ever printed. `check-job-mode.test.sh` runs it
@@ -672,14 +675,12 @@ environment with no Nuxt runtime. `npm ci` runs `nuxt prepare` (the app's
 `postinstall`, as on `web/` and `admin/`) because the tests' TypeScript
 transform reads the generated `.nuxt` tsconfig.
 
-The `macOS capture spike` job builds the game-recording spike (#1745): the
-Swift capture helper (`desktop/capture/macos`, ScreenCaptureKit, so only a Mac
-can compile it — the Linux job never sees it) and the Rust runner
-(`capture-spike`, which drives it through the `capture-helper` crate the app
-uses too), both universal (arm64 + x86_64) and ad-hoc signed like the
-app's own build. It smoke-runs each binary for its usage error, then uploads
-them as one `.tar.gz` — tarred because an artifact's zip drops the executable
-bit — so the spike can be run on a Mac without a toolchain.
+The `macOS capture helper and shell` job builds the Swift capture helper
+(`desktop/capture/macos`, ScreenCaptureKit, so only a Mac can compile it — the
+Linux job never sees it) universal (arm64 + x86_64) and smoke-runs it for its
+usage error, and checks that the shell compiles for macOS. The #1745 spike it
+used to build and publish is retired (#2559): the app's recording runner is the
+one driver of a recording session.
 
 The `Windows capture helper and shell` job (#1797) runs clippy and the tests
 of the Windows helper (`desktop/capture/windows`, a workspace crate whose code
@@ -728,12 +729,18 @@ corners. The screenshots, a JSON per step and the app's log
 are uploaded as an artifact.
 
 A `changes` job gates each of these jobs on what it compiles (#2218), as in
-`ci.yml`: the `Rust crates` job on the workspace manifests, `desktop/crates/`
-and `desktop/capture/windows/`; the Windows shell job on those and
-`desktop/src-tauri/`; the macOS spike on those and `desktop/capture/macos/`;
-the Windows overlay on the shell's paths and `desktop/app/`, its smoke script
-and the fixtures it replays; the `Nuxt app` job on `desktop/app/` and the
-site's two shared paths. A change to the site's shared layer therefore runs the
+`ci.yml`: the `Rust crates` job on the workspace manifests, `desktop/crates/`,
+`desktop/capture/windows/` and the fixtures their tests read (`desktop/fixtures/`,
+the app's dev scenarios); the Windows shell job on those, `desktop/src-tauri/`
+and the API's OpenAPI document its route table is checked against, and the files
+whose copies the shell's tests pin (`src-tauri/src/pinned_settings.rs`: the
+site's image hosts and channel kinds, the app's Nuxt config, the overlay smoke
+script); the macOS
+spike on those and `desktop/capture/macos/`; the Windows overlay on the shell's
+paths and `desktop/app/`, its smoke script and the fixtures it replays; the
+`Nuxt app` job on `desktop/app/`, the site's two shared paths, the shell's route
+table (`src-tauri/api-routes.json`, checked against the reads the app makes) and
+`desktop/fixtures/` (the overlay geometry vectors). A change to the site's shared layer therefore runs the
 `Nuxt app` job alone: the Windows and macOS jobs build Rust, which it never
 reaches. A change to `desktop.yml`, a push and a draft marked ready behave as
 in `ci.yml`.

@@ -45,7 +45,7 @@ public sealed class MatchIngestionProcessIntegrationTests : IAsyncLifetime
                 ClaimLeaseMinutes = 5
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var match = verifyDb.Matches.Single(m => m.Id == "KR_200");
@@ -71,19 +71,19 @@ public sealed class MatchIngestionProcessIntegrationTests : IAsyncLifetime
         participants[1].MagicDamageDealtToChampions.Should().BeNull();
         participants[1].TotalDamageTaken.Should().BeNull();
         participants[1].DamageSelfMitigated.Should().BeNull();
-        validationService.Validated.Should().ContainSingle(key => key == new Data.Repositories.AccountKey("KR", "puuid-claimed-1"));
+        validationService.Validated.Should().ContainSingle(key => key == new Ingestor.Persistence.AccountKey("KR", "puuid-claimed-1"));
         validationService.Reverted.Should().BeEmpty();
     }
 
     private sealed class FakeMatchClaimService : IMatchClaimService
     {
-        public Task<List<Data.Repositories.AccountKey>> ClaimAsync(
+        public Task<List<Ingestor.Persistence.AccountKey>> ClaimAsync(
             IReadOnlyCollection<string> platforms,
             int batchSize,
             double establishedMainShare,
             TimeSpan lease,
             CancellationToken ct)
-            => Task.FromResult(new List<Data.Repositories.AccountKey>
+            => Task.FromResult(new List<Ingestor.Persistence.AccountKey>
             {
                 new("KR", "puuid-claimed-1")
             });
@@ -106,23 +106,23 @@ public sealed class MatchIngestionProcessIntegrationTests : IAsyncLifetime
 
     private sealed class FakeAccountValidationService : IAccountValidationService
     {
-        public List<Data.Repositories.AccountKey> Validated { get; } = [];
-        public List<Data.Repositories.AccountKey> Reverted { get; } = [];
-        public List<Data.Repositories.AccountKey> Released { get; } = [];
+        public List<Ingestor.Persistence.AccountKey> Validated { get; } = [];
+        public List<Ingestor.Persistence.AccountKey> Reverted { get; } = [];
+        public List<Ingestor.Persistence.AccountKey> Released { get; } = [];
 
-        public Task<bool> ValidateAsync(Data.Repositories.AccountKey account, CancellationToken ct)
+        public Task<bool> ValidateAsync(Ingestor.Persistence.AccountKey account, CancellationToken ct)
         {
             Validated.Add(account);
             return Task.FromResult(true);
         }
 
-        public Task RevertAsync(Data.Repositories.AccountKey account, CancellationToken ct)
+        public Task RevertAsync(Ingestor.Persistence.AccountKey account, CancellationToken ct)
         {
             Reverted.Add(account);
             return Task.CompletedTask;
         }
 
-        public Task ReleaseUningestableAsync(Data.Repositories.AccountKey account, CancellationToken ct)
+        public Task ReleaseUningestableAsync(Ingestor.Persistence.AccountKey account, CancellationToken ct)
         {
             Released.Add(account);
             return Task.CompletedTask;

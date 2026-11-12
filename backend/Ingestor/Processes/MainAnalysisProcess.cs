@@ -1,7 +1,7 @@
 using Core.Options;
 using Data.Entities;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
 using Ingestor.Processes.Summaries;
@@ -19,7 +19,7 @@ public sealed class MainAnalysisProcess(
     TimeProvider timeProvider,
     IOptions<MainAnalysisOptions> analysisOptions) : IIngestorProcess
 {
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = analysisOptions.Value;
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;

@@ -223,14 +223,17 @@ public sealed class TruemainActivityQueryService(
     /// cannot fool it) and the retention floor is the earliest first-game across all
     /// of them. Cached — see <see cref="TrackedBoundsTtl"/>.
     /// </remarks>
-    private async Task<TrackedBounds?> GetTrackedBoundsAsync(int queueId, CancellationToken ct)
-    {
-        var key = (nameof(TruemainActivityQueryService), nameof(GetTrackedBoundsAsync), queueId);
-        if (cache.TryGetValue(key, out TrackedBounds? cached))
-        {
-            return cached;
-        }
+    // Cached even when null, so a fresh database does not re-run the group-by on every
+    // profile view.
+    private Task<TrackedBounds?> GetTrackedBoundsAsync(int queueId, CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"{nameof(TruemainActivityQueryService)}:tracked-bounds:{queueId}",
+            TrackedBoundsTtl,
+            token => ReadTrackedBoundsAsync(queueId, token),
+            ct);
 
+    private async Task<TrackedBounds?> ReadTrackedBoundsAsync(int queueId, CancellationToken ct)
+    {
         // Projected into an anonymous type, not straight into the record: EF cannot
         // translate a grouping aggregate into a user type's constructor and throws
         // at query time rather than at build time.
@@ -247,17 +250,13 @@ public sealed class TruemainActivityQueryService(
             .ToListAsync(ct);
 
         var current = rows.MaxBy(patch => patch.FirstGameUtc);
-        var bounds = current is null
+        return current is null
             ? null
             : new TrackedBounds(
                 current.Patch,
                 current.FirstGameUtc,
                 current.LastGameUtc,
                 rows.Min(patch => patch.FirstGameUtc));
-
-        // Cached even when null, so a fresh database does not re-run the group-by on
-        // every profile view.
-        return cache.Store(key, bounds, TrackedBoundsTtl);
     }
 
     private static TruemainActivitySeriesReadModel Series(

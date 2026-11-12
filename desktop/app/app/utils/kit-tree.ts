@@ -1,4 +1,4 @@
-import type { KitNode } from '#shared/types/kit'
+import type { KitNode } from '~/types/kit'
 import type { NextItemOrderStep } from '~/utils/next-item'
 
 /**

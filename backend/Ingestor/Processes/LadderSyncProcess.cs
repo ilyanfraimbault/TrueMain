@@ -1,9 +1,10 @@
 using Core.Lol.Identifiers;
+using Core.Lol.Map;
 using Core.Lol.Ranking;
 using Data.Entities;
 using Data.Ops.Mongo;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.LadderSync;
@@ -56,10 +57,13 @@ public sealed class LadderSyncProcess(
     IRankSnapshotWriter rankSnapshotWriter,
     IProcessRunStore processRunStore,
     TimeProvider timeProvider,
-    IOptions<LadderSyncOptions> ladderSyncOptions) : IIngestorProcess
+    IOptions<LadderSyncOptions> ladderSyncOptions) : ICadencedProcess
 {
-    private const string RankedSoloQueue = "RANKED_SOLO_5x5";
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    /// <inheritdoc />
+    public TimeSpan MinRunInterval => ladderSyncOptions.Value.MinRunInterval;
+
+    private const string RankedSoloQueue = LeagueQueueType.RankedSolo;
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = ladderSyncOptions.Value;
         var platforms = PlatformNormalizer.Normalize(options.Platforms);
@@ -71,22 +75,6 @@ public sealed class LadderSyncProcess(
         }
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-
-        // Same guard as Discovery's (#487, #1149): measured from the last run that did its
-        // work, so a skip can never re-arm itself. The current run is recorded as Running and
-        // is therefore excluded from the answer.
-        if (options.MinRunInterval > TimeSpan.Zero)
-        {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(PipelineCatalog.LadderSync.Name, nowUtc, ct);
-            if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < options.MinRunInterval)
-            {
-                logger.LogInformation(
-                    "Ladder sync skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
-                    lastRunUtc,
-                    options.MinRunInterval);
-                return new SkippedSummary("Within MinRunInterval; ladder sync skipped this iteration.", true);
-            }
-        }
 
         var ledger = await LadderSyncRunLedger.ReadAsync(processRunStore, PipelineCatalog.LadderSync.Name, options, nowUtc, ct);
         var apexDue = ledger.IsApexDue(options.ApexRefreshInterval, nowUtc);
@@ -101,7 +89,7 @@ public sealed class LadderSyncProcess(
                 "Ladder sync skipped: daily budget spent ({SpentToday}/{MaxRequestsPerDay}) and the apex refresh is not due.",
                 ledger.PagedCallsToday,
                 options.MaxRequestsPerDay);
-            return new SkippedSummary("Daily request budget spent and apex refresh not due; ladder sync skipped this iteration.", true);
+            return new SkippedSummary("Daily request budget spent and apex refresh not due; ladder sync skipped this iteration.");
         }
 
         var stats = new LadderSweepStats();
@@ -127,6 +115,16 @@ public sealed class LadderSyncProcess(
             summary.RankUpdated,
             summary.RankUnchanged,
             summary.FailedCalls);
+
+        if (summary.FailedCalls > 0 && summary.ApexCalls == 0 && summary.PagedCalls == 0)
+        {
+            // Not one ladder read succeeded: a dead key or Riot down, not a quiet ladder. Each
+            // failure was isolated so one region could not cost the others, but all of them
+            // together are the run failing — recorded Failed, with its summary.
+            throw new ProcessRunFailedException(
+                $"Ladder sync: all {summary.FailedCalls} Riot call(s) failed.",
+                summary);
+        }
 
         return summary;
     }

@@ -1,3 +1,4 @@
+using Core.Lol.Patches;
 using Data;
 using Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -139,9 +140,8 @@ public sealed class LanePriorQueryService(TrueMainDbContext db) : ILanePriorQuer
     {
         var ordered = patches
             .Distinct(StringComparer.Ordinal)
-            .Where(p => requestedPatch is null
-                || string.CompareOrdinal(PatchSortKey(p), PatchSortKey(requestedPatch)) <= 0)
-            .OrderByDescending(PatchSortKey, StringComparer.Ordinal)
+            .Where(p => requestedPatch is null || ComparePatches(p, requestedPatch) <= 0)
+            .OrderDescending(Comparer<string>.Create(ComparePatches))
             .Take(PatchesConsidered)
             .ToList();
 
@@ -151,13 +151,11 @@ public sealed class LanePriorQueryService(TrueMainDbContext db) : ILanePriorQuer
     }
 
     /// <summary>
-    /// Zero-pad each component so <c>16.4</c> sorts before <c>16.10</c>.
-    /// Ordinal string comparison on the raw patch would read "16.10" as older.
+    /// Patch order by <see cref="PatchVersion"/>, so <c>16.4</c> sorts before <c>16.10</c>;
+    /// a string that is not a patch falls back to ordinal order.
     /// </summary>
-    private static string PatchSortKey(string patch)
-    {
-        var parts = patch.Split('.');
-        return string.Join('.', parts.Select(part =>
-            int.TryParse(part, out var number) ? number.ToString("D4") : part));
-    }
+    private static int ComparePatches(string left, string right)
+        => PatchVersion.TryParse(left, out var leftVersion) && PatchVersion.TryParse(right, out var rightVersion)
+            ? leftVersion.CompareTo(rightVersion)
+            : string.CompareOrdinal(left, right);
 }

@@ -4,6 +4,7 @@ using AwesomeAssertions;
 using Data.BuildFacts;
 using Data.Entities;
 using Data.ItemContext;
+using Data.Statics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -63,8 +64,8 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
         situational.WinRate.Should().BeApproximately(0.5, 1e-9);
 
         var finding = situational.Axes.Should().ContainSingle().Subject;
-        finding.Axis.Should().Be("EnemyMagicDamage");
-        finding.Bucket.Should().Be("High");
+        finding.Axis.Should().Be(ItemContextAxis.EnemyMagicDamage);
+        finding.Bucket.Should().Be(ItemContextBucket.High);
         finding.DraftTime.Should().BeTrue();
         finding.RateIn.Should().BeApproximately(0.62, 1e-9);
         finding.RateOut.Should().BeApproximately(0.18, 1e-9);
@@ -105,7 +106,7 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
         var response = await GetAsync($"/champions/{Champion}/item-context?position={Position}&patch={Patch}");
 
         var finding = response.Items.Single(item => item.ItemId == 3065).Axes.Single();
-        finding.Axis.Should().Be("OwnGoldLeadAt15");
+        finding.Axis.Should().Be(ItemContextAxis.OwnGoldLeadAt15);
         finding.DraftTime.Should().BeFalse("a reader cannot act on it at champion select, and the card has to say so");
     }
 
@@ -180,8 +181,8 @@ public sealed class ChampionItemContextApiIntegrationTests : IAsyncLifetime
             [Cowl] = new(Cowl, 1250, true, false, false, false, false, false),
         };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Items);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Items));
     }
 
     private static ChampionItemComponentOrder Order(int item, int component, int rank, int games)

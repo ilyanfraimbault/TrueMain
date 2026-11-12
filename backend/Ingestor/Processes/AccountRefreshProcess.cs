@@ -1,9 +1,10 @@
 using System.Net;
 using Core;
 using Core.Lol.Identifiers;
+using Core.Lol.Map;
 using Data.Entities;
 using Data.Pipeline;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
 using Ingestor.Ranking;
@@ -23,8 +24,8 @@ public sealed class AccountRefreshProcess(
     TimeProvider timeProvider,
     IOptions<AccountRefreshOptions> refreshOptions) : IIngestorProcess
 {
-    private const string SoloQueueType = "RANKED_SOLO_5x5";
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    private const string SoloQueueType = LeagueQueueType.RankedSolo;
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var accounts = await LoadAccountsForRefreshAsync(ct);
         if (accounts.Count == 0)

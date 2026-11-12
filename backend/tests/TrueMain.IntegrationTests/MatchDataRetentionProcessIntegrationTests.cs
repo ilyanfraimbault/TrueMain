@@ -4,6 +4,7 @@ using Core.Options;
 using Data.Entities;
 using Data.Pipeline;
 using Ingestor.Options;
+using Ingestor.Persistence;
 using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
@@ -34,7 +35,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 1);
 
-        await recorded.RunCoreAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var remainingMatchIds = await db.Matches
@@ -59,7 +60,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 1, vacuumAfterDeletedParticipants: 1);
 
-        var summary = await recorded.RunCoreAsync(CancellationToken.None);
+        var summary = await recorded.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<MatchDataRetentionSummary>().Which.VacuumedAfterPurge.Should().BeTrue();
         (await ParticipantPagesAllVisibleAsync()).Should().BeGreaterThan(0);
@@ -72,7 +73,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 1, vacuumAfterDeletedParticipants: 1_000);
 
-        var summary = await recorded.RunCoreAsync(CancellationToken.None);
+        var summary = await recorded.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<MatchDataRetentionSummary>().Which.VacuumedAfterPurge.Should().BeFalse();
     }
@@ -90,7 +91,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
     {
         await SeedRetentionDataAsync();
 
-        await BuildRecordedProcess(retainedPatchCount: 1).RunCoreAsync(CancellationToken.None);
+        await BuildRecordedProcess(retainedPatchCount: 1).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // #2368: RET_1 and RET_3 left the full-match window and are kept truncated, in the
         // same transaction that deleted them; RET_5 (ARAM) is drained whole.
@@ -113,7 +114,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
     {
         await SeedRetentionDataAsync();
         var recorded = BuildRecordedProcess(retainedPatchCount: 1);
-        await recorded.RunCoreAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using (var reingest = _fixture.CreateDbContext())
         {
@@ -123,7 +124,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
             await reingest.SaveChangesAsync();
         }
 
-        await recorded.RunCoreAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         (await db.Matches.AsNoTracking().AnyAsync(match => match.Id == "RET_1")).Should().BeFalse();
@@ -147,7 +148,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 2);
 
-        await recorded.RunCoreAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         (await db.Matches.AsNoTracking().CountAsync()).Should().Be(0);
@@ -161,7 +162,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 2, aggregateRetainedPatchCount: 1);
 
-        await recorded.RunCoreAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         (await db.ChampionAggregateScopes.AsNoTracking().Select(s => s.GameVersion).Distinct().ToListAsync())
@@ -191,7 +192,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 1);
 
-        await recorded.RunCoreAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         (await db.ChampionAggregateScopes.AsNoTracking().Select(s => s.GameVersion).Distinct().ToListAsync())
@@ -209,7 +210,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 
         var recorded = BuildRecordedProcess(retainedPatchCount: 1, buildAggregateRetainedPatchCount: 1);
 
-        await recorded.RunCoreAsync(CancellationToken.None);
+        await recorded.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         // The account-level scopes stay for the leaderboard and the persona "last game"...
@@ -231,7 +232,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
 
         // A second run finds the patch already purged and touches nothing.
         await BuildRecordedProcess(retainedPatchCount: 1, buildAggregateRetainedPatchCount: 1)
-            .RunCoreAsync(CancellationToken.None);
+            .RunCoreAsync(RunInput.Whole, CancellationToken.None);
         (await db.ChampionBuildPurgedPatches.AsNoTracking().CountAsync()).Should().Be(1);
     }
 
@@ -246,7 +247,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
         }
 
         await BuildRecordedProcess(retainedPatchCount: 1, buildAggregateRetainedPatchCount: 1)
-            .RunCoreAsync(CancellationToken.None);
+            .RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // Purging before the record exists would lose the patch's history for good.
         await using var db = _fixture.CreateDbContext();
@@ -277,7 +278,7 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
             await seedDb.SaveChangesAsync();
         }
 
-        await BuildRecordedProcess(retainedPatchCount: 2).RunCoreAsync(CancellationToken.None);
+        await BuildRecordedProcess(retainedPatchCount: 2).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
 
@@ -302,6 +303,58 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
             .Where(match => match.Id == "PRUNE_PENDING")
             .Select(match => match.TimelineSnapshotsPruned)
             .SingleAsync()).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SetTimelineIngested_FlagsTheTimelineAsPrunedWithIt(bool ingested)
+    {
+        // Ingest writes the canonical marks only (#772): a timeline stored now is already what
+        // the dense prune reduces old ones to, so it is flagged with TimelineIngested (#2481).
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            seedDb.Matches.Add(BuildMatch("INGEST_FLAG", "KR", DateTime.UtcNow.AddHours(-1), "16.4.1", timelineIngested: !ingested));
+            await seedDb.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            await new MatchRepository(db).SetTimelineIngestedAsync(["INGEST_FLAG"], ingested, CancellationToken.None);
+        }
+
+        await using var readDb = _fixture.CreateDbContext();
+        var flags = await readDb.Matches.AsNoTracking()
+            .Where(match => match.Id == "INGEST_FLAG")
+            .Select(match => new { match.TimelineIngested, match.TimelineSnapshotsPruned })
+            .SingleAsync();
+        flags.TimelineIngested.Should().Be(ingested);
+        flags.TimelineSnapshotsPruned.Should().Be(ingested);
+    }
+
+    [Fact]
+    public async Task RunAsync_DoesNotReselectAMatchWhoseTimelineWasIngestedWithTheMarksOnly()
+    {
+        await using (var seedDb = _fixture.CreateDbContext())
+        {
+            seedDb.Matches.Add(BuildMatch("MARKS_ONLY", "KR", DateTime.UtcNow.AddHours(-1), "16.4.1", timelineIngested: false));
+            seedDb.MatchParticipants.Add(BuildParticipant(Guid.Parse("88888888-8888-8888-8888-8888888888c1"), "MARKS_ONLY"));
+            foreach (var minute in new[] { 5, 10, 15, 20, 30 })
+            {
+                seedDb.MatchParticipantTimelineSnapshots.Add(SnapshotAt("MARKS_ONLY", minute));
+            }
+
+            await seedDb.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.CreateDbContext())
+        {
+            await new MatchRepository(db).SetTimelineIngestedAsync(["MARKS_ONLY"], true, CancellationToken.None);
+        }
+
+        var summary = await BuildRecordedProcess(retainedPatchCount: 2).RunCoreAsync(RunInput.Whole, CancellationToken.None);
+
+        summary.Should().BeOfType<MatchDataRetentionSummary>().Which.PrunedSnapshotMatches.Should().Be(0);
     }
 
     private async Task SeedAggregateDataAsync()
@@ -445,7 +498,8 @@ public sealed class MatchDataRetentionProcessIntegrationTests : IAsyncLifetime
         return new RecordedProcess<MatchDataRetentionProcess>(
             process,
             PipelineCatalog.MatchDataRetention,
-            new ProcessRunRecorder(_processRunStore, new IterationContext()),
+            new ProcessRunRecorder(_processRunStore, new IterationContext(), TimeProvider.System),
+            _processRunStore,
             TimeProvider.System,
             NullLogger<RecordedProcess<MatchDataRetentionProcess>>.Instance);
     }

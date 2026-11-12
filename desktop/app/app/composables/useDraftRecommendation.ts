@@ -1,5 +1,6 @@
 import type { DraftCandidateReadModel, DraftRecommendationResponse } from '#shared/contract/api'
 import type { DraftState } from '~/types/lcu'
+import { apiPost } from '~/composables/useApi'
 
 /** Our allies' champions keyed by lane, locked ones or hovered ones. */
 export function alliesByLane(draft: DraftState | null, locked: boolean): Record<string, number> {
@@ -56,12 +57,7 @@ export function useDraftRecommendation(
   let timer: ReturnType<typeof setTimeout> | undefined
 
   async function ask(request: object): Promise<DraftRecommendationResponse> {
-    if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<DraftRecommendationResponse>('draft_recommendation', { request })
-    }
-    // `npm run dev` in a browser: the dev server proxies `/api` (nuxt.config).
-    return await $fetch<DraftRecommendationResponse>('/api/champions/draft', { method: 'POST', body: request })
+    return await apiPost<DraftRecommendationResponse>('/champions/draft', request, {}, { background: true })
   }
 
   async function fetchRecommendation() {
@@ -108,8 +104,6 @@ export function useDraftRecommendation(
     catch (cause) {
       if (requestId !== latestRequest) return
       error.value = String(cause)
-      // Offline in `npm run dev`: a scenario may carry the answer the API gave.
-      if (import.meta.dev && !insideTauri()) recommendation.value = useDevScenarios().recommendation.value
     }
     finally {
       if (requestId === latestRequest) pending.value = false

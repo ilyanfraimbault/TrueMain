@@ -14,10 +14,13 @@ import { iterationKind, iterationSpan, statusCounts, timedRuns } from '~~/shared
 import { summaryRecap } from '~~/shared/utils/process-summary'
 import ProcessesIterationSteps from './ProcessesIterationSteps.vue'
 import { RUN_TALLIES } from '~~/shared/utils/pipeline-health'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
 
 const props = defineProps<{
   iteration: ProcessIterationReadModel
 }>()
+
+const catalog = usePipelineCatalog()
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -33,7 +36,7 @@ const KIND_ICON: Record<IterationKindId, string> = {
   single: 'i-lucide-circle-dot',
 }
 
-const kind = computed(() => iterationKind(props.iteration))
+const kind = computed(() => iterationKind(catalog.value, props.iteration))
 const span = computed(() => iterationSpan(props.iteration))
 const segments = computed(() => timedRuns(props.iteration.runs))
 const counts = computed(() => statusCounts(props.iteration.runs))
@@ -144,7 +147,7 @@ const hovered = computed(() => {
         >
           <span class="flex items-center gap-1.5">
             <UIcon :name="outcomeIcon(hovered.run.status)" class="size-3.5 shrink-0" :class="outcomeTextClass(hovered.run.status)" />
-            <span class="text-xs font-medium text-highlighted truncate">{{ chainLabel(hovered.run.processName) }}</span>
+            <span class="text-xs font-medium text-highlighted truncate">{{ chainLabel(catalog, hovered.run.processName) }}</span>
           </span>
           <span class="mt-1 block text-[11px] tabular-nums text-muted">
             {{ formatClock(hovered.run.startedAtUtc) }} → {{ formatClock(hovered.run.finishedAtUtc) }}

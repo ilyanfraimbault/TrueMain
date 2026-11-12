@@ -105,7 +105,7 @@ Last verified against `develop` on 2026-09-02.
 - The spread's rate reads "Lane WR NN% (at 15 minutes)", never "WR"; on touch a first tap selects an icon and shows its rate under the strip (2026-11-01) — #2354
 - The player champion page shows the same spread on the player's own lanes (live from their 15-min snapshots, no lane floor), replacing its sidebar list — 2026-10-22
 - The spread follows the page's lane (no picker of its own), its tooltip says only `% WR`, and its wash is the match rows' red-to-blue — 2026-10-22
-- Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
+- Lane win rate stores three counters and divides by the *decided* lanes, not by games played; the gold threshold is one constant, not a per-host option (2026-11-10) — #466, #919, #606, #2481
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - The draft assistant's lane guess is an assignment solved by exact enumeration — not per-champion arg-maxes, not Hungarian — #1674, #1706
 - Lane priors read the ally synergy baselines, not the scope table, decay over four patches rather than switching, and pool every elo band (2026-10-05) — #1674, #1706, #1707
@@ -266,7 +266,7 @@ Last verified against `develop` on 2026-09-02.
 - `ItemEvents`/`SkillEvents` use LZ4 TOAST compression per column; old rows are rewritten by the #1946 repack, not a migration (2026-10-06) — #123
 - Pattern aggregates use a junction model (`champion_aggregate_patterns` + globally deduplicated `champion_dim_*`)
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
-- A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
+- A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows were backfilled from the item timeline, not re-fetched (2026-09-17; backfill retired 2026-11-10) — #1612, #1607, #2481
 - The pace benchmark is a per-minute CS / gold-earned histogram per (patch, tier, position), folded from the timeline in memory at ingestion, once per match, the lobby at its tracked account's tier — never a per-minute grid (2026-10-05) — #1912
 - The form benchmark (KDA, KP, CS/min, deaths, vision/min) is a whole-game histogram in its own table, folded in the pace benchmark's pass under its claim, so both describe the same games; no back-fill (2026-10-20) — #2076
 - One truncated-match table outlives retention: ten seats for ~4 patches (matchups, drafts), tracked seats up to 8 (profiles); off in production until preprod has measured it (2026-11-02) — #2358, #2368
@@ -281,6 +281,7 @@ Last verified against `develop` on 2026-09-02.
 - A unit of work covers the writes and nothing else (2026-08-28) — #264, #1229
 - `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07) — #1520, #1451
 - Api registration is owned by the feature: `Program.cs` only composes `AddTrueMain<Area>()`; options carry their section, rules and configuration-page entry (2026-11-08) — #2489
+- Champion reads take a canonical `ChampionScope` parsed once per route; each route names what a blank `position` means (2026-11-10) — #2571
 - A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541, #124
 - Ingestor options: bounds are attributes checked by a generated validator, cross-field rules stay lambdas (2026-10-04) — #271
 - A role is a string from `LanePositions` (no enum, `MID`/`BOT` accepted on input); timeline marks live once in `Data` (2026-10-04) — #1232
@@ -319,6 +320,7 @@ Last verified against `develop` on 2026-09-02.
 - The ingestor Worker isolates failures per process — #443
 - A streamed Riot response can fail *after* the resilience handler has waved it through — isolate the call site — #253, #1052
 - A CommunityDragon patch branch that does not exist yet is a transient condition, not a fatal one — #1107
+- Static game data answers available / fallback / unavailable from one per-patch cache; each caller spells its degraded answer (2026-11-10) — #2572
 - Ranks are read from the ladder, not from one account at a time (2026-08-30) — #788, #1312, #1149
 - A lease is only kept if something reaps it (2026-09-01) — #1344
 - A redeploy is an outcome the pipeline records, not an accident it absorbs (2026-09-07) — #1513
@@ -340,6 +342,7 @@ Last verified against `develop` on 2026-09-02.
 - Server-side timeouts: API `statement_timeout` 60 s and pooled `idle_in_transaction_session_timeout` 60 s through a dedicated PgBouncer database, migrations `lock_timeout` 5 s with retry (2026-10-06) — #1631
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
+- Every cached Api read goes through `ApiCache.GetOrComputeAsync`; an unavailable ops measurement is a `Measured<T>` value (2026-11-10) — #2575
 - A warm pass fills the next version before anyone reads it, and the site stays on the maintenance page for the first one (2026-11-03) — #2425, #1945
 - The leaderboard reads its population once per aggregation version, so any filter and sort is a walk in memory (2026-11-03) — #2431
 - A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15) — #1570
@@ -519,6 +522,9 @@ Last verified against `develop` on 2026-09-02.
 - The dashboard's form tiles carry the median of the player's own Solo/Duo tier (not the tier above) on their main role, in muted text with the tier's emblem; under the floor or without a standing, none; dashboard only (2026-10-20) — #2076
 - Game recording is frozen; kept only if ≥ 25% of installs that play with the app open record a game within 30 days, read after the next production release (2026-11-01) — #2364
 - A known player opens in the app; the shell opens their channels through a host list (Twitch, YouTube, X), the one exception to the webview naming only a path on its site (2026-11-04) — #2441
+- The shell ↔ webview contract (commands, events, payload types, refusal codes) is generated from Rust by specta into `app/generated/shell.ts`, a stale file failing a Rust test (2026-11-09) — #2494
+- The shell's TrueMain reads are one route table (`src-tauri/api-routes.json`) checked in CI against the OpenAPI document and the app's reads; superseding is the caller's `replaces` key (2026-11-10) — #2551
+- `npm run dev` runs the app against one fake shell (`app/dev-shell/`, typed by the generated commands), not per-composable browser fallbacks (2026-11-10) — #2553
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 

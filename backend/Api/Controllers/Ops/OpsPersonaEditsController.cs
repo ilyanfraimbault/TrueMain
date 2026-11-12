@@ -1,5 +1,6 @@
 using Data.Entities;
 using Microsoft.AspNetCore.Mvc;
+using TrueMain.Http;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Requests.Ops;
 using TrueMain.Services.Personas;
@@ -36,14 +37,14 @@ public sealed class OpsPersonaEditsController(
         [FromQuery] int? pageSize,
         CancellationToken ct = default)
     {
-        if (!OpsPersonasController.TryParseOptional<PersonaListView>(view, out var viewFilter))
+        if (!this.TryParseOptionalEnum<PersonaListView>(view, nameof(view), out var viewFilter, out var viewProblem))
         {
-            return ValidationProblem($"view '{view}' is not one of {string.Join(", ", Enum.GetNames<PersonaListView>())}.");
+            return viewProblem;
         }
 
-        if (!OpsPersonasController.TryParseOptional<PersonaSource>(source, out var sourceFilter))
+        if (!this.TryParseOptionalEnum<PersonaSource>(source, nameof(source), out var sourceFilter, out var sourceProblem))
         {
-            return ValidationProblem($"source '{source}' is not one of {string.Join(", ", Enum.GetNames<PersonaSource>())}.");
+            return sourceProblem;
         }
 
         var filter = new PersonaListFilter(viewFilter ?? PersonaListView.All, sourceFilter, search);

@@ -40,7 +40,9 @@ pub const FLASH_COOLDOWN_MS: u64 = 200_000;
 const MIN_CLIP_MS: u64 = 1_000;
 
 /// What the player chooses to clip automatically.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, specta::Type,
+)]
 #[serde(rename_all = "camelCase")]
 pub enum AutoClipKind {
     /// A triple kill, a quadra kill, a pentakill.
