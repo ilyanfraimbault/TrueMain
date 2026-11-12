@@ -32,9 +32,9 @@ function signed(delta: number): string {
   return formatPointDelta(delta, { unit: false })
 }
 
-/** A rate, with a decimal under 10% where a whole number would flatten a small share. */
+/** A rate, as a whole percentage like every other on the site (#2552). */
 export function draftPercent(rate: number): string {
-  return formatPercentage(rate, rate < 0.1 ? 1 : 0)
+  return formatPercentage(rate)
 }
 
 const games = (count: number) => `${formatCount(count)} game${count === 1 ? '' : 's'}`

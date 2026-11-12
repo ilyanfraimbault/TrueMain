@@ -90,7 +90,7 @@ const tiles = computed(() => {
   }
   const winRate = ranked.value?.winRate
   if (winRate !== null && winRate !== undefined) {
-    entries.push({ label: 'RANKED WIN RATE', value: formatPercentage(winRate, 1), accent: false })
+    entries.push({ label: 'RANKED WIN RATE', value: formatPercentage(winRate), accent: false })
   }
   return entries.slice(0, 3)
 })

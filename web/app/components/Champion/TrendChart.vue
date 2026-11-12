@@ -57,9 +57,10 @@ const hasTrend = computed(() => rows.value.length > 1)
 // there is a real history to draw.
 const hasBanTrend = computed(() => banRows.value.length > 1)
 
-const winRateFormatter = (value: number): string => formatPercentage(value, 0)
-const pickRateFormatter = (value: number): string => formatPercentage(value, 1)
-const banRateFormatter = (value: number): string => formatPercentage(value, 1)
+// One formatter for all three charts: every rate is a whole percentage (#2552).
+// A wrapper rather than `formatPercentage` itself, so a caller passing extra
+// arguments (a tick index) never lands in its `digits`.
+const percentFormatter = (value: number): string => formatPercentage(value)
 
 const chartGridClass = computed(() =>
   hasBanTrend.value ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3' : 'grid gap-4 sm:grid-cols-2',
@@ -93,13 +94,13 @@ const chartGridClass = computed(() =>
         title="Win rate"
         :rows="rows"
         value-key="winRate"
-        :format="winRateFormatter"
+        :format="percentFormatter"
       />
       <ChampionTrendSeriesChart
         title="Pick rate"
         :rows="rows"
         value-key="pickRate"
-        :format="pickRateFormatter"
+        :format="percentFormatter"
       />
       <!-- Ban rate only appears once at least two patches have ban data (#920);
            its history starts at deploy and cannot be backfilled. -->
@@ -108,7 +109,7 @@ const chartGridClass = computed(() =>
         title="Ban rate"
         :rows="banRows"
         value-key="banRate"
-        :format="banRateFormatter"
+        :format="percentFormatter"
       />
     </div>
   </SectionCard>
