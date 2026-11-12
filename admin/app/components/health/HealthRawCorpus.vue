@@ -5,11 +5,11 @@
 // table — because an exact participant count scanned the whole table and timed out the
 // cockpit. They can be unavailable on their own: the card then says why, and the
 // per-platform freshness below, which does not depend on them, still renders.
-import type { RawDataFreshness } from '~~/shared/types/ops'
+import type { RawDataFreshnessReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import { formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 
-const props = defineProps<{ rawData: RawDataFreshness }>()
+const props = defineProps<{ rawData: RawDataFreshnessReadModel }>()
 
 const counts = computed(() => [
   { label: 'Matches', value: props.rawData.rawMatchCount },

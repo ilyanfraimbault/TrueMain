@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { POSITIONS, positionLabel } from '#common/utils/positions'
+import { POSITIONS, positionLabel } from '#shared/utils/positions'
 import type { Lane } from '~/types/draft'
 
 /**

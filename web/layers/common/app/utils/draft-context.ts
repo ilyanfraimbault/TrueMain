@@ -1,4 +1,4 @@
-import type { CompositionBuildRequest } from '#shared/types/composition'
+import type { CompositionBuildRequest } from '#shared/contract/api'
 
 /**
  * Whether a composition request carries draft picks beyond the matchup itself —
@@ -8,6 +8,6 @@ import type { CompositionBuildRequest } from '#shared/types/composition'
  */
 export function refinesBeyondMatchup(request: CompositionBuildRequest | null | undefined): boolean {
   if (!request) return false
-  return request.allies.some(slot => slot.position !== request.position)
-    || request.enemies.some(slot => slot.position !== request.position)
+  return (request.allies ?? []).some(slot => slot.position !== request.position)
+    || (request.enemies ?? []).some(slot => slot.position !== request.position)
 }

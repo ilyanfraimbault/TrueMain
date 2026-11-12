@@ -1,6 +1,7 @@
 using Core.Options;
 using Data.Entities;
-using Data.Repositories;
+using Data.Pipeline;
+using Ingestor.Persistence;
 using Ingestor.Processes.Components.Coverage;
 using Ingestor.Processes.Components.MainAnalysis;
 using Ingestor.Processes.Summaries;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
+[PipelineStep(JobMode.MainAnalysisOnly)]
 public sealed class MainAnalysisProcess(
     ILogger<MainAnalysisProcess> logger,
     IDataSessionFactory sessionFactory,
@@ -17,9 +19,7 @@ public sealed class MainAnalysisProcess(
     TimeProvider timeProvider,
     IOptions<MainAnalysisOptions> analysisOptions) : IIngestorProcess
 {
-    public string Name => "MainAnalysis";
-
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = analysisOptions.Value;
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;

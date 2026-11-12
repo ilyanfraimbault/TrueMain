@@ -1,4 +1,4 @@
-import type { MatchSummariesResponse, MatchSummaryResponse } from '#shared/types/matches'
+import type { MatchSummariesResponse, MatchSummaryReadModel } from '#shared/contract/api'
 
 interface UseTruemainMatchesOptions {
   /** Page size to request per fetch. Defaults to the backend default (20). */
@@ -20,10 +20,10 @@ interface UseTruemainMatchesOptions {
  * <c>UPagination</c> control. Refetches whenever the name tag, page, or
  * any filter change.
  *
- * `null` from the API (malformed nameTag or no matching Riot account) is
- * surfaced as <c>notFound = true</c> — the page renders an empty state
- * rather than an error. Same contract as the profile composable, shared via
- * {@link useTruemainFetch}.
+ * A 404 from the API (malformed nameTag or no matching Riot account) is
+ * surfaced as <c>notFound = true</c> — the page renders an empty state — and
+ * any other failure as <c>error</c> (#2476). Same contract as the profile
+ * composable, shared via {@link useTruemainFetch}.
  */
 export function useTruemainMatches(
   nameTag: MaybeRefOrGetter<string>,
@@ -43,12 +43,12 @@ export function useTruemainMatches(
     return typeof value === 'number' && value > 0 ? value : null
   })
 
-  const matches = ref<MatchSummaryResponse[]>([])
+  const matches = ref<MatchSummaryReadModel[]>([])
   const total = ref(0)
   const pageSize = ref(options.pageSize ?? 20)
   const apiFetch = useApiFetch()
 
-  const { isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<MatchSummariesResponse>(nameTag, {
+  const { state, isLoading, isInitialLoading, notFound, error, execute, ready } = useTruemainFetch<MatchSummariesResponse>(nameTag, {
     enabled: options.enabled,
     watch: [pageRef, positionRef, championIdRef],
     request: (tag, signal) => {
@@ -63,7 +63,6 @@ export function useTruemainMatches(
         `/truemains/${encodeURIComponent(tag)}/matches`,
         {
           query,
-          ignoreResponseError: true,
           signal,
         },
       )
@@ -86,6 +85,7 @@ export function useTruemainMatches(
     matches,
     total,
     pageSize,
+    state,
     isLoading,
     isInitialLoading,
     notFound,

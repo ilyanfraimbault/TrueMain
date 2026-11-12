@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
-import { positionLabel } from '#common/utils/positions'
-import type { CompositionLane } from '~/types/build'
+import { positionLabel } from '#shared/utils/positions'
+import type { CompositionLaneReadModel } from '#shared/contract/api'
 import { winRateTone } from '#common/utils/rate-tone'
 
 /**
@@ -14,7 +14,7 @@ const props = defineProps<{
   championId: number | null
   opponentId: number | null
   position: string | null
-  lane: CompositionLane | null
+  lane: CompositionLaneReadModel | null
   pending: boolean
 }>()
 

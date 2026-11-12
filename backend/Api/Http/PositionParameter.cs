@@ -78,27 +78,22 @@ internal static class PositionParameter
     }
 
     /// <summary>
-    /// Like <see cref="TryNormalizeOptionalPosition"/>, but also accepts the explicit
-    /// <see cref="LanePositions.AllPositions"/> token (case-insensitive), passed through as
-    /// that constant. For the player-scoped champion reads, where "every position" is a
-    /// slice of its own rather than the dominant position an absent value resolves to.
+    /// The 400 of the desktop's POST routes (draft, bans, next item) when the player's own lane
+    /// is not a position. Its title and capitalised detail predate the shared
+    /// <see cref="InvalidMessage"/>; kept so the wire does not change under a refactor.
     /// </summary>
-    public static bool TryNormalizePositionOrAll(
-        this ControllerBase controller,
-        string? position,
-        out string? normalizedPosition,
-        [NotNullWhen(false)] out ActionResult? problem)
-    {
-        if (IsAllPositions(position))
+    public static BadRequestObjectResult UnknownPosition(this ControllerBase controller)
+        => controller.BadRequest(new ProblemDetails
         {
-            normalizedPosition = LanePositions.AllPositions;
-            problem = null;
-            return true;
-        }
+            Title = "Unknown position",
+            Detail = "Position must be one of TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY.",
+            Status = StatusCodes.Status400BadRequest,
+        });
 
-        return controller.TryNormalizeOptionalPosition(position, out normalizedPosition, out problem);
-    }
-
-    private static bool IsAllPositions(string? position)
+    /// <summary>
+    /// Whether <paramref name="position"/> is the explicit <see cref="LanePositions.AllPositions"/>
+    /// token (case-insensitive) — accepted only on the routes whose <see cref="PositionRule"/> says so.
+    /// </summary>
+    public static bool IsAllPositions(string? position)
         => string.Equals(position?.Trim(), LanePositions.AllPositions, StringComparison.OrdinalIgnoreCase);
 }

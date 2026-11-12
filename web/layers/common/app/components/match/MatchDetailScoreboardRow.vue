@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
@@ -15,7 +15,7 @@ import { formatKda } from '#shared/utils/kda'
 // `MatchRowSpellsRunes`, `MatchItemGrid`), so a game reads the same collapsed
 // and open; the rest is what only the detail carries.
 const props = defineProps<{
-  participant: MatchDetailParticipant
+  participant: MatchDetailParticipantReadModel
   champion: ChampionStaticListItem | null
   /** Highest damage on the side — the bar's full width. */
   maxDamage: number

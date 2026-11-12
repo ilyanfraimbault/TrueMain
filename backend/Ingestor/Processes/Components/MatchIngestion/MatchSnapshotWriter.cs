@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Core.Lol.Identifiers;
 using Core.Options;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;

@@ -84,21 +84,21 @@ internal sealed class RowSanityDetector(TrueMainDbContext db, IOptions<MainAnaly
         // The sanity counts always vote. The patch-volume rows vote only where a patch
         // was actually judged: the newest and oldest are deliberately not comparable, and
         // letting them vote would pin this card to unknown on every healthy corpus.
-        var sanityStatuses = rows.Select(DetectorCards.ParseStatus).ToList();
+        var sanityStatuses = rows.Select(row => row.Status).ToList();
         var patchRows = await BuildPatchVolumeRowsAsync(settings, ct);
         rows.AddRange(patchRows);
         sanityStatuses.AddRange(patchRows
-            .Select(DetectorCards.ParseStatus)
+            .Select(row => row.Status)
             .Where(status => status is not DetectorStatus.Unknown));
 
-        var thinPatches = patchRows.Count(row => DetectorCards.ParseStatus(row) is DetectorStatus.Amber or DetectorStatus.Red);
+        var thinPatches = patchRows.Count(row => row.Status is DetectorStatus.Amber or DetectorStatus.Red);
         var sanityCardStatus = DataQualityDetectorEvaluator.Worst(sanityStatuses);
 
         return new DataQualityDetectorReadModel
         {
             Key = "rowSanity",
             Title = "Row-level sanity",
-            Status = sanityCardStatus.ToWireName(),
+            Status = sanityCardStatus,
             Count = inconsistent,
             CountLabel = "arithmetically impossible aggregate rows",
             // Same rule as every other card: worded from the verdict. Zero-sample rows
@@ -125,11 +125,11 @@ internal sealed class RowSanityDetector(TrueMainDbContext db, IOptions<MainAnaly
             Rows = rows,
             Thresholds =
             [
-                DetectorCards.Threshold("impossible rows", settings.InconsistentAggregateRowsAmber, settings.InconsistentAggregateRowsRed, "count"),
-                DetectorCards.Threshold("zero-sample rows", settings.ZeroSampleAggregateRowsAmber, settings.ZeroSampleAggregateRowsRed, "count"),
+                DetectorCards.Threshold("impossible rows", settings.InconsistentAggregateRowsAmber, settings.InconsistentAggregateRowsRed, DetectorThresholdUnit.Count),
+                DetectorCards.Threshold("zero-sample rows", settings.ZeroSampleAggregateRowsAmber, settings.ZeroSampleAggregateRowsRed, DetectorThresholdUnit.Count),
                 // A floor, not a ceiling: a patch is anomalous when its match count falls
                 // *below* this share of the median patch.
-                DetectorCards.Threshold("patch volume vs median", settings.PatchVolumeAnomalyRatio, 0, "ratio", "below")
+                DetectorCards.Threshold("patch volume vs median", settings.PatchVolumeAnomalyRatio, 0, DetectorThresholdUnit.Ratio, DetectorThresholdDirection.Below)
             ]
         };
     }
@@ -171,7 +171,7 @@ internal sealed class RowSanityDetector(TrueMainDbContext db, IOptions<MainAnaly
                         ? verdict.Thin ? DetectorStatus.Amber : DetectorStatus.Green
                         // Unjudged is not a pass: the edge patches are simply not
                         // comparable, and saying so beats a green that means nothing.
-                        : DetectorStatus.Unknown).ToWireName(),
+                        : DetectorStatus.Unknown),
                     Value = verdict.Patch.Matches,
                     ValueLabel = string.Create(CultureInfo.InvariantCulture, $"{verdict.Patch.Matches} matches"),
                     Note = verdict.Judged
@@ -193,7 +193,7 @@ internal sealed class RowSanityDetector(TrueMainDbContext db, IOptions<MainAnaly
         string note) => new()
         {
             Label = label,
-            Status = DataQualityDetectorEvaluator.Classify(value, amber, red).ToWireName(),
+            Status = DataQualityDetectorEvaluator.Classify(value, amber, red),
             Value = value,
             ValueLabel = string.Create(CultureInfo.InvariantCulture, $"{value} row(s)"),
             Note = note

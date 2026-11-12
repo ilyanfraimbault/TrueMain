@@ -1,6 +1,5 @@
 using Data.Configuration;
 using Data.Ops.Mongo;
-using TrueMain.Configuration;
 using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops.Configuration;
@@ -14,9 +13,11 @@ public interface IEffectiveConfigurationQueryService
 /// Serves the admin configuration page (#1034) by combining two different kinds of
 /// snapshot: the Api's own, built live from its container on every request, and the
 /// Ingestor's, published to Mongo at its own boot because the Api cannot introspect a
-/// container it does not run in.
+/// container it does not run in. The Api's sections are the ones its features registered with
+/// their options, shown by title.
 /// </summary>
 public sealed class EffectiveConfigurationQueryService(
+    IEnumerable<EffectiveConfigurationSectionDescriptor> sections,
     IServiceProvider services,
     IConfiguration configuration,
     IHostEnvironment environment,
@@ -26,7 +27,9 @@ public sealed class EffectiveConfigurationQueryService(
     public async Task<EffectiveConfigurationOverviewReadModel> GetAsync(CancellationToken ct)
     {
         var apiSnapshot = EffectiveConfigurationBuilder.Build(
-            ApiEffectiveConfigurationCatalog.Instance,
+            new EffectiveConfigurationCatalog(
+                "Api",
+                sections.OrderBy(section => section.Title, StringComparer.Ordinal).ToList()),
             services,
             configuration,
             environment.EnvironmentName,

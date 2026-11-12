@@ -192,7 +192,7 @@ public sealed class ChampionPatchStatIntegrationTests : IAsyncLifetime
 
         var query = eloBracket is null ? string.Empty : $"&eloBracket={eloBracket}";
         var trend = await client.GetFromJsonAsync<ChampionTrendReadModel>(
-            $"/champions/{ChampionId}/trend?position=middle{query}");
+            $"/champions/{ChampionId}/trend?position=middle{query}", ApiJson.Options);
         trend.Should().NotBeNull();
         return trend!;
     }

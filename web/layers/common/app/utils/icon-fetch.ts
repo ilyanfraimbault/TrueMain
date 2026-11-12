@@ -1,3 +1,5 @@
+import { IPX_SHAPES } from '#shared/utils/ipx'
+
 /**
  * The one size every icon is fetched at, whatever size it is displayed at.
  *
@@ -13,7 +15,7 @@
  * were fetched at 12, 20, 22 *and* 64 px by four different call sites — four
  * downloads and four cache entries for one image.
  */
-export const ICON_FETCH_SIZE = 64
+export const ICON_FETCH_SIZE = IPX_SHAPES.icon.width
 
 /** The square a known player's picture is fetched at on their page: twice its 80 px box, for sharp screens. */
 export const PLAYER_PICTURE_FETCH_SIZE = 160

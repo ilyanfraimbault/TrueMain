@@ -1,8 +1,8 @@
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Logging;
-using Data.Ops.Mongo;
-using Data.Repositories;
+using Data.Pipeline;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.Discovery;
@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
+[PipelineStep(JobMode.DiscoveryOnly)]
 public sealed class DiscoveryProcess(
     ILogger<DiscoveryProcess> logger,
     IRiotPlatformClient riotPlatformClient,
@@ -21,13 +22,17 @@ public sealed class DiscoveryProcess(
     IAccountUpsertService accountUpsertService,
     ICandidateUpsertService candidateUpsertService,
     IRankSnapshotWriter rankSnapshotWriter,
-    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
-    IOptions<DiscoveryOptions> discoveryOptions) : IIngestorProcess
+    IOptions<DiscoveryOptions> discoveryOptions) : ICadencedProcess
 {
-    public string Name => "Discovery";
+    /// <summary>
+    /// Reduced cadence (#487): now that the participant harvest is the primary candidate source,
+    /// the mastery-backed ladder crawl runs on a maintenance cadence so its Riot budget goes to
+    /// match ingestion.
+    /// </summary>
+    public TimeSpan MinRunInterval => discoveryOptions.Value.MinRunInterval;
 
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = discoveryOptions.Value;
         var platforms = PlatformNormalizer.Normalize(options.Platforms);
@@ -38,34 +43,8 @@ public sealed class DiscoveryProcess(
             return new NoWorkSummary("No platforms configured.", 0);
         }
 
-        // Reduced cadence (#487): now that the participant harvest is the primary candidate
-        // source, the mastery-backed ladder crawl runs on a maintenance cadence so its Riot
-        // budget can be reallocated to match ingestion. Skip when the last completed run is
-        // within MinRunInterval. The current run is recorded as Running by the recorder, so
-        // GetLastCompletedRunStartAsync excludes it.
-        if (options.MinRunInterval > TimeSpan.Zero && await ShouldSkipForCadenceAsync(options.MinRunInterval, ct) is { } lastRunUtc)
-        {
-            logger.LogInformation(
-                "Discovery skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
-                lastRunUtc,
-                options.MinRunInterval);
-            return new SkippedSummary("Within MinRunInterval; discovery skipped this iteration.", true);
-        }
-
         var summaries = await DiscoverAcrossPlatformsAsync(platforms, options, ct);
         return BuildSuccessPayload(summaries);
-    }
-
-    /// <summary>
-    /// Returns the last completed Discovery run time when it is within
-    /// <paramref name="minRunInterval"/> (so this iteration should skip), otherwise null.
-    /// </summary>
-    private async Task<DateTime?> ShouldSkipForCadenceAsync(TimeSpan minRunInterval, CancellationToken ct)
-    {
-        var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
-        return lastRunUtc is not null && timeProvider.GetUtcNow().UtcDateTime - lastRunUtc.Value < minRunInterval
-            ? lastRunUtc
-            : null;
     }
 
     private async Task<List<PlatformSummary>> DiscoverAcrossPlatformsAsync(

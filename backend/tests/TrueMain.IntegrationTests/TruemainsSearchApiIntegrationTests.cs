@@ -54,13 +54,13 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         // an exact name match, so the secondary sort decides the order: higher
         // score first, i.e. PhantomLord (MASTER) ahead of Phantasm (DIAMOND).
         // Asserting the order (not just the set) locks the ThenByDescending(Score).
-        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=phant");
+        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=phant", ApiJson.Options);
         response!.Results.Select(r => r.Identity.GameName)
             .Should().Equal("PhantomLord", "Phantasm");
 
         // An exact (case-insensitive) name match sorts ahead of mere substring
         // hits, even when the substring hit is higher ranked.
-        var exact = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=PHANTASM");
+        var exact = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=PHANTASM", ApiJson.Options);
         exact!.Results.Should().NotBeEmpty();
         exact.Results[0].Identity.GameName.Should().Be("Phantasm");
     }
@@ -91,10 +91,10 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var bare = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Twin");
+        var bare = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Twin", ApiJson.Options);
         bare!.Results.Should().HaveCount(2);
 
-        var tagged = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Twin%23NA1");
+        var tagged = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Twin%23NA1", ApiJson.Options);
         tagged!.Results.Should().ContainSingle();
         tagged.Results[0].Identity.TagLine.Should().Be("NA1");
         tagged.Results[0].Identity.PlatformId.Should().Be("NA1");
@@ -128,7 +128,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Searchy");
+        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Searchy", ApiJson.Options);
         response!.Results.Should().ContainSingle();
         response.Results[0].Identity.GameName.Should().Be("Searchy");
         response.Results[0].Ranked.Should().NotBeNull();
@@ -163,7 +163,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Hydrate");
+        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Hydrate", ApiJson.Options);
         response!.Results.Should().ContainSingle();
 
         var result = response.Results[0];
@@ -189,7 +189,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync(url);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>(ApiJson.Options);
         payload!.Results.Should().BeEmpty();
     }
 
@@ -205,7 +205,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/truemains/search?q={longQuery}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>();
+        var payload = await response.Content.ReadFromJsonAsync<SearchResponse>(ApiJson.Options);
         payload!.Results.Should().BeEmpty();
     }
 
@@ -238,7 +238,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=%25Real");
+        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=%25Real", ApiJson.Options);
         response!.Results.Should().ContainSingle("the literal '%' must not widen the match to the decoy");
         response.Results[0].Identity.GameName.Should().Be("100%Real");
     }
@@ -271,7 +271,7 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=100_Real");
+        var response = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=100_Real", ApiJson.Options);
         response!.Results.Should().ContainSingle("a literal '_' must not act as a single-char wildcard");
         response.Results[0].Identity.GameName.Should().Be("100_Real");
     }
@@ -305,11 +305,11 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         // Wildcard tag must not widen the filter…
-        var wildcard = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Zed%23%25");
+        var wildcard = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Zed%23%25", ApiJson.Options);
         wildcard!.Results.Should().BeEmpty("a literal '%' tag matches no real tag line");
 
         // …while an exact tag still resolves to the one account.
-        var exact = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Zed%23NA1");
+        var exact = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Zed%23NA1", ApiJson.Options);
         exact!.Results.Should().ContainSingle();
         exact.Results[0].Identity.TagLine.Should().Be("NA1");
     }
@@ -339,15 +339,15 @@ public sealed class TruemainsSearchApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         // Explicit small limit caps the slice.
-        var three = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Clamp&limit=3");
+        var three = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Clamp&limit=3", ApiJson.Options);
         three!.Results.Should().HaveCount(3);
 
         // An over-large limit is clamped to MaxLimit (25), not honoured verbatim.
-        var hundred = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Clamp&limit=100");
+        var hundred = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Clamp&limit=100", ApiJson.Options);
         hundred!.Results.Should().HaveCount(25);
 
         // No limit falls back to the default (10).
-        var noLimit = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Clamp");
+        var noLimit = await client.GetFromJsonAsync<SearchResponse>("/truemains/search?q=Clamp", ApiJson.Options);
         noLimit!.Results.Should().HaveCount(10);
     }
 

@@ -1,14 +1,15 @@
 // Why a conflict sits where it does in the open queue (#2277): the links its two
 // known players share — a social channel above all — or the social kinds they
 // list with different channels.
-import type { BadgeColor, PersonaConflictEvidence } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
+import type { PersonaConflictEvidenceReadModel } from '#site-shared/contract/api'
 
 export interface EvidenceBadge {
   label: string
   color: BadgeColor
 }
 
-export function evidenceBadges(evidence: PersonaConflictEvidence): EvidenceBadge[] {
+export function evidenceBadges(evidence: PersonaConflictEvidenceReadModel): EvidenceBadge[] {
   const badges: EvidenceBadge[] = []
   if (evidence.sharedSocial.length > 0) {
     badges.push({ label: `same ${evidence.sharedSocial.join(', ')}`, color: 'success' })

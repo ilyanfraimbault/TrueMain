@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { formatCount } from '#shared/utils/counts'
-import type { ProfileIdentity } from '#shared/types/profile'
+import type { ProfileIdentityReadModel } from '#shared/contract/api'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
 
 /** Whose build the view shows, when it is a true main's: their icon, the sample, and their profile on the site. */
 defineProps<{
-  identity: ProfileIdentity
+  identity: ProfileIdentityReadModel
   nameTag: string
   games: number
   /** Where their build was read, when it is not the slice asked for. */

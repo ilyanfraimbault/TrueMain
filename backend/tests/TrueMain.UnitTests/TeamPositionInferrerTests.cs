@@ -4,9 +4,8 @@ using Core.Lol.Map;
 namespace TrueMain.UnitTests;
 
 /// <summary>
-/// Pure-logic coverage for the "one gap, one unresolved member" inference used
-/// by both <c>RiotMatchMapper</c> (ingestion-time) and
-/// <c>MatchTeamPositionCorrectionProcess</c> (backfill). The contract is
+/// Pure-logic coverage for the "one gap, one unresolved member" inference
+/// <c>RiotMatchMapper</c> applies at ingestion. The contract is
 /// deliberately conservative: only the single-gap/single-unresolved shape is
 /// ever resolved, everything else is left alone.
 /// </summary>

@@ -1,7 +1,9 @@
 using System.Globalization;
 using Data.Ops.Mongo;
 using TrueMain.Options;
+using TrueMain.ReadModels;
 using TrueMain.ReadModels.Ops;
+using TrueMain.Services.Ops.Health;
 
 namespace TrueMain.Services.Ops.Alerting;
 
@@ -43,9 +45,6 @@ internal static class HealthAlertTransitions
     /// <summary>Evaluation intervals after which saved streaks no longer count.</summary>
     public const int StaleAfterIntervals = 3;
 
-    private const string Red = "red";
-    private const string Unknown = "unknown";
-
     /// <summary>What one evaluation says about every watched key.</summary>
     public static IReadOnlyList<HealthObservation> Observe(PipelineHealthReadModel health, AlertingOptions options)
     {
@@ -55,17 +54,18 @@ internal static class HealthAlertTransitions
         var observations = new List<HealthObservation>(health.Signals.Count + health.Processes.Count);
         foreach (var signal in health.Signals)
         {
+            // Judged on the enum (#2474); the string is only the wire form.
             bool? failing = signal.Status switch
             {
-                Red => true,
-                Unknown => null,
+                DetectorStatus.Red => true,
+                DetectorStatus.Unknown => null,
                 _ => false
             };
             observations.Add(new HealthObservation(
                 signal.Key,
                 signal.Title,
                 failing,
-                signal.Status,
+                signal.Status.WireName(),
                 signal.UnknownReason ?? signal.Headline,
                 options.RedConfirmations));
         }
@@ -73,16 +73,17 @@ internal static class HealthAlertTransitions
         foreach (var process in health.Processes)
         {
             var failures = process.ConsecutiveFailures;
+            var status = process.Status?.WireName() ?? PipelineHealthEvaluator.MissingStatus;
             observations.Add(new HealthObservation(
                 ProcessKeyPrefix + process.ProcessName,
                 process.ProcessName,
                 failures >= options.ProcessFailureThreshold,
-                process.Status,
+                status,
                 failures == 0
-                    ? $"Last run: {process.Status}."
+                    ? $"Last run: {status}."
                     : string.Create(
                         CultureInfo.InvariantCulture,
-                        $"{failures} consecutive failed runs. Last run: {process.Status}."),
+                        $"{failures} consecutive failed runs. Last run: {status}."),
                 Confirmations: 1));
         }
 
@@ -257,12 +258,6 @@ internal sealed record HealthObservation(
     string Status,
     string Headline,
     int Confirmations);
-
-internal enum HealthAlertChangeKind
-{
-    Failing,
-    Recovered
-}
 
 /// <summary>
 /// One key to announce. <see cref="PreviousAnnouncedAtUtc"/> is the announcement before this

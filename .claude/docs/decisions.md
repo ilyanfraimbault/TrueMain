@@ -105,7 +105,7 @@ Last verified against `develop` on 2026-09-02.
 - The spread's rate reads "Lane WR NN% (at 15 minutes)", never "WR"; on touch a first tap selects an icon and shows its rate under the strip (2026-11-01) — #2354
 - The player champion page shows the same spread on the player's own lanes (live from their 15-min snapshots, no lane floor), replacing its sidebar list — 2026-10-22
 - The spread follows the page's lane (no picker of its own), its tooltip says only `% WR`, and its wash is the match rows' red-to-blue — 2026-10-22
-- Lane win rate stores three counters and divides by the *decided* lanes, not by games played — #466, #919, #606
+- Lane win rate stores three counters and divides by the *decided* lanes, not by games played; the gold threshold is one constant, not a per-host option (2026-11-10) — #466, #919, #606, #2481
 - A match's game and lane counters are folded in one pass, off one flag, because `elo_bracket` is mutable — #1445, #919, #1362
 - The draft assistant's lane guess is an assignment solved by exact enumeration — not per-champion arg-maxes, not Hungarian — #1674, #1706
 - Lane priors read the ally synergy baselines, not the scope table, decay over four patches rather than switching, and pool every elo band (2026-10-05) — #1674, #1706, #1707
@@ -178,7 +178,7 @@ Last verified against `develop` on 2026-09-02.
 - A player is drawn by one `Account` component (UUser + a canonical-URL `UAvatar`, rounded square) on both apps; the search palette is the exception; a Riot ID is written `gameName#tagLine` (2026-10-01, 2026-10-13) — #1734, #2027
 - A match is drawn by one `MatchRow` (the profile's 54 px design, one component per column, `@container` tiers from 320 px) and every list loads with `MatchRowSkeleton`; the open game reuses its columns and its result colours (`result-tone.ts`) (2026-10-13) — #2020, #2030
 - A day-grouped match list is drawn by one `MatchHistoryList` (skeletons, empty state, day headings, pager; hosts keep their headings and filters, row controls through its `actions` slot) (2026-10-13) — #2024
-- Every stat has one formatter: KDA (`kda.ts`, two decimals, `Perfect`), signed deltas (`deltas.ts`, rate moves in `pts`), percentages, counts, clocks, champion names and positions (2026-10-13) — #2031
+- Every stat has one formatter: KDA (`kda.ts`, two decimals, `Perfect`), signed deltas (`deltas.ts`, rate moves in `pts`), percentages (whole numbers, #2552), counts, clocks, champion names and positions (2026-10-13) — #2031
 - A tooltip trigger keeps the same DOM element for the life of the component
 - Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25) — #1698
 - A champion page builds only what is on screen: hidden build tabs and unhovered tooltips wait (2026-09-15) — #1585
@@ -203,9 +203,11 @@ Last verified against `develop` on 2026-09-02.
 - The three text pages are cached at runtime (`swr`), never prerendered — a prerendered page freezes the build's runtime config (2026-09-18) — #1617
 - A page awaits its API data in setup; a loading bar under the header covers the wait, only statics keep a skeleton (2026-09-23) — #1689
 - Starred champions live under their own key next to the untouched player list, not in a v2 of it; matchups are not starrable; a clip's favourite stays the library's flag (2026-10-20) — #2080
+- Only a 404 is "not found": a read of one resource is one `RemoteRead` phase, and any other failure is an error shown beside the last answer (2026-11-08) — #2476, #2468
 
 ## Design system — [`decisions/design-system.md`](decisions/design-system.md)
 
+- The home page keeps its eclipse but drops the star field, the eyebrows, the slogan and the CTA band; plain copy (2026-11-10) — #2552
 - A failed icon is hollow; a loading one is solid and moving (2026-09-02) — #1396
 - An icon whose source never arrives is hollow too, never a raw Riot id — #1665, #1396
 - The activity grid answers presence, not win rate: one rose-gold ramp keyed on games played (2026-09-03) — #1452, #1096, #927
@@ -220,7 +222,7 @@ Last verified against `develop` on 2026-09-02.
 - Keycap edge on surfaces and filled buttons; translucency returns for the floating header only; type stays Inter set tight with rose eyebrows, primary buttons stay rose gold (2026-09-27) — #1709, #1060
 - Nuxt UI feeds Tailwind only the themes of the components the site uses (`componentDetection`): entry CSS 38.9 → 29.5 KB gzip, no visual change (2026-10-04) — #1641
 - Inter and Geist Mono are committed (variable WOFF2, every subset) and resolved by a repo-local @nuxt/fonts provider; no build fetches a font, share cards use committed static Inter (2026-10-06) — #1106, #1335
-- The UI refresh: `surface` becomes the dashboard tile's translucent pane (its blur an opt-in, `surface-blur`, since 2026-10-19 — #2129), stars under the home page only, Nuxt UI only and no accent bars, splash banners on detail pages, one profile page and one match detail for both apps (2026-10-07) — #1983, #1060, #1498, #1682
+- The UI refresh: `surface` becomes the dashboard tile's translucent pane (its blur an opt-in, `surface-blur`, since 2026-10-19 — #2129), stars under the home page only (the star field withdrawn in #2552), Nuxt UI only and no accent bars, splash banners on detail pages, one profile page and one match detail for both apps (2026-10-07) — #1983, #1060, #1498, #1682
 - One champion banner (`ChampionHero`) on the champion page and the app's champion page; one tier mark (`TierBadge`) on every surface (2026-10-13) — #2026
 - The player-scoped champion page is the profile's page (`PagePlayerProfile`) on the champion's splash, no longer the champion banner (2026-10-13, revises #2026) — #2043
 - One rank emblem (`RankEmblem`) on every row, one rank label in title case (`formatRank`: `Diamond II · 42 LP`); the truemains table and the champion page's rows share their columns (2026-10-13) — #2025, #2028
@@ -264,7 +266,7 @@ Last verified against `develop` on 2026-09-02.
 - `ItemEvents`/`SkillEvents` use LZ4 TOAST compression per column; old rows are rewritten by the #1946 repack, not a migration (2026-10-06) — #123
 - Pattern aggregates use a junction model (`champion_aggregate_patterns` + globally deduplicated `champion_dim_*`)
 - The patch is a column on `matches`, not a `LIKE` prefix over `GameVersion` (2026-09-02) — #1368, #589, #598
-- A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows are backfilled from the item timeline, not re-fetched (2026-09-17) — #1612, #1607
+- A final inventory is slots 0–5 plus Riot's role-bound slot (a bot laner's boots always live there); the trinket slot is never a build input; legacy rows were backfilled from the item timeline, not re-fetched (2026-09-17; backfill retired 2026-11-10) — #1612, #1607, #2481
 - The pace benchmark is a per-minute CS / gold-earned histogram per (patch, tier, position), folded from the timeline in memory at ingestion, once per match, the lobby at its tracked account's tier — never a per-minute grid (2026-10-05) — #1912
 - The form benchmark (KDA, KP, CS/min, deaths, vision/min) is a whole-game histogram in its own table, folded in the pace benchmark's pass under its claim, so both describe the same games; no back-fill (2026-10-20) — #2076
 - One truncated-match table outlives retention: ten seats for ~4 patches (matchups, drafts), tracked seats up to 8 (profiles); off in production until preprod has measured it (2026-11-02) — #2358, #2368
@@ -278,6 +280,8 @@ Last verified against `develop` on 2026-09-02.
 - Configuration defaults live in the class, and the two champion games floors are two keys — #1034, #860, #889
 - A unit of work covers the writes and nothing else (2026-08-28) — #264, #1229
 - `backend/Api` has a stated layout: controllers by resource, services by feature (2026-09-07) — #1520, #1451
+- Api registration is owned by the feature: `Program.cs` only composes `AddTrueMain<Area>()`; options carry their section, rules and configuration-page entry (2026-11-08) — #2489
+- Champion reads take a canonical `ChampionScope` parsed once per route; each route names what a blank `position` means (2026-11-10) — #2571
 - A child table with a natural key uses it as a composite primary key — no surrogate `Guid` beside it (2026-09-25) — #1697, #541, #124
 - Ingestor options: bounds are attributes checked by a generated validator, cross-field rules stay lambdas (2026-10-04) — #271
 - A role is a string from `LanePositions` (no enum, `MID`/`BOT` accepted on input); timeline marks live once in `Data` (2026-10-04) — #1232
@@ -286,6 +290,7 @@ Last verified against `develop` on 2026-09-02.
 - Threading + Roslynator analyzers run on every project: async-correctness rules are errors, JTF-only and false-positive rules are off, Roslynator style stays IDE hints (2026-10-05) — #294
 - `riot_accounts` carries no concurrency token; a process's own timestamp is stamped set-based (2026-11-04) — #2046, #231, #2448
 - Benchmark counters are upserted once per transaction, in conflict-key order (2026-11-04) — #2448
+- The API's TypeScript types are generated from its committed OpenAPI document; enums travel by name (2026-11-08) — #2493
 
 ## Ingestion pipeline — Riot budget, pacing and intake sizing — [`decisions/pipeline-riot-budget.md`](decisions/pipeline-riot-budget.md)
 
@@ -315,11 +320,13 @@ Last verified against `develop` on 2026-09-02.
 - The ingestor Worker isolates failures per process — #443
 - A streamed Riot response can fail *after* the resilience handler has waved it through — isolate the call site — #253, #1052
 - A CommunityDragon patch branch that does not exist yet is a transient condition, not a fatal one — #1107
+- Static game data answers available / fallback / unavailable from one per-patch cache; each caller spells its degraded answer (2026-11-10) — #2572
 - Ranks are read from the ladder, not from one account at a time (2026-08-30) — #788, #1312, #1149
 - A lease is only kept if something reaps it (2026-09-01) — #1344
 - A redeploy is an outcome the pipeline records, not an accident it absorbs (2026-09-07) — #1513
 - Jungle first-clear tracking was built, then removed entirely (2026-08-24) — #1186, #1195, #535
 - A shell match (`endOfGameResult` ≠ `GameComplete`) is refused at ingest; a remake is Riot's flag *or* the 5-minute floor (2026-10-06) — #1364, #1365
+- The pipeline is one catalog in `Data`: every step's mode, persisted name, lane, order and prerequisites, read by the ingestor, the Api and the admin (2026-11-08) — #2488
 
 ## Performance, caching and incidents — [`decisions/performance-and-incidents.md`](decisions/performance-and-incidents.md)
 
@@ -335,6 +342,7 @@ Last verified against `develop` on 2026-09-02.
 - Server-side timeouts: API `statement_timeout` 60 s and pooled `idle_in_transaction_session_timeout` 60 s through a dedicated PgBouncer database, migrations `lock_timeout` 5 s with retry (2026-10-06) — #1631
 - Postgres ships tuned settings in compose, and parallelism stays off (2026-09-02) — #1366, #589
 - Champion reads are cached until the data changes, not for 60 seconds (2026-09-02) — #1374, #1368
+- Every cached Api read goes through `ApiCache.GetOrComputeAsync`; an unavailable ops measurement is a `Measured<T>` value (2026-11-10) — #2575
 - A warm pass fills the next version before anyone reads it, and the site stays on the maintenance page for the first one (2026-11-03) — #2425, #1945
 - The leaderboard reads its population once per aggregation version, so any filter and sort is a walk in memory (2026-11-03) — #2431
 - A leaderboard miss is computed once, and the champion page never asks for it during SSR (2026-09-15) — #1570
@@ -413,6 +421,7 @@ Last verified against `develop` on 2026-09-02.
 - A process run is compared with the median of its last 20 successes of the same process and mode, flagged at ≥ +100 % / ≤ −50 %, nothing under 5 runs; thresholds in the Api only (2026-10-26) — #2298
 - The audit trail's wording is one backend catalog served with the events, and a known player's History is the events targeting it (2026-10-26) — #2288
 - The pipeline-health verdict is announced on a Discord webhook, on transitions only (red held 2 evaluations, a process at 3 failed runs, recoveries), 1 h cooldown per signal, state in Mongo, from the cockpit payload read without counting as a visit (2026-10-26) — #2292
+- Seed requests and process runs each have one transition table and every write is filtered on its source status; the ManualSeed lane returns `Resolving` requests to `Pending` at boot, and the store counts judge a stale Running run as the Abandoned failure it is (2026-11-08) — #2474
 
 ## Admin portal — health panels, charts and vocabulary — [`decisions/admin-health-and-charts.md`](decisions/admin-health-and-charts.md)
 
@@ -513,6 +522,9 @@ Last verified against `develop` on 2026-09-02.
 - The dashboard's form tiles carry the median of the player's own Solo/Duo tier (not the tier above) on their main role, in muted text with the tier's emblem; under the floor or without a standing, none; dashboard only (2026-10-20) — #2076
 - Game recording is frozen; kept only if ≥ 25% of installs that play with the app open record a game within 30 days, read after the next production release (2026-11-01) — #2364
 - A known player opens in the app; the shell opens their channels through a host list (Twitch, YouTube, X), the one exception to the webview naming only a path on its site (2026-11-04) — #2441
+- The shell ↔ webview contract (commands, events, payload types, refusal codes) is generated from Rust by specta into `app/generated/shell.ts`, a stale file failing a Rust test (2026-11-09) — #2494
+- The shell's TrueMain reads are one route table (`src-tauri/api-routes.json`) checked in CI against the OpenAPI document and the app's reads; superseding is the caller's `replaces` key (2026-11-10) — #2551
+- `npm run dev` runs the app against one fake shell (`app/dev-shell/`, typed by the generated commands), not per-composable browser fallbacks (2026-11-10) — #2553
 
 ## Workflow conventions — [`decisions/workflow-conventions.md`](decisions/workflow-conventions.md)
 
@@ -531,6 +543,7 @@ Last verified against `develop` on 2026-09-02.
 - Load tests run against preprod from GitHub Actions, never from the preprod host (2026-09-14) — #1559
 - Agent disciplines (debugging, grilling, glossary, retro) adapted from mattpocock/skills; review split into Spec and Standards axes; PR bodies carry a merge-danger call (2026-10-05) — #1938
 - The repository is licensed under PolyForm Noncommercial 1.0.0: public and readable, no commercial reuse without a separate license (2026-10-16) — #2070
+- A lifecycle is one explicit state (a union or an enum from one classifier or guarded transition, presented by one table), never a set of flags or ad hoc status strings (2026-11-08) — #2468
 
 ## CI runs only what the diff can break, and config files carry no comments (2026-09-02)
 

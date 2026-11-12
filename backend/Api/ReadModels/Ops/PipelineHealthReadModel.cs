@@ -1,3 +1,5 @@
+using Data.Entities;
+
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -22,7 +24,7 @@ public sealed record PipelineHealthReadModel
     /// green</c> — the same vocabulary and the same precedence as the data-quality
     /// detectors, so one dot means one thing across the whole portal.
     /// </summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 
     /// <summary>
     /// The verdict as one sentence an operator can act on ("All 5 signals pass", "2
@@ -69,7 +71,7 @@ public sealed record PipelineHealthSignalReadModel
     public string Title { get; init; } = string.Empty;
 
     /// <summary><c>green</c> | <c>amber</c> | <c>red</c> | <c>unknown</c>.</summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 
     /// <summary>The one sentence explaining this signal's current state.</summary>
     public string Headline { get; init; } = string.Empty;
@@ -104,7 +106,7 @@ public sealed record ProcessHealthReadModel
     /// <c>"Abandoned"</c> on the panel the cockpit links to.
     /// </para>
     /// </summary>
-    public string Status { get; init; } = string.Empty;
+    public ProcessRunStatus? Status { get; init; }
 
     /// <summary>Null when the process has never recorded a run (<c>Missing</c>).</summary>
     public DateTime? LastStartedAtUtc { get; init; }

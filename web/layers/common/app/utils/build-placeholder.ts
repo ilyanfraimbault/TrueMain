@@ -1,8 +1,4 @@
-import type {
-  BuildRunePage,
-  BuildTreeNode,
-  ChampionBuild,
-} from '#shared/types/champions'
+import type { BuildRunePageReadModel, BuildTreeNodeReadModel, ChampionBuildReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticData,
   RuneTreeResponse,
@@ -77,7 +73,7 @@ export const PLACEHOLDER_RUNE_TREE: RuneTreeResponse = {
   shardSlots: [[41, 42, 43], [44, 45, 46], [47, 48, 49]],
 }
 
-function runePage(keystoneId: number, primaryPerks: [number, number, number]): BuildRunePage {
+function runePage(keystoneId: number, primaryPerks: [number, number, number]): BuildRunePageReadModel {
   return {
     primaryStyleId: PRIMARY_STYLE_ID,
     primaryKeystoneId: keystoneId,
@@ -104,7 +100,7 @@ export const PLACEHOLDER_CHAMPION_STATIC: ChampionStaticData = {
   partype: '',
 }
 
-function treeNode(itemId: number, children: BuildTreeNode[] = []): BuildTreeNode {
+function treeNode(itemId: number, children: BuildTreeNodeReadModel[] = []): BuildTreeNodeReadModel {
   return { itemId, games: 100, wins: 50, pickRate: 0.5, children }
 }
 
@@ -119,10 +115,10 @@ const CORE_PATH = [201, 202, 203, 204, 205, 206]
  * draws its solid main-path edge exactly as it does with real data instead of a
  * tree of uniformly dashed branches.
  */
-const PLACEHOLDER_BUILD_TREE: BuildTreeNode[] = (() => {
+const PLACEHOLDER_BUILD_TREE: BuildTreeNodeReadModel[] = (() => {
   const fanout = [2, 2, 3, 1, 1]
   let filler = 220
-  function build(level: number, onMainPath: boolean): BuildTreeNode[] {
+  function build(level: number, onMainPath: boolean): BuildTreeNodeReadModel[] {
     const count = fanout[level]
     if (!count) return []
     return Array.from({ length: count }, (_, index) => {
@@ -133,7 +129,7 @@ const PLACEHOLDER_BUILD_TREE: BuildTreeNode[] = (() => {
   return build(0, true)
 })()
 
-function placeholderBuild(offset: number): ChampionBuild {
+function placeholderBuild(offset: number): ChampionBuildReadModel {
   const rates = { games: 100, pickRate: 0.5, winRate: 0.5 }
   return {
     // Same first item across the three tabs, different keystone: the tree's main
@@ -168,4 +164,4 @@ function placeholderBuild(offset: number): ChampionBuild {
 }
 
 /** Three tabs — the number the champion page shows for most champions. */
-export const PLACEHOLDER_BUILDS: ChampionBuild[] = [0, 1, 2].map(placeholderBuild)
+export const PLACEHOLDER_BUILDS: ChampionBuildReadModel[] = [0, 1, 2].map(placeholderBuild)

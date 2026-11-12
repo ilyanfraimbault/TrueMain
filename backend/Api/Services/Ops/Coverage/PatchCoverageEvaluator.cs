@@ -1,3 +1,4 @@
+using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.DataQuality;
 
 namespace TrueMain.Services.Ops.Coverage;
@@ -84,13 +85,13 @@ internal static class PatchCoverageEvaluator
         bool isServed)
         => (matches, aggregateRows) switch
         {
-            (<= 0, <= 0) => new PatchCoverageVerdict("unknown", DetectorStatus.Unknown, Judged: false),
-            (_, <= 0) => new PatchCoverageVerdict("notAggregated", DetectorStatus.Amber, Judged: false),
+            (<= 0, <= 0) => new PatchCoverageVerdict(PatchVerdict.Unknown, DetectorStatus.Unknown, Judged: false),
+            (_, <= 0) => new PatchCoverageVerdict(PatchVerdict.NotAggregated, DetectorStatus.Amber, Judged: false),
             // Aggregated but with nothing the directory can rank. Thin, not unaggregated:
             // the fold ran, and what it produced still cannot carry a patch-scoped page.
-            _ when lines <= 0 => new PatchCoverageVerdict("thin", isServed ? DetectorStatus.Red : DetectorStatus.Amber, Judged: true),
-            _ when linesPastFloor >= bar => new PatchCoverageVerdict("servable", DetectorStatus.Green, Judged: true),
-            _ => new PatchCoverageVerdict("thin", isServed ? DetectorStatus.Red : DetectorStatus.Amber, Judged: true)
+            _ when lines <= 0 => new PatchCoverageVerdict(PatchVerdict.Thin, isServed ? DetectorStatus.Red : DetectorStatus.Amber, Judged: true),
+            _ when linesPastFloor >= bar => new PatchCoverageVerdict(PatchVerdict.Servable, DetectorStatus.Green, Judged: true),
+            _ => new PatchCoverageVerdict(PatchVerdict.Thin, isServed ? DetectorStatus.Red : DetectorStatus.Amber, Judged: true)
         };
 
     /// <summary>
@@ -124,4 +125,4 @@ internal static class PatchCoverageEvaluator
 internal sealed record PatchCoverageBar(double Value, string Note, double? Reference, int ReferencePatches);
 
 /// <summary>One patch's verdict, its badge colour, and whether it was judged against the bar at all.</summary>
-internal sealed record PatchCoverageVerdict(string Verdict, DetectorStatus Status, bool Judged);
+internal sealed record PatchCoverageVerdict(PatchVerdict Verdict, DetectorStatus Status, bool Judged);

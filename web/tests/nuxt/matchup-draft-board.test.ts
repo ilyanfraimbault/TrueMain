@@ -1,9 +1,9 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
 import { BuilderDraftBoard, BuilderLaneDuel } from '#components'
-import type { CompositionLane } from '~~/shared/types/composition'
+import type { CompositionLaneReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import { championLoadingUrlFromIcon } from '~~/shared/utils/ddragon'
 
 /**
@@ -84,7 +84,7 @@ describe('BuilderDraftBoard', () => {
 })
 
 describe('BuilderLaneDuel', () => {
-  const lane: CompositionLane = { measuredGames: 40, decidedGames: 33, winRate: 0.55, averageGoldDiffAt15: 169, averageXpDiffAt15: 318 }
+  const lane: CompositionLaneReadModel = { measuredGames: 40, decidedGames: 33, winRate: 0.55, averageGoldDiffAt15: 169, averageXpDiffAt15: 318 }
   const [aatrox, yone] = champions
 
   it('reads the lane over the sample once the three picks are in', async () => {

@@ -28,7 +28,7 @@ public sealed class RegionBalanceQueryService(
     IOptions<PipelineHealthOptions> pipelineHealthOptions,
     IMemoryCache cache) : IRegionBalanceQueryService
 {
-    private static readonly object CacheKey = new();
+    private const string CacheKey = "ops:region-balance";
 
     /// <summary>
     /// The cockpit re-evaluates every 30 s while it is open (#1411), and the distinct-account
@@ -37,15 +37,8 @@ public sealed class RegionBalanceQueryService(
     /// </summary>
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
 
-    public async Task<RegionBalanceReadModel> GetAsync(DateTime nowUtc, CancellationToken ct)
-    {
-        if (cache.TryGetValue(CacheKey, out RegionBalanceReadModel? cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        return cache.Store(CacheKey, await MeasureAsync(nowUtc, ct), CacheTtl);
-    }
+    public Task<RegionBalanceReadModel> GetAsync(DateTime nowUtc, CancellationToken ct)
+        => cache.GetOrComputeAsync(CacheKey, CacheTtl, token => MeasureAsync(nowUtc, token), ct);
 
     private async Task<RegionBalanceReadModel> MeasureAsync(DateTime nowUtc, CancellationToken ct)
     {

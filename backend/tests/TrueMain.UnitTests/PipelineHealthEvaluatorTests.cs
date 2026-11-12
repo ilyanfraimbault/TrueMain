@@ -6,8 +6,8 @@ using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Ops.Candidates;
 using TrueMain.Services.Ops.Configuration;
 using TrueMain.Services.Ops.Coverage;
-using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
+using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.Diagnostics;
 using TrueMain.Services.Ops.Health;
 using TrueMain.Services.Ops.Processes;
@@ -35,7 +35,7 @@ public sealed class PipelineHealthEvaluatorTests
         // just because it has no processes to fail.
         var signal = PipelineHealthEvaluator.EvaluateProcesses([]);
 
-        signal.Status.Should().Be("unknown");
+        signal.Status.Should().Be(DetectorStatus.Unknown);
         signal.Key.Should().Be("processes");
     }
 
@@ -44,11 +44,11 @@ public sealed class PipelineHealthEvaluatorTests
     {
         var signal = PipelineHealthEvaluator.EvaluateProcesses(
         [
-            Process("Discovery", nameof(ProcessRunStatus.Success)),
-            Process("MatchIngestion", nameof(ProcessRunStatus.Success))
+            Process("Discovery", ProcessRunStatus.Success),
+            Process("MatchIngestion", ProcessRunStatus.Success)
         ]);
 
-        signal.Status.Should().Be("green");
+        signal.Status.Should().Be(DetectorStatus.Green);
         signal.Headline.Should().Contain("All 2 processes");
     }
 
@@ -59,10 +59,10 @@ public sealed class PipelineHealthEvaluatorTests
         // as amber would put a caution colour on every process in a brand-new environment.
         var signal = PipelineHealthEvaluator.EvaluateProcesses(
         [
-            Process("Discovery", PipelineHealthEvaluator.MissingStatus)
+            Process("Discovery", null)
         ]);
 
-        signal.Status.Should().Be("unknown");
+        signal.Status.Should().Be(DetectorStatus.Unknown);
         signal.UnknownReason.Should().Contain("Discovery");
     }
 
@@ -73,11 +73,11 @@ public sealed class PipelineHealthEvaluatorTests
         // yet, so a failed run must not be diluted into the same "unknown" bucket.
         var signal = PipelineHealthEvaluator.EvaluateProcesses(
         [
-            Process("MatchIngestion", nameof(ProcessRunStatus.Failed)),
-            Process("Discovery", PipelineHealthEvaluator.MissingStatus)
+            Process("MatchIngestion", ProcessRunStatus.Failed),
+            Process("Discovery", null)
         ]);
 
-        signal.Status.Should().Be("red");
+        signal.Status.Should().Be(DetectorStatus.Red);
         signal.Headline.Should().Contain("MatchIngestion");
     }
 
@@ -88,10 +88,10 @@ public sealed class PipelineHealthEvaluatorTests
         // both are a broken latest run and must roll up to the same red verdict.
         var signal = PipelineHealthEvaluator.EvaluateProcesses(
         [
-            Process("MatchIngestion", nameof(ProcessRunStatus.Abandoned))
+            Process("MatchIngestion", ProcessRunStatus.Abandoned)
         ]);
 
-        signal.Status.Should().Be("red");
+        signal.Status.Should().Be(DetectorStatus.Red);
     }
 
     // -- EvaluateDataQuality --------------------------------------------------
@@ -101,7 +101,7 @@ public sealed class PipelineHealthEvaluatorTests
     {
         var signal = PipelineHealthEvaluator.EvaluateDataQuality(new DataQualityDetectorsReadModel());
 
-        signal.Status.Should().Be("unknown");
+        signal.Status.Should().Be(DetectorStatus.Unknown);
     }
 
     [Fact]
@@ -111,12 +111,12 @@ public sealed class PipelineHealthEvaluatorTests
         {
             Detectors =
             [
-                Detector("duplicateDimensionRows", "green"),
-                Detector("ingestionLag", "green")
+                Detector("duplicateDimensionRows", DetectorStatus.Green),
+                Detector("ingestionLag", DetectorStatus.Green)
             ]
         });
 
-        signal.Status.Should().Be("green");
+        signal.Status.Should().Be(DetectorStatus.Green);
         signal.Headline.Should().Be("All 2 checks pass.");
     }
 
@@ -127,15 +127,15 @@ public sealed class PipelineHealthEvaluatorTests
         {
             Detectors =
             [
-                Detector("duplicateDimensionRows", "green"),
-                Detector("ingestionLag", "amber"),
-                Detector("orphanParticipants", "red")
+                Detector("duplicateDimensionRows", DetectorStatus.Green),
+                Detector("ingestionLag", DetectorStatus.Amber),
+                Detector("orphanParticipants", DetectorStatus.Red)
             ]
         });
 
         // Worst of {green, amber, red} is red, and exactly 2 detectors (amber + red) are
         // "failing" — green does not count towards the failing tally.
-        signal.Status.Should().Be("red");
+        signal.Status.Should().Be(DetectorStatus.Red);
         signal.Headline.Should().Be("2 checks are failing.");
     }
 
@@ -148,12 +148,12 @@ public sealed class PipelineHealthEvaluatorTests
         {
             Detectors =
             [
-                Detector("duplicateDimensionRows", "green"),
-                Detector("ingestionLag", "unknown", unknownReason: "Mongo is unreachable.")
+                Detector("duplicateDimensionRows", DetectorStatus.Green),
+                Detector("ingestionLag", DetectorStatus.Unknown, unknownReason: "Mongo is unreachable.")
             ]
         });
 
-        signal.Status.Should().Be("unknown");
+        signal.Status.Should().Be(DetectorStatus.Unknown);
         signal.Headline.Should().Contain("Mongo is unreachable.");
     }
 
@@ -165,7 +165,7 @@ public sealed class PipelineHealthEvaluatorTests
         var signal = PipelineHealthEvaluator.EvaluateDetectorAsSignal(
             new DataQualityDetectorsReadModel(), "ingestionLag", "ingestionLag", "Ingestion lag & queues");
 
-        signal.Status.Should().Be("unknown");
+        signal.Status.Should().Be(DetectorStatus.Unknown);
         signal.UnknownReason.Should().Contain("ingestionLag");
     }
 
@@ -177,11 +177,11 @@ public sealed class PipelineHealthEvaluatorTests
         var signal = PipelineHealthEvaluator.EvaluateDetectorAsSignal(
             new DataQualityDetectorsReadModel
             {
-                Detectors = [Detector("ingestionLag", "amber", headline: "Newest match is 6h old.")]
+                Detectors = [Detector("ingestionLag", DetectorStatus.Amber, headline: "Newest match is 6h old.")]
             },
             "ingestionLag", "ingestionLag", "Ingestion lag & queues");
 
-        signal.Status.Should().Be("amber");
+        signal.Status.Should().Be(DetectorStatus.Amber);
         signal.Headline.Should().Be("Newest match is 6h old.");
         signal.UnknownReason.Should().BeNull();
     }
@@ -192,7 +192,7 @@ public sealed class PipelineHealthEvaluatorTests
         var signal = PipelineHealthEvaluator.EvaluateDetectorAsSignal(
             new DataQualityDetectorsReadModel
             {
-                Detectors = [Detector("ingestionLag", "unknown", unknownReason: null)]
+                Detectors = [Detector("ingestionLag", DetectorStatus.Unknown, unknownReason: null)]
             },
             "ingestionLag", "ingestionLag", "Ingestion lag & queues");
 
@@ -207,7 +207,7 @@ public sealed class PipelineHealthEvaluatorTests
         var signal = PipelineHealthEvaluator.EvaluateDiskForecast(
             new DbStorageHistoryReadModel(), configuredCapacityBytes: 1_000_000, Now, DefaultOptions());
 
-        signal.Status.Should().Be("unknown");
+        signal.Status.Should().Be(DetectorStatus.Unknown);
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public sealed class PipelineHealthEvaluatorTests
         var signal = PipelineHealthEvaluator.EvaluateDiskForecast(
             history, configuredCapacityBytes: 0, Now, DefaultOptions());
 
-        signal.Status.Should().Be("unknown");
+        signal.Status.Should().Be(DetectorStatus.Unknown);
         signal.UnknownReason.Should().Contain("StorageHistory:DiskCapacityBytes");
     }
 
@@ -230,7 +230,7 @@ public sealed class PipelineHealthEvaluatorTests
         var signal = PipelineHealthEvaluator.EvaluateDiskForecast(
             history, configuredCapacityBytes: 1_000_000, Now, DefaultOptions());
 
-        signal.Status.Should().Be("unknown");
+        signal.Status.Should().Be(DetectorStatus.Unknown);
     }
 
     [Fact]
@@ -246,7 +246,7 @@ public sealed class PipelineHealthEvaluatorTests
         var signal = PipelineHealthEvaluator.EvaluateDiskForecast(
             history, configuredCapacityBytes: 1_000_000, Now, DefaultOptions());
 
-        signal.Status.Should().Be("unknown");
+        signal.Status.Should().Be(DetectorStatus.Unknown);
     }
 
     [Fact]
@@ -259,7 +259,7 @@ public sealed class PipelineHealthEvaluatorTests
         var signal = PipelineHealthEvaluator.EvaluateDiskForecast(
             history, configuredCapacityBytes: 1_000_000, Now, DefaultOptions());
 
-        signal.Status.Should().Be("green");
+        signal.Status.Should().Be(DetectorStatus.Green);
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public sealed class PipelineHealthEvaluatorTests
             history, configuredCapacityBytes: 1_000_000, Now,
             new PipelineHealthOptions { DiskForecastAmberDays = 90, DiskForecastRedDays = 30 });
 
-        signal.Status.Should().Be("red");
+        signal.Status.Should().Be(DetectorStatus.Red);
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public sealed class PipelineHealthEvaluatorTests
             history, configuredCapacityBytes: 1_000_000, Now,
             new PipelineHealthOptions { DiskForecastAmberDays = 90, DiskForecastRedDays = 30 });
 
-        signal.Status.Should().Be("amber");
+        signal.Status.Should().Be(DetectorStatus.Amber);
     }
 
     [Fact]
@@ -295,7 +295,7 @@ public sealed class PipelineHealthEvaluatorTests
             history, configuredCapacityBytes: 1_000_000, Now,
             new PipelineHealthOptions { DiskForecastAmberDays = 90, DiskForecastRedDays = 30 });
 
-        signal.Status.Should().Be("green");
+        signal.Status.Should().Be(DetectorStatus.Green);
     }
 
     [Fact]
@@ -309,7 +309,7 @@ public sealed class PipelineHealthEvaluatorTests
             history, configuredCapacityBytes: 1_000_000, Now,
             new PipelineHealthOptions { DiskForecastAmberDays = 90, DiskForecastRedDays = 0 });
 
-        signal.Status.Should().Be("amber");
+        signal.Status.Should().Be(DetectorStatus.Amber);
     }
 
     [Fact]
@@ -321,7 +321,7 @@ public sealed class PipelineHealthEvaluatorTests
             history, configuredCapacityBytes: 1_000_000, Now,
             new PipelineHealthOptions { DiskForecastAmberDays = 90, DiskForecastRedDays = 30 });
 
-        signal.Status.Should().Be("red");
+        signal.Status.Should().Be(DetectorStatus.Red);
         signal.Headline.Should().Contain("Already past");
     }
 
@@ -332,7 +332,7 @@ public sealed class PipelineHealthEvaluatorTests
     {
         var (status, headline) = PipelineHealthEvaluator.Rollup([]);
 
-        status.Should().Be("unknown");
+        status.Should().Be(DetectorStatus.Unknown);
         headline.Should().NotBeNullOrEmpty();
     }
 
@@ -341,11 +341,11 @@ public sealed class PipelineHealthEvaluatorTests
     {
         var (status, headline) = PipelineHealthEvaluator.Rollup(
         [
-            Signal("processes", "green"),
-            Signal("dataQuality", "green")
+            Signal("processes", DetectorStatus.Green),
+            Signal("dataQuality", DetectorStatus.Green)
         ]);
 
-        status.Should().Be("green");
+        status.Should().Be(DetectorStatus.Green);
         headline.Should().Be("All 2 signals pass.");
     }
 
@@ -354,12 +354,12 @@ public sealed class PipelineHealthEvaluatorTests
     {
         var (status, headline) = PipelineHealthEvaluator.Rollup(
         [
-            Signal("processes", "red"),
-            Signal("dataQuality", "green"),
-            Signal("diskForecast", "green")
+            Signal("processes", DetectorStatus.Red),
+            Signal("dataQuality", DetectorStatus.Green),
+            Signal("diskForecast", DetectorStatus.Green)
         ]);
 
-        status.Should().Be("red");
+        status.Should().Be(DetectorStatus.Red);
         headline.Should().Be("1 signal of 3 is failing.");
     }
 
@@ -368,11 +368,11 @@ public sealed class PipelineHealthEvaluatorTests
     {
         var (status, headline) = PipelineHealthEvaluator.Rollup(
         [
-            Signal("processes", "red"),
-            Signal("dataQuality", "amber")
+            Signal("processes", DetectorStatus.Red),
+            Signal("dataQuality", DetectorStatus.Amber)
         ]);
 
-        status.Should().Be("red");
+        status.Should().Be(DetectorStatus.Red);
         headline.Should().Be("2 signals of 2 are failing.");
     }
 
@@ -381,11 +381,11 @@ public sealed class PipelineHealthEvaluatorTests
     {
         var (status, headline) = PipelineHealthEvaluator.Rollup(
         [
-            Signal("processes", "unknown"),
-            Signal("dataQuality", "green")
+            Signal("processes", DetectorStatus.Unknown),
+            Signal("dataQuality", DetectorStatus.Green)
         ]);
 
-        status.Should().Be("unknown");
+        status.Should().Be(DetectorStatus.Unknown);
         headline.Should().Be("1 signal of 2 could not be measured.");
     }
 
@@ -396,10 +396,10 @@ public sealed class PipelineHealthEvaluatorTests
     {
         var ordered = PipelineHealthEvaluator.OrderBySeverity(
         [
-            Signal("green-one", "green"),
-            Signal("red-one", "red"),
-            Signal("unknown-one", "unknown"),
-            Signal("amber-one", "amber")
+            Signal("green-one", DetectorStatus.Green),
+            Signal("red-one", DetectorStatus.Red),
+            Signal("unknown-one", DetectorStatus.Unknown),
+            Signal("amber-one", DetectorStatus.Amber)
         ]);
 
         ordered.Select(signal => signal.Key).Should().ContainInOrder("red-one", "amber-one", "unknown-one", "green-one");
@@ -412,8 +412,8 @@ public sealed class PipelineHealthEvaluatorTests
         // arbitrary re-sort — a stable sort is load-bearing here.
         var ordered = PipelineHealthEvaluator.OrderBySeverity(
         [
-            Signal("first-red", "red"),
-            Signal("second-red", "red")
+            Signal("first-red", DetectorStatus.Red),
+            Signal("second-red", DetectorStatus.Red)
         ]);
 
         ordered.Select(signal => signal.Key).Should().ContainInOrder("first-red", "second-red");
@@ -421,11 +421,11 @@ public sealed class PipelineHealthEvaluatorTests
 
     // -- fixtures -----------------------------------------------------------------
 
-    private static ProcessHealthReadModel Process(string name, string status)
+    private static ProcessHealthReadModel Process(string name, ProcessRunStatus? status)
         => new() { ProcessName = name, Status = status };
 
     private static DataQualityDetectorReadModel Detector(
-        string key, string status, string headline = "", string? unknownReason = null)
+        string key, DetectorStatus status, string headline = "", string? unknownReason = null)
         => new()
         {
             Key = key,
@@ -434,7 +434,7 @@ public sealed class PipelineHealthEvaluatorTests
             UnknownReason = unknownReason
         };
 
-    private static PipelineHealthSignalReadModel Signal(string key, string status)
+    private static PipelineHealthSignalReadModel Signal(string key, DetectorStatus status)
         => new() { Key = key, Status = status };
 
     private static PipelineHealthOptions DefaultOptions() => new();

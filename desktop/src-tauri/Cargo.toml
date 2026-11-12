@@ -31,6 +31,9 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 drag = "2.1"
+tauri-specta = { version = "=2.0.0-rc.26", features = ["derive", "typescript"] }
+specta-typescript = "=0.0.13"
+specta.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-nspanel = "2.1"

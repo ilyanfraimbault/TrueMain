@@ -2,12 +2,12 @@
 // One route's p95 over the Performance tab's window (#2307): a line per run of measured
 // bins, a dot for a bin measured alone, and a faint line at the slow threshold. An idle bin
 // breaks the line — it was not fast, it was not called.
-import type { RouteLatencyPoint } from '~~/shared/types/ops'
+import type { RouteLatencyPointReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import { sparkline } from '~~/shared/utils/request-latency'
 
 const props = withDefaults(defineProps<{
-  series: RouteLatencyPoint[]
+  series: RouteLatencyPointReadModel[]
   thresholdMs: number
   slow?: boolean
   width?: number

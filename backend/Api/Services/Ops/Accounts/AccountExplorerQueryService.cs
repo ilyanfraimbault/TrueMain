@@ -127,7 +127,7 @@ public sealed class AccountExplorerQueryService(
         return new AccountExplorerReadModel
         {
             Query = query,
-            State = state.ToString(),
+            State = state,
             StateDetail = AccountExplorerVerdict.DescribeState(state, account, candidates, mainRows, matchesIngested),
             Identity = ToIdentity(account),
             OtherAccountsWithSameRiotId = accounts.Skip(1).Select(ToAccountRef).ToList(),
@@ -210,7 +210,7 @@ public sealed class AccountExplorerQueryService(
         return new AccountExplorerReadModel
         {
             Query = query,
-            State = state.ToString(),
+            State = state,
             StateDetail = detail,
             SeedRequest = seedRequest,
             Mains = new AccountExplorerMainsReadModel { Thresholds = BuildThresholds() }
@@ -276,10 +276,10 @@ public sealed class AccountExplorerQueryService(
         var trackedVia = eligible
             ? (hasActiveMain, inNewCandidateArm) switch
             {
-                (true, true) => "Both",
-                (true, false) => "EstablishedMain",
-                (false, true) => "QueuedCandidate",
-                _ => null
+                (true, true) => AccountTrackingArm.Both,
+                (true, false) => AccountTrackingArm.EstablishedMain,
+                (false, true) => AccountTrackingArm.QueuedCandidate,
+                _ => (AccountTrackingArm?)null
             }
             : null;
 
@@ -293,7 +293,7 @@ public sealed class AccountExplorerQueryService(
             TrackedVia = trackedVia,
             HasActiveMain = hasActiveMain,
             HasQueuedCandidate = hasQueuedCandidate,
-            MatchIngestStatus = account.MatchIngestStatus.ToString(),
+            MatchIngestStatus = account.MatchIngestStatus,
             MatchIngestClaimedAtUtc = account.MatchIngestClaimedAtUtc,
             ClaimAgeSeconds = claimAge,
             LastMatchIngestAtUtc = account.LastMatchIngestAtUtc,
@@ -325,7 +325,7 @@ public sealed class AccountExplorerQueryService(
             PlatformId = account.PlatformId,
             ProfileIconId = account.ProfileIconId,
             SummonerLevel = account.SummonerLevel,
-            Status = account.Status.ToString(),
+            Status = account.Status,
             CreatedAtUtc = account.CreatedAtUtc,
             UpdatedAtUtc = account.UpdatedAtUtc,
             LastProfileSyncAtUtc = account.LastProfileSyncAtUtc,
@@ -342,7 +342,7 @@ public sealed class AccountExplorerQueryService(
             RiotAccountId = account.Id,
             Puuid = account.Puuid,
             PlatformId = account.PlatformId,
-            Status = account.Status.ToString(),
+            Status = account.Status,
             LastMatchIngestAtUtc = account.LastMatchIngestAtUtc
         };
 }

@@ -4,7 +4,8 @@
 // tooltip (compact, on hover) — see `ProfileRankedCard.vue` and
 // `RankEmblem.vue`.
 import { formatPercentage } from '#shared/utils/ddragon'
-import { formatLeaguePoints, formatRank, tierColor } from '#common/utils/tiers'
+import { formatLeaguePoints, formatRank } from '#shared/utils/ranks'
+import { tierColor } from '#common/utils/tiers'
 
 const props = withDefaults(defineProps<{
   tier: string

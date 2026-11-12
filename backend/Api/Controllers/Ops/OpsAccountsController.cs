@@ -4,7 +4,6 @@ using TrueMain.Http;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Requests.Ops;
 using TrueMain.Services.Ops.Accounts;
-using TrueMain.Services.Truemains.Identity;
 
 namespace TrueMain.Controllers.Ops;
 
@@ -205,11 +204,9 @@ public sealed class OpsAccountsController(
         [FromQuery] string? region,
         CancellationToken ct = default)
     {
-        if (!NameTagParser.TryParseRiotId(nameTag, out var parsed))
+        if (!this.TryParseRiotId(nameTag, nameof(nameTag), out var parsed, out var nameTagProblem))
         {
-            return ValidationProblem(
-                $"nameTag must be a Riot ID of the form Name#TAG or Name-TAG "
-                + $"(at most {NameTagParser.MaxRiotIdLength} characters).");
+            return nameTagProblem;
         }
 
         if (!this.TryNormalizeOptionalPlatform(region, nameof(region), out var platformId, out var regionProblem))

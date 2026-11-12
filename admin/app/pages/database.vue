@@ -8,7 +8,7 @@
 // The page owns both fetches and hands them to the cards (`components/database/`):
 // the history's error alert sits at the top of the page, above every card that
 // reads it.
-import type { DbTableRow } from '~~/shared/types/ops'
+import type { TableStatRow } from '#site-shared/contract/api'
 import { humanizeBytes } from '~~/shared/utils/format'
 
 const { data, pending, refreshing, error, refresh } = useDbTables()
@@ -16,7 +16,7 @@ const { data, pending, refreshing, error, refresh } = useDbTables()
 // Client-side name filter — the dataset is small (one row per table) so
 // filtering in the browser is fine and avoids a round-trip.
 const search = ref('')
-const rows = computed<DbTableRow[]>(() => {
+const rows = computed<TableStatRow[]>(() => {
   const all = data.value ?? []
   const term = search.value.trim().toLowerCase()
   if (!term) {

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { SearchResult } from '#shared/types/search'
+import type { SearchResultReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
 import { leaderboardChampionIcon, leaderboardChampionName } from '#common/utils/leaderboard-row'
+import { regionOf } from '#shared/utils/region'
 
 // A truemain in the search palette (`AppSearch`): the icon, the Riot ID with the
 // region flag under it, then the lanes, the mains and the rank crest — the
@@ -12,7 +13,7 @@ import { leaderboardChampionIcon, leaderboardChampionName } from '#common/utils/
 // the same row DOM on every keystroke and wants `SkeletonImage`, which blanks
 // between two pictures.
 const props = defineProps<{
-  result: SearchResult
+  result: SearchResultReadModel
   /** Data Dragon patch for the icon; null until the version list has loaded. */
   patch: string | null
   championsById: ReadonlyMap<number, ChampionStaticListItem>
@@ -37,7 +38,7 @@ const mains = computed(() => props.result.topChampionIds
         <span class="truncate text-highlighted">{{ result.identity.gameName }}</span>
         <span v-if="result.identity.tagLine" class="shrink-0 text-dimmed">#{{ result.identity.tagLine }}</span>
       </span>
-      <LeaderboardRegionFlag :region="result.region" :width="16" />
+      <LeaderboardRegionFlag :region="regionOf(result.region)" :width="16" />
     </span>
 
     <!-- The crest alone: the tier name stays in its tooltip, never spelled out. -->

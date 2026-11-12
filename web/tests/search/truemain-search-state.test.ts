@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { SearchResult } from '#shared/types/search'
+import type { SearchResultReadModel } from '#shared/contract/api'
 import { TRUEMAIN_SEARCH_MESSAGES, truemainSearchAnnouncement, truemainSearchState } from '#common/utils/truemain-search-state'
 
-const result = (gameName: string): SearchResult => ({
+const result = (gameName: string): SearchResultReadModel => ({
   identity: { gameName, tagLine: 'EUW', profileIconId: 1, platformId: 'EUW1', summonerLevel: 30 },
   region: 'europe',
   ranked: null,

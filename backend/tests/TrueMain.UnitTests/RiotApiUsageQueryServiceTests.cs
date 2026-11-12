@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Data.Metrics.Mongo;
+using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Ops.Candidates;
 using TrueMain.Services.Ops.Configuration;
@@ -99,7 +100,7 @@ public sealed class RiotApiUsageQueryServiceTests
         headroom.Routes.Select(r => r.Route).Should().Equal("europe", "euw1");
 
         var europe = headroom.Routes[0];
-        europe.Kind.Should().Be("regional");
+        europe.Kind.Should().Be(RiotRouteKind.Regional);
         europe.ObservedCallsPerDay.Should().BeApproximately(50_000, 0.001);
         europe.CallsPerAccountPerDay.Should().BeApproximately(500, 0.001);
         europe.BindingLimit!.Limit.Should().Be(100);
@@ -107,7 +108,7 @@ public sealed class RiotApiUsageQueryServiceTests
         europe.SpareCallsPerDay!.Value.Should().BeApproximately(22_000, 0.001);
 
         var euw1 = headroom.Routes[1];
-        euw1.Kind.Should().Be("platform");
+        euw1.Kind.Should().Be(RiotRouteKind.Platform);
         euw1.SpareCallsPerDay!.Value.Should().BeApproximately(62_000, 0.001);
         euw1.AdditionalAccountsHeadroom.Should().Be(620);
     }

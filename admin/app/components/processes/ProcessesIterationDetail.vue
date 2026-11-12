@@ -2,16 +2,19 @@
 // Iteration detail slide-over of the Processes page: a formatted per-process
 // breakdown of one finished pass (outcome, duration, summary fields, error)
 // instead of raw JSON. Split out of `pages/processes.vue` (#1436).
-import type { BadgeColor, ProcessIteration, ProcessRunStatus } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel } from '#site-shared/contract/api'
 import type { ChainLink } from '~~/shared/utils/pipeline-lanes'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
-import { processStatusColor } from '~~/shared/utils/pipeline-health'
+import { processStatusColor, runTally } from '~~/shared/utils/pipeline-health'
 import { buildLaneBranches } from '~~/shared/utils/pipeline-lanes'
 import { hasSummary } from '~~/shared/utils/process-summary'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
 
 const props = defineProps<{
-  iteration: ProcessIteration | null
+  iteration: ProcessIterationReadModel | null
 }>()
+
+const catalog = usePipelineCatalog()
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -21,7 +24,7 @@ const open = defineModel<boolean>('open', { required: true })
 // view is a list of what ran, not a topology.
 const links = computed<ChainLink[]>(() =>
   props.iteration
-    ? buildLaneBranches(props.iteration.runs)
+    ? buildLaneBranches(catalog.value, props.iteration.runs)
       .flatMap(branch => branch.links)
       .filter(link => link.run)
     : [],
@@ -49,20 +52,8 @@ const entries = computed<IterationEntry[]>(() =>
 // the five were the same markup five times, and a status added later (Cancelled was, in
 // #1513) is a row here instead of a sixth copy. `Success` shows even at zero — "0 ok" is
 // the point when a pass went wrong — while the rest appear only when they happened.
-const TALLIED_STATUSES: readonly { status: ProcessRunStatus, label: string, color: BadgeColor, always?: boolean }[] = [
-  { status: 'Success', label: 'ok', color: 'success', always: true },
-  { status: 'Skipped', label: 'skipped', color: 'neutral' },
-  { status: 'Failed', label: 'failed', color: 'error' },
-  { status: 'Abandoned', label: 'abandoned', color: 'warning' },
-  { status: 'Cancelled', label: 'cancelled', color: 'neutral' },
-]
 
-const tally = computed(() => {
-  const runs = props.iteration?.runs ?? []
-  return TALLIED_STATUSES
-    .map(entry => ({ ...entry, count: runs.filter(run => run.status === entry.status).length }))
-    .filter(entry => entry.always || entry.count > 0)
-})
+const tally = computed(() => runTally((props.iteration?.runs ?? []).map(run => run.status)))
 </script>
 
 <template>
@@ -112,7 +103,7 @@ const tally = computed(() => {
               />
               <UTooltip :ui="PROCESS_TOOLTIP_UI">
                 <span class="text-sm font-medium text-highlighted truncate">
-                  {{ chainLabel(entry.link.processName) }}
+                  {{ chainLabel(catalog, entry.link.processName) }}
                 </span>
                 <template #content>
                   <ProcessTooltipContent :process-name="entry.link.processName" :context="entry.link.processName" />

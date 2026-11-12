@@ -27,7 +27,7 @@ public sealed class ChampionGameCountRefreshProcessIntegrationTests(PostgresFixt
     {
         await SeedAsync();
 
-        var summary = await BuildProcess().RunCoreAsync(CancellationToken.None);
+        var summary = await BuildProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<ChampionGameCountRefreshSummary>()
             .Which.Should().BeEquivalentTo(new ChampionGameCountRefreshSummary(
@@ -46,7 +46,7 @@ public sealed class ChampionGameCountRefreshProcessIntegrationTests(PostgresFixt
     public async Task RunCoreAsync_FollowsRetentionAndTheLaneFix_OnTheNextRun()
     {
         await SeedAsync();
-        await BuildProcess().RunCoreAsync(CancellationToken.None);
+        await BuildProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using (var db = postgres.CreateDbContext())
         {
@@ -59,7 +59,7 @@ public sealed class ChampionGameCountRefreshProcessIntegrationTests(PostgresFixt
                 .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.TeamPosition, "TOP"));
         }
 
-        var summary = await BuildProcess().RunCoreAsync(CancellationToken.None);
+        var summary = await BuildProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<ChampionGameCountRefreshSummary>()
             .Which.SlicesRemoved.Should().Be(1);
@@ -72,22 +72,15 @@ public sealed class ChampionGameCountRefreshProcessIntegrationTests(PostgresFixt
     }
 
     [Fact]
-    public async Task RunCoreAsync_SkipsWithinTheMinimumInterval()
-    {
-        await SeedAsync();
-        var runs = new FakeProcessRunStore { LastCompletedRunStartUtc = DateTime.UtcNow.AddMinutes(-5) };
+    public void MinRunInterval_IsHalfAnHour()
+        // The recording decorator applies the guard (RecordedProcessCadenceTests); the step
+        // only declares how often it may run.
+        => BuildProcess().MinRunInterval.Should().Be(TimeSpan.FromMinutes(30));
 
-        var summary = await BuildProcess(runs).RunCoreAsync(CancellationToken.None);
-
-        summary.Should().BeOfType<SkippedSummary>();
-        (await LoadAsync()).Should().BeEmpty();
-    }
-
-    private ChampionGameCountRefreshProcess BuildProcess(FakeProcessRunStore? runs = null)
+    private ChampionGameCountRefreshProcess BuildProcess()
         => new(
             NullLogger<ChampionGameCountRefreshProcess>.Instance,
             new TestDbContextFactory(postgres),
-            runs ?? new FakeProcessRunStore(),
             TimeProvider.System);
 
     private async Task<List<ChampionGameCount>> LoadAsync()

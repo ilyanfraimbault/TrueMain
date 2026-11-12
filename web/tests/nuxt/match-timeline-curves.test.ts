@@ -1,7 +1,8 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
 import { MatchDetailPanel, MatchDetailTimelineCurves, MatchDetailTimelineCurvesTooltip } from '#components'
-import type { MatchDetailParticipant, MatchDetailResponse } from '#shared/types/match-detail'
+import type { MatchDetail } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type { RuneTreeResponse } from '#shared/types/static-data'
 import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 import fixture from '#shared/fixtures/win-probability-timeline.json'
@@ -19,7 +20,7 @@ const participants = timeline.participants.map((p, index) => ({
   participantId: p.participantId,
   teamId: p.teamId,
   championId: CHAMPIONS[index]!,
-})) as MatchDetailParticipant[]
+})) as MatchDetailParticipantReadModel[]
 const champions = CHAMPIONS.map(championId => ({ championId, name: `Champion ${championId}`, iconUrl: '' }))
 
 function mountCurves() {
@@ -135,8 +136,8 @@ describe('MatchDetailTimelineCurvesTooltip', () => {
 describe('MatchDetailPanel', () => {
   const runeTree = { trees: [] } as unknown as RuneTreeResponse
 
-  function mountPanel(detail: Partial<MatchDetailResponse>) {
-    const data = ref<MatchDetailResponse | null>({
+  function mountPanel(detail: Partial<MatchDetail>) {
+    const data = ref<MatchDetail | null>({
       matchId: 'EUW1_1',
       queueId: 420,
       gameMode: 'CLASSIC',

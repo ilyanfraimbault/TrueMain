@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import type { HealthAlert, HealthAlerts } from '~~/shared/types/ops'
+import type { HealthAlertReadModel, HealthAlertsReadModel } from '#site-shared/contract/api'
 import HealthAlertsPanel from '~~/app/components/health/HealthAlertsPanel.vue'
 import { healthAlertBadge, healthAlertingRules, healthAlertKeyLabel } from '~~/shared/utils/health-alerts'
 
@@ -14,7 +14,7 @@ const global = {
   },
 }
 
-function alert(overrides: Partial<HealthAlert> = {}): HealthAlert {
+function alert(overrides: Partial<HealthAlertReadModel> = {}): HealthAlertReadModel {
   return {
     id: 'a1',
     sentAtUtc: '2026-10-26T08:00:00Z',
@@ -29,7 +29,7 @@ function alert(overrides: Partial<HealthAlert> = {}): HealthAlert {
   }
 }
 
-function payload(overrides: Partial<HealthAlerts> = {}): HealthAlerts {
+function payload(overrides: Partial<HealthAlertsReadModel> = {}): HealthAlertsReadModel {
   return {
     enabled: true,
     channel: 'discord',

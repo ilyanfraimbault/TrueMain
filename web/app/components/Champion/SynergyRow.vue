@@ -4,7 +4,7 @@ import { formatPointDelta } from '~~/shared/utils/deltas'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 const props = withDefaults(defineProps<{
   champion: ChampionStaticListItem | null
@@ -40,7 +40,7 @@ const synergyClass = computed(() => {
 })
 const gamesTooltip = computed(() =>
   `${formatCount(props.games)} game(s) together — `
-  + `${formatPercentage(props.playRate ?? 0, 1)} of this champion's games`,
+  + `${formatPercentage(props.playRate ?? 0)} of this champion's games`,
 )
 const synergyLabel = computed(() => formatPointDelta(props.synergy, { unit: false }))
 </script>

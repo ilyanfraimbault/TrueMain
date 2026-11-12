@@ -4,15 +4,16 @@
 // figure, #2303), champion coverage, the latest recorded run (with its summary),
 // and the ingestion backlogs that should sit at zero when the pipeline is
 // caught up.
-import type { AggregationFamily, AggregationRun } from '~~/shared/types/ops'
+import type { AggregationFamilyKey, AggregationFamilyReadModel, AggregationRunReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatElapsed, formatNumber, formatTimeAgo } from '~~/shared/utils/format'
+import { processStatusColor } from '~~/shared/utils/pipeline-health'
 
 const { data, pending, refreshing, error, refresh } = useAggregations()
 
-const families = computed<AggregationFamily[]>(() => data.value?.families ?? [])
+const families = computed<AggregationFamilyReadModel[]>(() => data.value?.families ?? [])
 const backlog = computed(() => data.value?.backlog ?? null)
 
-const FAMILY_META: Record<string, { title: string, icon: string, hint: string }> = {
+const FAMILY_META: Record<AggregationFamilyKey, { title: string, icon: string, hint: string }> = {
   builds: {
     title: 'Builds (patterns)',
     icon: 'i-lucide-hammer',
@@ -34,7 +35,7 @@ const FAMILY_META: Record<string, { title: string, icon: string, hint: string }>
     hint: 'Per-account champion play rates, main/OTP classification.',
   },
 }
-function familyMeta(key: string) {
+function familyMeta(key: AggregationFamilyKey) {
   return FAMILY_META[key] ?? { title: key, icon: 'i-lucide-combine', hint: '' }
 }
 
@@ -55,25 +56,10 @@ const latestSuccessAtUtc = computed<string | null>(() => {
   return timestamps.reduce((max, iso) => (iso > max ? iso : max))
 })
 
-function runStatusColor(status: string | undefined): 'success' | 'error' | 'warning' | 'info' | 'neutral' {
-  switch (status) {
-    case 'success':
-      return 'success'
-    case 'failed':
-      return 'error'
-    case 'abandoned':
-      return 'warning'
-    case 'running':
-      return 'info'
-    default:
-      return 'neutral'
-  }
-}
-
 // The run summary is an arbitrary JSONB object of per-run counters (e.g.
 // { matchupRows: 22000, champions: 170 }). Render scalar entries as label:value
 // chips and skip nested values — the raw payload lives on the Processes page.
-function summaryEntries(run: AggregationRun | null): { label: string, value: string }[] {
+function summaryEntries(run: AggregationRunReadModel | null): { label: string, value: string }[] {
   const summary = run?.lastSuccessSummary
   if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
     return []
@@ -188,7 +174,7 @@ function summaryEntries(run: AggregationRun | null): { label: string, value: str
                 />
               </div>
               <UBadge
-                :color="runStatusColor(family.lastRun?.status)"
+                :color="family.lastRun ? processStatusColor(family.lastRun.status) : 'neutral'"
                 variant="subtle"
                 :label="family.lastRun?.status ?? 'never ran'"
               />

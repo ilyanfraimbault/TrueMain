@@ -3,13 +3,13 @@ using Core.Lol.Ranking;
 using Core.Options;
 using Data;
 using Data.Aggregation;
-using Data.Queries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 using TrueMain.Services.Champions.Matchups;
 using TrueMain.Services.Champions.Scopes;
+using TrueMain.Services.Sql;
 
 namespace TrueMain.Services.Champions.Composition;
 

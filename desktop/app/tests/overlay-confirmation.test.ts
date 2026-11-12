@@ -60,12 +60,4 @@ describe('the overlay\'s confirmation of a kept mark', () => {
     expect(wrapper.text()).toBe('')
   })
 
-  it('shows a sample line in a browser', async () => {
-    tauri = false
-    const wrapper = mount(OverlayConfirmation, { global })
-    await flushPromises()
-
-    expect(wrapper.text()).toBe('Last 30 s saved')
-    expect(invoke).not.toHaveBeenCalled()
-  })
 })

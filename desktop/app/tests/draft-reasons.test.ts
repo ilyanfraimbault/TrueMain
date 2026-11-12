@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { DraftReason } from '~/types/draft'
+import type { DraftReasonReadModel } from '#shared/contract/api'
 import { describeReason, draftPercent, draftPoints } from '~/utils/draft-reasons'
 
 const names: Record<number, string> = { 238: 'Zed', 117: 'Lulu', 103: 'Ahri', 105: 'Fizz' }
 const nameOf = (id: number) => names[id] ?? `#${id}`
 
-function reason(fields: Partial<DraftReason>): DraftReason {
+function reason(fields: Partial<DraftReasonReadModel>): DraftReasonReadModel {
   return {
     kind: 'laneMatchup',
     championId: null,
@@ -30,9 +30,9 @@ describe('draftPoints', () => {
 })
 
 describe('draftPercent', () => {
-  it('keeps a decimal only for small rates', () => {
+  it('rounds every rate to a whole percentage', () => {
     expect(draftPercent(0.58)).toBe('58%')
-    expect(draftPercent(0.092)).toBe('9.2%')
+    expect(draftPercent(0.092)).toBe('9%')
   })
 })
 
@@ -69,7 +69,7 @@ describe('describeReason', () => {
     expect(text.headline).toBe('−4.2')
     expect(text.unit).toBe('pts')
     expect(text.short).toBe('Into your Ahri')
-    expect(text.full).toBe('Your Ahri: −4.2 pts into it over 2,100 games, which is played in 9.0% of Mid games')
+    expect(text.full).toBe('Your Ahri: −4.2 pts into it over 2,100 games, which is played in 9% of Mid games')
   })
 
   it('labels the ban-rate fallback as such, not as a threat', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PersonaListRow } from '~~/shared/types/ops'
+import type { PersonaListRowReadModel } from '#site-shared/contract/api'
 import {
   entitySearchGroups,
   isEntityTerm,
@@ -19,7 +19,7 @@ const CHAMPIONS = [
   { name: 'Akali' },
 ]
 
-function persona(overrides: Partial<PersonaListRow> = {}): PersonaListRow {
+function persona(overrides: Partial<PersonaListRowReadModel> = {}): PersonaListRowReadModel {
   return {
     id: 'p1',
     slug: 'faker',

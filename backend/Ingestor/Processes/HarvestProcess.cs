@@ -1,6 +1,6 @@
 using Data.Logging;
-using Data.Ops.Mongo;
-using Data.Repositories;
+using Data.Pipeline;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.Coverage;
@@ -18,20 +18,21 @@ namespace Ingestor.Processes;
 /// ManualSeed and before Scoring, so harvested candidates compete in the same
 /// per-platform top-N and flow through the same MatchIngestion -> MainAnalysis pass.
 /// </summary>
+[PipelineStep(JobMode.HarvestOnly)]
 public sealed class HarvestProcess(
     ILogger<HarvestProcess> logger,
     IDataSessionFactory sessionFactory,
     IParticipantHarvestService harvestService,
     IChampionCoverageProvider coverageProvider,
-    IProcessRunStore processRunStore,
     TimeProvider timeProvider,
     IOptions<HarvestOptions> harvestOptions,
     IOptions<MatchIngestionOptions> matchIngestionOptions,
-    IOptions<IntakeOptions> intakeOptions) : IIngestorProcess
+    IOptions<IntakeOptions> intakeOptions) : ICadencedProcess
 {
-    public string Name => "Harvest";
+    /// <inheritdoc />
+    public TimeSpan MinRunInterval => harvestOptions.Value.MinRunInterval;
 
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var configured = harvestOptions.Value;
         var options = ApplyIntakeBudget(configured);
@@ -46,23 +47,6 @@ public sealed class HarvestProcess(
         }
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
-
-        // Same guard as Discovery's (#487, #1149): measured from the last run that did its
-        // work, so a skip can never re-arm itself. Nothing else paces the harvest — it makes
-        // no Riot call — so without it the orphan scan follows the maintenance pass's loop
-        // speed (#2261).
-        if (configured.MinRunInterval > TimeSpan.Zero)
-        {
-            var lastRunUtc = await processRunStore.GetLastCompletedRunStartAsync(Name, ct);
-            if (lastRunUtc is not null && nowUtc - lastRunUtc.Value < configured.MinRunInterval)
-            {
-                logger.LogInformation(
-                    "Harvest skipped: last run {LastRunUtc:o} is within MinRunInterval {Interval}.",
-                    lastRunUtc,
-                    configured.MinRunInterval);
-                return new SkippedSummary("Within MinRunInterval; harvest skipped this iteration.", true);
-            }
-        }
 
         await using var session = await sessionFactory.CreateAsync(ct);
 

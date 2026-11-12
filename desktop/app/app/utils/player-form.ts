@@ -1,7 +1,8 @@
 import { formatPercentage } from '#shared/utils/ddragon'
 import { formatKdaRatio, kdaRatio } from '#shared/utils/kda'
-import { POSITIONS } from '#common/utils/positions'
+import { POSITIONS } from '#shared/utils/positions'
 import type { PlayerGame } from '~/types/record'
+import { RANKED_FLEX_QUEUE_ID, RANKED_SOLO_QUEUE_ID } from '#shared/utils/queues'
 
 /**
  * The dashboard's reading of the player's recent games: form against their
@@ -14,8 +15,8 @@ export type QueueFilter = 'all' | 'solo' | 'flex' | 'normal' | 'aram'
 
 export const QUEUE_FILTERS: { value: QueueFilter, label: string, queues: number[] | null }[] = [
   { value: 'all', label: 'All', queues: null },
-  { value: 'solo', label: 'Solo', queues: [420] },
-  { value: 'flex', label: 'Flex', queues: [440] },
+  { value: 'solo', label: 'Solo', queues: [RANKED_SOLO_QUEUE_ID] },
+  { value: 'flex', label: 'Flex', queues: [RANKED_FLEX_QUEUE_ID] },
   { value: 'normal', label: 'Normal', queues: [400, 430, 480, 490] },
   { value: 'aram', label: 'ARAM', queues: [450] },
 ]

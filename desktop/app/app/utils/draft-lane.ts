@@ -1,5 +1,5 @@
 import type { DraftState, TeamSlot } from '~/types/lcu'
-import { POSITIONS } from '#common/utils/positions'
+import { POSITIONS } from '#shared/utils/positions'
 
 /**
  * The lane our allies leave us, when there is exactly one: the client assigns

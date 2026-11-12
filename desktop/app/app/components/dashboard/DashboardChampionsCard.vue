@@ -6,7 +6,7 @@
 -->
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
-import type { ProfileMainChampion } from '#shared/types/profile'
+import type { ProfileMainChampionReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import type { ChampionLine } from '~/utils/player-form'
 import { formatPercentage } from '#shared/utils/ddragon'
@@ -23,7 +23,7 @@ const SHOWN = 5
 const linesById = computed(() => new Map(props.lines.map(line => [line.championId, line])))
 
 /** The lines as the site's mains: games out of the sample, nothing retired or measured elsewhere. */
-const mains = computed<ProfileMainChampion[]>(() => {
+const mains = computed<ProfileMainChampionReadModel[]>(() => {
   const total = props.lines.reduce((sum, line) => sum + line.games, 0)
   return props.lines.slice(0, SHOWN).map(line => ({
     championId: line.championId,
@@ -38,12 +38,12 @@ const mains = computed<ProfileMainChampion[]>(() => {
 })
 
 const { pathFor } = useChampionSlugs()
-const linkTo = (main: ProfileMainChampion): RouteLocationRaw => ({
+const linkTo = (main: ProfileMainChampionReadModel): RouteLocationRaw => ({
   path: pathFor(main.championId),
   query: main.primaryPosition ? { position: main.primaryPosition } : {},
 })
 
-const lineOf = (main: ProfileMainChampion) => linesById.value.get(main.championId)!
+const lineOf = (main: ProfileMainChampionReadModel) => linesById.value.get(main.championId)!
 const winRate = (line: ChampionLine) => line.wins / line.games
 </script>
 

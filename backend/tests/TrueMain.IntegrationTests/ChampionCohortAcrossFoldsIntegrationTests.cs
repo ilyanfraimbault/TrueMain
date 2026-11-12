@@ -4,6 +4,7 @@ using Core.Options;
 using Data.Aggregation;
 using Data.BuildFacts;
 using Data.Entities;
+using Data.Statics;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.PatternAggregation;
@@ -161,23 +162,22 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
             NullLogger<ChampionMatchupLeadAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new MatchupLeadAggregationOptions()),
-            Microsoft.Extensions.Options.Options.Create(new LaneOutcomeAggregationOptions()),
             factory,
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+            TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await new ChampionSynergyAggregationProcess(
             NullLogger<ChampionSynergyAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new SynergyAggregationOptions()),
             factory,
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+            TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await new ChampionScalingAggregationProcess(
             NullLogger<ChampionScalingAggregationProcess>.Instance,
             Microsoft.Extensions.Options.Options.Create(AnalysisOptions()),
             Microsoft.Extensions.Options.Options.Create(new ScalingAggregationOptions()),
             factory,
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+            TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await new ChampionPatternAggregationProcess(
             NullLogger<ChampionPatternAggregationProcess>.Instance,
@@ -187,7 +187,7 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
             new ChampionPatternSourceRowReader(factory),
             new ChampionPatternAggregateBuilder(new CohortItemMetadataProvider()),
             new ChampionPatternAggregatePersister(factory, new ChampionDimensionResolver(factory)),
-            TimeProvider.System).RunCoreAsync(CancellationToken.None);
+            TimeProvider.System).RunCoreAsync(RunInput.Whole, CancellationToken.None);
     }
 
     private static MainAnalysisOptions AnalysisOptions()
@@ -354,7 +354,7 @@ public sealed class ChampionCohortAcrossFoldsIntegrationTests : IAsyncLifetime
             [6672] = new(6672, 3000, true, false, false, false, true, false)
         };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Metadata);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Metadata));
     }
 }

@@ -1,6 +1,7 @@
 import type { Ref } from 'vue'
 import type { GameState } from '~/types/game'
-import type { PaceBenchmarkResponse, PaceReference } from '~/utils/pace-benchmark'
+import type { PaceReference } from '~/utils/pace-benchmark'
+import type { PaceBenchmarkResponse } from '#shared/contract/api'
 import { readRankHistory } from '~/utils/lp-history'
 import { paceReference } from '~/utils/pace-benchmark'
 

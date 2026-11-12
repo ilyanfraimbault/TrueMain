@@ -2,32 +2,27 @@
 // A known player's links in the edit panel (#2019): each with its source, a removal
 // that asks twice (the sources can no longer add the URL back), and the form that
 // adds one by hand. Emits; the container calls the API.
-import type { PersonaAdminLink, PersonaLinkInput } from '~~/shared/types/ops'
+import type { PersonaAdminLinkReadModel, PersonaLinkEntry } from '#site-shared/contract/api'
 import { computed, ref } from 'vue'
 import { LINK_KINDS, linkUrlError } from '~~/shared/utils/known-players'
+import { useArmedConfirm } from '~/composables/useArmedConfirm'
 
 const props = defineProps<{
-  links: PersonaAdminLink[]
+  links: PersonaAdminLinkReadModel[]
   busy: boolean
 }>()
 
 const emit = defineEmits<{
-  remove: [link: PersonaAdminLink]
-  add: [link: PersonaLinkInput]
+  remove: [link: PersonaAdminLinkReadModel]
+  add: [link: PersonaLinkEntry]
 }>()
 
-const armed = ref<string | null>(null)
+const { armed, sending, press } = useArmedConfirm({ busy: () => props.busy })
 
-function remove(link: PersonaAdminLink) {
-  if (props.busy) {
-    return
+function remove(link: PersonaAdminLinkReadModel) {
+  if (press(link.id)) {
+    emit('remove', link)
   }
-  if (armed.value !== link.id) {
-    armed.value = link.id
-    return
-  }
-  armed.value = null
-  emit('remove', link)
 }
 
 const kind = ref<string>(LINK_KINDS[0]!)
@@ -62,6 +57,7 @@ function add() {
           :variant="armed === link.id ? 'solid' : 'ghost'"
           :label="armed === link.id ? 'Confirm removal' : undefined"
           :aria-label="`Remove ${link.url}`"
+          :loading="busy && sending === link.id"
           :disabled="busy"
           @click="remove(link)"
         />

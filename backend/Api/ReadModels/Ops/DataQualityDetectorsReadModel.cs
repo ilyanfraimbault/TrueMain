@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -38,7 +39,7 @@ public sealed record DataQualityDetectorReadModel
     /// <c>green</c> | <c>amber</c> | <c>red</c> | <c>unknown</c>. Unknown means the
     /// detector could not compute its answer — it is never used for "measured and fine".
     /// </summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 
     /// <summary>
     /// The card's headline number, or null when unknown. What it counts is stated by
@@ -94,7 +95,7 @@ public sealed record DataQualityDetectorRowReadModel
     public string Label { get; init; } = string.Empty;
 
     /// <summary><c>green</c> | <c>amber</c> | <c>red</c> | <c>unknown</c> for this row alone.</summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 
     /// <summary>The row's primary number, or null when it could not be measured.</summary>
     public double? Value { get; init; }
@@ -118,7 +119,7 @@ public sealed record DataQualityDetectorRowReadModel
     /// judged one and carries <see cref="Status"/>.
     /// </para>
     /// </summary>
-    public string? ValueStatus { get; init; }
+    public DetectorStatus? ValueStatus { get; init; }
 
     /// <summary>Why this row reads the way it does, or what it is measuring.</summary>
     public string? Note { get; init; }
@@ -136,8 +137,8 @@ public sealed record DataQualityThresholdReadModel
     /// <summary>Red level, or null when disabled.</summary>
     public double? Red { get; init; }
 
-    /// <summary>Unit of the two levels: <c>count</c>, <c>percent</c>, <c>hours</c> or <c>ratio</c>.</summary>
-    public string Unit { get; init; } = "count";
+    /// <summary>Unit of the two levels.</summary>
+    public DetectorThresholdUnit Unit { get; init; } = DetectorThresholdUnit.Count;
 
     /// <summary>
     /// Which side of the level is the bad one: <c>above</c> (a count, an age or a share
@@ -146,7 +147,33 @@ public sealed record DataQualityThresholdReadModel
     /// a printed level is ambiguous: "warning at 40%" reads as a ceiling when it is a
     /// floor.
     /// </summary>
-    public string Direction { get; init; } = "above";
+    public DetectorThresholdDirection Direction { get; init; } = DetectorThresholdDirection.Above;
+}
+
+/// <summary>The unit a detector's levels are written in.</summary>
+public enum DetectorThresholdUnit
+{
+    [JsonStringEnumMemberName("count")]
+    Count,
+
+    [JsonStringEnumMemberName("percent")]
+    Percent,
+
+    [JsonStringEnumMemberName("hours")]
+    Hours,
+
+    [JsonStringEnumMemberName("ratio")]
+    Ratio,
+}
+
+/// <summary>Which side of a detector's level is the bad one.</summary>
+public enum DetectorThresholdDirection
+{
+    [JsonStringEnumMemberName("above")]
+    Above,
+
+    [JsonStringEnumMemberName("below")]
+    Below,
 }
 
 /// <summary>
@@ -199,5 +226,5 @@ public sealed record ChampionFreshnessRowReadModel
     public long ScopeRows { get; init; }
 
     /// <summary><c>green</c> | <c>amber</c> | <c>red</c> for this champion's age.</summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 }

@@ -131,7 +131,7 @@ public sealed class ChampionDirectoryApiIntegrationTests : IAsyncLifetime
     {
         var response = await client.GetAsync(url);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var page = await response.Content.ReadFromJsonAsync<ChampionDirectoryPageReadModel>();
+        var page = await response.Content.ReadFromJsonAsync<ChampionDirectoryPageReadModel>(ApiJson.Options);
         page.Should().NotBeNull();
         return page!;
     }

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { championDisplayName } from '#shared/utils/champion-name'
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { getPositionIconUrl } from '#shared/utils/ddragon'
 
 // The Build tab's player picker: blue side · vs · red side, one portrait per
 // player badged with their lane; the picked one is ringed, the others dimmed.
 const props = defineProps<{
-  blueTeam: MatchDetailParticipant[]
-  redTeam: MatchDetailParticipant[]
+  blueTeam: MatchDetailParticipantReadModel[]
+  redTeam: MatchDetailParticipantReadModel[]
   champions: ChampionStaticListItem[]
 }>()
 

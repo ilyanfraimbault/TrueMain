@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, nextTick, ref, watch } from 'vue'
-import type { Kit } from '#shared/types/kit'
+import type { Kit } from '~/types/kit'
 import { useDraftKits } from '../app/composables/useDraftKits'
 import { kit } from './kit-fixtures'
 

@@ -1,4 +1,4 @@
-import type { AuditEvent } from '~~/shared/types/ops'
+import type { AuditEventReadModel } from '#site-shared/contract/api'
 
 // How the Audit page and the known-player History draw one operator action (#2288):
 // what it acted on, as a link to where that thing lives, and its context as chips.
@@ -14,7 +14,7 @@ export interface AuditChip {
 }
 
 /** The acted-on entity: a known player, a conflict, or a seed request in the Add mains queue. */
-export function auditTarget(event: AuditEvent): AuditTarget {
+export function auditTarget(event: AuditEventReadModel): AuditTarget {
   const id = event.targetId ? encodeURIComponent(event.targetId) : null
   const meta = event.metadata
   switch (event.targetType) {
@@ -33,7 +33,7 @@ export function auditTarget(event: AuditEvent): AuditTarget {
 }
 
 /** The keys the target link already shows, so their chip would only repeat it. */
-function shownByTarget(event: AuditEvent): string[] {
+function shownByTarget(event: AuditEventReadModel): string[] {
   if (event.targetType === 'Persona') {
     return ['slug']
   }
@@ -43,7 +43,7 @@ function shownByTarget(event: AuditEvent): string[] {
 }
 
 /** The metadata as key/value chips, a rename's `from`/`to` folded into one `from → to`. */
-export function auditChips(event: AuditEvent): AuditChip[] {
+export function auditChips(event: AuditEventReadModel): AuditChip[] {
   const meta = { ...event.metadata }
   const chips: AuditChip[] = []
   if (meta.from !== undefined && meta.to !== undefined) {

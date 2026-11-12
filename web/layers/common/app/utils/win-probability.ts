@@ -1,4 +1,4 @@
-import { POSITIONS } from './positions'
+import { POSITIONS } from '#shared/utils/positions'
 
 /**
  * The win-probability model (#1795, #1864, #1911): a logistic over each lane's
@@ -57,11 +57,8 @@ export const MAP_WEIGHTS = {
 
 /** Drakes for the dragon soul. */
 export const SOUL = 4
-/** How long a destroyed inhibitor stays down, in seconds. */
 export const INHIBITOR_RESPAWN_SECONDS = 300
-/** How long the Baron's buff lasts, in seconds. */
 export const BARON_BUFF_SECONDS = 180
-/** How long the Elder's buff lasts, in seconds. */
 export const ELDER_BUFF_SECONDS = 150
 
 /** A weight at `clock` (game seconds): linear between two marks, the nearest one outside them. */
@@ -93,9 +90,7 @@ export interface SideMap {
   inhibitorsDown: number
   /** Elemental drakes this side slew; the Elder is not one of them. */
   dragons: number
-  /** The Baron's buff is up for this side. */
   baron: boolean
-  /** The Elder's buff is up for this side. */
   elder: boolean
 }
 

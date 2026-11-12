@@ -28,7 +28,7 @@ public sealed class CandidateStockApiIntegrationTests(PostgresFixture fixture) :
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<CandidateStockReadModel>(
-            "/ops/candidates/stock?granularity=hour&windowDays=7");
+            "/ops/candidates/stock?granularity=hour&windowDays=7", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.Buckets.Should().BeEmpty("an unmeasured window is not a window of zeros");

@@ -52,6 +52,7 @@ pub(crate) fn attached(client: &SharedClient) -> Result<Arc<LcuClient>, String> 
 /// card empty, and a failed scoreboard leaves that game's kill participation,
 /// damage share and teams unknown — the rest of the page still draws.
 #[tauri::command]
+#[specta::specta]
 pub async fn player_record(
     client: tauri::State<'_, SharedClient>,
     cache: tauri::State<'_, GameCache>,
@@ -85,6 +86,7 @@ pub async fn player_record(
 /// history paged back past the record. Empty once the client has no older
 /// games to give.
 #[tauri::command]
+#[specta::specta]
 pub async fn player_history(
     client: tauri::State<'_, SharedClient>,
     cache: tauri::State<'_, GameCache>,
@@ -132,6 +134,7 @@ async fn player_games(
 /// fallback for a game TrueMain has not ingested. A timeline that fails to
 /// read leaves those empty rather than failing the panel.
 #[tauri::command]
+#[specta::specta]
 pub async fn player_game(
     client: tauri::State<'_, SharedClient>,
     cache: tauri::State<'_, GameCache>,

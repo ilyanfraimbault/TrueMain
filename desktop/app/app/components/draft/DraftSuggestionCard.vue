@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatCount } from '#shared/utils/counts'
 import { formatPercentage } from '#shared/utils/ddragon'
-import type { DraftReason } from '~/types/draft'
+import type { DraftReasonReadModel } from '#shared/contract/api'
 import type { TierEntry } from '~/composables/useTierList'
 import type { DamageNote } from '~/utils/draft-damage'
 
@@ -25,7 +25,7 @@ import type { DamageNote } from '~/utils/draft-damage'
 const props = defineProps<{
   championId: number
   /** The facts behind the suggestion, strongest first. */
-  reasons: DraftReason[]
+  reasons: DraftReasonReadModel[]
   /** Few games behind every reason: drawn as unproven. */
   thin: boolean
   /** Our lane, for the reasons' wording. */

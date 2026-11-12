@@ -1,6 +1,6 @@
 using AwesomeAssertions;
 using Data;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace TrueMain.UnitTests;

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { MatchSummarySelf } from '#shared/types/matches'
+import type { MatchSummarySelfReadModel } from '#shared/contract/api'
 import { formatKda, kdaRatio } from '#shared/utils/kda'
 
 // K/D/A of a match row with the ratio under it. A fixed width, not a min-width:
 // a 12/2/15 game and a 4/8/8 game must take the same box, or every column to
 // their right drifts row to row.
 const props = defineProps<{
-  self: MatchSummarySelf
+  self: MatchSummarySelfReadModel
 }>()
 
 // A deathless game is Perfect, the top of the scale whatever its kills.

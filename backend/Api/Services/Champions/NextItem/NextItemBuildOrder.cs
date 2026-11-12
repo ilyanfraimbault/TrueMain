@@ -107,6 +107,6 @@ public static class NextItemBuildOrder
         return completed;
     }
 
-    private static NextItemOrderStepReadModel Step(int itemId, bool isBoots, string state)
+    private static NextItemOrderStepReadModel Step(int itemId, bool isBoots, NextItemOrderState state)
         => new() { ItemId = itemId, IsBoots = isBoots, State = state };
 }

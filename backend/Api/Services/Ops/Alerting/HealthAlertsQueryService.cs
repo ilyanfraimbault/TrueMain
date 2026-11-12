@@ -1,6 +1,7 @@
 using Data.Ops.Mongo;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
+using TrueMain.ReadModels;
 using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops.Alerting;
@@ -48,7 +49,7 @@ internal sealed class HealthAlertsQueryService(
     {
         Id = alert.Id.ToString(),
         SentAtUtc = DateTime.SpecifyKind(alert.SentAtUtc, DateTimeKind.Utc),
-        Kind = alert.Kind,
+        Kind = WireNames.ParseWireName(alert.Kind, HealthAlertChangeKind.Failing),
         Title = alert.Title,
         Verdict = alert.Verdict,
         Channel = alert.Channel,
@@ -60,7 +61,7 @@ internal sealed class HealthAlertsQueryService(
             {
                 Key = change.Key,
                 Title = change.Title,
-                Change = change.Change,
+                Change = WireNames.ParseWireName(change.Change, HealthAlertChangeKind.Failing),
                 Status = change.Status,
                 Headline = change.Headline
             })

@@ -12,19 +12,19 @@ use game_recording::{
 use lcu::WinProbabilityTimeline;
 use serde::Serialize;
 
-use super::Activity;
+use super::{Activity, Availability};
 use crate::overlay::ChordView;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingStatusView {
-    pub availability: &'static str,
+    pub availability: Availability,
+    /// The helper's own words when not ready.
     pub message: Option<String>,
-    pub recording_game_id: Option<i64>,
-    pub processing_game_id: Option<i64>,
+    pub activity: Activity,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Estimate {
     resolution: Resolution,
@@ -32,7 +32,7 @@ pub struct Estimate {
     bytes_per_hour: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsView {
     settings: RecordingSettings,
@@ -75,7 +75,7 @@ impl SettingsView {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GameView {
     id: String,
@@ -104,7 +104,7 @@ impl GameView {
     pub fn new(recording: &StoredRecording, activity: &Activity) -> Self {
         let meta = &recording.meta;
         let id = recording.dir.id();
-        let busy = activity.folder.as_deref() == Some(id.as_str());
+        let busy = activity.folder() == Some(id.as_str());
         let status = match meta.status {
             RecordingStatus::Ready => RecordingStatus::Ready,
             other if busy => other,
@@ -137,7 +137,7 @@ impl GameView {
 /// reduced timeline, read for the player's side, and the anchor's segments
 /// that place its game time on the video the way the moments are placed
 /// (`Anchor::video_ms`, clamped to the video's length).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WinProbabilityView {
     team_id: i64,
@@ -167,7 +167,32 @@ impl WinProbabilityView {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// Where a clip plays from (#2472): its file, YouTube once the player gave its
+/// link (#1815), or both until the file is deleted to free space (#2005). A
+/// clip with neither — its file deleted by hand, never published — is
+/// `Missing`, never a YouTube player with no video. Mirrored as `ClipVideo`
+/// in `desktop/app/app/types/recordings.ts`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ClipVideo {
+    Local,
+    Both { url: String },
+    Youtube { url: String },
+    Missing,
+}
+
+impl ClipVideo {
+    pub fn new(on_disk: bool, youtube_url: Option<String>) -> Self {
+        match (on_disk, youtube_url) {
+            (true, None) => Self::Local,
+            (true, Some(url)) => Self::Both { url },
+            (false, Some(url)) => Self::Youtube { url },
+            (false, None) => Self::Missing,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ClipView {
     id: String,
@@ -190,9 +215,7 @@ pub struct ClipView {
     video_path: PathBuf,
     thumbnail_path: Option<PathBuf>,
     moments: Vec<Moment>,
-    youtube_url: Option<String>,
-    /// Gone once a published clip's file was deleted to free space (#2005).
-    video_on_disk: bool,
+    video: ClipVideo,
     /// The plays an automatic clip holds (#1766); empty for the player's own.
     automatic: Vec<AutoClipKind>,
 }
@@ -228,14 +251,13 @@ impl ClipView {
             video_path: clip.dir.video_path(),
             thumbnail_path: thumbnail.is_file().then_some(thumbnail),
             moments: meta.moments.clone(),
-            youtube_url: meta.youtube_url.clone(),
-            video_on_disk: clip.dir.video_path().is_file(),
+            video: ClipVideo::new(clip.dir.video_path().is_file(), meta.youtube_url.clone()),
             automatic: meta.automatic.clone(),
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryView {
     games: Vec<GameView>,
@@ -266,5 +288,37 @@ impl LibraryView {
             budget_bytes,
             folder,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_clip_plays_from_what_it_has_and_says_when_it_has_nothing() {
+        let url = || Some("https://youtu.be/x".to_string());
+        assert_eq!(ClipVideo::new(true, None), ClipVideo::Local);
+        assert_eq!(
+            ClipVideo::new(true, url()),
+            ClipVideo::Both {
+                url: "https://youtu.be/x".into()
+            }
+        );
+        assert_eq!(
+            ClipVideo::new(false, url()),
+            ClipVideo::Youtube {
+                url: "https://youtu.be/x".into()
+            }
+        );
+        assert_eq!(ClipVideo::new(false, None), ClipVideo::Missing);
+        assert_eq!(
+            serde_json::to_value(ClipVideo::new(false, url())).expect("serialises"),
+            serde_json::json!({ "kind": "youtube", "url": "https://youtu.be/x" })
+        );
+        assert_eq!(
+            serde_json::to_value(ClipVideo::Missing).expect("serialises"),
+            serde_json::json!({ "kind": "missing" })
+        );
     }
 }

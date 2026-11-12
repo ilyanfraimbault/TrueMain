@@ -26,15 +26,18 @@ public sealed class ApexCutoffsQueryService(TrueMainDbContext db, IMemoryCache c
     // platform and window per quarter hour is plenty.
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(15);
 
-    public async Task<ApexCutoffsReadModel> GetAsync(PlatformId platform, int days, CancellationToken ct)
+    public Task<ApexCutoffsReadModel> GetAsync(PlatformId platform, int days, CancellationToken ct)
     {
         var clamped = Math.Clamp(days <= 0 ? DefaultDays : days, 1, MaxDays);
-        var key = (nameof(ApexCutoffsQueryService), platform.Value, clamped);
-        if (cache.TryGetValue(key, out ApexCutoffsReadModel? cached) && cached is not null)
-        {
-            return cached;
-        }
+        return cache.GetOrComputeAsync(
+            $"{nameof(ApexCutoffsQueryService)}:{platform.Value}:{clamped}",
+            Ttl,
+            token => ReadAsync(platform, clamped, token),
+            ct);
+    }
 
+    private async Task<ApexCutoffsReadModel> ReadAsync(PlatformId platform, int clamped, CancellationToken ct)
+    {
         var fromDay = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-clamped));
         var rows = await db.ApexCutoffSnapshots
             .AsNoTracking()
@@ -56,7 +59,7 @@ public sealed class ApexCutoffsQueryService(TrueMainDbContext db, IMemoryCache c
             })
             .ToList();
 
-        return cache.Store(key, new ApexCutoffsReadModel { Entries = entries }, Ttl);
+        return new ApexCutoffsReadModel { Entries = entries };
     }
 
     /// <summary>

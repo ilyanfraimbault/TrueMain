@@ -1,5 +1,6 @@
 using Data;
 using Data.Metrics.Mongo;
+using Data.Pipeline;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,6 +42,7 @@ namespace Ingestor.Processes;
 /// exhaustion that retention is already preventing.
 /// </para>
 /// </summary>
+[PipelineStep(JobMode.StorageSnapshotOnly)]
 public sealed class StorageSnapshotProcess(
     ILogger<StorageSnapshotProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
@@ -48,9 +50,7 @@ public sealed class StorageSnapshotProcess(
     IMongoStorageStatsReader mongoStats,
     TimeProvider timeProvider) : IIngestorProcess
 {
-    public string Name => "StorageSnapshot";
-
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 

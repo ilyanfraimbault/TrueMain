@@ -11,7 +11,7 @@ import { recapWinProbability } from '~/utils/recording-win-probability'
  * video — beside it; then the call on the full game, kept or deleted. A game
  * finalised from its timeline also gets its win-probability curve under the
  * moments and its turning points beside them (#1911). The end
- * of a recorded game opens it (`recording://recap`, `useRecordings`); the
+ * of a recorded game opens it (the shell's recap event, `useRecordings`); the
  * Recordings page and the dashboard's "Watch" open it later.
  */
 const route = useRoute()

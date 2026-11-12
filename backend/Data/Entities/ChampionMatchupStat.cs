@@ -69,7 +69,7 @@ public class ChampionMatchupStat
     /// lanes counted in <see cref="LaneGoldDiffGames"/> (#976). Signed, and summed
     /// rather than bucketed so the read side owns the band edges: moving the
     /// "even / good / dominant" cutoffs is then a product decision with no re-fold,
-    /// unlike <c>LaneOutcomeAggregation:GoldLeadThreshold</c>, which re-defines the
+    /// unlike <c>LaneOutcomeRules.GoldLeadThreshold</c>, which re-defines the
     /// stored win/loss counters.
     /// </summary>
     public long LaneGoldDiffSum { get; set; }

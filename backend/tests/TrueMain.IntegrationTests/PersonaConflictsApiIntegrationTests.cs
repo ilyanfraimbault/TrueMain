@@ -53,12 +53,12 @@ public sealed class PersonaConflictsApiIntegrationTests : IAsyncLifetime
         conflict.Claimant.Slug.Should().Be("capsdpm");
         conflict.Owner.Slug.Should().Be("caps");
         conflict.Owner.AccountCount.Should().Be(2);
-        conflict.Source.Should().Be("Dpm");
+        conflict.Source.Should().Be(PersonaSource.Dpm);
         conflict.TimesSeen.Should().Be(2);
         conflict.Account.CurrentGameName.Should().Be("G2 Caps");
         conflict.Account.RiotAccountId.Should().NotBeNull();
 
-        var detail = await client.GetFromJsonAsync<PersonaConflictDetailReadModel>($"/ops/personas/conflicts/{conflict.Id}");
+        var detail = await client.GetFromJsonAsync<PersonaConflictDetailReadModel>($"/ops/personas/conflicts/{conflict.Id}", ApiJson.Options);
         detail!.Owner.Accounts.Should().ContainSingle(a => a.Disputed).Which.GameName.Should().Be("G2 Caps");
         detail.Claimant.Accounts.Should().BeEmpty();
 
@@ -78,7 +78,7 @@ public sealed class PersonaConflictsApiIntegrationTests : IAsyncLifetime
         var id = (await GetConflictsAsync(client, "")).Conflicts.Single().Id;
 
         var resolved = await ResolveAsync(client, id, new { action = "move" });
-        resolved.Resolution.Should().Be("Moved");
+        resolved.Resolution.Should().Be(PersonaConflictResolution.Moved);
         resolved.HolderSlug.Should().Be("capsdpm");
 
         (await PlayerAsync(client, "capsdpm")).Accounts.Should().ContainSingle();
@@ -111,7 +111,7 @@ public sealed class PersonaConflictsApiIntegrationTests : IAsyncLifetime
         (await PlayerAsync(client, "caps")).Accounts.Should().ContainSingle();
         var page = await GetConflictsAsync(client, "");
         page.Open.Should().Be(0);
-        page.Conflicts.Single().Resolution.Should().Be("Kept");
+        page.Conflicts.Single().Resolution.Should().Be(PersonaConflictResolution.Kept);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public sealed class PersonaConflictsApiIntegrationTests : IAsyncLifetime
         (await db.Personas.CountAsync(p => p.MergedIntoPersonaId == null)).Should().Be(1);
         (await db.PersonaAccounts.CountAsync(a => a.Persona!.Slug == "peng")).Should().Be(3);
         (await db.PersonaAccountConflicts.CountAsync(c => c.Status == PersonaConflictStatus.Open)).Should().Be(0);
-        var directory = await client.GetFromJsonAsync<PersonaDirectoryResponse>("/players");
+        var directory = await client.GetFromJsonAsync<PersonaDirectoryResponse>("/players", ApiJson.Options);
         directory!.Players.Select(p => p.Slug).Should().Equal("peng");
         await AssertOneRowPerAccountAsync();
     }
@@ -208,7 +208,7 @@ public sealed class PersonaConflictsApiIntegrationTests : IAsyncLifetime
         open.Conflicts[0].Evidence.Score.Should().Be(10);
         open.Conflicts[2].Evidence.DifferingSocial.Should().Equal("youtube");
         (await GetConflictsAsync(client, "?status=Open&pageSize=1&page=2")).Conflicts.Single().Claimant.Slug.Should().Be("claimer-b");
-        var detail = await client.GetFromJsonAsync<PersonaConflictDetailReadModel>($"/ops/personas/conflicts/{open.Conflicts[0].Id}");
+        var detail = await client.GetFromJsonAsync<PersonaConflictDetailReadModel>($"/ops/personas/conflicts/{open.Conflicts[0].Id}", ApiJson.Options);
         detail!.Conflict.Evidence.Score.Should().Be(10);
         (await GetConflictsAsync(client, "")).Conflicts.Select(c => c.Claimant.Slug).Should().Equal("claimer-c", "claimer-b", "claimer-a");
     }
@@ -288,21 +288,21 @@ public sealed class PersonaConflictsApiIntegrationTests : IAsyncLifetime
             },
         });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>())!.Personas.Single();
+        return (await response.Content.ReadFromJsonAsync<PersonaBatchResponse>(ApiJson.Options))!.Personas.Single();
     }
 
     private static async Task<PersonaConflictsReadModel> GetConflictsAsync(HttpClient client, string query) =>
-        (await client.GetFromJsonAsync<PersonaConflictsReadModel>($"/ops/personas/conflicts{query}"))!;
+        (await client.GetFromJsonAsync<PersonaConflictsReadModel>($"/ops/personas/conflicts{query}", ApiJson.Options))!;
 
     private static async Task<PersonaConflictResolvedResponse> ResolveAsync(HttpClient client, Guid id, object body)
     {
         var response = await client.PostAsJsonAsync($"/ops/personas/conflicts/{id}/resolve", body);
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-        return (await response.Content.ReadFromJsonAsync<PersonaConflictResolvedResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<PersonaConflictResolvedResponse>(ApiJson.Options))!;
     }
 
     private static async Task<PersonaReadModel> PlayerAsync(HttpClient client, string slug) =>
-        (await client.GetFromJsonAsync<PersonaReadModel>($"/players/{slug}"))!;
+        (await client.GetFromJsonAsync<PersonaReadModel>($"/players/{slug}", ApiJson.Options))!;
 
     private ApiWebApplicationFactory CreateFactory() => new(_fixture, _mongo);
 

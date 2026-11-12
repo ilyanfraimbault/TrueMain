@@ -1,14 +1,15 @@
-import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel } from '#site-shared/contract/api'
 import { describe, expect, it } from 'vitest'
 import {
   iterationKind,
   statusCounts,
   timedRuns,
 } from '~~/shared/utils/iteration-timeline'
+import { CATALOG } from './catalog'
 
 // The compact iteration rows read their badge, bar and counts off these helpers.
 
-function run(processName: string, overrides: Partial<ProcessRun> = {}): ProcessRun {
+function run(processName: string, overrides: Partial<ProcessRunReadModel> = {}): ProcessRunReadModel {
   return {
     id: `${processName}-${overrides.startedAtUtc ?? 'x'}`,
     processName,
@@ -30,24 +31,24 @@ function iteration(
   jobMode: string | null,
   startedAtUtc: string,
   lastActivityAtUtc: string,
-  runs: ProcessRun[] = [],
-): ProcessIteration {
+  runs: ProcessRunReadModel[] = [],
+): ProcessIterationReadModel {
   return { iterationId: id, jobMode, startedAtUtc, lastActivityAtUtc, isRunning: false, runs }
 }
 
 describe('iterationKind', () => {
   it('names the lane modes and keeps a single-process mode verbatim', () => {
-    expect(iterationKind(iteration('a', 'FetchLane', '', '')).id).toBe('fetch')
-    expect(iterationKind(iteration('a', 'AggregateLane', '', '')).label).toBe('Aggregate')
-    expect(iterationKind(iteration('a', 'Full', '', '')).id).toBe('full')
-    expect(iterationKind(iteration('a', 'FetchWorkers', '', '')).id).toBe('fetch')
-    expect(iterationKind(iteration('a', 'HarvestOnly', '', ''))).toEqual({ id: 'single', label: 'HarvestOnly' })
+    expect(iterationKind(CATALOG, iteration('a', 'FetchLane', '', '')).id).toBe('fetch')
+    expect(iterationKind(CATALOG, iteration('a', 'AggregateLane', '', '')).label).toBe('Aggregate')
+    expect(iterationKind(CATALOG, iteration('a', 'Full', '', '')).id).toBe('full')
+    expect(iterationKind(CATALOG, iteration('a', 'FetchWorkers', '', '')).id).toBe('fetch')
+    expect(iterationKind(CATALOG, iteration('a', 'HarvestOnly', '', ''))).toEqual({ id: 'single', label: 'HarvestOnly' })
   })
 
   it('falls back to the lane of the processes for a pass recorded before the mode was stamped', () => {
-    expect(iterationKind(iteration('a', null, '', '', [run('Discovery'), run('Scoring')])).id).toBe('fetch')
-    expect(iterationKind(iteration('a', null, '', '', [run('Discovery'), run('MainAnalysis')])).id).toBe('full')
-    expect(iterationKind(iteration('a', null, '', '', [run('SomethingNew')]))).toEqual({ id: 'single', label: 'SomethingNew' })
+    expect(iterationKind(CATALOG, iteration('a', null, '', '', [run('Discovery'), run('Scoring')])).id).toBe('fetch')
+    expect(iterationKind(CATALOG, iteration('a', null, '', '', [run('Discovery'), run('MainAnalysis')])).id).toBe('full')
+    expect(iterationKind(CATALOG, iteration('a', null, '', '', [run('SomethingNew')]))).toEqual({ id: 'single', label: 'SomethingNew' })
   })
 })
 

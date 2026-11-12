@@ -1,14 +1,6 @@
 <script setup lang="ts">
-import {
-  ELO_TIERS,
-  ELO_BRACKET_ALL,
-  ELO_PLUS_SUFFIX,
-  tierOnly,
-  tierPlus,
-  hasPlus,
-  eloBracketLabel,
-  normalizeEloBracket,
-} from '#common/utils/elo-brackets'
+import { ELO_TIERS } from '#shared/utils/ranks'
+import { ELO_BRACKET_ALL, ELO_PLUS_SUFFIX, tierOnly, tierPlus, hasPlus, eloBracketLabel, normalizeEloBracket } from '#shared/utils/elo-brackets'
 
 // Rank filter for the champion build page (issue #526). A single dropdown that
 // scopes builds by elo: "All ranks", each ranked tier ("that rank only") and

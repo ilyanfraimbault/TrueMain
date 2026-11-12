@@ -1,5 +1,6 @@
 using Data.Entities;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops.Processes;
@@ -16,6 +17,12 @@ public interface IProcessIterationsQueryService
     /// keeps only the passes that ran that lane; anything else applies no lane filter.
     /// </summary>
     Task<ProcessIterationsReadModel> GetAsync(int? page, int? pageSize, bool finishedOnly, string? lane, CancellationToken ct);
+
+    /// <summary>
+    /// The newest pass of each pipeline lane, newest first, each listed once: a <c>Full</c> pass
+    /// that is the newest of both lanes appears a single time. A lane that never ran adds nothing.
+    /// </summary>
+    Task<IReadOnlyList<ProcessIterationReadModel>> GetLatestPerLaneAsync(CancellationToken ct);
 }
 
 public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProcessRunBaselineService baselines)
@@ -25,12 +32,27 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProce
     private const int MinPageSize = 1;
     private const int MaxPageSize = 50;
 
-    // The Job:Mode values a lane's passes are recorded under (#1362). A Full pass runs both lanes,
-    // so it belongs to either list; a single-process pass belongs to neither and only shows unfiltered.
-    // FetchWorkers (#1457) is the fetch lane run as permanent workers: its maintenance passes and
-    // its workers' batches are both fetch-lane iterations.
-    private static readonly string[] FetchLaneModes = ["FetchLane", "FetchWorkers", "Full"];
-    private static readonly string[] AggregateLaneModes = ["AggregateLane", "Full"];
+    // The Job:Mode values a lane's passes are recorded under (#1362); a single-process pass belongs
+    // to no lane and only shows unfiltered.
+    private static readonly string[] FetchLaneModes = ModeNames(PipelineLane.Fetch);
+    private static readonly string[] AggregateLaneModes = ModeNames(PipelineLane.Aggregate);
+
+    public async Task<IReadOnlyList<ProcessIterationReadModel>> GetLatestPerLaneAsync(CancellationToken ct)
+    {
+        var latest = new List<ProcessIterationReadModel>();
+        foreach (var lane in PipelineCatalog.Lanes)
+        {
+            var page = await GetAsync(page: 1, pageSize: 1, finishedOnly: false, lane.Id, ct);
+            latest.AddRange(page.Iterations);
+        }
+
+        return
+        [
+            .. latest
+                .DistinctBy(iteration => iteration.IterationId)
+                .OrderByDescending(iteration => iteration.StartedAtUtc)
+        ];
+    }
 
     public async Task<ProcessIterationsReadModel> GetAsync(
         int? page, int? pageSize, bool finishedOnly, string? lane, CancellationToken ct)
@@ -91,7 +113,7 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProce
                     StartedAtUtc = header.StartedAtUtc,
                     LastActivityAtUtc = runs.Count == 0
                         ? header.StartedAtUtc
-                        : runs.Max(run => run.FinishedAtUtc),
+                        : runs.Max(LastActivityOf),
                     // Every run of a pass carries the same mode, so the first non-null one
                     // answers for the iteration; null only when the whole pass predates
                     // #1362's stamping.
@@ -113,10 +135,24 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProce
         };
     }
 
-    private static string[]? JobModesForLane(string? lane) => lane?.Trim().ToLowerInvariant() switch
-    {
-        "fetch" => FetchLaneModes,
-        "aggregate" => AggregateLaneModes,
-        _ => null
-    };
+    /// <summary>
+    /// When a run last showed a sign of life. A Running document's <c>FinishedAtUtc</c> is a
+    /// placeholder equal to its start (#2474), so an in-flight run answers with its heartbeat.
+    /// </summary>
+    private static DateTime LastActivityOf(ProcessRunDocument run)
+        => run.Status == ProcessRunStatus.Running
+            ? run.LastHeartbeatAtUtc ?? run.StartedAtUtc
+            : run.FinishedAtUtc;
+
+    private static string[] ModeNames(PipelineLane lane)
+        => PipelineCatalog.ModesRunning(lane).Select(mode => mode.ToString()).ToArray();
+
+    private static string[]? JobModesForLane(string? lane)
+        => PipelineCatalog.Lanes.FirstOrDefault(
+                candidate => string.Equals(candidate.Id, lane?.Trim(), StringComparison.OrdinalIgnoreCase))?.Lane switch
+            {
+                PipelineLane.Fetch => FetchLaneModes,
+                PipelineLane.Aggregate => AggregateLaneModes,
+                _ => null
+            };
 }

@@ -3,7 +3,7 @@
 // account and link on the row of its counterpart, so the same channel on both sides
 // reads as one line marked identical and two channels of one kind as one line marked
 // different. What the operator reads to tell a duplicate from a wrong account.
-import type { PersonaOps } from '~~/shared/types/ops'
+import type { PersonaOpsReadModel } from '#site-shared/contract/api'
 import type { CompareMatch } from '~~/shared/utils/persona-compare'
 import { computed } from 'vue'
 import { compareAccounts, compareLinks, compareSummary, compareVerdict } from '~~/shared/utils/persona-compare'
@@ -12,9 +12,9 @@ import { knownPlayerPath } from '~~/shared/utils/site-link'
 
 const props = withDefaults(defineProps<{
   /** The known player whose source lists the account. */
-  claimant: PersonaOps
+  claimant: PersonaOpsReadModel
   /** The known player holding it. */
-  owner: PersonaOps
+  owner: PersonaOpsReadModel
   /** The two columns' headings; a channel conflict (#2286) has no claimant or holder. */
   labels?: [string, string]
 }>(), { labels: () => ['Claims it', 'Holds it'] })

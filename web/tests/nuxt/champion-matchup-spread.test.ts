@@ -3,9 +3,9 @@ import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { getQuery } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 import { ChampionMatchupSpread, UApp } from '#components'
-import type { ChampionMatchupEntry, ChampionMatchups } from '~~/shared/types/champions'
+import type { ChampionMatchupEntry, ChampionMatchupsResponse } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 
 /**
  * The champion page's matchup spread (#2094), mounted against a mocked matchups
@@ -39,7 +39,7 @@ function entry(opponentChampionId: number, laneWinRate: number | null, averageGo
   }
 }
 
-function answer(championId: number, position: string, matchups: ChampionMatchupEntry[]): ChampionMatchups {
+function answer(championId: number, position: string, matchups: ChampionMatchupEntry[]): ChampionMatchupsResponse {
   return { championId, position, patch: '16.20', matchups }
 }
 

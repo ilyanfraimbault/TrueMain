@@ -11,7 +11,6 @@ import { truemainProfilePath } from './truemain-path'
  * redirects on every click.
  */
 
-/** Reverse of {@link ChampionSlugMap}: `slug → championId`. */
 export type ChampionIdBySlug = ReadonlyMap<string, number>
 
 export function buildChampionIdBySlug(slugs: ChampionSlugMap | null | undefined): ChampionIdBySlug {

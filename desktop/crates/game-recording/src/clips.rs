@@ -28,7 +28,7 @@ pub const CLIP_METADATA_VERSION: u32 = 1;
 /// The longest title kept, in characters.
 pub const MAX_TITLE_CHARS: usize = 80;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ClipMeta {
     pub version: u32,

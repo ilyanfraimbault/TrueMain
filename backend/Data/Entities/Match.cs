@@ -79,6 +79,7 @@ public class Match
     /// marks (5/10/15/20/30) by retention (#694). Matches ingested while the dense
     /// per-minute grid was still written carry extra minutes nothing reads; they are
     /// dropped exactly once — this flag keeps retention from re-scanning a pruned match.
+    /// Ingest sets it with <see cref="TimelineIngested"/>: it only ever writes the marks.
     /// </summary>
     public bool TimelineSnapshotsPruned { get; set; }
 

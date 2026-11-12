@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { LeaderboardPositions } from '#shared/types/leaderboard'
+import type { LeaderboardPositionsReadModel } from '#shared/contract/api'
 import { leaderboardLanes } from '#common/utils/leaderboard-row'
 
 // A truemain's primary and secondary lane icons; the secondary is dimmed to
 // read as the lesser one. The host sets the display and the slot's width, so
 // a row reserves the same room whether the player has one lane or none.
-const props = defineProps<{ positions: LeaderboardPositions | null }>()
+const props = defineProps<{ positions: LeaderboardPositionsReadModel | null }>()
 
 const lanes = computed(() => leaderboardLanes(props.positions))
 </script>

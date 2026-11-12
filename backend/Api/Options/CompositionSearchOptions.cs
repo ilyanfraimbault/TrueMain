@@ -1,4 +1,5 @@
-using Core.Lol.Lane;
+using System.ComponentModel.DataAnnotations;
+using TrueMain.Configuration;
 
 namespace TrueMain.Options;
 
@@ -6,9 +7,11 @@ namespace TrueMain.Options;
 /// Tuning knobs for the composition-based match search (#563). The similarity
 /// weights are a starting point — tune on real examples before freezing them.
 /// </summary>
-public sealed class CompositionSearchOptions
+public sealed class CompositionSearchOptions : IApiOptions, IValidatableObject
 {
     public const string SectionName = "CompositionSearch";
+
+    static string IApiOptions.Section => SectionName;
 
     /// <summary>
     /// Weight granted when the candidate game has the requested role opponent —
@@ -37,22 +40,6 @@ public sealed class CompositionSearchOptions
     /// <see cref="CandidatePoolCap"/>.
     /// </summary>
     public int TopK { get; set; } = 100;
-
-    /// <summary>
-    /// Gold gap at 15 minutes past which a sampled lane counts as decided (#1117).
-    /// Shares its default with the ingestor's
-    /// <c>LaneOutcomeAggregation:GoldLeadThreshold</c> through
-    /// <see cref="LaneOutcomeRules.DefaultGoldLeadThreshold"/>, because "the lane was
-    /// won" has to mean the same thing on this page as on the champion page.
-    ///
-    /// <para>
-    /// A separate option rather than the ingestor's own: this one recomputes per
-    /// request and can be changed freely, while changing the ingestor's re-defines
-    /// every stored counter and cannot be applied retroactively (#919). A deployment
-    /// that overrides one should override both, or the two figures part company.
-    /// </para>
-    /// </summary>
-    public int LaneGoldLeadThreshold { get; set; } = LaneOutcomeRules.DefaultGoldLeadThreshold;
 
     /// <summary>
     /// Upper bound on the candidate games scanned per request, most recent first. Bounds
@@ -108,4 +95,41 @@ public sealed class CompositionSearchOptions
     /// <c>1 + boost</c> while a slotless request leaves every game at 1.
     /// </summary>
     public double SimilarityWeightBoost { get; set; } = 3d;
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        if (RoleOpponentWeight < 0 || EnemyWeight < 0 || AllyWeight < 0)
+        {
+            yield return new ValidationResult("CompositionSearch weights must be >= 0.");
+        }
+
+        if (TopK <= 0)
+        {
+            yield return new ValidationResult("CompositionSearch:TopK must be > 0.");
+        }
+
+        if (CandidatePoolCap < TopK)
+        {
+            yield return new ValidationResult("CompositionSearch:CandidatePoolCap must be >= TopK.");
+        }
+
+        if (WinWeight < 1d)
+        {
+            yield return new ValidationResult("CompositionSearch:WinWeight must be >= 1.");
+        }
+
+        // Vote multipliers: zero would silence a whole tier of games rather than down-weight it, and a
+        // current patch worth less than an older one would invert the recency the recommendation is built on.
+        if (CurrentPatchWeight <= 0d || PreviousPatchWeight <= 0d || CurrentPatchWeight < PreviousPatchWeight)
+        {
+            yield return new ValidationResult("CompositionSearch:CurrentPatchWeight must be > 0 and >= PreviousPatchWeight (which must be > 0).");
+        }
+
+        if (MainGameWeight <= 0d || NonMainGameWeight <= 0d || MainGameWeight < NonMainGameWeight)
+        {
+            yield return new ValidationResult("CompositionSearch:MainGameWeight must be > 0 and >= NonMainGameWeight (which must be > 0).");
+        }
+
+        // A negative threshold would make every lane "won" and its mirror "lost" at once.
+    }
 }

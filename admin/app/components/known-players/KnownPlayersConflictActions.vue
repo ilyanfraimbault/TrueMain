@@ -3,34 +3,28 @@
 // action that takes the account from someone or retires a page asks twice: the first
 // click arms it, the second sends it. Emits the request body; the container posts it.
 // Each button prints its key (#2293); the queue's shortcuts call `choose` and `confirm`.
-import type { PersonaConflict, PersonaConflictResolveBody } from '~~/shared/types/ops'
-import { computed, ref } from 'vue'
+import type { PersonaConflictReadModel, PersonaConflictResolveRequest } from '#site-shared/contract/api'
+import { computed } from 'vue'
 import { actionKbd } from '~~/shared/utils/conflict-shortcuts'
 import { conflictActions } from '~~/shared/utils/persona-conflicts'
+import { useArmedConfirm } from '~/composables/useArmedConfirm'
 
 const props = defineProps<{
-  conflict: Pick<PersonaConflict, 'claimant' | 'owner'>
+  conflict: Pick<PersonaConflictReadModel, 'claimant' | 'owner'>
   busy: boolean
 }>()
 
-const emit = defineEmits<{ resolve: [body: PersonaConflictResolveBody] }>()
+const emit = defineEmits<{ resolve: [body: PersonaConflictResolveRequest] }>()
 
 const actions = computed(() => conflictActions(props.conflict))
-const armed = ref<string | null>(null)
+// Only the action sent spins (#2471), not all four.
+const { armed, sending, press } = useArmedConfirm({ busy: () => props.busy, scope: () => props.conflict })
 
 function choose(key: string) {
   const action = actions.value.find(a => a.key === key)
-  if (!action || props.busy) {
-    return
+  if (action && press(key, { confirm: action.confirm })) {
+    emit('resolve', action.body)
   }
-
-  if (action.confirm && armed.value !== key) {
-    armed.value = key
-    return
-  }
-
-  armed.value = null
-  emit('resolve', action.body)
 }
 
 /** Sends the armed action — Enter on the keyboard. */
@@ -51,7 +45,7 @@ defineExpose({ choose, confirm, armed })
         :icon="action.icon"
         :color="action.color"
         :variant="armed === action.key ? 'solid' : 'subtle'"
-        :loading="busy && armed === null"
+        :loading="busy && sending === action.key"
         :disabled="busy"
         :label="armed === action.key ? `Confirm: ${action.label}` : action.label"
         class="shrink-0"

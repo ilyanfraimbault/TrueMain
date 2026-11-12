@@ -1,4 +1,5 @@
 using Data.BuildFacts;
+using Data.Statics;
 
 namespace TrueMain.TestKit;
 
@@ -8,6 +9,6 @@ namespace TrueMain.TestKit;
 /// </summary>
 public sealed class NoItemMetadataProvider : IItemMetadataProvider
 {
-    public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-        => Task.FromResult<IReadOnlyDictionary<int, ItemMetadata>>(new Dictionary<int, ItemMetadata>());
+    public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+        => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(new Dictionary<int, ItemMetadata>()));
 }

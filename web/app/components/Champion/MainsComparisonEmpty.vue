@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { ChampionMainsComparison } from '~~/shared/types/champions'
+import type { ChampionMainsComparisonResponse } from '#shared/contract/api'
 
 // Every way the account-vs-mains comparison ends without figures: nothing
 // submitted yet, an account or main we don't track, or a sample below the floor.
 const props = defineProps<{
-  comparison: ChampionMainsComparison | null | undefined
+  comparison: ChampionMainsComparisonResponse | null | undefined
   playerLabel: string
   mainsLabel: string
 }>()

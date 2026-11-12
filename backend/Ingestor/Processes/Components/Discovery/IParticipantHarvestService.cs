@@ -1,4 +1,4 @@
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Coverage;
 

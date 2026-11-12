@@ -53,7 +53,7 @@ public sealed class CandidateQueueLatencyApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<CandidateQueueLatencyReadModel>(
-            "/ops/candidates/queue-latency");
+            "/ops/candidates/queue-latency", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.RetainedCandidates.Should().Be(4);
@@ -78,7 +78,7 @@ public sealed class CandidateQueueLatencyApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var payload = await client.GetFromJsonAsync<CandidateQueueLatencyReadModel>(
-            "/ops/candidates/queue-latency");
+            "/ops/candidates/queue-latency", ApiJson.Options);
 
         payload!.RetainedCandidates.Should().Be(0);
         payload.DiscoveredToScored.Samples.Should().Be(0);

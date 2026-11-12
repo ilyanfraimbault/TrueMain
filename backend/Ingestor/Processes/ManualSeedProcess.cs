@@ -5,7 +5,8 @@ using Data.Entities;
 using Data.Logging;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
-using Data.Repositories;
+using Data.Pipeline;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Components.Discovery;
 using Ingestor.Processes.Summaries;
@@ -27,6 +28,7 @@ namespace Ingestor.Processes;
 /// (#411). The queue lives in Mongo with the rest of the admin-portal data; the
 /// account/candidate writes stay in SQL.
 /// </summary>
+[PipelineStep(JobMode.ManualSeedOnly)]
 public sealed class ManualSeedProcess(
     ILogger<ManualSeedProcess> logger,
     IRiotAccountClient riotAccountClient,
@@ -39,7 +41,6 @@ public sealed class ManualSeedProcess(
     TimeProvider timeProvider,
     IOptions<ManualSeedOptions> manualSeedOptions) : IIngestorProcess
 {
-    private const int MaxErrorLength = 2048;
 
     // Candidate statuses a manual seed promotes to Queued. New = freshly
     // upserted; Scored = previously discovered but didn't make the competitive
@@ -47,10 +48,7 @@ public sealed class ManualSeedProcess(
     // none are requeued here.
     private static readonly MainCandidateStatus[] RequeueableStatuses =
         [MainCandidateStatus.New, MainCandidateStatus.Scored];
-
-    public string Name => "ManualSeed";
-
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = manualSeedOptions.Value;
         var batchSize = Math.Max(1, options.BatchSize);
@@ -109,9 +107,10 @@ public sealed class ManualSeedProcess(
             return;
         }
 
+        var attempt = new SeedAttempt();
         try
         {
-            await ResolveAndIngestAsync(request, options, summary, ct);
+            await ResolveAndIngestAsync(request, options, summary, attempt, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -124,6 +123,19 @@ public sealed class ManualSeedProcess(
             await seedRequestStore.ResetResolvingToPendingAsync(request.Id, CancellationToken.None);
             throw;
         }
+        catch (Exception ex) when (attempt.SqlCommitted)
+        {
+            // The account and its candidates are written and queued; only the terminal
+            // write failed (#2474). Marking the request Failed would report a seed that
+            // happened as one that did not, so give the claim back instead: the next run
+            // redoes the idempotent upsert and stamps Ingested. If the store is unreachable
+            // this throws too and the request stays Resolving until the next boot returns it.
+            logger.LogWarning(
+                ex,
+                "Seed request {SeedRequestId} was ingested but its terminal state could not be written; returned to Pending for a retry.",
+                request.Id);
+            await seedRequestStore.ResetResolvingToPendingAsync(request.Id, CancellationToken.None);
+        }
         catch (Exception ex)
         {
             // Any Riot/DB failure terminates this request as Failed with a
@@ -132,7 +144,7 @@ public sealed class ManualSeedProcess(
             logger.LogWarning(OpsEvents.SeedRequestFailed, ex, "Seed request {SeedRequestId} failed.", request.Id);
             summary.Failed++;
             await seedRequestStore.MarkFailedAsync(
-                request.Id, Truncate(ex.Message, MaxErrorLength), timeProvider.GetUtcNow().UtcDateTime, ct);
+                request.Id, StoredText.Truncate(ex.Message, StoredText.MaxErrorLength), timeProvider.GetUtcNow().UtcDateTime, ct);
         }
     }
 
@@ -140,6 +152,7 @@ public sealed class ManualSeedProcess(
         SeedRequestDocument request,
         ManualSeedOptions options,
         SeedSummary summary,
+        SeedAttempt attempt,
         CancellationToken ct)
     {
         var platform = PlatformId.Parse(request.PlatformId).Route;
@@ -241,9 +254,20 @@ public sealed class ManualSeedProcess(
             MainCandidateStatus.Queued,
             ct);
         summary.CandidatesQueued += queued;
+        attempt.SqlCommitted = true;
 
-        await seedRequestStore.MarkIngestedAsync(
+        var marked = await seedRequestStore.MarkIngestedAsync(
             request.Id, account.Puuid, upsert.Account.Id, timeProvider.GetUtcNow().UtcDateTime, ct);
+        if (!marked)
+        {
+            // Guarded on Resolving (#2474): the claim is no longer ours — another boot gave
+            // it back, or something closed it — so whatever state it holds now stands.
+            logger.LogWarning(
+                "Seed request {SeedRequestId} was no longer Resolving when its ingest completed; its state was left as it is.",
+                request.Id);
+            return;
+        }
+
         summary.Ingested++;
 
         // Named ops event (#444): the seed request reached its successful terminal
@@ -267,39 +291,35 @@ public sealed class ManualSeedProcess(
         // Best-effort by design, and ISOLATED from the processing-failure path: the
         // request is already marked Ingested above. If this audit insert threw
         // and escaped, ProcessRequestAsync's catch would call MarkFailedAsync and
-        // flip a SUCCESSFUL account to Failed (also double-counting it). So we catch
-        // here and only log a Warning — under a Mongo outage the seed still succeeds
-        // and only the audit event is missed. "Lossless" here means the audit channel
+        // flip a SUCCESSFUL account to Failed (also double-counting it). So the write
+        // goes through TryRecordAsync, which only logs a Warning — under a Mongo
+        // outage the seed still succeeds and only the audit event is missed.
+        // "Lossless" here means the audit channel
         // is synchronous and unbatched vs the lossy batched diagnostic channel — it
         // is not a guarantee against a Mongo outage.
-        try
-        {
-            await auditLog.RecordAsync(
-                action: AuditActions.SeedAccountIngested,
-                actor: AuditActors.Ingestor,
-                targetType: AuditTargets.SeedRequest,
-                targetId: request.Id.ToString(),
-                metadata: new Dictionary<string, string>
+        await auditLog.TryRecordAsync(
+            new AuditEntry(
+                AuditActions.SeedAccountIngested,
+                AuditActors.Ingestor,
+                AuditTargets.SeedRequest,
+                request.Id.ToString(),
+                new Dictionary<string, string>
                 {
                     ["gameName"] = request.GameName,
                     ["tagLine"] = request.TagLine,
                     ["platformId"] = request.PlatformId,
                     ["resolvedPuuid"] = account.Puuid,
                     ["candidatesQueued"] = queued.ToString()
-                },
-                ct: ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(
-                ex,
-                "Audit write failed for ingested seed request {SeedRequestId}; the account was ingested, audit event missed.",
-                request.Id);
-        }
+                }),
+            logger,
+            ct);
     }
 
-    private static string? Truncate(string? value, int maxLength)
-        => string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value[..maxLength];
+    /// <summary>How far one request got: past this point a failure is not the seed's.</summary>
+    private sealed class SeedAttempt
+    {
+        public bool SqlCommitted { get; set; }
+    }
 
     private sealed class SeedSummary
     {

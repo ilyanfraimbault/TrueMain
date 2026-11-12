@@ -19,32 +19,40 @@
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "tokens": "node scripts/theme-tokens.mjs",
+    "test:watch": "vitest",
+    "contract": "openapi-typescript shared/contract/openapi.json -o shared/contract/api.ts --root-types --root-types-no-schema-prefix --empty-objects-unknown --enum-values"
   },
   "dependencies": {
-    "@nuxt/image": "^2.2.0",
+    "@nuxt/image": "^2.2.1",
     "@nuxt/scripts": "^1.3.12",
     "@nuxt/ui": "^4.12.0",
     "@nuxtjs/seo": "^5.3.16",
     "@resvg/resvg-js": "^2.6.2",
-    "nuxt": "^4.6.3",
+    "nuxt": "^4.6.4",
     "nuxt-charts": "^2.2.3",
     "satori": "^0.63.2",
-    "vue": "^3.5.44"
+    "vue": "^3.5.45"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
     "@nuxt/test-utils": "^4.3.4",
     "@types/node": "^26.6.6",
-    "@vitest/coverage-v8": "^5.0.5",
+    "@vitest/coverage-v8": "^5.1.0",
     "@vue/test-utils": "^2.5.1",
-    "eslint": "^10.13.0",
+    "eslint": "^10.14.0",
     "eslint-plugin-vuejs-accessibility": "^2.6.3",
     "happy-dom": "^21.0.4",
-    "tailwindcss": "^4.3.3",
+    "openapi-typescript": "^7.13.0",
+    "tailwindcss": "^4.3.4",
     "typescript": "^6.0.3",
     "vitest": "^5.0.3",
     "vue-chrts": "2.2.3",
     "vue-tsc": "^3.3.14"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "^6.0.3"
+    }
   }
 }

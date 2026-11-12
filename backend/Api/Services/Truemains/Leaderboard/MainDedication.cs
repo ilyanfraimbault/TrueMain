@@ -136,14 +136,14 @@ internal static class MainDedication
             DaysSinceLastPlayed = daysSinceLastPlayed,
             Parts =
             [
-                Part(DedicationPartKeys.PlayRate, DedicationScore.CommitmentWeight, breakdown.Commitment),
-                Part(DedicationPartKeys.Mastery, DedicationScore.MasteryWeight, breakdown.Mastery),
-                Part(DedicationPartKeys.MasteryRank, DedicationScore.MasteryRankWeight, breakdown.MasteryRank),
+                Part(DedicationPart.PlayRate, DedicationScore.CommitmentWeight, breakdown.Commitment),
+                Part(DedicationPart.Mastery, DedicationScore.MasteryWeight, breakdown.Mastery),
+                Part(DedicationPart.MasteryRank, DedicationScore.MasteryRankWeight, breakdown.MasteryRank),
             ],
         };
     }
 
-    private static DedicationPartReadModel Part(string key, double weight, double component)
+    private static DedicationPartReadModel Part(DedicationPart key, double weight, double component)
         => new() { Key = key, Points = 100d * weight * component, MaxPoints = 100d * weight };
 
     // Raw SQL projection. Mastery columns are null until MainActivity has read

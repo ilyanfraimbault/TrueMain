@@ -49,7 +49,6 @@ public sealed class IngestorAppSettingsNoDefaultsTests
         (SynergyAggregationOptions.SectionName, typeof(SynergyAggregationOptions)),
         (OpponentAggregationOptions.SectionName, typeof(OpponentAggregationOptions)),
         (ScalingAggregationOptions.SectionName, typeof(ScalingAggregationOptions)),
-        (LaneOutcomeAggregationOptions.SectionName, typeof(LaneOutcomeAggregationOptions)),
         (BanAggregationOptions.SectionName, typeof(BanAggregationOptions)),
         (ChampionProfileAggregationOptions.SectionName, typeof(ChampionProfileAggregationOptions)),
         (ItemContextAggregationOptions.SectionName, typeof(ItemContextAggregationOptions)),

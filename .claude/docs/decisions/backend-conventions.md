@@ -21,9 +21,11 @@ benefit no user would ever see.
 
 `Data` still owns: the schema (entities, configurations, migrations, the compiled model), the Mongo-side query
 objects, and **SQL that must not diverge between two consumers** — e.g.
-`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, read by both the ingestor's rune-page repair and the
-admin duplicate detector (#924). That last one is the durable reason `Data` holds any query text at all: a
-detector that groups differently from the repair it audits reports a clean bill of health for a live bug.
+`Data/DataQuality/ChampionDimensionCanonicalKeys.cs`, read by both the dimension tables' unique-identity
+configurations and the admin duplicate detector (#924; the ingestor's rune-page repair that first shared it is
+retired). That last one is the durable reason `Data` holds any query text at all: a detector that groups
+differently from the identity it audits reports a clean bill of health for a live bug. Code with one consumer
+lives with that consumer — the Ingestor's write path in `Ingestor/Persistence` (#2481).
 
 Counts drift with every PR — re-measure rather than trusting the numbers above:
 
@@ -215,6 +217,47 @@ produce.
 non-trivial SQL that needs its own reasoning and its own review; folded into a 200-file structural
 move, neither the move nor the splits would have been reviewable.
 
+## Api registration is owned by the feature: `Program.cs` only composes (2026-11-08)
+
+**Decision.** `backend/Api/Program.cs` composes one `AddTrueMain<Area>()` per area (`Champions`,
+`Truemains`, `Personas`, `Ops`, …) plus the middleware pipeline, and nothing else. A query service is
+registered in its area's extension, next to its folder. An options class declares its section
+(`IApiOptions.Section`), its startup rules (data annotations and `IValidatableObject`) and, when the
+admin configuration page shows it, its `ConfigurationPage` entry. Every feature registers the options it
+reads with `AddApiOptions<T>()`, which binds a section once however many features declare it. The
+configuration page lists the sections the features registered, ordered by title.
+
+**Why.** Before (#2489), Program.cs held 55 inline registrations and 12 inline validation blocks beside
+17 feature extensions, and 46 of the 46 commits that touched it since the #1520 layout split were
+feature commits: a new endpoint was controller + service + read model + a Program.cs line. A section
+shown on the configuration page was also listed by hand in a third place,
+`ApiEffectiveConfigurationCatalog`. The settled layout put the code of a feature in one folder; this puts
+its registration there too.
+
+**Not covered.** Data's own registrations (`AddTrueMainData`, `AddMongoLogging`, …) are composed by
+`AddTrueMainStores`. The `MainAnalysis` section, which the Api binds from Core, has its own
+`AddMainAnalysisOptions` until it gets a single owner across the hosts (#2481, F1).
+
+Source: #2489, #2481.
+
+## Champion reads take a `ChampionScope`, parsed once per route (2026-11-10)
+
+**Decision.** Every champion read — global or player-scoped — takes a `ChampionScope` (champion,
+position, patch, elo bracket, population) built by `Http/ChampionScopeParameter.TryParseChampionScope`.
+The scope is canonical by construction: Riot's upper-case lane, `major.minor` patch, canonical bracket;
+a position or bracket that names nothing throws instead of widening. Each route names its
+`PositionRule` — what a blank `position` means (rejected, the read resolves the dominant lane, or every
+position) and whether the explicit `ALL` token is accepted. A matchup is a `LaneMatchupScope`, whose
+factory owns the two aggregate rules (a lane is required, truemains only). One player's matchups are
+their own service (`PlayerChampionMatchupQueryService`, a live join); the global matchup service takes
+no account.
+
+**Why.** Each controller re-parsed position / patch / elo by hand and each service took loose strings
+plus caller-specific flags: the global matchup service carried a `riotAccountId` only its one player
+caller used, a blank `position` meant "dominant lane" on one player route and "every position" on the
+next through the same parser, the matchup population rule was two `if`s in a controller, and services
+re-normalised their own input "in case". — #2571 (F17 of #2481)
+
 ## A child table with a natural key uses it as its primary key — no surrogate `Guid` beside it (2026-09-25)
 
 **When every row of a table is identified by columns it already carries — `(MatchId, ParticipantId,
@@ -354,3 +397,26 @@ upsert holds each row until its transaction commits. Batches locking overlapping
 `TimelineIngestionService` folds the whole plan once, after its last save: a transaction upserting per save batch
 would still take the rows in several passes, which no statement order can reconcile, and would hold them through
 the rest of the account's writes. Pace before form, everywhere — #2448.
+
+## The API's TypeScript types are generated from its OpenAPI document, which is committed (2026-11-08)
+
+The site, the admin and the desktop app read the API through types generated from the API's OpenAPI document, not
+copied by hand from `Api/ReadModels`: about 75 read models had three hand-kept TypeScript mirrors, and a rename only
+broke at runtime. `AddTrueMainContract` (`backend/Api/OpenApi`) owns the wire: enums travel by name everywhere —
+the C# name, or a `JsonStringEnumMemberName` that keeps a spelling clients already read (a read model types a status
+as its enum, never as a `ToString()`; text persisted outside a response goes through `WireNames`), and the document says what the API
+writes — every response field present (`T | null` when nullable), numbers as numbers, JSON only. Request bodies keep
+C#'s rule: only `required` members are required.
+
+`web/shared/contract/openapi.json` and the `openapi-typescript` output `web/shared/contract/api.ts` are both
+committed: a frontend builds without the .NET SDK and a contract change shows in the PR diff. A stale one fails CI
+(`OpenApiContractTests`, `npm run contract -- --check`). The front end imports the generated names (the C# names,
+`ProcessRunReadModel`) — no alias layer; hand-written types remain only for shapes the front end builds itself. The
+admin's `useOps` / `opsCall` are typed by path through `contract/routes.ts`, so a renamed route is a type error. An
+ordered list of an enum's values comes from the contract too (`--enum-values`: `performanceComponentKindValues`), never
+a copied array. An enum some read model holds as nullable is the exception: the generator lists `null` among
+the component's values, so its union carries `null` (a table keys on `NonNullable<…>`) and no `…Values` array is
+emitted; a test that needs that list keeps a typed copy (`ItemContextAxis`, #2550). A wire value the API relays from storage it does not own (log level, link kind), or one with no name for every row
+(the region slug is `""` on a shard without a region), stays a `string`: the front end narrows it where it keys a
+table, with a fallback. Regenerating:
+`docs/ci.md` → "The API contract" — #2493, #2481.

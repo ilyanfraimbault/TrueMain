@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
+using TrueMain.Configuration;
+using TrueMain.Options;
 
 namespace TrueMain.Authentication;
 
@@ -11,6 +13,7 @@ public static class ApiKeyAuthenticationServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTrueMainOpsAuthentication(this IServiceCollection services)
     {
+        services.AddApiOptions<OpsOptions>();
         services
             .AddAuthentication(ApiKeyAuthenticationDefaults.Scheme)
             .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(

@@ -59,7 +59,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
 
         // The identity comes from the stored row, not from the request, so the
         // page shows the Riot ID as Riot spells it whatever the URL said.
-        var profile = await profileResponse.Content.ReadFromJsonAsync<ProfileReadModel>();
+        var profile = await profileResponse.Content.ReadFromJsonAsync<ProfileReadModel>(ApiJson.Options);
         profile.Should().NotBeNull();
         profile!.Identity.GameName.Should().Be(StoredGameName);
         profile.Identity.TagLine.Should().Be(StoredTagLine);
@@ -80,7 +80,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
         // And the resolved account is the seeded one, not merely *an* account:
         // the rank curve read against its id carries the snapshot we stored.
         var rankHistory = await client.GetFromJsonAsync<RankHistoryReadModel>(
-            $"/truemains/{nameTag}/rank-history");
+            $"/truemains/{nameTag}/rank-history", ApiJson.Options);
         rankHistory.Should().NotBeNull();
         rankHistory!.Entries.Should().ContainSingle("the seeded account has one rank snapshot")
             .Which.Tier.Should().Be("DIAMOND");
@@ -98,7 +98,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
         using var client = CreateClient(factory);
 
         var comparison = await client.GetFromJsonAsync<ChampionMainsComparisonResponse>(
-            $"/champions/{Champion}/mains-comparison?account={Uri.EscapeDataString(riotId)}");
+            $"/champions/{Champion}/mains-comparison?account={Uri.EscapeDataString(riotId)}", ApiJson.Options);
 
         comparison.Should().NotBeNull();
         comparison!.Status.Should().NotBe(
@@ -153,7 +153,7 @@ public sealed class TruemainAccountResolutionApiIntegrationTests : IAsyncLifetim
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/RIVALS-KR1/profile");
+        var profile = await client.GetFromJsonAsync<ProfileReadModel>("/truemains/RIVALS-KR1/profile", ApiJson.Options);
 
         profile.Should().NotBeNull();
         profile!.Identity.PlatformId.Should().Be("EUW1", "the EUW1 row was ingested 10 minutes ago");

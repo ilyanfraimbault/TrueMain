@@ -1,4 +1,4 @@
-import type { AuditEventsFilters } from '~~/shared/types/ops'
+import type { OpsQueryOf } from './useOps'
 import { computed, ref, watch } from 'vue'
 
 /**
@@ -21,7 +21,7 @@ export function useAuditList() {
   const page = ref(1)
   const pageSize = 50
 
-  const filters = computed<AuditEventsFilters>(() => ({
+  const filters = computed<OpsQueryOf<'/audit-events'>>(() => ({
     action: action.value === ALL ? undefined : action.value,
     actor: actor.value === ALL ? undefined : actor.value,
     targetType: targetType.value === ALL ? undefined : targetType.value,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardRowResponse } from '~~/shared/types/leaderboard'
+import type { LeaderboardRowReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
@@ -10,7 +10,7 @@ import { winRateTone } from '#common/utils/rate-tone'
 // through to /truemains. The page owns the fetch so the leaderboard
 // composable's SSR behaviour stays in one place.
 const props = defineProps<{
-  rows: LeaderboardRowResponse[]
+  rows: LeaderboardRowReadModel[]
   /** championId → static name/icon, for rendering each player's top picks. */
   championsById: Map<number, ChampionStaticListItem>
   /** Skeleton state — true until the very first page resolves. */
@@ -42,11 +42,11 @@ const itemsMap = computed(() => itemsData.value ?? {})
 
 const ROW_COUNT = TRUEMAINS_TEASER_ROWS
 
-function profileHref(row: LeaderboardRowResponse): string {
+function profileHref(row: LeaderboardRowReadModel): string {
   return truemainProfilePath(truemainNameTag(row.identity.gameName, row.identity.tagLine))
 }
 
-function winRateLabel(row: LeaderboardRowResponse): string | null {
+function winRateLabel(row: LeaderboardRowReadModel): string | null {
   const wr = row.stats.winRate
   return wr === null ? null : formatPercentage(wr, 0)
 }

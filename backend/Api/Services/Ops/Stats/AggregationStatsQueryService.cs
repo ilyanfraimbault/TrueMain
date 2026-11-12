@@ -1,6 +1,7 @@
 using Core.Options;
 using Data;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Ops;
@@ -35,11 +36,11 @@ public sealed class AggregationStatsQueryService(
 {
     private static readonly string[] ProcessNames =
     [
-        "ChampionPatternAggregation",
-        "ChampionMatchupLeadAggregation",
-        "ChampionSynergyAggregation",
-        "MainAnalysis",
-        "MatchParticipantEloBracketEnrichment"
+        PipelineCatalog.PatternAggregation.Name,
+        PipelineCatalog.MatchupAggregation.Name,
+        PipelineCatalog.SynergyAggregation.Name,
+        PipelineCatalog.MainAnalysis.Name,
+        PipelineCatalog.EloBracketEnrichment.Name
     ];
 
     private static readonly string[] Tables =
@@ -76,13 +77,13 @@ public sealed class AggregationStatsQueryService(
             MeasuredAtUtc = timeProvider.GetUtcNow().UtcDateTime,
             Families =
             [
-                Family("builds", "ChampionPatternAggregation", coverage.BuildChampions, estimates, Run,
+                Family(AggregationFamilyKey.Builds, PipelineCatalog.PatternAggregation.Name, coverage.BuildChampions, estimates, Run,
                     "champion_aggregate_scopes", "champion_aggregate_patterns"),
-                Family("matchups", "ChampionMatchupLeadAggregation", coverage.MatchupChampions, estimates, Run,
+                Family(AggregationFamilyKey.Matchups, PipelineCatalog.MatchupAggregation.Name, coverage.MatchupChampions, estimates, Run,
                     "champion_matchup_stats"),
-                Family("synergies", "ChampionSynergyAggregation", coverage.SynergyChampions, estimates, Run,
+                Family(AggregationFamilyKey.Synergies, PipelineCatalog.SynergyAggregation.Name, coverage.SynergyChampions, estimates, Run,
                     "champion_synergy_stats", "champion_synergy_baseline_stats"),
-                Family("mains", "MainAnalysis", coverage.MainChampions, estimates, Run,
+                Family(AggregationFamilyKey.Mains, PipelineCatalog.MainAnalysis.Name, coverage.MainChampions, estimates, Run,
                     "main_champion_stats")
             ],
             Backlog = new AggregationBacklogReadModel
@@ -94,7 +95,7 @@ public sealed class AggregationStatsQueryService(
     }
 
     private static AggregationFamilyReadModel Family(
-        string key,
+        AggregationFamilyKey key,
         string processName,
         long distinctChampions,
         IReadOnlyDictionary<string, long> estimates,
@@ -202,7 +203,7 @@ public sealed class AggregationStatsQueryService(
 
         return new AggregationRunReadModel
         {
-            Status = latest.Status.ToString().ToLowerInvariant(),
+            Status = latest.Status,
             LastStartedAtUtc = latest.StartedAtUtc,
             LastFinishedAtUtc = latest.FinishedAtUtc,
             LastSuccessAtUtc = latestSuccess?.FinishedAtUtc,

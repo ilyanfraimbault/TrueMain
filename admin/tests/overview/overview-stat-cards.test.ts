@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import type { OverviewStats } from '~~/shared/types/ops'
+import type { OverviewReadModel } from '#site-shared/contract/api'
 import OverviewStatCards from '~~/app/components/overview/OverviewStatCards.vue'
 
 // The Overview cards (#2301): the match-side figures are planner estimates and read `≈`;
@@ -14,7 +14,7 @@ const global = {
   },
 }
 
-function stats(overrides: Partial<OverviewStats>): OverviewStats {
+function stats(overrides: Partial<OverviewReadModel>): OverviewReadModel {
   return {
     trackedAccounts: 5200,
     totalMatches: 900000,

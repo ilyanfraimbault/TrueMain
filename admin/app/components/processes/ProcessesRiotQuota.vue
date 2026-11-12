@@ -3,10 +3,10 @@
 // Mounted by the Riot API tab only once a reading exists, so nothing here falls back to
 // a zero standing in for "not measured" (#1426). The coverage line states what the
 // figures are measured over, so a window the retention cut short never reads as a trend.
-import type { RiotQuota } from '~~/shared/types/ops'
+import type { RiotQuotaReadModel } from '#site-shared/contract/api'
 import { formatDateTime } from '~~/shared/utils/format'
 
-const props = defineProps<{ quota: RiotQuota }>()
+const props = defineProps<{ quota: RiotQuotaReadModel }>()
 
 const regional = computed(() => props.quota.routes.filter(route => route.kind === 'regional'))
 const platform = computed(() => props.quota.routes.filter(route => route.kind === 'platform'))

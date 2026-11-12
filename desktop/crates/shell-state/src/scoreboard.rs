@@ -22,24 +22,24 @@ use serde_json::Value;
 use crate::overlay::Rect;
 
 /// The HUD the scoreboard is laid out against, in pixels.
-const REFERENCE_WIDTH: f64 = 1920.0;
-const REFERENCE_HEIGHT: f64 = 1080.0;
+pub const REFERENCE_WIDTH: f64 = 1920.0;
+pub const REFERENCE_HEIGHT: f64 = 1080.0;
 /// The scoreboard's five rows each side.
 pub const ROWS: usize = 5;
 /// A row's height at HUD scale 0, in reference pixels.
-const ROW_PITCH_AT_ZERO: f64 = 66.4;
+pub const ROW_PITCH_AT_ZERO: f64 = 66.4;
 /// How much the HUD grows from scale 0 to scale 1: ×1.52 at 100.
-const HUD_GROWTH: f64 = 0.52;
+pub const HUD_GROWTH: f64 = 0.52;
 /// The last row's bottom edge, below the window's middle, in reference pixels:
 /// it stays put while the scoreboard grows upwards.
-const ROWS_BOTTOM_BELOW_MIDDLE: f64 = 152.8;
+pub const ROWS_BOTTOM_BELOW_MIDDLE: f64 = 152.8;
 /// The board's width at HUD scale 0, in reference pixels.
-const BOARD_WIDTH_AT_ZERO: f64 = 996.5;
+pub const BOARD_WIDTH_AT_ZERO: f64 = 996.5;
 /// How far the player may move the plates up or down, in reference pixels.
 pub const MAX_NUDGE: f64 = 60.0;
 
 /// The client's HUD settings the scoreboard depends on.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HudSettings {
     /// League's "HUD scale", 0 – 1.

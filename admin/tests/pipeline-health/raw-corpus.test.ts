@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import type { RawDataFreshness } from '~~/shared/types/ops'
+import type { RawDataFreshnessReadModel } from '#site-shared/contract/api'
 import HealthRawCorpus from '~~/app/components/health/HealthRawCorpus.vue'
 
 // The raw-corpus card (#2132): the two totals are planner estimates and can be unavailable on
@@ -16,7 +16,7 @@ const platforms = [
   { platformId: 'EUW1', latestMatchStartAtUtc: null, latestPatchVersion: '16.4' },
 ]
 
-function rawData(overrides: Partial<RawDataFreshness>): RawDataFreshness {
+function rawData(overrides: Partial<RawDataFreshnessReadModel>): RawDataFreshnessReadModel {
   return {
     queueId: 420,
     rawMatchCount: 120000,

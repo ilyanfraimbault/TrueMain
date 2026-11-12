@@ -1,18 +1,13 @@
-import type { LogLevel } from '~~/shared/types/logs'
-import type { BadgeColor } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
 
 /**
- * Severity names ordered from least to most severe — the level filter's option
- * order, and the catalogue the `?level=` deep link is matched against.
+ * .NET `LogLevel` names, least to most severe — the level filter's option order, the
+ * catalogue the `?level=` deep link is matched against, and what `GET /api/ops/logs`'s
+ * `level` takes as a minimum threshold (`Warning` returns Warning + Error + Critical).
  */
-export const LOG_LEVELS: LogLevel[] = [
-  'Trace',
-  'Debug',
-  'Information',
-  'Warning',
-  'Error',
-  'Critical',
-]
+export const LOG_LEVELS = ['Trace', 'Debug', 'Information', 'Warning', 'Error', 'Critical'] as const
+
+export type LogLevel = typeof LOG_LEVELS[number]
 
 /**
  * The Logs page opens on Warning and above (#1415): the operator lands there to
@@ -42,7 +37,7 @@ export function parseLevelQuery(raw: unknown): 'all' | LogLevel {
 
 // Severity presentation for log rows, shared by the Logs page and the crash
 // report's recent-log-tail view.
-export function levelColor(l: LogLevel): BadgeColor {
+export function levelColor(l: string): BadgeColor {
   switch (l) {
     case 'Critical':
     case 'Error':
@@ -57,7 +52,7 @@ export function levelColor(l: LogLevel): BadgeColor {
   }
 }
 
-export function levelIcon(l: LogLevel): string {
+export function levelIcon(l: string): string {
   switch (l) {
     case 'Critical':
       return 'i-lucide-octagon-alert'

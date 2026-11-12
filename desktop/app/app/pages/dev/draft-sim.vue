@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { getPositionIconUrl } from '#shared/utils/ddragon'
-import { POSITIONS, positionLabel } from '#common/utils/positions'
+import { POSITIONS, positionLabel } from '#shared/utils/positions'
 import type { SimRequest, SimSlot, SimTurn } from '~/composables/useLcuSimulator'
 import type { Lane } from '~/types/draft'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 
 /**
  * The draft simulator — development only, dropped from builds (nuxt.config).

@@ -84,7 +84,7 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
         var first = response.Build!.Candidates[0];
         first.ItemId.Should().Be(MagicResist);
         first.BaseShare.Should().BeApproximately(0.4, 1e-9);
-        first.Reasons.Should().ContainSingle().Which.Axis.Should().Be("EnemyMagicDamage");
+        first.Reasons.Should().ContainSingle().Which.Axis.Should().Be(ItemContextAxis.EnemyMagicDamage);
         first.Reasons[0].Factor.Should().BeGreaterThan(1);
         response.EnemyLanes.Should().OnlyContain(lane => lane.Given);
     }
@@ -240,7 +240,7 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
         var response = await client.PostAsJsonAsync($"/champions/{Champion}/next-item", body);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<ChampionNextItemResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<ChampionNextItemResponse>(ApiJson.Options))!;
     }
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory)
@@ -285,7 +285,7 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
             base.ConfigureWebHost(builder);
             builder.ConfigureTestServices(services =>
             {
-                services.AddHttpClient(nameof(CommunityDragonItemMetadataProvider))
+                services.AddHttpClient(StaticGameDataServiceCollectionExtensions.ClientName)
                     .ConfigurePrimaryHttpMessageHandler(() => communityDragon);
                 services.RemoveAll<IItemStatsProvider>();
                 services.AddSingleton<IItemStatsProvider>(new ArmourStatsProvider());
@@ -322,8 +322,8 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
             [Boots] = new(Boots, 300, true, false, true, true, false, false),
         };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Items);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Items));
     }
 
     private sealed class ArmourStatsProvider : IItemStatsProvider
@@ -334,8 +334,8 @@ public sealed class ChampionNextItemApiIntegrationTests : IAsyncLifetime
             [Belt] = new(Belt, 0, 0, 0, 0, 0, 0, 0, System.Collections.Frozen.FrozenSet<string>.Empty),
         };
 
-        public Task<IReadOnlyDictionary<int, ItemStats>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Items);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemStats>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemStats>>.Available(Items));
     }
 
     private static ChampionItemComponentOrder Order(int item, int component, int rank, int games)

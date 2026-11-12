@@ -38,6 +38,12 @@ describe('which requests go through the HTML cache', () => {
     expect(htmlCacheKey('/champions?utm_source=x')).toBeNull()
     expect(htmlCacheKey('/champions?elo=GOLD&junk=1')).toBeNull()
   })
+
+  it('reads each page\'s own keys: a leaderboard filter means nothing on a champion page', () => {
+    expect(htmlCacheKey('/truemains?region=korea')).toBe('/truemains?region=korea')
+    expect(htmlCacheKey('/champions/ahri?region=korea')).toBeNull()
+    expect(htmlCacheKey('/champions/ahri?vs=122')).toBe('/champions/ahri?vs=122')
+  })
 })
 
 describe('how long a page lasts', () => {

@@ -1,11 +1,13 @@
 import type { InjectionKey, Ref } from 'vue'
-import type { MatchDetailResponse } from '#shared/types/match-detail'
+import type { MatchDetail } from '#shared/types/match-detail'
 
 /** What an open match row reads its detail from. */
 export interface MatchDetailState {
-  data: Readonly<Ref<MatchDetailResponse | null | undefined>>
+  data: Readonly<Ref<MatchDetail | null | undefined>>
   isLoading: Readonly<Ref<boolean>>
   notFound: Readonly<Ref<boolean>>
+  /** A failure other than a 404 (#2476). Optional: a reader that cannot fail leaves it out. */
+  error?: Readonly<Ref<unknown>>
 }
 
 export type MatchDetailSource = (nameTag: () => string, matchId: () => string) => MatchDetailState

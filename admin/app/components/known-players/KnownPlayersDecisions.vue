@@ -2,14 +2,14 @@
 // What holds a known player against its sources (#2019): the open conflicts its
 // accounts are in — each linking to the queue to settle it — the accounts it may
 // no longer claim and the links an operator removed. Presentational.
-import type { PersonaAdminConflict, PersonaAdminExclusion, PersonaAdminRemovedLink } from '~~/shared/types/ops'
+import type { PersonaAdminConflictReadModel, PersonaAdminExclusionReadModel, PersonaAdminRemovedLinkReadModel } from '#site-shared/contract/api'
 import { formatTimeAgo } from '~~/shared/utils/format'
 import { conflictHref, exclusionReasonLabel } from '~~/shared/utils/known-players'
 
 defineProps<{
-  conflicts: PersonaAdminConflict[]
-  exclusions: PersonaAdminExclusion[]
-  removedLinks: PersonaAdminRemovedLink[]
+  conflicts: PersonaAdminConflictReadModel[]
+  exclusions: PersonaAdminExclusionReadModel[]
+  removedLinks: PersonaAdminRemovedLinkReadModel[]
 }>()
 </script>
 

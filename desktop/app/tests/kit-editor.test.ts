@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, toRef, watch } from 'vue'
-import type { Kit } from '#shared/types/kit'
+import type { Kit } from '~/types/kit'
 import KitEditor from '../app/components/kit/KitEditor.vue'
 import KitPanel from '../app/components/kit/KitPanel.vue'
 import KitBuild from '../app/components/kit/KitBuild.vue'

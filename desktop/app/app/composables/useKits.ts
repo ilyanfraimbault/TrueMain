@@ -1,32 +1,13 @@
-import type { Kit, KitStore } from '#shared/types/kit'
+import type { Kit, KitStore } from '~/types/kit'
 import { activeKey, cloneKit, EMPTY_STORE, freeName, newKitId, readStore } from '~/utils/kit'
-
-/** Where the dev server keeps kits, with no shell to keep them. */
-const BROWSER_KEY = 'truemain:kits:v1'
-
-/** What the shell emits when the kits change, for every window — the overlay's panels included. */
-const CHANGED_EVENT = 'kits://changed'
+import { follow, shell, shellEvents } from '~/utils/shell'
 
 async function readBack(): Promise<KitStore> {
-  if (insideTauri()) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    return readStore(await invoke('kits_get'))
-  }
-  try {
-    return readStore(JSON.parse(localStorage.getItem(BROWSER_KEY) ?? 'null'))
-  }
-  catch {
-    return { ...EMPTY_STORE }
-  }
+  return readStore(await shell.kitsGet())
 }
 
 async function write(store: KitStore): Promise<KitStore> {
-  if (insideTauri()) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    return readStore(await invoke('kits_set', { store }))
-  }
-  localStorage.setItem(BROWSER_KEY, JSON.stringify(store))
-  return store
+  return readStore(await shell.kitsSet(store))
 }
 
 /**
@@ -48,13 +29,7 @@ export function useKits() {
     loaded.value = true
     void (async () => {
       try {
-        store.value = await readBack()
-        if (insideTauri()) {
-          const { listen } = await import('@tauri-apps/api/event')
-          await listen<unknown>(CHANGED_EVENT, (event) => {
-            store.value = readStore(event.payload)
-          })
-        }
+        await follow(shellEvents.kitsChanged, readBack, next => (store.value = readStore(next)))
       }
       catch (cause) {
         error.value = String(cause)

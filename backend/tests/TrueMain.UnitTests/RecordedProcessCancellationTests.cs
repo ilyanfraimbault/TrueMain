@@ -5,6 +5,8 @@ using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TrueMain.UnitTests.Fixtures;
+using Data.Ops.Mongo;
 
 namespace TrueMain.UnitTests;
 
@@ -34,7 +36,7 @@ public sealed class RecordedProcessCancellationTests
             return null;
         });
 
-        var act = async () => await process.RunCoreAsync(shutdown.Token);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, shutdown.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>(
             "cancellation is the host's business and must keep propagating to the worker");
@@ -89,7 +91,7 @@ public sealed class RecordedProcessCancellationTests
         });
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            async () => await process.RunCoreAsync(shutdown.Token));
+            async () => await process.RunCoreAsync(RunInput.Whole, shutdown.Token));
 
         tokens.Should().ContainSingle().Which.IsCancellationRequested.Should().BeFalse();
     }
@@ -120,7 +122,7 @@ public sealed class RecordedProcessCancellationTests
             return null;
         });
 
-        var act = async () => await process.RunCoreAsync(shutdown.Token);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, shutdown.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
@@ -130,14 +132,14 @@ public sealed class RecordedProcessCancellationTests
         Func<IProcessRunSummary?> body)
         => new(
             new StubProcess(body),
+            TestPipelineSteps.Named("Stub"),
             recorder,
+            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             NullLogger<RecordedProcess<StubProcess>>.Instance);
 
     private sealed class StubProcess(Func<IProcessRunSummary?> body) : IIngestorProcess
     {
-        public string Name => "Stub";
-
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult(body());
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct) => Task.FromResult(body());
     }
 }

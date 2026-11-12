@@ -1,18 +1,17 @@
-import type { AuditEvent, AuditEventsResponse } from '~~/shared/types/ops'
+import type { AuditEventReadModel, AuditEventsReadModel } from '#site-shared/contract/api'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 import AuditEventList from '~~/app/components/audit/AuditEventList.vue'
 import KnownPlayersHistory from '~~/app/components/known-players/KnownPlayersHistory.vue'
 import { useAuditList } from '~~/app/composables/useAuditList'
-import { getAuditEvents, useAuditEvents } from '~~/app/composables/useOpsAudit'
 import AuditPage from '~~/app/pages/audit.vue'
 import { auditChips, auditTarget } from '~~/shared/utils/audit'
 
 // The operator-action trail (#2288): its target links and chips, the timeline, the
 // known-player History, and the Audit page's filters.
 
-const event = (overrides: Partial<AuditEvent> = {}): AuditEvent => ({
+const event = (overrides: Partial<AuditEventReadModel> = {}): AuditEventReadModel => ({
   id: 'e1',
   timestampUtc: '2026-10-25T10:00:00Z',
   actor: 'operator',
@@ -24,7 +23,7 @@ const event = (overrides: Partial<AuditEvent> = {}): AuditEvent => ({
   ...overrides,
 })
 
-const response = (entries: AuditEvent[], total = entries.length): AuditEventsResponse => ({
+const response = (entries: AuditEventReadModel[], total = entries.length): AuditEventsReadModel => ({
   entries,
   total,
   page: 1,
@@ -186,17 +185,4 @@ describe('useAuditList and the Audit page', () => {
     expect(replace).toHaveBeenCalled()
   })
 
-  it('exposes the endpoint to the page and to the History', () => {
-    const useOps = vi.fn(() => 'fetch')
-    const fetcher = vi.fn()
-    vi.stubGlobal('useOps', useOps)
-    vi.stubGlobal('$fetch', fetcher)
-    vi.stubGlobal('toValue', (v: unknown) => (typeof v === 'function' ? v() : v))
-    expect(useAuditEvents(() => ({ action: 'x' }))).toBe('fetch')
-    const [path, filters] = useOps.mock.calls[0] as unknown as [string, () => unknown]
-    expect(path).toBe('/audit-events')
-    expect(filters()).toEqual({ action: 'x' })
-    getAuditEvents({ targetId: 'p1' })
-    expect(fetcher).toHaveBeenCalledWith('/api/ops/audit-events', { query: { targetId: 'p1' } })
-  })
 })

@@ -3,7 +3,7 @@ import type {
   WinProbabilityObjective,
   WinProbabilitySwing,
 } from '#shared/types/win-probability'
-import type { MatchDetailResponse } from '#shared/types/match-detail'
+import type { MatchDetail } from '#shared/types/match-detail'
 import { formatPointDelta } from '#shared/utils/deltas'
 import { buildWinProbability } from './win-probability-timeline'
 import { formatDuration } from './relativeTime'
@@ -14,14 +14,13 @@ import { formatDuration } from './relativeTime'
  * curve stores reads for team 100; these turn it to the viewer's side.
  */
 
-/** How many turning points are listed. */
 export const SWINGS_SHOWN = 5
 
 /**
  * The detail's curve, built from the client's timeline the desktop app attaches;
  * null on the site (the API sends none, #2009) and for a game that gets none.
  */
-export function resolveWinProbability(detail: Pick<MatchDetailResponse, 'winProbabilityTimeline'>): MatchWinProbability | null {
+export function resolveWinProbability(detail: Pick<MatchDetail, 'winProbabilityTimeline'>): MatchWinProbability | null {
   return detail.winProbabilityTimeline ? buildWinProbability(detail.winProbabilityTimeline) : null
 }
 
@@ -97,7 +96,6 @@ export function structureLabel(
 export interface SwingContext {
   /** The side the viewer reads the game for. */
   perspectiveTeamId: number
-  /** A participant's champion name. */
   championName: (participantId: number) => string
 }
 

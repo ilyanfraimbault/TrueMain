@@ -14,7 +14,7 @@
 // Each card is its own component since #1436 — <AccountsPipelineThroughput>,
 // <AccountsPipelineCandidates> and the <AccountsCandidateDetail> slide-over — and
 // each card owns its fetches; this one wires them to the hub.
-import type { CandidateDetail } from '~~/shared/types/ops'
+import type { CandidateDetailReadModel } from '#site-shared/contract/api'
 
 // Both cards expose `refresh`/`pending`; `defineExpose` hands back a proxy that
 // unwraps refs, which is what keeps the navbar spinner reactive.
@@ -43,7 +43,7 @@ const {
   detailError,
   detailErrorTraceId,
   openDetail,
-} = useDeepLinkedDetail<CandidateDetail>({
+} = useDeepLinkedDetail<CandidateDetailReadModel>({
   queryKey: 'candidate',
   fetch: getCandidateDetail,
   notFoundMessage: id => `No candidate found with id "${id}".`,

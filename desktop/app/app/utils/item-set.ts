@@ -1,6 +1,6 @@
-import type { ChampionItemContextItem } from '#shared/types/item-context'
-import type { Kit } from '#shared/types/kit'
-import type { BuildCoreView, BuildTreeNode } from '~/types/build'
+import type { BuildTreeNodeReadModel, ChampionItemContextItemReadModel } from '#shared/contract/api'
+import type { Kit } from '~/types/kit'
+import type { BuildCoreView } from '~/types/build'
 import { kitPaths } from '~/utils/kit-tree'
 
 /**
@@ -20,7 +20,7 @@ export interface ItemSetBuild {
  * items whose verdict is `Situational`, most picked first, the core path left
  * out. An item judged on several branches appears once, at its best rate.
  */
-export function situationalFromContext(items: ChampionItemContextItem[], core: number[]): number[] {
+export function situationalFromContext(items: ChampionItemContextItemReadModel[], core: number[]): number[] {
   const best = new Map<number, number>()
   for (const item of items) {
     if (item.slot !== 'Build' || item.class !== 'Situational' || core.includes(item.itemId)) continue
@@ -34,7 +34,7 @@ export function situationalFromContext(items: ChampionItemContextItem[], core: n
  * to at each step of the core path — the path's siblings — most played first.
  * `tree` holds what followed the first item, which `path` starts with.
  */
-export function situationalFromTree(tree: BuildTreeNode[], path: number[]): number[] {
+export function situationalFromTree(tree: BuildTreeNodeReadModel[], path: number[]): number[] {
   const games = new Map<number, number>()
   let level = tree
   for (const step of path.slice(1)) {

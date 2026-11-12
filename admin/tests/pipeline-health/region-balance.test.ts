@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { PlatformBalance, RegionBalance } from '~~/shared/types/ops'
+import type { PlatformBalanceReadModel, RegionBalanceReadModel } from '#site-shared/contract/api'
 import { chartedPlatforms, claimLabel, regionDailyRows, windowDays } from '~~/shared/utils/region-balance'
 
 // The region-balance chart (#1153) exists to make a drift visible as a trend. What could hide
 // one: a day nothing was ingested silently dropped from the axis, or a platform the claim no
 // longer covers vanishing from the chart while its last bars still sit in the window.
 
-function platform(platformId: string, inClaim: boolean | null): PlatformBalance {
+function platform(platformId: string, inClaim: boolean | null): PlatformBalanceReadModel {
   return {
     platformId,
     inClaim,
@@ -21,7 +21,7 @@ function platform(platformId: string, inClaim: boolean | null): PlatformBalance 
   }
 }
 
-function balance(overrides: Partial<RegionBalance> = {}): RegionBalance {
+function balance(overrides: Partial<RegionBalanceReadModel> = {}): RegionBalanceReadModel {
   return {
     measuredAtUtc: '2026-10-02T12:00:00Z',
     windowDays: 3,

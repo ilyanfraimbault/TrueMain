@@ -13,7 +13,7 @@ const ratchet = [
 
 const demoted = rule => rule.startsWith('vuejs-accessibility/') || ratchet.includes(rule)
 
-export default withNuxt(...vueA11y.configs['flat/recommended']).onResolved((configs) => {
+export default withNuxt({ ignores: ['shared/contract/api.ts'] }, ...vueA11y.configs['flat/recommended']).onResolved((configs) => {
   for (const { rules } of configs) {
     for (const [rule, entry] of Object.entries(rules ?? {})) {
       const [severity, ...options] = [entry].flat()

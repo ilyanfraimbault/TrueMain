@@ -5,9 +5,10 @@
 // "Not run" chips; a `Full` deployment lights up both branches of the same pass.
 // Split out of `pages/processes.vue` (#1436); the page owns the fetch so its live
 // refresh keeps driving it.
-import type { ProcessRun } from '~~/shared/types/ops'
+import type { ProcessRunReadModel } from '#site-shared/contract/api'
 import type { CurrentLane } from '~~/shared/utils/pipeline-lanes'
 import { formatDateTime, formatElapsed } from '~~/shared/utils/format'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
 
 defineProps<{
   lanes: CurrentLane[]
@@ -15,8 +16,10 @@ defineProps<{
   error: unknown
 }>()
 
+const catalog = usePipelineCatalog()
+
 defineEmits<{
-  openRun: [run: ProcessRun]
+  openRun: [run: ProcessRunReadModel]
 }>()
 </script>
 
@@ -107,7 +110,7 @@ defineEmits<{
                   class="text-xs font-medium whitespace-nowrap"
                   :class="link.outcome === 'notRun' ? 'text-dimmed' : 'text-highlighted'"
                 >
-                  {{ chainLabel(link.processName) }}
+                  {{ chainLabel(catalog, link.processName) }}
                 </span>
               </button>
               <template #content>

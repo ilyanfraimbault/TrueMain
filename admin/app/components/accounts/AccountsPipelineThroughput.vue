@@ -4,7 +4,7 @@
 // curves of <AccountsCandidateStock>), and the queue latency snapshot. Split out
 // of `AccountsPipeline.vue` (#1436); owns its own fetches and exposes
 // `refresh`/`pending` so the hub's navbar button still covers them.
-import type { IngestionTimeGranularity } from '~~/shared/types/ops'
+import type { IngestionTimeGranularity } from '~~/shared/types/ops/stats'
 import { formatElapsed, formatNumber } from '~~/shared/utils/format'
 
 // =============================================================================

@@ -39,7 +39,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors");
+        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors", ApiJson.Options);
 
         payload.Should().NotBeNull();
         var duplicates = payload!.Detectors.Single(detector => detector.Key == "duplicateDimensionRows");
@@ -72,7 +72,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors");
+        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors", ApiJson.Options);
 
         var duplicates = payload!.Detectors.Single(detector => detector.Key == "duplicateDimensionRows");
         duplicates.Count.Should().Be(0);
@@ -87,7 +87,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors");
+        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors", ApiJson.Options);
 
         var duplicates = payload!.Detectors.Single(detector => detector.Key == "duplicateDimensionRows");
 
@@ -108,7 +108,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors");
+        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors", ApiJson.Options);
 
         var sanity = payload!.Detectors.Single(detector => detector.Key == "rowSanity");
 
@@ -128,7 +128,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors");
+        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors", ApiJson.Options);
 
         var orphans = payload!.Detectors.Single(detector => detector.Key == "orphanParticipants");
         var byPlatform = orphans.Rows.ToDictionary(row => row.Label, StringComparer.Ordinal);
@@ -164,7 +164,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors");
+        var payload = await client.GetFromJsonAsync<DetectorsContract>("/ops/data-quality/detectors", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.Detectors.Select(detector => detector.Key).Should().BeEquivalentTo(
@@ -213,7 +213,7 @@ public sealed class DataQualityDetectorsApiIntegrationTests(PostgresFixture fixt
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateAuthedClient(factory);
 
-        var payload = await client.GetFromJsonAsync<FreshnessContract>("/ops/data-quality/aggregate-freshness");
+        var payload = await client.GetFromJsonAsync<FreshnessContract>("/ops/data-quality/aggregate-freshness", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.Champions.Should().NotBeEmpty();

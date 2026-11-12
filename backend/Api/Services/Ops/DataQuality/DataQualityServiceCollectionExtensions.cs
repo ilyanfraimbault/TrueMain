@@ -1,4 +1,7 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using TrueMain.Configuration;
+using TrueMain.ReadModels.Ops;
+using TrueMain.Options;
 
 namespace TrueMain.Services.Ops.DataQuality;
 
@@ -11,17 +14,15 @@ public static class DataQualityServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTrueMainDataQuality(this IServiceCollection services)
     {
+        services.AddMainAnalysisOptions();
+        services.TryAddSingleton(typeof(Measurements<>));
+        services.AddApiOptions<DataQualityDetectorOptions>();
         services.AddScoped<IIncompleteMatchesQueryService, IncompleteMatchesQueryService>();
         services.AddScoped<IMatchDataQualityDetailQueryService, MatchDataQualityDetailQueryService>();
-        services.AddScoped<DataQualityDetectorsQueryService>();
-        services.AddScoped<IDataQualityDetectorsQueryService>(provider => new CachedDataQualityDetectorsQueryService(
-            provider.GetRequiredService<DataQualityDetectorsQueryService>(),
-            provider.GetRequiredService<IMemoryCache>(),
-            provider.GetRequiredService<TimeProvider>()));
-        services.AddWarmPayload(
+        services.AddWarmCachedRead<IDataQualityDetectorsQueryService, DataQualityDetectorsQueryService, DataQualityDetectorsReadModel>(
             CachedDataQualityDetectorsQueryService.Payload,
-            provider => provider.GetRequiredService<DataQualityDetectorsQueryService>()
-                .GetDetectorsAsync(CancellationToken.None));
+            (inner, cache, clock) => new CachedDataQualityDetectorsQueryService(inner, cache, clock),
+            inner => inner.GetDetectorsAsync(CancellationToken.None));
         return services;
     }
 }

@@ -51,7 +51,7 @@ public sealed class TableStatsApiIntegrationTests : IAsyncLifetime
                 "indexBytes"
             ]);
 
-        var rows = await response.Content.ReadFromJsonAsync<IReadOnlyList<TableStatRowTestContract>>();
+        var rows = await response.Content.ReadFromJsonAsync<IReadOnlyList<TableStatRowTestContract>>(ApiJson.Options);
         rows.Should().NotBeNull();
 
         // Mongo is unconfigured in this fixture, so the reader reports nothing and the

@@ -1,4 +1,7 @@
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using TrueMain.Configuration;
+using TrueMain.ReadModels.Ops;
+using TrueMain.Options;
 using TrueMain.Services.Ops.Alerting;
 
 namespace TrueMain.Services.Ops.Health;
@@ -19,23 +22,19 @@ public static class OpsHealthServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTrueMainOpsHealth(this IServiceCollection services)
     {
-        services.AddScoped<PipelineHealthQueryService>();
-        services.AddScoped<IPipelineHealthQueryService>(provider => new CachedPipelineHealthQueryService(
-            provider.GetRequiredService<PipelineHealthQueryService>(),
-            provider.GetRequiredService<IMemoryCache>(),
-            provider.GetRequiredService<TimeProvider>()));
-        services.AddWarmPayload(
+        services.AddMainAnalysisOptions();
+        services.TryAddSingleton(typeof(Measurements<>));
+        services.AddApiOptions<PipelineHealthOptions>();
+        services.AddApiOptions<StorageHistoryOptions>();
+        services.AddWarmCachedRead<IPipelineHealthQueryService, PipelineHealthQueryService, PipelineHealthReadModel>(
             CachedPipelineHealthQueryService.Payload,
-            provider => provider.GetRequiredService<PipelineHealthQueryService>().GetAsync(CancellationToken.None));
+            (inner, cache, clock) => new CachedPipelineHealthQueryService(inner, cache, clock),
+            inner => inner.GetAsync(CancellationToken.None));
         services.AddScoped<IRegionBalanceQueryService, RegionBalanceQueryService>();
-        services.AddScoped<OverviewQueryService>();
-        services.AddScoped<IOverviewQueryService>(provider => new CachedOverviewQueryService(
-            provider.GetRequiredService<OverviewQueryService>(),
-            provider.GetRequiredService<IMemoryCache>(),
-            provider.GetRequiredService<TimeProvider>()));
-        services.AddWarmPayload(
+        services.AddWarmCachedRead<IOverviewQueryService, OverviewQueryService, OverviewReadModel>(
             CachedOverviewQueryService.Payload,
-            provider => provider.GetRequiredService<OverviewQueryService>().GetAsync(CancellationToken.None));
+            (inner, cache, clock) => new CachedOverviewQueryService(inner, cache, clock),
+            inner => inner.GetAsync(CancellationToken.None));
 
         // The alerter reads the cockpit's payload above, so it is registered with it (#2292).
         services.AddTrueMainHealthAlerting();

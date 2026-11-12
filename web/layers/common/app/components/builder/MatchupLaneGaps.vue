@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { CompositionLane } from '#shared/types/composition'
+import type { CompositionLaneReadModel } from '#shared/contract/api'
 import { laneVerdict } from '#common/utils/lane-verdict'
 
 // The verdict under the matchup strip's lane rate, banded on the gold gap at 15 —
 // the only gap with product-defined edges. The raw gold / XP gaps are not printed:
 // the badge says what they mean, and the duel stays a single figure.
 const props = defineProps<{
-  lane: CompositionLane | null
+  lane: CompositionLaneReadModel | null
   /** The jungle reads the same figures as a matchup tempo rather than a lane (#939). */
   laneNoun: 'lane' | 'matchup'
 }>()

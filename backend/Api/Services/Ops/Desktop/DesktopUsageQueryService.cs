@@ -159,14 +159,15 @@ public sealed class DesktopUsageQueryService(
 
     private static List<DesktopKeyUsage> KeyUsage(
         List<DesktopUsageDay> usage,
-        IReadOnlyList<string> catalog,
+        IReadOnlyList<DesktopTelemetryKey> catalog,
         Func<DesktopUsageDay, IReadOnlyDictionary<string, int>> counters) =>
         catalog
-            .Select(key => new DesktopKeyUsage
+            .Select(entry => new DesktopKeyUsage
             {
-                Key = key,
-                Count = usage.Sum(day => (long)counters(day).GetValueOrDefault(key)),
-                Installs = usage.Where(day => counters(day).GetValueOrDefault(key) > 0)
+                Key = entry.Key,
+                Label = entry.Label,
+                Count = usage.Sum(day => (long)counters(day).GetValueOrDefault(entry.Key)),
+                Installs = usage.Where(day => counters(day).GetValueOrDefault(entry.Key) > 0)
                     .Select(day => day.InstallId)
                     .Distinct(StringComparer.Ordinal)
                     .Count()

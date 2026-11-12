@@ -1,4 +1,4 @@
-import type { ChampionMatchupEntry } from '../types/champions'
+import type { ChampionMatchupEntry } from '../contract/api'
 
 type RankedMatchup = Pick<ChampionMatchupEntry, 'opponentChampionId' | 'winRateLowerBound' | 'winRateUpperBound'>
 

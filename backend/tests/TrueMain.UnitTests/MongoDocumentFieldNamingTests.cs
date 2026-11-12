@@ -1,6 +1,7 @@
 using System.Reflection;
 using AwesomeAssertions;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace TrueMain.UnitTests;

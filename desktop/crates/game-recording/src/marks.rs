@@ -18,8 +18,9 @@ pub const MARK_WINDOW_MS: u64 = 30_000;
 
 /// How much of the game before a press its clip keeps: the short list of
 /// #1767, saved in the settings as seconds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(try_from = "u32", into = "u32")]
+#[specta(type = u32)]
 pub enum MarkLength {
     #[default]
     Seconds30,
@@ -82,7 +83,7 @@ pub const MIN_MARK_GAP_MS: u64 = 1_000;
 /// first second.
 const MIN_CLIP_MS: u64 = 1_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Mark {
     /// The second of the video the key was pressed at.

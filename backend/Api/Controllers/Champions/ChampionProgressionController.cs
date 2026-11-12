@@ -30,24 +30,12 @@ public sealed class ChampionProgressionController(
         [FromQuery] string? eloBracket,
         CancellationToken ct = default)
     {
-        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryParseChampionScope(
+                championId, position, patch, eloBracket, PositionRule.Required, out var scope, out var problem))
         {
             return problem;
         }
 
-        var normalizedPatch = PatchParameter.Normalize(patch);
-        if (!this.TryNormalizeOptionalEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
-        {
-            return bracketProblem;
-        }
-
-        var response = await scalingQueryService.GetAsync(
-            championId,
-            normalizedPosition,
-            normalizedPatch,
-            normalizedBracket,
-            ct);
-
-        return Ok(response);
+        return Ok(await scalingQueryService.GetAsync(scope, ct));
     }
 }

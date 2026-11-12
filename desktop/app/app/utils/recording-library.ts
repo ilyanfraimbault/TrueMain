@@ -1,4 +1,4 @@
-import type { Clip, GameRecording, RecordingLibrary, RecordingResolution } from '~/types/recordings'
+import type { Clip, ClipVideo, GameRecording, RecordingLibrary, RecordingResolution } from '~/types/recordings'
 import { formatKda } from '#shared/utils/kda'
 
 /**
@@ -27,10 +27,8 @@ export interface LibraryItem {
   videoPath: string
   thumbnailPath: string | null
   sizeBytes: number
-  /** A clip published on YouTube, once the player gave its link (#1815). */
-  youtubeUrl: string | null
-  /** False for a published clip whose file was deleted: it lives on YouTube only (#2005). */
-  videoOnDisk: boolean
+  /** Where it plays from; a full game is always its own file. */
+  video: ClipVideo
 }
 
 export const gameItem = (game: GameRecording): LibraryItem => ({
@@ -51,8 +49,7 @@ export const gameItem = (game: GameRecording): LibraryItem => ({
   videoPath: game.videoPath,
   thumbnailPath: game.thumbnailPath,
   sizeBytes: game.sizeBytes,
-  youtubeUrl: null,
-  videoOnDisk: true,
+  video: { kind: 'local' },
 })
 
 export const clipItem = (clip: Clip): LibraryItem => ({
@@ -73,9 +70,18 @@ export const clipItem = (clip: Clip): LibraryItem => ({
   videoPath: clip.videoPath,
   thumbnailPath: clip.thumbnailPath,
   sizeBytes: clip.sizeBytes,
-  youtubeUrl: clip.youtubeUrl,
-  videoOnDisk: clip.videoOnDisk,
+  video: clip.video,
 })
+
+/** What deleting a clip does, by where it plays from. */
+export function clipDeleteDescription(title: string, video: ClipVideo): string {
+  switch (video.kind) {
+    case 'local':
+    case 'both': return `"${title}" is removed from your disk.`
+    case 'youtube': return `"${title}" leaves your recordings; the video stays on YouTube.`
+    case 'missing': return `"${title}" leaves your recordings; its video is already gone.`
+  }
+}
 
 /** Why the page has nothing to list (`RecordingsEmpty`). */
 export type RecordingsEmptyReason = 'unavailable' | 'permission' | 'unsupported' | 'missing' | 'off' | 'nothing' | 'no-match'

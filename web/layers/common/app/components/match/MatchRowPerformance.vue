@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchSummarySelf } from '#shared/types/matches'
+import type { MatchSummarySelfReadModel } from '#shared/contract/api'
 import { ordinal } from '#common/utils/ordinal'
 
 // Performance score (#918) of a match-history row, in the right-edge slot it
@@ -8,7 +8,7 @@ import { ordinal } from '#common/utils/ordinal'
 // score in its tooltip, any other game prints the graded score. Fixed width so
 // the columns line up down the list.
 const props = defineProps<{
-  self: MatchSummarySelf
+  self: MatchSummarySelfReadModel
 }>()
 
 const perfScore = computed(() => props.self.performanceScore)

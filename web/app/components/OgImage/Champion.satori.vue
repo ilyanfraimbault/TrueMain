@@ -81,11 +81,11 @@ const tiles = computed(() => {
   const s = stats.value
   if (!s) return []
   const entries = [
-    { label: 'WIN RATE', value: formatPercentage(s.winRate, 1), accent: true },
-    { label: 'PICK RATE', value: formatPercentage(s.pickRate, 1), accent: false },
+    { label: 'WIN RATE', value: formatPercentage(s.winRate), accent: true },
+    { label: 'PICK RATE', value: formatPercentage(s.pickRate), accent: false },
   ]
   if (s.banRate !== null) {
-    entries.push({ label: 'BAN RATE', value: formatPercentage(s.banRate, 1), accent: false })
+    entries.push({ label: 'BAN RATE', value: formatPercentage(s.banRate), accent: false })
   }
   return entries
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { KitNode } from '#shared/types/kit'
+import type { KitNode } from '~/types/kit'
 import {
   addChild,
   blockedItems,

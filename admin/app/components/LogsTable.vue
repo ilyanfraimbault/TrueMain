@@ -4,11 +4,11 @@
 // detail. Split out of `pages/logs.vue` (#1436); the filters, the fetch and the
 // selection state stay in `useLogsList`.
 import type { TableColumn } from '@nuxt/ui'
-import type { LogEntry } from '~~/shared/types/logs'
+import type { LogEntryReadModel } from '#site-shared/contract/api'
 import { formatDateTime } from '~~/shared/utils/format'
 
 defineProps<{
-  entries: LogEntry[]
+  entries: LogEntryReadModel[]
   pending: boolean
   total: number
   level: string
@@ -17,14 +17,14 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  select: [entry: LogEntry]
+  select: [entry: LogEntryReadModel]
   showAllLevels: []
 }>()
 
 const rowSelection = defineModel<Record<string, boolean>>('rowSelection', { required: true })
 
-const columns: TableColumn<LogEntry>[] = [
-  selectColumn<LogEntry>(),
+const columns: TableColumn<LogEntryReadModel>[] = [
+  selectColumn<LogEntryReadModel>(),
   { accessorKey: 'timestampUtc', header: 'Time' },
   { accessorKey: 'level', header: 'Level' },
   { accessorKey: 'eventType', header: 'Event' },
@@ -36,7 +36,7 @@ const columns: TableColumn<LogEntry>[] = [
 // Tint Error/Critical rows so failures stand out while scanning.
 const tableMeta = {
   class: {
-    tr: (row: { original: LogEntry }) =>
+    tr: (row: { original: LogEntryReadModel }) =>
       row.original.level === 'Error' || row.original.level === 'Critical'
         ? 'bg-error/5'
         : '',

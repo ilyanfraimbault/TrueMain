@@ -1,5 +1,5 @@
-import { POSITIONS, positionLabel } from '#common/utils/positions'
-import type { ChampionPosition } from '#common/utils/positions'
+import { POSITIONS, positionLabel } from '#shared/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 
 /** One lane of the patch at a glance: its best pick, drawn over its art, and the next ones. */
 export interface LanePicks<T> {

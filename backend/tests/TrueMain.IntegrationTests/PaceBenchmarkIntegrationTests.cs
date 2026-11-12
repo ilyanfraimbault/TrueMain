@@ -7,7 +7,7 @@ using Core.Lol.Map;
 using Core.Lol.Pace;
 using Core.Lol.Ranking;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
@@ -126,7 +126,7 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
-        var response = await client.GetFromJsonAsync<PaceBenchmarkResponse>("/benchmarks/pace?position=mid");
+        var response = await client.GetFromJsonAsync<PaceBenchmarkResponse>("/benchmarks/pace?position=mid", ApiJson.Options);
 
         response!.Position.Should().Be("MIDDLE");
         response.Patches.Should().Equal("16.19", "16.18", "16.17");
@@ -166,7 +166,7 @@ public sealed class PaceBenchmarkIntegrationTests : IAsyncLifetime
 
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
-        var response = await client.GetFromJsonAsync<FormBenchmarkResponse>("/benchmarks/form?position=mid");
+        var response = await client.GetFromJsonAsync<FormBenchmarkResponse>("/benchmarks/form?position=mid", ApiJson.Options);
 
         response!.Position.Should().Be("MIDDLE");
         response.Patches.Should().Equal("16.19", "16.18");

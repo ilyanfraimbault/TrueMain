@@ -23,6 +23,7 @@ import { renderToString } from 'vue/server-renderer'
  */
 Object.assign(globalThis, {
   ref: vue.ref,
+  shallowRef: vue.shallowRef,
   computed: vue.computed,
   watch: vue.watch,
   toValue: vue.toValue,

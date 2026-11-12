@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatTierName } from '#common/utils/tiers'
+import { formatTierName } from '#shared/utils/ranks'
 
 // Mini rank emblem from Community Dragon. The `latest` channel always
 // resolves to the current LoL client assets — same source the project

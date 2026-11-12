@@ -2,10 +2,10 @@
 // Body of the /logs detail slide-over: one entry's fields, the request it was
 // written during (#1555) — method and path, status, duration and the traceId the
 // client received in its ProblemDetails — then its message and exception stack.
-import type { LogEntry } from '~~/shared/types/logs'
+import type { LogEntryReadModel } from '#site-shared/contract/api'
 import { formatDateTime } from '~~/shared/utils/format'
 
-const props = defineProps<{ entry: LogEntry }>()
+const props = defineProps<{ entry: LogEntryReadModel }>()
 
 // Rows written outside an HTTP request (every Ingestor row) carry none of these.
 const hasRequest = computed(() =>

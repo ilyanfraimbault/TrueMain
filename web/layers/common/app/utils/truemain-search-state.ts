@@ -1,4 +1,4 @@
-import type { SearchResult } from '#shared/types/search'
+import type { SearchResultReadModel } from '#shared/contract/api'
 import { SEARCH_MIN_LENGTH } from '#common/composables/useTruemainSearch'
 
 // The truemain group of the search palette (`AppSearch`), classified once and
@@ -12,14 +12,14 @@ export type TruemainSearchState =
   | { kind: 'searching' }
   | { kind: 'error' }
   | { kind: 'empty' }
-  | { kind: 'refetching', results: SearchResult[] }
-  | { kind: 'results', results: SearchResult[] }
+  | { kind: 'refetching', results: SearchResultReadModel[] }
+  | { kind: 'results', results: SearchResultReadModel[] }
 
 export interface TruemainSearchInput {
   term: string
   tooShort: boolean
   status: 'idle' | 'pending' | 'success' | 'error'
-  results: SearchResult[]
+  results: SearchResultReadModel[]
 }
 
 export function truemainSearchState({ term, tooShort, status, results }: TruemainSearchInput): TruemainSearchState {

@@ -77,7 +77,7 @@ services:
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_HTTP_PORTS: "8080"
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
       Database__ApplyMigrationsOnStartup: "true"
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=22;No Reset On Close=true;Application Name=truemain-api

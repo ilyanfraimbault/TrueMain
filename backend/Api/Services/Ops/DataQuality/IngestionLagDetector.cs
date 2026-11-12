@@ -5,6 +5,7 @@ using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
+using TrueMain.ReadModels;
 using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops.DataQuality;
@@ -52,7 +53,7 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
             rows.Add(new DataQualityDetectorRowReadModel
             {
                 Label = platform.PlatformId,
-                Status = status.ToWireName(),
+                Status = status,
                 Value = age,
                 ValueLabel = DataQualityDetectorEvaluator.FormatAge(age),
                 Note = "Newest ranked match ingested on this platform."
@@ -74,7 +75,7 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
             rows.Add(new DataQualityDetectorRowReadModel
             {
                 Label = "platforms",
-                Status = DetectorStatus.Unknown.ToWireName(),
+                Status = DetectorStatus.Unknown,
                 Note = "No tracked platform and no ranked match, so ingestion lag cannot be measured."
             });
         }
@@ -117,13 +118,13 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
         ];
         rows.AddRange(queues.Select(QueueDepthRow));
 
-        var lagStatus = DataQualityDetectorEvaluator.Worst(rows.Select(DetectorCards.ParseStatus));
+        var lagStatus = DataQualityDetectorEvaluator.Worst(rows.Select(row => row.Status));
 
         return new DataQualityDetectorReadModel
         {
             Key = "ingestionLag",
             Title = "Ingestion lag & queues",
-            Status = lagStatus.ToWireName(),
+            Status = lagStatus,
             Count = lagging,
             CountLabel = "platforms behind their ingestion line",
             Headline = Headline(lagStatus, lagging, queues),
@@ -132,10 +133,10 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
             Rows = rows,
             Thresholds =
             [
-                DetectorCards.Threshold("newest match age", settings.IngestionLagAmberHours, settings.IngestionLagRedHours, "hours"),
-                DetectorCards.Threshold("matches awaiting a timeline", settings.PendingTimelineAmber, settings.PendingTimelineRed, "count"),
-                DetectorCards.Threshold("candidates queued", settings.QueuedCandidatesAmber, settings.QueuedCandidatesRed, "count"),
-                DetectorCards.Threshold("candidates processing", settings.ProcessingCandidatesAmber, settings.ProcessingCandidatesRed, "count")
+                DetectorCards.Threshold("newest match age", settings.IngestionLagAmberHours, settings.IngestionLagRedHours, DetectorThresholdUnit.Hours),
+                DetectorCards.Threshold("matches awaiting a timeline", settings.PendingTimelineAmber, settings.PendingTimelineRed, DetectorThresholdUnit.Count),
+                DetectorCards.Threshold("candidates queued", settings.QueuedCandidatesAmber, settings.QueuedCandidatesRed, DetectorThresholdUnit.Count),
+                DetectorCards.Threshold("candidates processing", settings.ProcessingCandidatesAmber, settings.ProcessingCandidatesRed, DetectorThresholdUnit.Count)
             ]
         };
     }
@@ -173,7 +174,7 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
                 var line = queueStatus == DetectorStatus.Red ? queue.Red : queue.Amber;
                 causes.Add(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"{queue.Value:N0} {char.ToLowerInvariant(queue.Label[0])}{queue.Label[1..]} ({queueStatus.ToWireName()} from {line:N0})"));
+                    $"{queue.Value:N0} {char.ToLowerInvariant(queue.Label[0])}{queue.Label[1..]} ({queueStatus.WireName()} from {line:N0})"));
             }
         }
 
@@ -187,7 +188,7 @@ internal sealed class IngestionLagDetector(TrueMainDbContext db, IOptions<MainAn
     private static DataQualityDetectorRowReadModel QueueDepthRow(QueueDepth queue) => new()
     {
         Label = queue.Label,
-        Status = queue.Status.ToWireName(),
+        Status = queue.Status,
         Value = queue.Value,
         ValueLabel = string.Create(CultureInfo.InvariantCulture, $"{queue.Value}"),
         Note = queue.Note

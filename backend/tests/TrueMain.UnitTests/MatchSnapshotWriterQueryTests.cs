@@ -3,7 +3,7 @@ using Core.Lol.Identifiers;
 using Core.Lol.Map;
 using Core.Options;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot;

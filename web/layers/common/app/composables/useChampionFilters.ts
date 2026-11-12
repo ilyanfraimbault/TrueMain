@@ -1,5 +1,6 @@
-import type { PositionFilter } from '#common/utils/positions'
-import { DEFAULT_ELO_BRACKET, resolveEloBracket } from '#common/utils/elo-brackets'
+import type { PositionFilter } from '#shared/utils/positions'
+import { resolveEloBracket } from '#shared/utils/elo-brackets'
+import { defaultEloBracketFor, type ChampionScope } from '#common/utils/champion-scope'
 import {
   EVERYONE_QUERY_PARAM,
   EVERYONE_QUERY_VALUE,
@@ -7,17 +8,11 @@ import {
 } from '#common/utils/champion-population'
 import { firstParamValue } from '#common/utils/route-params'
 
-/**
- * @param options.defaultEloBracket Bracket used when `?elo=` is absent. Master+
- * on the global champion pages (`DEFAULT_ELO_BRACKET`); the player-scoped
- * champion page passes `ELO_BRACKET_ALL`, because its scope is already one
- * account and re-slicing that by rank empties the build of any truemain below
- * Master.
- */
-export function useChampionFilters(options: { defaultEloBracket?: string } = {}) {
+/** The champion slice in the URL; `scope` decides the rank it opens on (`defaultEloBracketFor`). */
+export function useChampionFilters(scope: ChampionScope['kind'] = 'global') {
   const route = useRoute()
   const router = useRouter()
-  const defaultEloBracket = options.defaultEloBracket ?? DEFAULT_ELO_BRACKET
+  const defaultEloBracket = defaultEloBracketFor(scope)
 
   const filters = computed(() => {
     // Always resolves to a concrete bracket — never `undefined`. The page

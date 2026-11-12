@@ -1,8 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using AwesomeAssertions;
 using Core.Lol.Map;
 using Data.Entities;
-using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace TrueMain.IntegrationTests;
@@ -40,7 +41,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
-            "/ops/data-quality/incomplete-matches");
+            "/ops/data-quality/incomplete-matches", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.StaleTimelineThresholdHours.Should().BeGreaterThan(0);
@@ -72,6 +73,25 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetIncompleteMatchCounts_CountsEachCheckLikeTheGroupedRead()
+    {
+        await SeedAsync();
+
+        await using var factory = new ApiWebApplicationFactory(_fixture);
+        using var client = CreateAuthedClient(factory);
+
+        var groups = await client.GetFromJsonAsync<IncompleteMatchesContract>(
+            "/ops/data-quality/incomplete-matches", ApiJson.Options);
+        using var counts = JsonDocument.Parse(await client.GetStringAsync("/ops/data-quality/incomplete-matches/counts"));
+
+        counts.RootElement.GetProperty("counts").EnumerateArray()
+            .Select(entry => (entry.GetProperty("issueType").GetString()!, entry.GetProperty("count").GetInt32()))
+            .Should().Equal(groups!.Groups.Select(group => (group.IssueType, (int)group.Count)));
+        counts.RootElement.GetProperty("total").GetInt64().Should().Be(groups.Total);
+        counts.RootElement.GetProperty("staleTimelineThresholdHours").GetInt32().Should().Be(groups.StaleTimelineThresholdHours);
+    }
+
+    [Fact]
     public async Task GetIncompleteMatches_FlagsDuplicateChampionOnALaneTeam()
     {
         await SeedAsync();
@@ -80,7 +100,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
-            "/ops/data-quality/incomplete-matches");
+            "/ops/data-quality/incomplete-matches", ApiJson.Options);
 
         payload.Should().NotBeNull();
         var byIssue = payload!.Groups.ToDictionary(g => g.IssueType);
@@ -103,7 +123,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
-            "/ops/data-quality/incomplete-matches?issue=zeroDuration");
+            "/ops/data-quality/incomplete-matches?issue=zeroDuration", ApiJson.Options);
 
         payload.Should().NotBeNull();
         payload!.Groups.Should().OnlyContain(g => g.IssueType == "zeroDuration");
@@ -140,7 +160,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
-            "/ops/data-quality/incomplete-matches");
+            "/ops/data-quality/incomplete-matches", ApiJson.Options);
 
         payload.Should().NotBeNull();
         var byIssue = payload!.Groups.ToDictionary(g => g.IssueType);
@@ -186,7 +206,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
-            "/ops/data-quality/incomplete-matches");
+            "/ops/data-quality/incomplete-matches", ApiJson.Options);
 
         payload.Should().NotBeNull();
         var byIssue = payload!.Groups.ToDictionary(g => g.IssueType);
@@ -211,7 +231,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
-            $"/ops/data-quality/incomplete-matches?queue={(int)LolQueueId.Aram}");
+            $"/ops/data-quality/incomplete-matches?queue={(int)LolQueueId.Aram}", ApiJson.Options);
 
         payload.Should().NotBeNull();
         var flagged = payload!.Groups.SelectMany(g => g.Matches).ToList();
@@ -246,7 +266,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var payload = await client.GetFromJsonAsync<IncompleteMatchesContract>(
-            "/ops/data-quality/incomplete-matches?minAgeHours=24");
+            "/ops/data-quality/incomplete-matches?minAgeHours=24", ApiJson.Options);
 
         payload.Should().NotBeNull();
         var flaggedIds = payload!.Groups.SelectMany(g => g.Matches).Select(m => m.MatchId).ToList();
@@ -282,7 +302,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         // pageSize=2 over 5 matches → page 2 is the third+fourth newest. Filter to
         // the single zero-duration group so the slice is unambiguous.
         var page2 = await client.GetFromJsonAsync<IncompleteMatchesContract>(
-            "/ops/data-quality/incomplete-matches?issue=zeroDuration&page=2&pageSize=2");
+            "/ops/data-quality/incomplete-matches?issue=zeroDuration&page=2&pageSize=2", ApiJson.Options);
 
         page2.Should().NotBeNull();
         var group = page2!.Groups.Single(g => g.IssueType == "zeroDuration");
@@ -304,7 +324,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var detail = await client.GetFromJsonAsync<MatchDetailContract>(
-            "/ops/data-quality/match/DQ_NO_LANE");
+            "/ops/data-quality/match/DQ_NO_LANE", ApiJson.Options);
 
         detail.Should().NotBeNull();
         detail!.QueueKnown.Should().BeTrue();
@@ -344,7 +364,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var detail = await client.GetFromJsonAsync<MatchDetailContract>(
-            "/ops/data-quality/match/DQ_SHORT");
+            "/ops/data-quality/match/DQ_SHORT", ApiJson.Options);
 
         detail.Should().NotBeNull();
 
@@ -367,7 +387,7 @@ public sealed class DataQualityApiIntegrationTests : IAsyncLifetime
         using var client = CreateAuthedClient(factory);
 
         var detail = await client.GetFromJsonAsync<MatchDetailContract>(
-            "/ops/data-quality/match/DQ_HALF_TEAM");
+            "/ops/data-quality/match/DQ_HALF_TEAM", ApiJson.Options);
 
         detail.Should().NotBeNull();
         detail!.HasLanes.Should().BeTrue();

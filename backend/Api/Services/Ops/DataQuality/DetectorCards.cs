@@ -40,7 +40,7 @@ internal static class DetectorCards
             .Select(platform => new DataQualityDetectorRowReadModel
             {
                 Label = platform,
-                Status = DetectorStatus.Unknown.ToWireName(),
+                Status = DetectorStatus.Unknown,
                 Note = note
             });
     }
@@ -49,8 +49,8 @@ internal static class DetectorCards
         string label,
         double amber,
         double red,
-        string unit,
-        string direction = "above") => new()
+        DetectorThresholdUnit unit,
+        DetectorThresholdDirection direction = DetectorThresholdDirection.Above) => new()
     {
         Label = label,
         // A level of 0 or less is disabled, and the panel should omit it rather than
@@ -61,11 +61,4 @@ internal static class DetectorCards
         Direction = direction
     };
 
-    public static DetectorStatus ParseStatus(DataQualityDetectorRowReadModel row) => row.Status switch
-    {
-        "green" => DetectorStatus.Green,
-        "amber" => DetectorStatus.Amber,
-        "red" => DetectorStatus.Red,
-        _ => DetectorStatus.Unknown
-    };
 }

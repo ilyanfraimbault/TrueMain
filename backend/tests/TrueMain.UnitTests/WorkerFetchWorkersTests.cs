@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using AwesomeAssertions;
+using Data.Pipeline;
 using Ingestor;
 using Ingestor.FetchWorkers;
 using Ingestor.Options;
@@ -33,7 +34,7 @@ public sealed class WorkerFetchWorkersTests
         await worker.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(10));
 
         harness.Maintenance.Should().Equal(
-            JobModeSequence.For(JobMode.FetchLane).Where(step => step != JobMode.MatchIngestionOnly),
+            PipelineCatalog.InLane(PipelineLane.Fetch).Where(step => step != PipelineCatalog.MatchIngestion).Select(step => step.Mode),
             "the maintenance pass is the fetch lane without the step the workers took over");
         harness.Batches.Should().BeEquivalentTo(["NA1", "KR", "EUW1"], "one batch per routing value, each on its own platforms");
         harness.Lifetime.Received(1).StopApplication();
@@ -85,25 +86,28 @@ public sealed class WorkerFetchWorkersTests
         public Harness(List<string> platforms)
         {
             Claims.ReleaseOrphanedClaimsAsync(Arg.Any<CancellationToken>()).Returns(new ExpiredClaimRelease(0, 0));
-            foreach (var step in JobModeSequence.SequencedStepsFor(JobMode.FetchWorkers))
+            foreach (var step in PipelineCatalog.SequencedStepsFor(JobMode.FetchWorkers).Select(step => step.Mode))
             {
                 _services.AddKeyedSingleton<IIngestorProcess>(step, new MaintenanceStep(step, Maintenance));
             }
 
-            _services.AddScoped<MatchIngestionScope>();
-            _services.AddKeyedScoped<IIngestorProcess>(
-                JobMode.MatchIngestionOnly,
-                (provider, _) => new FetchBatch(provider.GetRequiredService<MatchIngestionScope>(), Batches));
+            _services.AddKeyedScoped<IIngestorProcess>(JobMode.MatchIngestionOnly, (_, _) => new FetchBatch(Batches));
             _services.AddSingleton(Claims);
-            _services.AddSingleton(new MatchFetchWorkerPool(
-                _services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
-                _iterations,
+            _services.AddLogging();
+            _services.AddScoped<IStepBootRecovery, MatchClaimBootRecovery>();
+            _services.AddSingleton(provider => new ProcessRunner(
+                provider.GetRequiredService<IServiceScopeFactory>(),
                 _callers,
+                TestIngestorMetrics.Create(),
+                NullLogger<ProcessRunner>.Instance));
+            _services.AddSingleton(provider => new MatchFetchWorkerPool(
+                provider.GetRequiredService<IServiceScopeFactory>(),
+                _iterations,
+                provider.GetRequiredService<ProcessRunner>(),
                 Substitute.For<IRiotRateLimiter>(),
                 MatchFetchWorkerPoolTests.Unpressured(),
                 Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions { Platforms = platforms }),
                 Microsoft.Extensions.Options.Options.Create(new MatchFetchWorkersOptions()),
-                TestIngestorMetrics.Create(),
                 TimeProvider.System,
                 NullLogger<MatchFetchWorkerPool>.Instance));
         }
@@ -127,9 +131,11 @@ public sealed class WorkerFetchWorkersTests
         }
 
         public Worker BuildWorker(bool runOnce)
-            => new(
+        {
+            var provider = _services.BuildServiceProvider();
+            return new Worker(
                 NullLogger<Worker>.Instance,
-                _services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+                provider.GetRequiredService<IServiceScopeFactory>(),
                 Microsoft.Extensions.Options.Options.Create(new JobOptions
                 {
                     Mode = nameof(JobMode.FetchWorkers),
@@ -137,18 +143,19 @@ public sealed class WorkerFetchWorkersTests
                     IntervalMinutes = runOnce ? null : 60
                 }),
                 _iterations,
-                _callers,
+                provider.GetRequiredService<ProcessRunner>(),
                 Lifetime,
                 TestIngestorMetrics.Create(),
                 TimeProvider.System,
                 NoHeartbeatFile.Instance);
+        }
     }
 
     private sealed class MaintenanceStep(JobMode step, List<JobMode> executed) : IIngestorProcess
     {
         public string Name => step.ToString();
 
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             executed.Add(step);
             return Task.FromResult<IProcessRunSummary?>(null);
@@ -156,13 +163,11 @@ public sealed class WorkerFetchWorkersTests
     }
 
     /// <summary>A batch that found nothing, so a permanent worker parks on its idle delay.</summary>
-    private sealed class FetchBatch(MatchIngestionScope scope, ConcurrentQueue<string> batches) : IIngestorProcess
+    private sealed class FetchBatch(ConcurrentQueue<string> batches) : IIngestorProcess
     {
-        public string Name => "MatchIngestion";
-
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
-            batches.Enqueue(string.Join('+', scope.Platforms!));
+            batches.Enqueue(string.Join('+', input.Platforms!));
             return Task.FromResult<IProcessRunSummary?>(new MatchIngestionSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, []));
         }
     }

@@ -130,11 +130,11 @@ impl<C: Capture> Session<C> {
         default_root: &Path,
         now_ms: i64,
     ) -> Result<Change, SessionError> {
-        let in_game = matches!(phase, GameflowPhase::InProgress | GameflowPhase::Reconnect);
+        let in_game = phase.is_game_running();
         match (&self.state, in_game) {
             (State::Recording(_), true) => Ok(Change::None),
             (State::Recording(_), false) => self.stop(),
-            (_, true) if phase == GameflowPhase::InProgress => {
+            (_, true) if phase.is_game_api_up() => {
                 let Some(game) = game.filter(|g| g.game_id > 0 && settings.records(g.queue_id))
                 else {
                     return Ok(Change::None);

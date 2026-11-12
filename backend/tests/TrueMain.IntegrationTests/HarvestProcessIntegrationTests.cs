@@ -50,7 +50,6 @@ public sealed class HarvestProcessIntegrationTests : IAsyncLifetime
             new ParticipantHarvestService(),
             new ChampionCoverageProvider(
                 Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
-            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new HarvestOptions
             {
@@ -65,7 +64,7 @@ public sealed class HarvestProcessIntegrationTests : IAsyncLifetime
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
             Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
 
@@ -129,7 +128,6 @@ public sealed class HarvestProcessIntegrationTests : IAsyncLifetime
             new ParticipantHarvestService(),
             new ChampionCoverageProvider(
                 Microsoft.Extensions.Options.Options.Create(new CoverageOptions())),
-            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new HarvestOptions
             {
@@ -146,7 +144,7 @@ public sealed class HarvestProcessIntegrationTests : IAsyncLifetime
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
             Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         foreach (var puuid in puuids)

@@ -57,8 +57,7 @@ public sealed class NextItemQueryService(
     IItemRouteQueryService routes,
     IChampionReadCache cache,
     IItemMetadataProvider itemMetadata,
-    IItemStatsProvider itemStats,
-    ILogger<NextItemQueryService> logger) : INextItemQueryService
+    IItemStatsProvider itemStats) : INextItemQueryService
 {
     /// <summary>A team: the in-game team axes need every enemy's inventory, as the fold does.</summary>
     private const int TeamSize = 5;
@@ -151,22 +150,20 @@ public sealed class NextItemQueryService(
             return new Dictionary<ItemContextAxis, ItemContextBucket>();
         }
 
-        BuiltItemCatalog catalog;
-        try
+        var metadata = await itemMetadata.GetItemsAsync(patch, ct);
+        var stats = await itemStats.GetItemsAsync(patch, ct);
+        if (!metadata.HasValue || !stats.HasValue)
         {
-            catalog = await cache.GetOrComputeAsync(
-                $"champions:next-item:built-items:{patch}",
-                async token => BuiltItemCatalog.From(
-                    await itemMetadata.GetItemsAsync(patch, token),
-                    await itemStats.GetItemsAsync(patch, token)),
-                ct,
-                size: 2);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Item data unavailable for patch {Patch}; serving the next item without in-game axes.", patch);
             return new Dictionary<ItemContextAxis, ItemContextBucket>();
         }
+
+        // Keyed on how the data was answered too, so a patch-day fallback is not served as the
+        // patch's own catalogue once the source publishes it.
+        var catalog = await cache.GetOrComputeAsync(
+            $"champions:next-item:built-items:{patch}:{metadata.Status}:{stats.Status}",
+            _ => Task.FromResult(BuiltItemCatalog.From(metadata.Value, stats.Value)),
+            ct,
+            size: 2);
 
         return BuiltAxisEvaluator.Evaluate(new BuiltContext(team, opponent), catalog, BuiltThresholds);
     }
@@ -177,19 +174,17 @@ public sealed class NextItemQueryService(
     /// </summary>
     private async Task<ItemNeedCatalog> ItemNeedsAsync(string patch, CancellationToken ct)
     {
-        try
+        var metadata = await itemMetadata.GetItemsAsync(patch, ct);
+        if (!metadata.HasValue)
         {
-            return await cache.GetOrComputeAsync(
-                $"champions:next-item:item-needs:{patch}",
-                async token => ItemNeeds.Catalog(await itemMetadata.GetItemsAsync(patch, token)),
-                ct,
-                size: 2);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Item data unavailable for patch {Patch}; serving the next item without need coverage.", patch);
             return ItemNeedCatalog.Empty;
         }
+
+        return await cache.GetOrComputeAsync(
+            $"champions:next-item:item-needs:{patch}:{metadata.Status}",
+            _ => Task.FromResult(ItemNeeds.Catalog(metadata.Value)),
+            ct,
+            size: 2);
     }
 
     /// <summary>The needs already covered, with the catalogue that reads a candidate's.</summary>
@@ -279,8 +274,8 @@ public sealed class NextItemQueryService(
                     .Take(MaxReasons)
                     .Select(contribution => new NextItemReasonReadModel
                     {
-                        Axis = contribution.Axis.ToString(),
-                        Bucket = contribution.Bucket.ToString(),
+                        Axis = contribution.Axis,
+                        Bucket = contribution.Bucket,
                         Factor = Math.Exp(contribution.Weight),
                     })],
             })],

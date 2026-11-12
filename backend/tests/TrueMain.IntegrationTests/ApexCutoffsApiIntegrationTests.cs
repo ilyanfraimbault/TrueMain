@@ -49,7 +49,7 @@ public sealed class ApexCutoffsApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var payload = await client.GetFromJsonAsync<ApexCutoffsReadModel>("/ladder/EUW1/apex-cutoffs");
+        var payload = await client.GetFromJsonAsync<ApexCutoffsReadModel>("/ladder/EUW1/apex-cutoffs", ApiJson.Options);
 
         payload!.Entries.Should().BeEmpty();
     }

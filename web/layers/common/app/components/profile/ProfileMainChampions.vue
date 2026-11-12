@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { championDisplayName } from '#shared/utils/champion-name'
 import type { RouteLocationRaw } from 'vue-router'
-import type { ProfileMainChampion } from '#shared/types/profile'
+import type { ProfileMainChampionReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { retiredSampleTooltip } from '#common/utils/retired-sample'
@@ -11,12 +11,12 @@ import { retiredSampleTooltip } from '#common/utils/retired-sample'
 // champion; the app's dashboard passes its own link and fills the `meta` and
 // `value` slots with how the player fares on it (`DashboardChampionsCard`).
 const props = withDefaults(defineProps<{
-  mains: ProfileMainChampion[]
+  mains: ProfileMainChampionReadModel[]
   champions: ChampionStaticListItem[]
   /** Profile slug ({gameName}-{tagLine}); drives the player-scoped links. */
   nameTag?: string
   /** Where a row leads, in place of the player-scoped champion page. */
-  linkTo?: (main: ProfileMainChampion) => RouteLocationRaw
+  linkTo?: (main: ProfileMainChampionReadModel) => RouteLocationRaw
   title?: string
 }>(), {
   nameTag: '',
@@ -26,9 +26,9 @@ const props = withDefaults(defineProps<{
 
 defineSlots<{
   /** The line under the name, after the lane icon. Empty by default: the play rate says it. */
-  meta?: (props: { main: ProfileMainChampion }) => unknown
+  meta?: (props: { main: ProfileMainChampionReadModel }) => unknown
   /** The figure on the right. Defaults to the play rate. */
-  value?: (props: { main: ProfileMainChampion }) => unknown
+  value?: (props: { main: ProfileMainChampionReadModel }) => unknown
 }>()
 
 const championsById = computed(() => new Map(props.champions.map(c => [c.championId, c])))
@@ -42,7 +42,7 @@ function championName(championId: number): string {
 // own profile — but they get a marker, because an unqualified figure here is what
 // let this card promise "10 games on Graves" over a champion page holding
 // nothing. The qualifier is the warning dot and its tooltip only.
-function retiredNote(main: ProfileMainChampion): string | null {
+function retiredNote(main: ProfileMainChampionReadModel): string | null {
   return main.isSampleRetired ? retiredSampleTooltip(main.measuredAtUtc) : null
 }
 
@@ -51,7 +51,7 @@ function retiredNote(main: ProfileMainChampion): string | null {
 // it so names with reserved characters round-trip.
 const { truemainPathFor } = useChampionSlugs()
 
-function championLink(main: ProfileMainChampion): RouteLocationRaw {
+function championLink(main: ProfileMainChampionReadModel): RouteLocationRaw {
   return props.linkTo?.(main) ?? truemainPathFor(props.nameTag, main.championId)
 }
 </script>

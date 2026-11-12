@@ -8,4 +8,5 @@ description = "Reader for the running game's Live Client Data API, and the in-ga
 [dependencies]
 lcu = { path = "../lcu" }
 serde.workspace = true
+specta.workspace = true
 serde_json.workspace = true

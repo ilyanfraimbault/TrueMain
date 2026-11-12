@@ -2,6 +2,7 @@ using System.Diagnostics.Metrics;
 using AwesomeAssertions;
 using Data.Logging;
 using Data.Metrics.Mongo;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Services;

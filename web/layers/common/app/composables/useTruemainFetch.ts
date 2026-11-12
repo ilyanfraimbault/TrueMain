@@ -1,18 +1,19 @@
 import type { WatchSource } from 'vue'
+import type { RemoteRead } from '#common/utils/remote-read'
+import { failed, isColdLoad, startLoading } from '#common/utils/remote-read'
 
 interface UseTruemainFetchOptions<TResponse> {
   /**
    * Issue the request for the current reactive state. Called with the
-   * resolved (non-empty) name tag; expected to pass `ignoreResponseError`
-   * so a controller 404 resolves to a null body instead of throwing, and to
-   * forward `signal` so a superseded or abandoned request is cancelled.
+   * resolved (non-empty) name tag; must let a failed response throw (no
+   * `ignoreResponseError`) — the thrown status is what tells a 404 apart from
+   * an outage — and forward `signal` so a superseded or abandoned request is
+   * cancelled.
    */
   request: (nameTag: string, signal: AbortSignal) => Promise<TResponse | null>
   /**
-   * Shape check on the raw response. `ignoreResponseError` turns a 404 into
-   * a null body, so the only way to tell "not found" apart from "no body"
-   * is a check on the payload shape — anything that fails it is surfaced as
-   * <c>notFound</c>.
+   * Shape check on a successful response. A 2xx whose body fails it is read as
+   * <c>notFound</c>, like a 404.
    */
   validate: (response: TResponse | null) => response is TResponse
   /** Store a validated response into the consumer's data ref(s). */
@@ -33,8 +34,9 @@ interface UseTruemainFetchOptions<TResponse> {
 /**
  * Shared skeleton for the truemain client-side fetch composables
  * (<c>useTruemainProfile</c> / <c>useTruemainRankHistory</c> /
- * <c>useTruemainMatches</c>): the loading / notFound / error ref bundle plus
- * the fetch lifecycle around it. Deliberately hand-rolled refs instead of
+ * <c>useTruemainMatches</c>): one {@link RemoteRead} phase (`state`) plus the
+ * fetch lifecycle around it; `isLoading` / `isInitialLoading` / `notFound` /
+ * `error` are read-only views of that phase (#2476). Deliberately hand-rolled instead of
  * `useAsyncData` — these fetches are client-only by design (private-ish, no
  * SSR cross-pollination between viewers), so there is no payload cache to
  * integrate with.
@@ -63,10 +65,13 @@ export function useTruemainFetch<TResponse>(
   const nameTagRef = computed(() => toValue(nameTag))
   const enabledRef = computed(() => toValue(options.enabled ?? true))
 
-  const isLoading = ref(false)
-  const isInitialLoading = ref(true)
-  const notFound = ref(false)
-  const error = ref<unknown>(null)
+  // Shallow: the phase is replaced whole on every transition, and the answer it
+  // carries is the consumer's to keep reactive (`onResponse`).
+  const state = shallowRef<RemoteRead<TResponse>>({ kind: 'waiting' })
+  const isLoading = computed(() => state.value.kind === 'loading')
+  const isInitialLoading = computed(() => isColdLoad(state.value))
+  const notFound = computed(() => state.value.kind === 'notFound')
+  const error = computed(() => (state.value.kind === 'error' ? state.value.error : null))
 
   // Monotonic request token — the pattern `useCompositionBuild` and
   // `useTruemainSearch` already carry. Every consumer here refires on its own
@@ -87,8 +92,8 @@ export function useTruemainFetch<TResponse>(
     controller = null
   }
 
-  async function execute() {
-    // Gated: leave every ref untouched, so the consumer still reads
+  async function run(fresh: boolean) {
+    // Gated: leave the phase untouched, so the consumer still reads
     // "initial loading" rather than a cleared — i.e. empty-looking — bundle.
     if (!enabledRef.value) return
 
@@ -97,43 +102,43 @@ export function useTruemainFetch<TResponse>(
 
     if (!nameTagRef.value) {
       options.onClear()
-      notFound.value = false
-      isInitialLoading.value = false
+      state.value = { kind: 'cleared' }
       return
     }
 
-    isLoading.value = true
-    error.value = null
+    state.value = startLoading(state.value, { fresh })
     controller = new AbortController()
     try {
       const response = await options.request(nameTagRef.value, controller.signal)
 
-      // Superseded while in flight: a newer request owns the refs now, and
-      // it also owns the loading flags (see `finally`).
+      // Superseded while in flight: a newer request owns the phase now.
       if (seq !== requestSeq) return
 
       if (!options.validate(response)) {
-        notFound.value = true
         options.onClear()
+        state.value = { kind: 'notFound' }
         return
       }
 
-      notFound.value = false
       options.onResponse(response)
+      state.value = { kind: 'ready', data: response }
     }
     catch (err) {
       if (seq !== requestSeq) return
-      error.value = err
+      const next = failed(state.value, err)
+      if (next.kind === 'notFound') options.onClear()
+      state.value = next
     }
-    finally {
-      // Only the newest request may close the loading state — otherwise a
-      // stale rejection would clear the skeleton while the current fetch is
-      // still running.
-      if (seq === requestSeq) {
-        isLoading.value = false
-        isInitialLoading.value = false
-      }
-    }
+  }
+
+  /** Refetch, keeping the current answer on screen until the new one lands. */
+  function execute() {
+    return run(false)
+  }
+
+  /** Refetch from a cold state: the skeleton, not the previous answer, stands meanwhile. */
+  function reload() {
+    return run(true)
   }
 
   // The initial run is deliberately hung off `onMounted` rather than an
@@ -178,11 +183,14 @@ export function useTruemainFetch<TResponse>(
   })
 
   return {
+    /** The phase itself, for a consumer that switches on it rather than on the flag views. */
+    state: computed(() => state.value),
     isLoading,
     isInitialLoading,
     notFound,
     error,
     execute,
+    reload,
     ready,
   }
 }

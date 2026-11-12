@@ -3,32 +3,27 @@
 // whether TrueMain tracks it, an unlink that asks twice (the player's sources can
 // no longer link it back), and the form that adds one by hand. Emits; the
 // container calls the API.
-import type { PersonaAccountInput, PersonaAdminAccount } from '~~/shared/types/ops'
+import type { PersonaAccountEntry, PersonaAdminAccountReadModel } from '#site-shared/contract/api'
 import { computed, ref } from 'vue'
 import { ACCOUNT_PLATFORMS, accountInput, accountLabel } from '~~/shared/utils/known-players'
+import { useArmedConfirm } from '~/composables/useArmedConfirm'
 
 const props = defineProps<{
-  accounts: PersonaAdminAccount[]
+  accounts: PersonaAdminAccountReadModel[]
   busy: boolean
 }>()
 
 const emit = defineEmits<{
-  unlink: [account: PersonaAdminAccount]
-  add: [account: PersonaAccountInput]
+  unlink: [account: PersonaAdminAccountReadModel]
+  add: [account: PersonaAccountEntry]
 }>()
 
-const armed = ref<string | null>(null)
+const { armed, sending, press } = useArmedConfirm({ busy: () => props.busy })
 
-function unlink(account: PersonaAdminAccount) {
-  if (props.busy) {
-    return
+function unlink(account: PersonaAdminAccountReadModel) {
+  if (press(account.id)) {
+    emit('unlink', account)
   }
-  if (armed.value !== account.id) {
-    armed.value = account.id
-    return
-  }
-  armed.value = null
-  emit('unlink', account)
 }
 
 const riotId = ref('')
@@ -67,6 +62,7 @@ const tracked = computed(() => props.accounts.filter(a => a.riotAccountId).lengt
           :variant="armed === account.id ? 'solid' : 'ghost'"
           :label="armed === account.id ? 'Confirm unlink' : undefined"
           :aria-label="`Unlink ${account.gameName}#${account.tagLine}`"
+          :loading="busy && sending === account.id"
           :disabled="busy"
           @click="unlink(account)"
         />

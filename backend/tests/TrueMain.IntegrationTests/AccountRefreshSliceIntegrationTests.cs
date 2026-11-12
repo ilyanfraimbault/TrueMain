@@ -97,7 +97,7 @@ public sealed class AccountRefreshSliceIntegrationTests(PostgresFixture fixture)
                 SaveBatchSize = 1
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verify = fixture.CreateDbContext();
         foreach (var puuid in Puuids)

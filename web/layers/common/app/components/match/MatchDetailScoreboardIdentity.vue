@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { MatchDetailParticipant } from '#shared/types/match-detail'
+import type { MatchDetailParticipantReadModel } from '#shared/contract/api'
 import { truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 
 // A scoreboard player's name, with the rank crest under it. The crest alone
 // names the tier; the full rank and LP sit in its tooltip — the shared
 // `RankEmblem`, without the division this column has no room for.
 const props = defineProps<{
-  participant: MatchDetailParticipant
+  participant: MatchDetailParticipantReadModel
 }>()
 
 // Profile link for a tracked participant — only when BOTH gameName and tagLine

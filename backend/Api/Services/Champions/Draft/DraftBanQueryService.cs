@@ -85,7 +85,7 @@ public sealed class DraftBanQueryService(
 
         if (suggestions.Count == 0)
         {
-            target = targets.Count == 0 ? DraftBanTargets.None : target;
+            target = targets.Count == 0 ? DraftBanTarget.None : target;
             suggestions = await MostBannedAsync(position, scope, criteria.EloBracket, excluded, ct);
         }
 
@@ -102,11 +102,11 @@ public sealed class DraftBanQueryService(
     }
 
     /// <summary>The champions the bans protect: the declared pick, else the pool's top by mastery.</summary>
-    internal static (string Target, List<DraftPoolEntry> Targets) Targets(DraftBanCriteria criteria)
+    internal static (DraftBanTarget Target, List<DraftPoolEntry> Targets) Targets(DraftBanCriteria criteria)
     {
         if (criteria.PlannedPick is { } pick)
         {
-            return (DraftBanTargets.Pick, [new DraftPoolEntry(pick, 1d)]);
+            return (DraftBanTarget.Pick, [new DraftPoolEntry(pick, 1d)]);
         }
 
         var pool = criteria.Pool
@@ -118,7 +118,7 @@ public sealed class DraftBanQueryService(
             .ToList();
         if (pool.Count == 0)
         {
-            return (DraftBanTargets.None, []);
+            return (DraftBanTarget.None, []);
         }
 
         // No mastery known (every weight zero or negative): the pool counts evenly.
@@ -127,7 +127,7 @@ public sealed class DraftBanQueryService(
             pool = pool.Select(entry => entry with { Weight = 1d }).ToList();
         }
 
-        return (DraftBanTargets.Pool, pool);
+        return (DraftBanTarget.Pool, pool);
     }
 
     /// <summary>
@@ -186,7 +186,7 @@ public sealed class DraftBanQueryService(
                 [
                     new DraftReasonReadModel
                     {
-                        Kind = DraftReasonKinds.BanRate,
+                        Kind = DraftReasonKind.BanRate,
                         ChampionId = id,
                         Rate = banRates.RateFor(id),
                         Games = (int)Math.Min(int.MaxValue, banRates.Matches),

@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.DataQuality;
 using static TrueMain.Services.Ops.DataQuality.IngestionLagDetector;
 

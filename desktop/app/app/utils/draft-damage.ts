@@ -1,3 +1,4 @@
+import type { ItemContextAxis } from '#shared/contract/api'
 import type { DamageProfile, TeamDamage } from '~/utils/damage-profile'
 import { BUILT_AXES } from '~/utils/built-reasons'
 import { teamDamage } from '~/utils/damage-profile'
@@ -83,12 +84,12 @@ export interface DraftItemPush {
   itemId: number
   share: number
   baseShare: number
-  reason: { axis: string, bucket: 'High' | 'Low' }
+  reason: { axis: ItemContextAxis, bucket: 'High' | 'Low' }
 }
 
 /** The slice of a next-item slot (`utils/next-item`) the advice reads. */
 interface SlotCandidates {
-  candidates: { itemId: number, share: number, baseShare: number, reasons: { axis: string, bucket: 'High' | 'Low' }[] }[]
+  candidates: { itemId: number, share: number, baseShare: number, reasons: { axis: ItemContextAxis, bucket: 'High' | 'Low' }[] }[]
 }
 
 /**
@@ -106,7 +107,8 @@ export const PUSH_MIN_RATIO = 1.25
  * nothing in this draft — and the gold lead, like what the enemies have built
  * (#1750), does not exist before the game.
  */
-export function isDraftReason(axis: string): boolean {
+export function isDraftReason(axis: ItemContextAxis): boolean {
+  if (!axis) return false
   return (axis.startsWith('Enemy') || axis.startsWith('Opponent')) && !BUILT_AXES.includes(axis)
 }
 

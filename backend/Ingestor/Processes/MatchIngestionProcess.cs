@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using Core;
 using Core.Lol.Identifiers;
-using Data.Repositories;
+using Data.Pipeline;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes.Common;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
 
+[PipelineStep(JobMode.MatchIngestionOnly)]
 public sealed class MatchIngestionProcess(
     ILogger<MatchIngestionProcess> logger,
     IDataSessionFactory sessionFactory,
@@ -17,15 +19,12 @@ public sealed class MatchIngestionProcess(
     IMatchSnapshotWriter matchSnapshotWriter,
     ITimelineIngestionService timelineIngestionService,
     IAccountValidationService accountValidationService,
-    IOptions<MatchIngestionOptions> matchOptions,
-    MatchIngestionScope? scope = null) : IIngestorProcess
+    IOptions<MatchIngestionOptions> matchOptions) : IIngestorProcess
 {
-    public string Name => "MatchIngestion";
-
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var options = matchOptions.Value;
-        var platforms = scope?.Platforms is { } restricted
+        var platforms = input.Platforms is { } restricted
             ? PlatformNormalizer.Normalize(restricted)
             : PlatformNormalizer.Normalize(options.Platforms);
 
@@ -42,11 +41,11 @@ public sealed class MatchIngestionProcess(
         //
         // A run narrowed to some platforms — a permanent worker's batch (#1457) — reaps only
         // those: the other platforms belong to workers whose claims are live right now.
-        var released = scope?.Platforms is null
+        var released = input.Platforms is null
             ? await matchClaimService.ReleaseExpiredClaimsAsync(lease, ct)
             : await matchClaimService.ReleaseExpiredClaimsAsync(lease, platforms, ct);
 
-        var batchSize = scope?.BatchSize ?? options.BatchSize;
+        var batchSize = input.BatchSize ?? options.BatchSize;
         var claimedAccounts = await ClaimAccountsAsync(platforms, batchSize, options, lease, ct);
         var summary = await IngestClaimedAccountsAsync(claimedAccounts, platforms, options, ct);
         LogPlatformSummaries(summary.ByPlatform);

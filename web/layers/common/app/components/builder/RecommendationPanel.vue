@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { LOW_SAMPLE_GAMES } from '#common/utils/sample-floor'
 import { refinesBeyondMatchup } from '#common/utils/draft-context'
-import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/types/composition'
+import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/contract/api'
 import { indexItemContext } from '#shared/utils/item-context'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { isLoadingStatus } from '#common/utils/async-data'

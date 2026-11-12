@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { escapeChartTickText, escapeTickFormatter } from '~/utils/chart-text'
+import { escapeChartTickText, escapeTickFormatter } from '~~/shared/utils/chart-text'
 
 // Regression cover for #842: `@unovis/ts` string-builds `<tspan>…</tspan>` from
 // the tick text and parses it with `DOMParser` as `image/svg+xml`, so a label

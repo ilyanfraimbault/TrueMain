@@ -109,6 +109,24 @@ public sealed class IngestionBackpressureTests
     }
 
     [Fact]
+    public void WaitUntilClearAsync_WhenAResourceTheHostHasFailsToRead_ReportsAnErrorOnce()
+    {
+        // A failed read is a safety brake silently off (#600, #680), not a host without the
+        // resource: it must reach the error logs (#2481, F27).
+        var logger = new FakeLogger<IngestionBackpressure>();
+        var backpressure = Create(
+            new ScriptedProbe(new HostResourceReading(null, 50, "/proc/meminfo: permission denied")),
+            new FakeTimeProvider(),
+            logger);
+
+        backpressure.WaitUntilClearAsync(CancellationToken.None).IsCompletedSuccessfully.Should().BeTrue();
+        backpressure.WaitUntilClearAsync(CancellationToken.None).IsCompletedSuccessfully.Should().BeTrue();
+
+        logger.Collector.GetSnapshot().Should().ContainSingle(record => record.Level == LogLevel.Error)
+            .Which.Message.Should().Contain("permission denied");
+    }
+
+    [Fact]
     public void WaitUntilClearAsync_Disabled_NeverReadsTheHost()
     {
         var probe = new ScriptedProbe(new HostResourceReading(1, 1));

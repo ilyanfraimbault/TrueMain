@@ -2,7 +2,7 @@ using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Data.Entities;
 using Data.Ops.Mongo;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Discovery;
@@ -157,7 +157,6 @@ public sealed class DiscoveryMasterySkipTests
                 accountUpsert,
                 candidateUpsert,
                 Substitute.For<IRankSnapshotWriter>(),
-                Substitute.For<IProcessRunStore>(),
                 new FixedTimeProvider(NowUtc),
                 Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
                 {
@@ -169,7 +168,7 @@ public sealed class DiscoveryMasterySkipTests
 
         public async Task<DiscoverySummary> RunAsync()
         {
-            var summary = await _process.RunCoreAsync(CancellationToken.None);
+            var summary = await _process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
             return summary.Should().BeOfType<DiscoverySummary>().Subject;
         }
     }

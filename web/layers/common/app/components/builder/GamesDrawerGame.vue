@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CompositionGame, CompositionGamePilot } from '#shared/types/composition'
+import type { CompositionGamePilotReadModel, CompositionGameReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
@@ -11,7 +11,7 @@ import { truemainNameTag } from '#shared/utils/truemain-path'
 // One game of the provenance drawer: who piloted it, then the plain
 // match-history row.
 defineProps<{
-  game: CompositionGame
+  game: CompositionGameReadModel
   champions: ChampionStaticListItem[]
   items: Record<number, StaticItemData>
   summonerSpells: Record<number, StaticSummonerSpellData>
@@ -25,7 +25,7 @@ defineProps<{
 // (`/truemains/{nameTag}/matches/{matchId}`) is scoped by. So one value both
 // links the pilot's profile and makes the row expandable; without a resolved
 // Riot account the row degrades to a static, non-expandable article.
-function pilotNameTag(pilot: CompositionGamePilot | null): string | null {
+function pilotNameTag(pilot: CompositionGamePilotReadModel | null): string | null {
   if (!pilot) return null
   return truemainNameTag(pilot.gameName, pilot.tagLine)
 }

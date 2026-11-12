@@ -1,9 +1,9 @@
-import type { RankHistoryResponse } from '#shared/types/rank-history'
+import type { RankHistoryReadModel } from '#shared/contract/api'
 
 /**
  * Fetch the rank-history payload for the given <c>nameTag</c>. Mirrors the
- * shape of <c>useTruemainProfile</c> — 404 surfaces as <c>notFound</c>
- * instead of throwing, and the result is fetched client-side so different
+ * shape of <c>useTruemainProfile</c> — a 404 surfaces as <c>notFound</c>, any
+ * other failure as <c>error</c> (#2476), and the result is fetched client-side so different
  * viewers never share an SSR cache entry.
  */
 export function useTruemainRankHistory(
@@ -13,19 +13,18 @@ export function useTruemainRankHistory(
   const daysRef = computed(() => toValue(options.days) ?? 90)
 
   const apiFetch = useApiFetch()
-  const data = ref<RankHistoryResponse | null>(null)
+  const data = ref<RankHistoryReadModel | null>(null)
 
-  const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<RankHistoryResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, ready } = useTruemainFetch<RankHistoryReadModel>(nameTag, {
     watch: [daysRef],
-    request: (tag, signal) => apiFetch<RankHistoryResponse | null>(
+    request: (tag, signal) => apiFetch<RankHistoryReadModel | null>(
       `/truemains/${encodeURIComponent(tag)}/rank-history`,
       {
         query: { days: daysRef.value },
-        ignoreResponseError: true,
         signal,
       },
     ),
-    validate: (response): response is RankHistoryResponse =>
+    validate: (response): response is RankHistoryReadModel =>
       Boolean(response && typeof response === 'object' && Array.isArray(response.entries)),
     onResponse: (response) => { data.value = response },
     onClear: () => { data.value = null },

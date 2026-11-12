@@ -3,7 +3,7 @@ import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { getQuery } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 import { BuilderFallbackBuild, BuilderMatchupRecommendation, UApp } from '#components'
-import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/types/composition'
+import type { CompositionBuildRequest, CompositionBuildResponse } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 
 /**
@@ -137,7 +137,7 @@ describe('matchup first answer', () => {
       loading: false,
       opponent: zed,
       recommendation,
-      draftRequest: { ...matchupOnly, allies: [...matchupOnly.allies, { championId: 64, position: 'JUNGLE' }] },
+      draftRequest: { ...matchupOnly, allies: [...(matchupOnly.allies ?? []), { championId: 64, position: 'JUNGLE' }] },
     })
     await flushPromises()
     expect(drafted.text()).toContain('Refined with the draft')

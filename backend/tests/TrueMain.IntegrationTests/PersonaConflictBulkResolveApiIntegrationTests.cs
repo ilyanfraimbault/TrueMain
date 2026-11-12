@@ -48,7 +48,7 @@ public sealed class PersonaConflictBulkResolveApiIntegrationTests : IAsyncLifeti
         var two = at20.Conflicts.Single();
         two.Conflict.Claimant.Slug.Should().Be("claimer-two");
         two.Conflict.Evidence.Score.Should().Be(20);
-        two.Keep.Should().Be("owner");
+        two.Keep.Should().Be(PersonaConflictSide.Owner);
         two.KeptSlug.Should().Be("holder-two");
         two.MergedSlug.Should().Be("claimer-two");
 
@@ -83,7 +83,7 @@ public sealed class PersonaConflictBulkResolveApiIntegrationTests : IAsyncLifeti
         result.Resolved.Should().Be(2);
         result.Skipped.Should().Be(0);
         result.Outcomes.Select(o => o.Id).Should().Equal(ids);
-        result.Outcomes.Should().OnlyContain(o => o.Status == "resolved" && o.Resolution!.Resolution == "Merged");
+        result.Outcomes.Should().OnlyContain(o => o.Status == PersonaConflictBulkStatus.Resolved && o.Resolution!.Resolution == PersonaConflictResolution.Merged);
         result.Outcomes.Select(o => (o.Resolution!.HolderSlug, o.Resolution.MergedSlug))
             .Should().Equal(("holder-two", "claimer-two"), ("claimer-one", "holder-one"));
 
@@ -110,7 +110,7 @@ public sealed class PersonaConflictBulkResolveApiIntegrationTests : IAsyncLifeti
         var preview = await PreviewAsync(client, 10);
         var two = preview.Conflicts.Single(c => c.Conflict.Claimant.Slug == "claimer-two").Conflict.Id;
         var one = preview.Conflicts.Single(c => c.Conflict.Claimant.Slug == "claimer-one").Conflict.Id;
-        var diff = (await client.GetFromJsonAsync<PersonaConflictsReadModel>("/ops/personas/conflicts?status=Open"))!
+        var diff = (await client.GetFromJsonAsync<PersonaConflictsReadModel>("/ops/personas/conflicts?status=Open", ApiJson.Options))!
             .Conflicts.Single(c => c.Claimant.Slug == "claimer-diff").Id;
 
         // Since the preview: the first was settled by hand, the second's claimant now lists another YouTube.
@@ -126,13 +126,13 @@ public sealed class PersonaConflictBulkResolveApiIntegrationTests : IAsyncLifeti
 
         result.Resolved.Should().Be(0);
         result.Skipped.Should().Be(4);
-        result.Outcomes.Select(o => o.Reason).Should().Equal("notOpen", "differingChannel", "differingChannel", "notFound");
-        (await client.GetFromJsonAsync<PersonaConflictsReadModel>("/ops/personas/conflicts?status=Open"))!.Open.Should().Be(3);
+        result.Outcomes.Select(o => o.Reason).Should().Equal(PersonaConflictBulkSkipReason.NotOpen, PersonaConflictBulkSkipReason.DifferingChannel, PersonaConflictBulkSkipReason.DifferingChannel, PersonaConflictBulkSkipReason.NotFound);
+        (await client.GetFromJsonAsync<PersonaConflictsReadModel>("/ops/personas/conflicts?status=Open", ApiJson.Options))!.Open.Should().Be(3);
 
         // Sent anyway: under its floor, or sharing reference pages only, a conflict is not merged in bulk.
-        var refs = (await client.GetFromJsonAsync<PersonaConflictsReadModel>("/ops/personas/conflicts?status=Open"))!
+        var refs = (await client.GetFromJsonAsync<PersonaConflictsReadModel>("/ops/personas/conflicts?status=Open", ApiJson.Options))!
             .Conflicts.Single(c => c.Claimant.Slug == "claimer-refs").Id;
-        (await BulkAsync(client, [refs], 10)).Outcomes.Single().Reason.Should().Be("belowFloor");
+        (await BulkAsync(client, [refs], 10)).Outcomes.Single().Reason.Should().Be(PersonaConflictBulkSkipReason.BelowFloor);
     }
 
     [Fact]
@@ -206,13 +206,13 @@ public sealed class PersonaConflictBulkResolveApiIntegrationTests : IAsyncLifeti
     }
 
     private static async Task<PersonaConflictBulkPreviewReadModel> PreviewAsync(HttpClient client, int minScore) =>
-        (await client.GetFromJsonAsync<PersonaConflictBulkPreviewReadModel>($"/ops/personas/conflicts/bulk-resolve/preview?minScore={minScore}"))!;
+        (await client.GetFromJsonAsync<PersonaConflictBulkPreviewReadModel>($"/ops/personas/conflicts/bulk-resolve/preview?minScore={minScore}", ApiJson.Options))!;
 
     private static async Task<PersonaConflictBulkResolveResponse> BulkAsync(HttpClient client, IReadOnlyList<Guid> ids, int minScore)
     {
         var response = await client.PostAsJsonAsync("/ops/personas/conflicts/bulk-resolve", new { ids, minScore });
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-        return (await response.Content.ReadFromJsonAsync<PersonaConflictBulkResolveResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<PersonaConflictBulkResolveResponse>(ApiJson.Options))!;
     }
 
     private ApiWebApplicationFactory CreateFactory() => new(_fixture, _mongo);

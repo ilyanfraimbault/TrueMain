@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionResponse } from '#shared/types/champions'
+import type { ChampionResponse } from '#shared/contract/api'
 import { indexItemContext } from '#shared/utils/item-context'
 import { isLoadingStatus } from '#common/utils/async-data'
 

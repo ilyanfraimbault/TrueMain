@@ -1,3 +1,7 @@
+using System.ComponentModel.DataAnnotations;
+using TrueMain.Configuration;
+using TrueMain.RateLimiting;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -30,9 +34,11 @@ namespace TrueMain.Options;
 /// supply of fresh buckets.
 /// </para>
 /// </remarks>
-public sealed class RateLimitOptions
+public sealed class RateLimitOptions : IApiOptions, IValidatableObject
 {
     public const string SectionName = "RateLimit";
+
+    static string IApiOptions.Section => SectionName;
 
     /// <summary>
     /// Requests allowed per <see cref="WindowSeconds"/>, per visitor. Sized for
@@ -72,4 +78,29 @@ public sealed class RateLimitOptions
     /// one for ours.
     /// </summary>
     public string ClientIpHeader { get; set; } = "X-Forwarded-For";
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        if (PermitLimit <= 0)
+        {
+            yield return new ValidationResult("RateLimit:PermitLimit must be greater than 0.");
+        }
+
+        if (WindowSeconds <= 0)
+        {
+            yield return new ValidationResult("RateLimit:WindowSeconds must be greater than 0.");
+        }
+
+        if (QueueLimit < 0)
+        {
+            yield return new ValidationResult("RateLimit:QueueLimit must be >= 0.");
+        }
+
+        if (!TrustedProxies.All(ClientAddressResolver.IsParsableNetwork))
+        {
+            yield return new ValidationResult("RateLimit:TrustedProxies must be CIDR ranges, e.g. \"172.16.0.0/12\". A typo here would "
+                + "silently stop the limiter from reading the forwarded address and collapse every visitor "
+                + "back onto the proxy's own partition.");
+        }
+    }
 }

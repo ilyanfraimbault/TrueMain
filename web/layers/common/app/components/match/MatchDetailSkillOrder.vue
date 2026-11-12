@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { MatchDetailSkillEvent } from '#shared/types/match-detail'
+import type { MatchDetailSkillEventReadModel } from '#shared/contract/api'
 import { isLoadingStatus } from '#common/utils/async-data'
 
 // The selected player's skill order: one column per level (chronological), one
 // row per slot, each row headed by the real spell icon with its Q/W/E/R badge.
 const props = defineProps<{
   championId: number
-  skillEvents: MatchDetailSkillEvent[]
+  skillEvents: MatchDetailSkillEventReadModel[]
 }>()
 
 // Q/W/E/R icons at the latest patch — kit icons are stable across patches, so

@@ -431,7 +431,9 @@ last pair seen when none was bought (a rune's boots). On preprod's new rows this
 of bot laners, and every miss was that rune's boots, which the fallback covers. Re-fetching from Riot was
 rejected: it spends the match-v5 budget on ~1M rows to recover what the row already holds. The other roles'
 legacy rows stay `NULL` and read as empty, because their quest reward appears nowhere else. The column was
-dropped and re-added rather than altered, so no row was rewritten on a 35 GB table.
+dropped and re-added rather than altered, so no row was rewritten on a 35 GB table. The backfill step and the lane-position correction (#791) were retired once every retained match carried
+the column and the ingest-time mapper applied the same lane rule: their runs had long reported no work, and the
+retained patch window had aged the pre-fix rows out (2026-11-10, #2481).
 
 **The match row and the scoreboard draw the inventory the way the game does** (`match/MatchItemGrid.vue`):
 slots 0–5 as a 3×2 grid in slot order, then the trinket over the role-bound slot. #1607 pulled the boots out

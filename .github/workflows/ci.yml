@@ -52,6 +52,7 @@ jobs:
               - "backend/**"
               - "global.json"
               - "web/shared/fixtures/performance-score-vectors.json"
+              - "web/shared/contract/openapi.json"
             data:
               - "backend/Data/**"
             web:
@@ -267,6 +268,10 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Contract types up to date
+        if: matrix.app == 'web'
+        run: npm run contract -- --check
 
       - name: Typecheck Nuxt app
         run: npm run typecheck
