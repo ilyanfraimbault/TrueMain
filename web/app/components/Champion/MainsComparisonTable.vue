@@ -32,7 +32,7 @@ const METRICS: MetricRow[] = [
   {
     label: 'Win rate',
     read: side => side.winRate,
-    format: value => formatPercentage(value, 1),
+    format: value => formatPercentage(value),
     formatDelta: value => formatPointDelta(value),
   },
   {

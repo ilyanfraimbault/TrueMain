@@ -129,10 +129,10 @@ describe('resolveSummaryMatchups', () => {
 describe('championMatchupSentenceTokens', () => {
   it('states the best and the worst matchups with their records', () => {
     expect(sentences(summary(resolveSummaryMatchups(ENTRIES, CHAMPIONS)))).toEqual([
-      'In the mid lane, Ahri mains fare best against Zed (won 58.1% of 312 games), '
-      + 'Yasuo (won 55.0% of 280 games) and Lux (won 54.8% of 190 games).',
-      'Their hardest matchups, the champions that counter Ahri, are Kassadin (won 44.1% of 150 games), '
-      + 'LeBlanc (won 45.2% of 95 games) and Orianna (won 47.0% of 140 games).',
+      'In the mid lane, Ahri mains fare best against Zed (won 58% of 312 games), '
+      + 'Yasuo (won 55% of 280 games) and Lux (won 55% of 190 games).',
+      'Their hardest matchups, the champions that counter Ahri, are Kassadin (won 44% of 150 games), '
+      + 'LeBlanc (won 45% of 95 games) and Orianna (won 47% of 140 games).',
     ])
   })
 
@@ -149,7 +149,7 @@ describe('championMatchupSentenceTokens', () => {
     const one = { best: [], worst: [{ id: 38, name: 'Kassadin', iconUrl: null, games: 1, winRate: 0 }] }
 
     expect(sentences(summary(one))).toEqual([
-      'Their hardest matchup, the champion that counters Ahri, is Kassadin (won 0.0% of 1 game).',
+      'Their hardest matchup, the champion that counters Ahri, is Kassadin (won 0% of 1 game).',
     ])
   })
 
