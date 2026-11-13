@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ForwardedBatch, ForwardedError } from '~~/layers/nitro/server/utils/log-forwarder'
-import { createLogForwarder, errorStatus, toRouteTemplate } from '~~/layers/nitro/server/utils/log-forwarder'
+import { createLogForwarder, errorReport, errorStatus, toRouteTemplate } from '~~/layers/nitro/server/utils/log-forwarder'
 
 // Pins the ops-log forwarder (#1556) the site and the admin share (`layers/nitro`).
 
@@ -124,5 +124,52 @@ describe('errorStatus', () => {
     expect(errorStatus({ statusCode: 502 })).toBe(502)
     expect(errorStatus({ status: 404 })).toBe(404)
     expect(errorStatus(new Error('boom'))).toBe(500)
+  })
+})
+
+// A 5xx raised with `createError({ cause })` (an upstream `$fetch` that failed) used to
+// reach the ops logs without its cause, so the log said that it failed, never why (#2622).
+describe('errorReport', () => {
+  it('appends the cause chain to the stack', () => {
+    const upstream = new Error('[GET] "https://cdn.example/v1/perks.json": 404 Not Found')
+    const wrapped = new Error('CommunityDragon rune tree fetch failed', { cause: upstream })
+
+    const report = errorReport(wrapped)
+
+    expect(report).toContain(wrapped.stack)
+    expect(report).toContain(`Caused by: ${upstream.stack}`)
+  })
+
+  it('is the stack alone without a cause, and null for a stackless value', () => {
+    const plain = new Error('boom')
+    expect(errorReport(plain)).toBe(plain.stack)
+    expect(errorReport({ statusCode: 500 })).toBeNull()
+    expect(errorReport(null)).toBeNull()
+  })
+
+  it('renders a cause that is not an Error', () => {
+    const report = errorReport(new Error('outer', { cause: 'socket hang up' }))
+    expect(report).toContain('Caused by: socket hang up')
+    expect(errorReport(new Error('outer', { cause: { code: 'ECONNRESET' } }))).toContain('Caused by: {"code":"ECONNRESET"}')
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+    expect(errorReport(new Error('outer', { cause: circular }))).toContain('Caused by: [object Object]')
+  })
+
+  it('stops on a cause that refers back to an error already reported', () => {
+    const first = new Error('first')
+    const second = new Error('second', { cause: first })
+    ;(first as { cause?: unknown }).cause = second
+
+    const report = errorReport(first)!
+
+    expect(report.match(/Caused by:/g)).toHaveLength(1)
+  })
+
+  it('bounds the depth of the chain', () => {
+    let error = new Error('level 0')
+    for (let level = 1; level <= 10; level++) error = new Error(`level ${level}`, { cause: error })
+
+    expect(errorReport(error)!.match(/Caused by:/g)).toHaveLength(5)
   })
 })
