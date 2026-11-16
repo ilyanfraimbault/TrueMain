@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FavoriteChampionInput } from '#common/utils/favorites'
-import { POSITION_BY_VALUE, isChampionPosition } from '#common/utils/positions'
+import { POSITION_BY_VALUE, isChampionPosition } from '#shared/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { championDisplayName } from '#shared/utils/champion-name'
 
@@ -19,7 +19,7 @@ const route = useRoute()
 // component), so a guard in setup would silently stop firing on client-side
 // navigation. See `championRouteGuard`.
 definePageMeta({
-  middleware: to => championRouteGuard(to, segment => `/champions/${segment}`),
+  middleware: to => championRouteGuard(to, 'global'),
 })
 
 const { resolveParam } = useChampionSlugs()

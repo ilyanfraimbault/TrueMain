@@ -207,6 +207,17 @@ With the edge in its own project, an app rollout leaves Caddy running, and the
   4 s. After a web hang the page can come back once for a few seconds, while the
   probes sent during the hang time out. Isolated failures change nothing, however
   many.
+- **The API is warming its cache after a start** (#2425). Its `/readyz` answers `503`
+  with the body `Degraded` until the first warm pass has published, or
+  `ChampionWarmup:ReadyBudgetSeconds` has gone by (300 s), so a stuck warm-up cannot
+  keep the site down. Web reads that body and does not report it as a failure.
+- **Web is warming its workers after a start** (#2425). Each one renders the main
+  pages and reads each champion's data for itself once the API is ready, and one fetches the
+  images the shared volume does not hold yet and renders every champion page into the
+  workers' shared HTML cache (`x-html-cache` on an answer says it came from there). `/api/readyz` answers `503` `warming`
+  until they have all finished, or `warmupBudgetSeconds` has gone by (480 s, from the
+  process's start). A later aggregation run moves nothing here: the API publishes
+  the new version once complete.
 
   The counting lives in web because Caddy cannot do it: `health_fails` adds failed
   probes up over the life of the process and a pass does not reset it. Measured on
@@ -264,9 +275,10 @@ stack directory can be removed once the new edge has served a day.
 ## Compression at the edge
 
 Caddy compresses what it proxies for the public site and the admin (`encode zstd gzip` in the edge configuration, #1583),
-choosing zstd or gzip from the browser's `Accept-Encoding`. Nothing upstream compresses: until then a champion
-page's HTML (about 200 KB), each JS bundle (up to about 290 KB) and `/api/static/items` (about 500 KB) went out
-raw. Images from `/_ipx` are already WebP and gain little. Preprod's edge Caddy carries the same directive, so its
+choosing zstd or gzip from the browser's `Accept-Encoding`. Until then a champion page's HTML (about 200 KB), each JS
+bundle (up to about 290 KB) and `/api/static/items` (about 500 KB) went out raw. Web's public assets are precompressed
+at build time since #2425 (`compressPublicAssets`, brotli and gzip), and the edge leaves an encoded answer as it is.
+Images from `/_ipx` are already WebP and gain little. Preprod's edge Caddy carries the same directive, so its
 page-load measurements stay comparable.
 
 ## Security response headers
@@ -414,4 +426,18 @@ than fitting a line to a guessed capacity.
 `ALERTING_DISCORD_WEBHOOK_URL` turns the pipeline-health alerts on (#2292): the
 Discord webhook the Api posts to when the `/health` verdict turns red or recovers.
 Unset means no alerts, which `/health` and the configuration page both say. It is a
-credential — keep it in the stack `.env`, never in a commit.
+credential — keep it in `PROD_ENV_FILE`, never in a commit.
+
+`PERSONA_PICTURES_YOUTUBE_API_KEY`, `PERSONA_PICTURES_TWITCH_CLIENT_ID` and
+`PERSONA_PICTURES_TWITCH_CLIENT_SECRET` turn known players' pictures on (#2446). All
+three or nothing: unset, players keep the placeholder, and the configuration page says
+so. The YouTube one is a YouTube Data API v3 key, the Twitch pair an application from the
+Twitch developer console. Credentials too — `PROD_ENV_FILE` only. Give each environment
+its own Google Cloud project for the YouTube key: the 10,000-unit daily quota is per
+project, not per key, so a shared project lets preprod spend prod's quota.
+
+Setting a credential in `PROD_ENV_FILE` (or `PREPROD_ENV_FILE`) takes effect at that
+environment's next deploy, which rewrites the VPS `.env` from it. Editing the VPS `.env`
+alone works until then and is silently lost at that deploy. The secret cannot be read
+back, so update it from the VPS `.env` minus `IMAGE_TAG` and `APP_VERSION`, which the
+deploy appends.

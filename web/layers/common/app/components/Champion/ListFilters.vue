@@ -4,8 +4,8 @@
 // from and written to the URL through `useChampionFilters`, so moving between
 // the two pages keeps every control in place.
 import type { ChampionStaticListItem } from '#shared/types/static-data'
-import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
-import { normalizeEloBracket } from '#common/utils/elo-brackets'
+import { isChampionPosition, type ChampionPosition } from '#shared/utils/positions'
+import { normalizeEloBracket } from '#shared/utils/elo-brackets'
 
 const props = defineProps<{
   champions: ChampionStaticListItem[]

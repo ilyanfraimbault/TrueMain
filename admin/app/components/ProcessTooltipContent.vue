@@ -1,18 +1,19 @@
 <script setup lang="ts">
 // The #content slot shared by every process chip's UTooltip: the process
-// description above a smaller, muted context line. Reading PROCESS_META and
-// resolving the description happen once here instead of once per template
-// interpolation at each of the three call sites (chain chip, iteration chip,
-// iteration detail row).
+// description above a smaller, muted context line. Resolving the description from
+// the pipeline catalog happens once here instead of once per template interpolation
+// at each of the three call sites (chain chip, iteration chip, iteration detail row).
 import { computed } from 'vue'
-import { PROCESS_META } from '~~/shared/types/pipeline-chain'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
+import { chainDescription } from '~/utils/process-chain'
 
 const props = defineProps<{
   processName: string
   context: string
 }>()
 
-const description = computed(() => PROCESS_META[props.processName]?.description)
+const catalog = usePipelineCatalog()
+const description = computed(() => chainDescription(catalog.value, props.processName))
 </script>
 
 <template>

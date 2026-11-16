@@ -3,10 +3,10 @@
 // report, copyable as text — the server's plain-language reading (#722), the
 // environment and memory/GC snapshot, the exception chain and the log lines
 // captured just before the crash.
-import type { CrashReport } from '~~/shared/types/ops'
+import type { CrashReportReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatElapsed, humanizeBytes } from '~~/shared/utils/format'
 
-defineProps<{ entry: CrashReport }>()
+defineProps<{ entry: CrashReportReadModel }>()
 </script>
 
 <template>

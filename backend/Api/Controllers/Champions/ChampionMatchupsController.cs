@@ -36,26 +36,12 @@ public sealed class ChampionMatchupsController(
         [FromQuery][Range(1, int.MaxValue)] int? opponent,
         CancellationToken ct = default)
     {
-        if (!this.TryRequirePosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryParseChampionScope(
+                championId, position, patch, eloBracket, PositionRule.Required, out var scope, out var problem))
         {
             return problem;
         }
 
-        var normalizedPatch = PatchParameter.Normalize(patch);
-        if (!this.TryNormalizeOptionalEloBracket(eloBracket, out var normalizedBracket, out var bracketProblem))
-        {
-            return bracketProblem;
-        }
-
-        var response = await matchupQueryService.GetAsync(
-            championId,
-            normalizedPosition,
-            normalizedPatch,
-            riotAccountId: null,
-            opponentChampionId: opponent,
-            normalizedBracket,
-            ct);
-
-        return Ok(response);
+        return Ok(await matchupQueryService.GetAsync(scope, opponent, ct));
     }
 }

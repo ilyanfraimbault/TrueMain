@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Clip, RecordingLibrary } from '../app/types/recordings'
-import { latestClips } from '../app/utils/recording-library'
+import { clipDeleteDescription, latestClips } from '../app/utils/recording-library'
+import { videoOnDisk, youtubeUrl } from '../app/types/recordings'
 
 function clip(id: string, createdAtMs: number, gameStartedAtMs = 0, startMs = 0): Clip {
   return {
@@ -24,8 +25,7 @@ function clip(id: string, createdAtMs: number, gameStartedAtMs = 0, startMs = 0)
     videoPath: `/clips/${id}.mp4`,
     thumbnailPath: null,
     moments: [],
-    youtubeUrl: null,
-    videoOnDisk: true,
+    video: { kind: 'local' },
     automatic: [],
   }
 }
@@ -47,5 +47,26 @@ describe('latestClips', () => {
   it('has nothing without a library', () => {
     expect(latestClips(null, 4)).toEqual([])
     expect(latestClips(library([]), 4)).toEqual([])
+  })
+})
+
+describe('ClipVideo', () => {
+  const url = 'https://youtu.be/x'
+
+  it('reads the file and the link off where the clip plays from', () => {
+    expect(videoOnDisk({ kind: 'local' })).toBe(true)
+    expect(videoOnDisk({ kind: 'both', url })).toBe(true)
+    expect(videoOnDisk({ kind: 'youtube', url })).toBe(false)
+    expect(videoOnDisk({ kind: 'missing' })).toBe(false)
+    expect(youtubeUrl({ kind: 'both', url })).toBe(url)
+    expect(youtubeUrl({ kind: 'youtube', url })).toBe(url)
+    expect(youtubeUrl({ kind: 'local' })).toBeNull()
+    expect(youtubeUrl({ kind: 'missing' })).toBeNull()
+  })
+
+  it('says what deleting a clip does by where it plays from', () => {
+    expect(clipDeleteDescription('Penta', { kind: 'local' })).toContain('removed from your disk')
+    expect(clipDeleteDescription('Penta', { kind: 'youtube', url })).toContain('stays on YouTube')
+    expect(clipDeleteDescription('Penta', { kind: 'missing' })).toContain('already gone')
   })
 })

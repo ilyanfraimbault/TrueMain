@@ -43,7 +43,11 @@ public sealed class DbStorageHistoryQueryService(
         {
             // No snapshots yet — the step has not run, or Mongo is unconfigured. An
             // empty model is the right answer; the panel says "no history yet".
-            return new DbStorageHistoryReadModel();
+            return new DbStorageHistoryReadModel
+            {
+                ForecastAbsence = DbStorageForecastAbsence.NoSnapshots,
+                ForecastMinimumDays = StorageForecastCalculator.MinimumPoints,
+            };
         }
 
         var daily = points
@@ -97,6 +101,7 @@ public sealed class DbStorageHistoryQueryService(
             .ToList();
 
         var comparable = ComparableDays(points, daily);
+        var forecast = BuildForecast(comparable, settings);
 
         return new DbStorageHistoryReadModel
         {
@@ -104,7 +109,9 @@ public sealed class DbStorageHistoryQueryService(
             Tables = tables,
             Engines = engines,
             ComparableDays = comparable.Count,
-            Forecast = BuildForecast(comparable, settings),
+            Forecast = forecast,
+            ForecastAbsence = forecast is null ? AbsenceOf(daily.Count, comparable.Count, settings) : null,
+            ForecastMinimumDays = StorageForecastCalculator.MinimumPoints,
         };
     }
 
@@ -200,6 +207,20 @@ public sealed class DbStorageHistoryQueryService(
                 ? (double)(last.TotalBytes - first.TotalBytes) / first.TotalBytes
                 : null,
         };
+    }
+
+    private static DbStorageForecastAbsence AbsenceOf(int days, int comparableDays, StorageHistoryOptions settings)
+    {
+        if (comparableDays < StorageForecastCalculator.MinimumPoints)
+        {
+            // Fewer comparable days than charted ones: the set of measured engines changed
+            // recently, and a newcomer's footprint lands in one step, which is not a growth rate.
+            return comparableDays < days ? DbStorageForecastAbsence.EnginesChanged : DbStorageForecastAbsence.TooFewDays;
+        }
+
+        return settings.DiskCapacityBytes <= 0 || !settings.ThresholdPercents.Any(percent => percent > 0)
+            ? DbStorageForecastAbsence.NoCapacityConfigured
+            : DbStorageForecastAbsence.NotGrowing;
     }
 
     private static DbStorageForecast? BuildForecast(

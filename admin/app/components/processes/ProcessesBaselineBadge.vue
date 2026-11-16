@@ -2,13 +2,13 @@
 // A run's gap from its recent median (#2298), drawn only once the API flagged it
 // (past the thresholds, with enough history). The tooltip names the median it was
 // read against, formatted like the value itself.
-import type { ProcessRunMetricBaseline } from '~~/shared/types/ops'
+import type { ProcessRunMetricBaselineReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import { formatElapsed, formatNumber } from '~~/shared/utils/format'
 import { flaggedMetric, formatDeviation } from '~~/shared/utils/process-baseline'
 
 const props = defineProps<{
-  metric: ProcessRunMetricBaseline | null | undefined
+  metric: ProcessRunMetricBaselineReadModel | null | undefined
   sampleCount: number
   /** `duration` formats the median as elapsed time, `count` as a number. */
   kind: 'duration' | 'count'

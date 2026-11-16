@@ -19,6 +19,15 @@ Consequences that matter later:
 - The ManualSeed claim (`Pending→Resolving`) is a single guarded Mongo update — same no-TOCTOU semantics the
   SQL `ExecuteUpdate` gave. The Riot-ID idempotency check uses a strength-2 collation (case-insensitive,
   accent-sensitive) instead of escaped ILIKE.
+- Seed requests and process runs each have one transition table, and every store write is filtered on the
+  source status it allows (#2474): `SeedRequestTransitions` (Pending→Resolving, Resolving→{Pending, Ingested,
+  Failed}; the terminal writes only leave Resolving), `ProcessRunStatusExtensions` (only Running moves, and
+  only to a terminal status — a late finalize never turns Abandoned into Success). The lane that runs
+  ManualSeed returns every `Resolving` request to `Pending` at boot, like the run and match-claim
+  reconciles: it is single-instance, so a claim at boot is a dead predecessor's. A failure after the SQL
+  writes committed gives the claim back instead of marking the request `Failed`. The stale→Abandoned rule
+  (`ProcessRunStaleness`) lives in Data and every store count judges the effective status, so a dead host's
+  Running row counts toward the failure streak that opens the per-process alert. Mongo-only, no schema change.
 - Run summaries are stored as **raw JSON text** (`summaryJson`), not nested BSON, so what the admin renders
   is byte-identical to what the recorder serialized — no BSON→JSON number reshaping.
 - Documents store Guids and enum names as plain strings, deliberately: shell-readable, and the one-shot
@@ -259,18 +268,18 @@ lanes are what run concurrently.
 
 Three details. **A `Full` iteration lights up both branches**, so prod's current topology renders under the
 same code path rather than a special case — the branches are the pipeline's shape, not the deployment's.
-**The top block asks for several iterations, not one**: the lanes have different cadences (preprod runs about
-three fetch passes per aggregate pass), so the slower lane's newest iteration sits a few positions down a
-newest-first list, and showing "the newest iteration" would hide whichever lane started earlier. **A branch's
-duration comes from its runs' statuses, not their timestamps** — the API mirrors a running run's start into
-`finishedAtUtc` so the iteration's last-activity stamp advances, so measuring from the timestamps alone
-reports a lane that has been running for minutes as `0ms`.
+**The top block reads each lane's newest pass** (`GET /ops/process-iterations/latest`, #2547): the lanes have
+different cadences (preprod runs about three fetch passes per aggregate pass), so the slower lane's newest
+iteration sits a few positions down a newest-first list, and showing "the newest iteration" would hide whichever
+lane started earlier. **A branch still in flight has no duration**: a running run's `finishedAtUtc` is `null`
+(#2547; the store mirrors its start there so the iteration's last-activity stamp advances, which used to make a
+lane running for minutes read as `0ms`).
 
-`PIPELINE_LANES` is a hand-maintained copy of `JobModeSequence`'s two lanes, exactly as `PIPELINE_CHAIN` is
-one of `FullPipeline`, and pinned by the same kind of test — a partition of the chain, in the chain's order.
-The drift is worse than the flat chain's was: a step in neither lane is not misplaced, it stops being drawn
-at all. A run whose process no lane declares therefore still renders, in a trailing branch under its raw
-name — #1399, #1362, #1314.
+The lanes and their steps come from the API's pipeline catalog (`GET /ops/pipeline`, `Data/Pipeline/PipelineCatalog.cs`,
+#2488), read once per session (`usePipelineCatalog`, #2556) — the admin used to keep a copy of each, and a step
+missing from a copied lane was not misplaced, it stopped being drawn at all. A run whose process no lane declares
+(an older pass of a retired step, or every run while the catalog has not loaded) still renders, in a trailing
+branch under its raw name — #1399, #1362, #1314.
 
 ## An admin number is either actionable or it is not printed (2026-09-03)
 

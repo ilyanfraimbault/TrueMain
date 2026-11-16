@@ -30,16 +30,9 @@ public sealed class FormBenchmarkQueryService(TrueMainDbContext db, IMemoryCache
     /// <summary>The bins only grow with each ingested match; an hour of staleness is invisible in a median.</summary>
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(1);
 
-    public async Task<FormBenchmarkResponse> GetAsync(string position, CancellationToken ct)
-    {
-        var cacheKey = (nameof(FormBenchmarkQueryService), position);
-        if (cache.TryGetValue(cacheKey, out FormBenchmarkResponse? cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        return cache.Store(cacheKey, await ReadAsync(position, ct), CacheTtl);
-    }
+    public Task<FormBenchmarkResponse> GetAsync(string position, CancellationToken ct)
+        => cache.GetOrComputeAsync(
+            $"{nameof(FormBenchmarkQueryService)}:{position}", CacheTtl, token => ReadAsync(position, token), ct);
 
     private async Task<FormBenchmarkResponse> ReadAsync(string position, CancellationToken ct)
     {

@@ -23,12 +23,13 @@ public static class LadderGamesOwed
     /// ingested at all, has no "value at the last visit" to subtract. Treating the missing
     /// baseline as zero would read the player's <em>entire season</em> as owed, which after a
     /// deploy is every tracked account at once — the ordering would sort by career volume
-    /// instead of by recent activity until each account had been visited once.
+    /// instead of by recent activity until each account had been visited once. The next ladder
+    /// reading fills it in (#2447), so this case only lasts for an account with no reading.
     /// </para>
     /// <para>
     /// <b>A negative difference.</b> A Riot season reset restarts wins and losses from the
     /// bottom, so the subtraction goes negative for every account simultaneously. Floored, such
-    /// an account simply owes nothing and keeps its place in the age ordering.
+    /// an account simply owes nothing until the next ladder reading restarts its baseline (#2447).
     /// </para>
     /// </remarks>
     public static int From(int? ladderGames, int? ladderGamesAtLastIngest)

@@ -1,4 +1,5 @@
-import type { LeaderboardResponse, LeaderboardRowResponse, LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
+import type { LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
+import type { LeaderboardResponse, LeaderboardRowReadModel } from '#shared/contract/api'
 import { parseLeaderboardSort } from '#shared/utils/leaderboard-sort'
 import { describeStaleFetchError } from '#common/utils/errors'
 
@@ -46,8 +47,7 @@ interface UseTruemainsLeaderboardOptions {
  * skeleton then becomes the server-rendered state, which the `hasEverLoaded`
  * latch below accounts for.
  *
- * Unlike pages/champions/index.vue (which deliberately stays `server: false`),
- * the leaderboard is a single keyed source with server-side pagination, so
+ * The leaderboard is a single keyed source with server-side pagination, so
  * there is no second async source whose resolve timing could diverge between
  * the server and the client and bake a different `v-if` branch into each.
  *
@@ -141,7 +141,7 @@ export function useTruemainsLeaderboard(
   const error = fallback?.error ?? leaderboardFetch.error
   const staleError = fallback?.staleError ?? computed(() => null)
 
-  const rows = computed<LeaderboardRowResponse[]>(() => data.value?.rows ?? [])
+  const rows = computed<LeaderboardRowReadModel[]>(() => data.value?.rows ?? [])
   const total = computed(() => data.value?.total ?? 0)
   const pageSize = computed(() => data.value?.pageSize ?? fallbackPageSize)
 

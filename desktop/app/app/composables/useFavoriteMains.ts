@@ -1,8 +1,8 @@
-import type { ProfileResponse } from '#shared/types/profile'
+import type { ProfileReadModel } from '#shared/contract/api'
 import type { FavoriteTruemain } from '#common/utils/favorites'
 
 /** A favorite's profile: `undefined` while unasked, `null` when it could not be read. */
-type Profile = ProfileResponse | null
+type Profile = ProfileReadModel | null
 
 const inFlight = new Set<string>()
 
@@ -22,7 +22,7 @@ export function useFavoriteMains(championId: MaybeRefOrGetter<number>) {
     inFlight.add(nameTag)
     let answer: Profile = null
     try {
-      answer = await apiGet<ProfileResponse>(`/truemains/${encodeURIComponent(nameTag)}/profile`)
+      answer = await apiGet<ProfileReadModel>(`/truemains/${encodeURIComponent(nameTag)}/profile`)
     }
     catch {
       // Not tracked any more, or TrueMain unreachable: the list goes without them.
@@ -37,7 +37,7 @@ export function useFavoriteMains(championId: MaybeRefOrGetter<number>) {
     for (const favorite of list) void ask(favorite.nameTag)
   }, { immediate: true })
 
-  return computed<{ favorite: FavoriteTruemain, profile: ProfileResponse }[]>(() => {
+  return computed<{ favorite: FavoriteTruemain, profile: ProfileReadModel }[]>(() => {
     const id = toValue(championId)
     return favorites.value.flatMap((favorite) => {
       const profile = profiles.value[favorite.nameTag]

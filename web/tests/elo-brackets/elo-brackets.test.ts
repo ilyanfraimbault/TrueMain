@@ -1,17 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  ELO_TIERS,
-  ELO_BRACKET_ALL,
-  tierOnly,
-  tierPlus,
-  hasPlus,
-  isEloTier,
-  isEloBracket,
-  normalizeEloBracket,
-  resolveEloBracket,
-  eloBracketLabel,
-  DEFAULT_ELO_BRACKET,
-} from '#common/utils/elo-brackets'
+import { ELO_TIERS, isEloTier } from '~~/shared/utils/ranks'
+import { ELO_BRACKET_ALL, tierOnly, tierPlus, hasPlus, isEloBracket, normalizeEloBracket, resolveEloBracket, eloBracketLabel, DEFAULT_ELO_BRACKET } from '~~/shared/utils/elo-brackets'
 
 describe('elo-brackets', () => {
   describe('ELO_TIERS', () => {

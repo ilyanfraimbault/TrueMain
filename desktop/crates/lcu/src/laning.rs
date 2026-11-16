@@ -47,7 +47,7 @@ pub struct LaneGaps {
     pub xp: i64,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LaningForm {
     /// Games on the champion weighed, at most `LANING_GAMES`.

@@ -1,4 +1,4 @@
-import type { BuildTreeNode } from '#shared/types/champions'
+import type { BuildTreeNodeReadModel } from '#shared/contract/api'
 
 export interface LaidOutBuildTreeNode {
   itemId: number
@@ -29,7 +29,7 @@ const MAX_CHILDREN = 4
  * its sub-tree, rows `itemSize + vGap` apart, siblings `hGap` apart, in px.
  */
 export function layoutBuildTree(
-  tree: BuildTreeNode[],
+  tree: BuildTreeNodeReadModel[],
   firstItemId: number,
   itemPath: number[],
   { itemSize, hGap, vGap }: { itemSize: number, hGap: number, vGap: number },
@@ -43,7 +43,7 @@ export function layoutBuildTree(
   // core stops: a child can clear the tree's prune yet sit below the path's
   // 20% gate, so it stays visible but un-highlighted.
   function wrapChildren(
-    nodes: BuildTreeNode[],
+    nodes: BuildTreeNodeReadModel[],
     parentIsMainPath: boolean,
     parentDepth: number,
     parentItemId: number,

@@ -50,7 +50,7 @@ public sealed class TruemainsLeaderboardStatSortApiIntegrationTests : IAsyncLife
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        var board = await client.GetFromJsonAsync<LeaderboardResponse>($"/truemains?sort={sort}");
+        var board = await client.GetFromJsonAsync<LeaderboardResponse>($"/truemains?sort={sort}", ApiJson.Options);
 
         board!.Total.Should().Be(4);
         board.Rows.Select(row => row.Identity.GameName).Should().Equal(expectedOrder);
@@ -65,8 +65,8 @@ public sealed class TruemainsLeaderboardStatSortApiIntegrationTests : IAsyncLife
         await using var factory = new ApiWebApplicationFactory(_fixture);
         using var client = CreateClient(factory);
 
-        var firstPage = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?sort=kda&pageSize=2&page=1");
-        var secondPage = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?sort=kda&pageSize=2&page=2");
+        var firstPage = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?sort=kda&pageSize=2&page=1", ApiJson.Options);
+        var secondPage = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?sort=kda&pageSize=2&page=2", ApiJson.Options);
 
         firstPage!.Total.Should().Be(4);
         firstPage.Rows.Select(row => row.Identity.GameName).Should().Equal("Diamond", "Master");
@@ -89,7 +89,7 @@ public sealed class TruemainsLeaderboardStatSortApiIntegrationTests : IAsyncLife
 
         // Diamond is the only NA1 account: the region filter must narrow the
         // stat ranking (and its total) exactly as it narrows the default one.
-        var americas = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?sort=games&region=americas");
+        var americas = await client.GetFromJsonAsync<LeaderboardResponse>("/truemains?sort=games&region=americas", ApiJson.Options);
 
         americas!.Total.Should().Be(1);
         americas.Rows.Should().ContainSingle().Which.Identity.GameName.Should().Be("Diamond");

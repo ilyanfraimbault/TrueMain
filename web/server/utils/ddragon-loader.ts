@@ -136,28 +136,29 @@ export function buildPerkStyleMap(styles: CdragonPerkStyleRow[], patch?: string 
 
 const SPELL_SLOTS = ['Q', 'W', 'E', 'R'] as const
 
+/**
+ * A champion's name, portrait and spells on a patch. A champion DDragon does not
+ * list is an absence, answered as {@link EMPTY_STATIC_DATA}; an unreachable or
+ * failing DDragon throws, so the hour-long cache in front of this never keeps a
+ * nameless champion for a blip (#1557).
+ *
+ * The patch is resolved against DDragon's published versions rather than used as
+ * given: a patch Riot has shipped but DDragon has not yet published answers 403
+ * for the first part of every patch cycle (#1693).
+ */
 export async function loadStaticData(championId: number, patch: string | null): Promise<ChampionStaticData> {
-  // Resolved against DDragon's published versions rather than used as given:
-  // a patch Riot has shipped but DDragon has not yet published answers 403, and
-  // the `.catch` below would turn that into a nameless, spell-less champion
-  // page for the first part of every patch cycle (#1693).
-  //
-  // The shared resolver throws a 502 when DDragon is unreachable; this loader
-  // degrades instead, like it does for every other fetch below, so a champion
-  // page renders without static data rather than failing outright.
-  const normalized = await resolveDDragonVersion(normalizeDataDragonPatch(patch)).catch(() => null)
-  if (!normalized) return EMPTY_STATIC_DATA
+  const normalized = await resolveDDragonVersion(normalizeDataDragonPatch(patch))
 
   const champs = await $fetch<ChampionListResponse>(
     `https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/champion.json`,
-  ).catch((): ChampionListResponse => ({ data: {} }))
+  )
 
   const summary = Object.values(champs.data).find(c => Number(c.key) === championId)
   if (!summary) return EMPTY_STATIC_DATA
 
   const detail = await $fetch<ChampionDetailResponse>(
     `https://ddragon.leagueoflegends.com/cdn/${normalized}/data/en_US/champion/${summary.id}.json`,
-  ).catch((): ChampionDetailResponse => ({ data: {} }))
+  )
 
   const partype = detail.data[summary.id]?.partype ?? ''
   const championSpells: Record<string, StaticChampionSpellData> = Object.fromEntries(

@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import type { MatchSummaryResponse } from '#shared/types/matches'
-import type { ProfileRanked } from '#shared/types/profile'
-import type { PersonaTag } from '#shared/types/players'
+import type { MatchSummaryReadModel, PersonaTagReadModel } from '#shared/contract/api'
 import { playerPath } from '#shared/utils/player-path'
 import type { FormReference } from '#common/utils/match-form'
 import { formTiles, RECENT_GAMES } from '#common/utils/match-form'
-import { formatRank } from '#common/utils/tiers'
 import type { AccountIdentity } from '#common/components/Account.vue'
 
 /**
@@ -27,25 +24,18 @@ const props = withDefaults(defineProps<{
   identity: AccountIdentity
   /** Data Dragon patch for the profile icon; null until the version list has loaded. */
   patch: string | null
-  level?: number | null
-  ranked?: ProfileRanked | null
-  /** The champion the player truemains, named on the banner. */
-  truemain?: { name: string, iconUrl: string | null } | null
   /** The known player this account belongs to (#2016), linking to all their accounts. */
-  persona?: PersonaTag | null
+  persona?: PersonaTagReadModel | null
   splashUrl?: string | null
   splashPosition?: string
   /** The games the form tiles read, newest first. */
-  matches: MatchSummaryResponse[]
+  matches: MatchSummaryReadModel[]
   /** The tier the tiles are set against (#2076), where the host knows it: the app's dashboard. */
   formReference?: FormReference | null
   loading?: boolean
   /** The cards column's width: wider where a card has a table to fit (a champion's matchups). */
   asideWidth?: string
 }>(), {
-  level: null,
-  ranked: null,
-  truemain: null,
   persona: null,
   splashUrl: null,
   splashPosition: '68% 22%',
@@ -56,11 +46,6 @@ const props = withDefaults(defineProps<{
 
 const tiles = computed(() => formTiles(props.matches, props.formReference))
 const hint = computed(() => `Last ${RECENT_GAMES} games against the average over ${props.matches.length}`)
-
-const rankLabel = computed(() => {
-  const ranked = props.ranked
-  return ranked ? formatRank(ranked.tier, ranked.division, { lp: ranked.leaguePoints }) : null
-})
 </script>
 
 <template>
@@ -95,43 +80,34 @@ const rankLabel = computed(() => {
             </div>
           </template>
 
-          <template #subline>
-            <template v-if="ranked && rankLabel">
-              <RankIcon
-                :tier="ranked.tier"
-                :size="20"
+          <!-- The region flag (drawn by `Account`) and the known player, nothing
+               else: the rank, the level and the truemained champion are on the
+               page already — the ranked card, the splash, the Truemain score
+               card — and repeating them here was noise (#2463). -->
+          <template
+            v-if="persona"
+            #subline
+          >
+            <ULink
+              :to="playerPath(persona.slug)"
+              :aria-label="`All of ${persona.displayName}'s accounts`"
+              class="flex items-center gap-1.5 font-semibold text-highlighted hover:text-primary"
+            >
+              <SkeletonImage
+                v-if="persona.pictureUrl"
+                :src="persona.pictureUrl"
+                alt=""
+                width="20"
+                height="20"
+                class="size-5 rounded-full"
               />
-              <span class="font-semibold text-highlighted">{{ rankLabel }}</span>
-            </template>
-            <span v-else-if="level !== null">Level {{ level }}</span>
-            <template v-if="truemain">
-              <span class="text-dimmed">·</span>
-              <span class="flex items-center gap-1.5">
-                Truemain
-                <SkeletonImage
-                  :src="truemain.iconUrl"
-                  :alt="truemain.name"
-                  width="20"
-                  height="20"
-                  class="size-5 rounded"
-                />
-                {{ truemain.name }}
-              </span>
-            </template>
-            <template v-if="persona">
-              <span class="text-dimmed">·</span>
-              <ULink
-                :to="playerPath(persona.slug)"
-                class="flex items-center gap-1.5 font-semibold text-highlighted hover:text-primary"
-              >
-                <UIcon
-                  name="i-lucide-user-round"
-                  class="size-4"
-                />
-                {{ persona.displayName }}
-                <span class="font-normal text-muted">· all accounts</span>
-              </ULink>
-            </template>
+              <UIcon
+                v-else
+                name="i-lucide-user-round"
+                class="size-4"
+              />
+              {{ persona.displayName }}
+            </ULink>
           </template>
         </Account>
       </template>

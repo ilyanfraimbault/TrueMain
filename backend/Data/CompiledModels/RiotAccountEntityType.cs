@@ -20,7 +20,7 @@ namespace Data.CompiledModels
                 "Data.Entities.RiotAccount",
                 typeof(RiotAccount),
                 baseEntityType,
-                propertyCount: 24,
+                propertyCount: 23,
                 unnamedIndexCount: 4,
                 keyCount: 1);
 
@@ -219,18 +219,6 @@ namespace Data.CompiledModels
                 sentinel: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
             updatedAtUtc.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
             updatedAtUtc.AddAnnotation("Relational:DefaultValueSql", "now()");
-
-            var xmin = runtimeEntityType.AddProperty(
-                "xmin",
-                typeof(uint),
-                concurrencyToken: true,
-                valueGenerated: ValueGenerated.OnAddOrUpdate,
-                beforeSaveBehavior: PropertySaveBehavior.Ignore,
-                afterSaveBehavior: PropertySaveBehavior.Ignore,
-                sentinel: 0u);
-            xmin.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
-            xmin.AddAnnotation("Relational:ColumnName", "xmin");
-            xmin.AddAnnotation("Relational:ColumnType", "xid");
 
             var key = runtimeEntityType.AddKey(
                 new[] { id });

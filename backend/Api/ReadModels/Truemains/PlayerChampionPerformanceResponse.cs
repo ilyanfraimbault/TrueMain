@@ -1,3 +1,4 @@
+using Core.Lol.Performance;
 namespace TrueMain.ReadModels.Truemains;
 
 /// <summary>
@@ -69,12 +70,7 @@ public sealed record PlayerChampionPerformanceResponse
 /// </summary>
 public sealed record PlayerChampionPerformanceComponent
 {
-    /// <summary>
-    /// The component's name, matching <c>Core.Lol.Performance.PerformanceComponentKind</c>
-    /// (<c>Combat</c>, <c>KillParticipation</c>, <c>DamageShare</c>, <c>GoldShare</c>,
-    /// <c>Farming</c>, <c>Vision</c>, <c>Laning</c>, <c>MidGame</c>).
-    /// </summary>
-    public string Kind { get; init; } = string.Empty;
+    public PerformanceComponentKind Kind { get; init; }
 
     /// <summary>
     /// The role profile's nominal weight for this component on the 0..100 scale,

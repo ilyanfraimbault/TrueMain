@@ -5,7 +5,7 @@
 // Mongo (`request_latency_rollups`), so a slow panel shows up here rather than being timed
 // by hand. Owns its fetch and exposes `refresh`/`pending` for the page's navbar button,
 // like the Riot API and Scrapers tabs.
-import type { RequestLatencyWindow } from '~~/shared/types/ops'
+import type { RequestLatencyWindow } from '~~/shared/types/ops/request-latency'
 import { computed, ref } from 'vue'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 import { countSlowRoutes, formatLatency } from '~~/shared/utils/request-latency'

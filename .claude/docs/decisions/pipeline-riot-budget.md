@@ -101,8 +101,8 @@ Three details that are not arbitrary. **The count is refreshed on the `Unchanged
 and a loss return to the same LP, and those are precisely the games that would otherwise go unnoticed. **The
 baseline is reset inside the same statement that stamps `LastMatchIngestAtUtc`**, or the account would read as
 freshly visited while still owing every game it owed before, and come straight back at the head of the next
-batch. **An account with no ladder reading keeps the old age ordering** rather than sinking behind everything
-that has one: below the swept tiers there is no signal, and a zero owed must not be read as "up to date".
+batch. **An account with no ladder reading has no owed term and competes on the days it has waited** (see the
+aging entry below): below the swept tiers there is no signal, and a zero owed must not be read as "up to date".
 **The same difference sizes the match-ids request**, so a fixed window stops truncating whoever plays most:
 `count` widens to owed + a small drift margin, capped at Riot's 100, with `MatchesPerAccount` as the floor.
 It costs nothing — the ids endpoint is one call whatever the count. The rule lives in `LadderGamesOwed.From`
@@ -114,8 +114,19 @@ deploy that is every tracked account at once, which would order the pool by care
 recent activity until each had been visited once.
 **The difference is floored at zero**, because a Riot season reset restarts wins/losses from the bottom: the
 raw subtraction then goes negative for every account at once and would sort the whole active pool behind the
-accounts that owe nothing. It would self-heal on the next ingest — but "self-heal" there means a full sweep of
-the pool, which is the very thing this ordering exists to avoid needing.
+accounts that owe nothing. The next ladder reading restarts the baseline (see the entry below), so no full sweep
+of the pool is needed.
+**The ladder reading writes the baseline when it cannot answer, and waiting adds weight to the order (2026-11-04,
+#2447).** The original ordering assumed an account owing nothing still got its turn by age. It does not: the pool
+of accounts owing games refills as players keep playing, so it never drains, and a baseline that only a visit
+could write left active mains, the top of the ladder included, unvisited for months. Their stored games then came
+only from other tracked players' visits. So a ladder reading now sets the baseline when it is empty or above the
+count, which counts games from that reading instead of reading a career as owed. And one day waited weighs as one
+game owed, capped at `VisitAgingCapDays`, for an account that owes games or whose debt is unknown. The cap sits
+near the two-patch match window, past which waiting buys no game still in the store, and it lets a heavy debt keep
+the lead. An account the ladder says has not played stays at zero, so #1360's reason for leaving age behind holds.
+The first visit after a baseline is set from a reading fetches `MatchesPerAccount` at least, not the games played
+before that reading, which the ladder can no longer tell us.
 The count is denormalised onto the account rather than joined from `rank_snapshots` because it exists to sit
 in an `ORDER BY` over the claimable set — a lateral join to each account's newest snapshot is the one query
 the claim cannot afford to run per candidate row (#1360).
@@ -142,7 +153,7 @@ fix is to stop sharing the clock: each worker claims a batch of its own platform
 claims again, while the maintenance pass runs on `Job:IntervalMinutes`.
 
 - **A new composite mode, not a change of `FetchLane`.** `FetchWorkers` owns exactly the fetch lane's steps
-  (`JobModeSequence.For` returns the same list), so boot-time run reconciliation and orphan-claim release are
+  (`PipelineCatalog.StepsOwnedBy` returns the same list), so boot-time run reconciliation and orphan-claim release are
   unchanged; only `SequencedStepsFor` drops `MatchIngestion` from its pass. `FetchLane` keeps its sequential,
   `RunOnce`-restarted behaviour, and `INGESTOR_JOB_MODE=FetchLane` is the rollback. Under `FetchWorkers`,
   `Job:RunOnce` still means one pass of everything the lane owns: one maintenance pass and one batch per worker.
@@ -379,7 +390,7 @@ claimed again through breadth — measured on production, ~14% of the queue and 
 were accounts validated before. Each one cost an unseen player a slot in the scarcest arm of the claim.
 
 **The rule is the ingest history, not a new status.** The breadth class is `LastMatchIngestAtUtc IS NULL` and a
-`Queued` candidate (`Data/Repositories/MatchIngestClaimClasses.cs`, shared by the claim, Scoring's promotion
+`Queued` candidate (`Ingestor/Persistence/MatchIngestClaimClasses.cs`, shared by the claim, Scoring's promotion
 ranking and the settle pass). A settling `MainCandidateStatus` was rejected: `Rejected` was removed for the same reason (#1029)
 and another terminal status would be one more state for the funnel charts to explain. The row stays — #900's
 "deactivate, never delete" — as the record that the pair was seen:

@@ -27,6 +27,9 @@ public class TrueMainDbContext : DbContext
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<MainChampionStat> MainChampionStats => Set<MainChampionStat>();
 
+    // The per-patch panel tables from here to the benchmarks are listed, with the family
+    // retention deletes them in, in Data.Aggregation.PatchPanelTables (#2481).
+
     // Pre-aggregated read model for the champion page's global matchups
     // leaderboard (#606), carrying the lane counters and gold/XP gaps folded into
     // the same rows (#919/#976/#1111). The champion side is a main of that
@@ -112,11 +115,9 @@ public class TrueMainDbContext : DbContext
 
     public DbSet<ChampionAggregateScope> ChampionAggregateScopes => Set<ChampionAggregateScope>();
 
-    // Junction-table aggregate + globally-deduplicated dimension tables: the
-    // aggregator writes pattern + dim rows exclusively, and the read side joins
-    // them in its own query services (Api/Services/Champions/ChampionBuildsQueryService
-    // and friends). The single ChampionPatternProjector that used to own that join
-    // is long gone.
+    // Junction-table aggregate + globally-deduplicated dimension tables: the pattern
+    // aggregation writes pattern + dim rows exclusively, and the Api's build query
+    // services join them for their own reads.
     public DbSet<ChampionAggregatePattern> ChampionAggregatePatterns => Set<ChampionAggregatePattern>();
     public DbSet<ChampionDimBuild> ChampionDimBuilds => Set<ChampionDimBuild>();
     public DbSet<ChampionDimRunePage> ChampionDimRunePages => Set<ChampionDimRunePage>();

@@ -1,3 +1,4 @@
+using Data.Pipeline;
 using Ingestor.Riot.RateLimiting;
 
 namespace Ingestor.Options;
@@ -31,4 +32,11 @@ internal static class RiotRateLimitOptionsValidation
     public static bool HasBoundedReservations(IReadOnlyDictionary<string, double>? shares)
         => shares is null
            || (shares.Values.All(share => share is >= 0 and <= 0.5) && shares.Values.Sum() <= 0.5);
+
+    /// <summary>
+    /// Whether every reservation names a pipeline step: a misspelt or retired name would
+    /// otherwise hold nothing, silently.
+    /// </summary>
+    public static bool NamesPipelineSteps(IReadOnlyDictionary<string, double>? shares)
+        => shares is null || shares.Keys.All(name => PipelineCatalog.Find(name) is not null);
 }

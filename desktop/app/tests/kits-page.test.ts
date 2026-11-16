@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, watch } from 'vue'
-import type { KitStore } from '#shared/types/kit'
+import type { KitStore } from '~/types/kit'
 import KitsPage from '../app/pages/kits.vue'
 import KitNew from '../app/components/kit/KitNew.vue'
 import KitDetail from '../app/components/kit/KitDetail.vue'

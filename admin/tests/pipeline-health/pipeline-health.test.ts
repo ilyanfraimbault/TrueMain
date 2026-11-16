@@ -6,6 +6,7 @@ import {
   ingestionToAnalysisLabel,
   processStatusColor,
   processStatusIcon,
+  runTally,
 } from '~~/shared/utils/pipeline-health'
 
 // The cockpit's job (#1031) is to never make an unmeasured or a healthy signal look like
@@ -148,5 +149,20 @@ describe('processStatusIcon', () => {
 
   it('falls back to the Missing icon for a status the backend adds later', () => {
     expect(processStatusIcon('SomethingNew')).toBe(processStatusIcon('Missing'))
+  })
+})
+
+describe('runTally', () => {
+  it('always counts the successes, and the other outcomes only when they happened', () => {
+    const tally = runTally(['Success', 'Failed', 'Failed', 'Success', 'Success'])
+
+    expect(tally.map(entry => [entry.label, entry.count, entry.color])).toEqual([
+      ['ok', 3, processStatusColor('Success')],
+      ['failed', 2, processStatusColor('Failed')],
+    ])
+  })
+
+  it('shows "0 ok" for a pass where nothing succeeded', () => {
+    expect(runTally(['Abandoned']).map(entry => [entry.label, entry.count])).toEqual([['ok', 0], ['abandoned', 1]])
   })
 })

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RegionSlug } from '#shared/types/leaderboard'
+import { REGIONS, regionIcon } from '#shared/utils/region'
 
 // A region's flag at a given width, 3:2. The artwork is the layer's `region`
 // icon collection (`app/assets/icons/region`), the same one the leaderboard's
@@ -14,14 +15,7 @@ const props = defineProps<{
 
 const w = computed(() => props.width ?? 24)
 const h = computed(() => Math.round(w.value * (16 / 24)))
-const label = computed(() => {
-  switch (props.region) {
-    case 'europe': return 'Europe'
-    case 'americas': return 'Americas'
-    case 'korea': return 'Korea'
-    default: return 'Unknown region'
-  }
-})
+const label = computed(() => (props.region ? REGIONS[props.region].label : 'Unknown region'))
 </script>
 
 <template>
@@ -34,7 +28,7 @@ const label = computed(() => {
   >
     <UIcon
       v-if="region"
-      :name="`i-region-${region}`"
+      :name="regionIcon(region)"
       class="shrink-0"
       :style="{ width: `${w}px`, height: `${w}px` }"
     />

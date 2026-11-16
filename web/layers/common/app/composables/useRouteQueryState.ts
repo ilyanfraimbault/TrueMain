@@ -1,4 +1,4 @@
-import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
+import { isChampionPosition, type ChampionPosition } from '#shared/utils/positions'
 import { firstParamValue } from '#common/utils/route-params'
 
 /**

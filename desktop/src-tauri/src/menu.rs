@@ -9,7 +9,7 @@
 
 use tauri::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, MenuItemKind, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{App, AppHandle, Emitter, Manager, Runtime};
+use tauri::{App, AppHandle, Manager, Runtime};
 
 use crate::telemetry::SharedTelemetry;
 
@@ -19,7 +19,9 @@ const QUIT: &str = "quit";
 const SHARE_USAGE: &str = "share-usage";
 const SHARE_USAGE_LABEL: &str = "Share Anonymous Usage Data";
 /// Listened to by `useAppUpdate` in the webview.
-const CHECK_EVENT: &str = "app://check-for-updates";
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "app://check-for-updates")]
+pub struct CheckForUpdates;
 
 pub fn install<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
     // Runtime checks rather than `#[cfg]`, so both paths compile, and are
@@ -105,9 +107,7 @@ fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
     match event.id().as_ref() {
         CHECK_FOR_UPDATES => {
             show_window(app);
-            if let Err(error) = app.emit(CHECK_EVENT, ()) {
-                tracing::warn!(%error, "could not ask the webview to check for updates");
-            }
+            crate::contract::emit(app, CheckForUpdates);
         }
         SHARE_USAGE => {
             if let Some(telemetry) = app.try_state::<SharedTelemetry>() {

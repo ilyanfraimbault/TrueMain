@@ -54,6 +54,11 @@ const props = defineProps<{
    * these, or it would show through them. Shared components pass it for both.
    */
   transparent?: boolean
+  /**
+   * The square to fetch, for a picture drawn larger than an icon. Leave it unset
+   * for an icon: one fetch size is what gives an asset one cache entry.
+   */
+  fetchSize?: number
 }>()
 
 const loaded = ref(false)
@@ -85,7 +90,7 @@ watch(() => props.src, () => {
 // `useCanonicalIcon()` — see utils/icon-fetch.ts for why one size matters.
 // Display size still comes from the caller's wrapper class (`size-9`,
 // `size-7`, etc.) via the `size-full` rule on the inner img.
-const FETCH_SIZE = ICON_FETCH_SIZE
+const fetchSize = computed(() => props.fetchSize ?? ICON_FETCH_SIZE)
 
 // Plain <img> + a URL built once, instead of <NuxtImg>. This component backs
 // every icon on the site (hundreds per page), and profiling showed the long
@@ -106,7 +111,7 @@ const FETCH_SIZE = ICON_FETCH_SIZE
 // format there would trade a vector that stays crisp at any DPR for a 20 px
 // bitmap, so that component builds its own URL and keeps the SVG.
 const canonicalIcon = useCanonicalIcon()
-const optimizedSrc = computed(() => canonicalIcon(props.src))
+const optimizedSrc = computed(() => canonicalIcon(props.src, fetchSize.value))
 
 // Re-created under the pointer by its tooltip's first hover, with a picture this
 // document has already drawn: shown from the first render, decoded synchronously,
@@ -196,10 +201,10 @@ onMounted(() => {
         :src="optimizedSrc"
         :alt="alt"
         :title="title"
-        :width="FETCH_SIZE"
-        :height="FETCH_SIZE"
+        :width="fetchSize"
+        :height="fetchSize"
         :loading="loading"
-        class="size-full"
+        class="size-full text-transparent"
         :class="[loaded && !failed ? 'opacity-100' : 'opacity-0', instant ? '' : 'transition-opacity duration-150']"
         @load="onLoad"
         @error="failed = true"

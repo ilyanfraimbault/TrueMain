@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
+using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops.Alerting;
 

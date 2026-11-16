@@ -2,12 +2,12 @@
 // Alerts (#2292): what the pipeline-health alerter told the operator, under the verdict it
 // watches. It is off until a Discord webhook is configured, and says so in place — an empty
 // list must not pass for "nothing went wrong" when nothing was listening.
-import type { HealthAlerts } from '~~/shared/types/ops'
+import type { HealthAlertsReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import { formatDateTime, formatTimeAgo } from '~~/shared/utils/format'
 import { healthAlertBadge, healthAlertingRules, healthAlertKeyLabel } from '~~/shared/utils/health-alerts'
 
-const props = defineProps<{ alerts: HealthAlerts | null, pending: boolean }>()
+const props = defineProps<{ alerts: HealthAlertsReadModel | null, pending: boolean }>()
 
 const rules = computed(() => (props.alerts ? healthAlertingRules(props.alerts) : ''))
 const openIncidents = computed(() => (props.alerts?.openIncidents ?? []).map(healthAlertKeyLabel))

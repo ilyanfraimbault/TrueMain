@@ -1,4 +1,4 @@
-import type { CompositionBuildGamesResponse, CompositionBuildRequest } from '#shared/types/composition'
+import type { CompositionBuildGamesResponse, CompositionBuildRequest } from '#shared/contract/api'
 
 /**
  * Imperative client for `POST /champions/{id}/composition-build/games`

@@ -45,7 +45,7 @@ which downstream jobs are worth a runner:
 
 | Output | Paths | Gates |
 | ------ | ----- | ----- |
-| `backend` | `backend/**`, `global.json`, `web/shared/fixtures/performance-score-vectors.json` | backend build + unit + integration tests — the vectors are linked into the unit tests, which pin the C# score to the desktop app's port (#2075) |
+| `backend` | `backend/**`, `global.json`, `web/shared/fixtures/performance-score-vectors.json`, `web/shared/contract/openapi.json` | backend build + unit + integration tests — the vectors are linked into the unit tests, which pin the C# score to the desktop app's port (#2075); the contract is compared with the API's OpenAPI document (below) |
 | `data` | `backend/Data/**` | `migrate-fresh` |
 | `web` | `web/**` | the site's frontend job |
 | `admin` | `admin/**`, and from the site `web/layers/nitro/**`, `web/shared/**`, `web/layers/common/tsconfig.json` | the admin's frontend job |
@@ -130,6 +130,39 @@ Nuxt runtime through `@nuxt/test-utils` to mount components and exercise
 hydration paths. They live under `web/**`, so the `web` path filter already
 covers them.
 
+### The API contract
+
+The TypeScript the site, the admin and the desktop app read the API with is
+generated, not hand-copied (#2493). Two files are committed under
+`web/shared/contract/`, and each has a check that fails when it no longer
+follows from the one before it:
+
+| File | Produced from | Checked by |
+| ---- | ------------- | ---------- |
+| `openapi.json` | the API's OpenAPI document (`AddTrueMainContract` in `backend/Api/OpenApi`) | `OpenApiContractTests` in the backend job |
+| `api.ts` | `openapi.json`, by `openapi-typescript` (`npm run contract` in `web/`) | the web job's `Contract types up to date` step (`--check`) |
+
+After changing a read model, a request type or an endpoint, regenerate both:
+
+```bash
+TRUEMAIN_UPDATE_CONTRACT=1 dotnet test --project backend/tests/TrueMain.IntegrationTests/TrueMain.IntegrationTests.csproj --filter-class TrueMain.IntegrationTests.OpenApiContractTests
+```
+
+```bash
+npm --prefix web run contract
+```
+
+The test boots the API host without a database and without its hosted
+services, so it needs no Docker. The document lives in `web/shared` because
+every app already reaches that folder (`#shared`, `#site-shared` in the
+admin), and a change to it also runs the admin's job through its
+`web/shared/**` filter. Both files are committed rather than built in CI so a
+frontend builds without the .NET SDK, and so a contract change shows up in the
+PR diff.
+
+`openapi-typescript` declares a `typescript@^5` peer; `web/package.json`
+overrides it to the site's TypeScript.
+
 ### File sizes
 
 The frontends had no linter before #1440, and neither ESLint nor the backend
@@ -151,7 +184,7 @@ the baseline still runs the check — otherwise loosening an entry would be the 
 It also runs `deploy-scripts` for eight seconds, which is cheaper than a second filter output.
 
 Generated code (migrations, the compiled model, build output), every test tree
-and `web/server/utils/dev-api-mock.ts` are excluded — a long test file costs far
+and `web/server/dev/` (the dev mock) are excluded — a long test file costs far
 less to read than a long production file. The job runs its own test suite
 (`check-file-size.test.sh`) first, because the check is shell walking a
 directory tree and its failure mode is silently passing.
@@ -285,7 +318,10 @@ freeze: `ingestor` kept running the whole pipeline next to the new aggregate
 container, and every aggregate step ran twice for about twenty hours (#1493).
 `.github/scripts/check-job-mode.sh` therefore fails the preflight when the
 compose file declares `ingestor-aggregate` and the env file sets the variable to
-`Full` in any casing. An unset variable and the single-process freeze modes
+a composite mode that runs the aggregate lane (`Full`, `AggregateLane`) in any
+casing. The script keeps that list itself; `PipelineCatalogJobModeCheckTests`
+pins it to `PipelineCatalog.ModesRunning(PipelineLane.Aggregate)`, so a new
+composite mode breaks a unit test rather than slipping past the check. An unset variable and the single-process freeze modes
 `docs/riot-key-switch.md` relies on stay allowed, so the lever keeps working.
 The env file reaches the script through an environment variable, never argv,
 and only the offending mode is ever printed. `check-job-mode.test.sh` runs it
@@ -516,6 +552,10 @@ by hand, and it drifts silently: prod's edge ran a hand-copied `Caddyfile`
 while two released edge changes (#1583, #1696) never reached it (#1598).
 Only named volumes hold state on the host.
 
+`truemain_web_images` (`truemain_preprod_web_images` on preprod) holds web's processed images, so a deploy does not fetch
+them again from the upstream CDNs (#2425). The web Dockerfile creates `/app/.ipx-cache` for the `node` user because a
+new named volume takes the ownership of the directory it mounts over. It is a cache: removing it costs one slower boot.
+
 Inline `content` is interpolated like the rest of the compose file, so a
 literal `$` in it is written `$$`.
 
@@ -635,14 +675,12 @@ environment with no Nuxt runtime. `npm ci` runs `nuxt prepare` (the app's
 `postinstall`, as on `web/` and `admin/`) because the tests' TypeScript
 transform reads the generated `.nuxt` tsconfig.
 
-The `macOS capture spike` job builds the game-recording spike (#1745): the
-Swift capture helper (`desktop/capture/macos`, ScreenCaptureKit, so only a Mac
-can compile it — the Linux job never sees it) and the Rust runner
-(`capture-spike`, which drives it through the `capture-helper` crate the app
-uses too), both universal (arm64 + x86_64) and ad-hoc signed like the
-app's own build. It smoke-runs each binary for its usage error, then uploads
-them as one `.tar.gz` — tarred because an artifact's zip drops the executable
-bit — so the spike can be run on a Mac without a toolchain.
+The `macOS capture helper and shell` job builds the Swift capture helper
+(`desktop/capture/macos`, ScreenCaptureKit, so only a Mac can compile it — the
+Linux job never sees it) universal (arm64 + x86_64) and smoke-runs it for its
+usage error, and checks that the shell compiles for macOS. The #1745 spike it
+used to build and publish is retired (#2559): the app's recording runner is the
+one driver of a recording session.
 
 The `Windows capture helper and shell` job (#1797) runs clippy and the tests
 of the Windows helper (`desktop/capture/windows`, a workspace crate whose code
@@ -691,12 +729,18 @@ corners. The screenshots, a JSON per step and the app's log
 are uploaded as an artifact.
 
 A `changes` job gates each of these jobs on what it compiles (#2218), as in
-`ci.yml`: the `Rust crates` job on the workspace manifests, `desktop/crates/`
-and `desktop/capture/windows/`; the Windows shell job on those and
-`desktop/src-tauri/`; the macOS spike on those and `desktop/capture/macos/`;
-the Windows overlay on the shell's paths and `desktop/app/`, its smoke script
-and the fixtures it replays; the `Nuxt app` job on `desktop/app/` and the
-site's two shared paths. A change to the site's shared layer therefore runs the
+`ci.yml`: the `Rust crates` job on the workspace manifests, `desktop/crates/`,
+`desktop/capture/windows/` and the fixtures their tests read (`desktop/fixtures/`,
+the app's dev scenarios); the Windows shell job on those, `desktop/src-tauri/`
+and the API's OpenAPI document its route table is checked against, and the files
+whose copies the shell's tests pin (`src-tauri/src/pinned_settings.rs`: the
+site's image hosts and channel kinds, the app's Nuxt config, the overlay smoke
+script); the macOS
+spike on those and `desktop/capture/macos/`; the Windows overlay on the shell's
+paths and `desktop/app/`, its smoke script and the fixtures it replays; the
+`Nuxt app` job on `desktop/app/`, the site's two shared paths, the shell's route
+table (`src-tauri/api-routes.json`, checked against the reads the app makes) and
+`desktop/fixtures/` (the overlay geometry vectors). A change to the site's shared layer therefore runs the
 `Nuxt app` job alone: the Windows and macOS jobs build Rust, which it never
 reaches. A change to `desktop.yml`, a push and a draft marked ready behave as
 in `ci.yml`.
@@ -944,9 +988,10 @@ build costs runner minutes, not wall time, since it runs beside CI.
   where Dependabot's NuGet watch sees it, also analyses every non-MSBuild file
   under the repo (`sonar.scanner.scanAll`), which is how the TypeScript and Vue
   code is read without a second scanner. Generated code (EF migrations, the
-  compiled model, `.nuxt`), tests, the dev API mock and `.claude/` are
-  excluded: the agent's skills under `.claude/skills` never ship, and analysed,
-  they read as uncovered new code and fail the gate (#2068).
+  compiled model, `.nuxt`, the API contract under `web/shared/contract`), tests, the dev API mock (`web/server/dev`), the
+  `/dev/*` playground pages and their components (stripped from every build) and `.claude/` are
+  excluded: none of them ships, and analysed, they read as uncovered new code
+  and fail the gate (#2068).
 - `Download the lcov reports` downloads by pattern, and `download-artifact`
   puts a lone match straight into `path` instead of a directory named after
   it: a PR touching one frontend (the usual case since #2218) left its report
@@ -1112,6 +1157,10 @@ leaves a misleading version on the page (#1637).
   new variable and no host in the repo), `http://localhost:3000` in the two
   local stacks. Passed as `${PREPROD_SITE_URL:-}` on the admin rather than
   required: an empty value only hides the buttons.
+- The web service needs the same variable wherever `NUXT_HTML_CACHE_ENABLED` is
+  on (#2433). The renders it asks for itself have no visitor to take a host
+  from, so they read it, or the stored page prints `localhost` in its share
+  links; and a page asked on any other host is only stored when it is set.
 - Prod's ingestors set `MatchDataRetention__TruncatedRetainedPatchCount: "0"`:
   match truncation (#2368) stays off there until its storage and its retention
   time are measured on preprod and accepted. Preprod runs the default, 4.
@@ -1146,9 +1195,14 @@ leaves a misleading version on the page (#1637).
 - `ALERTING_DISCORD_WEBHOOK_URL` turns the Api's pipeline-health alerts on (#2292):
   the Discord webhook they are posted to, passed as `Alerting__DiscordWebhookUrl` and
   defaulting to empty, which leaves alerting off. It is a credential, so it lives in
-  the stack `.env` only. The compose files also set `Alerting__AdminBaseUrl` (the
+  the stack's env-file secret only (*What the deploy writes on the VPS*). The compose files also set `Alerting__AdminBaseUrl` (the
   `/health` link) and `Alerting__EnvironmentLabel` (the title prefix that tells the
   two stacks apart in one channel).
+- `PERSONA_PICTURES_YOUTUBE_API_KEY`, `PERSONA_PICTURES_TWITCH_CLIENT_ID` and
+  `PERSONA_PICTURES_TWITCH_CLIENT_SECRET` turn known players' pictures on (#2446), passed as
+  `PersonaPictures__*` and defaulting to empty. All three or nothing: they head the channel
+  priority, so the worker stays off rather than give players a lesser channel's picture. They
+  are credentials, so they live in the stack's env-file secret only.
 - `STORAGE_DISK_CAPACITY_BYTES` is the volume size the admin storage forecast
   projects against (#925). Unset means no forecast at all, which the admin
   panel says explicitly instead of fitting a line to a guessed capacity.

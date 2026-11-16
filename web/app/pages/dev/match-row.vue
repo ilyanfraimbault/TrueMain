@@ -1,183 +1,20 @@
 <script setup lang="ts">
-import type { MatchSummaryResponse } from '~~/shared/types/matches'
-import type {
-  ChampionStaticListItem,
-  RuneTreeResponse,
-  StaticItemData,
-  StaticSummonerSpellData,
-} from '~~/shared/types/static-data'
-
 useSeoMeta({
   title: 'MatchRow playground',
   description: 'Isolated visual review of the match history row component.',
 })
 
-// ─── Static lookups ────────────────────────────────────────────────────────
-// Same fetches the production profile page will use — keeps the playground
-// honest about the resolved icon URLs and lets us spot wiring problems here
-// before they hit the live page.
+// The page's own static lookups, under the keys the profile page shares.
+const { data: championsData } = useChampionStaticList()
+const champions = computed(() => championsData.value ?? [])
+const { data: items } = useStaticItems(null)
+const { data: summonerSpells } = useStaticSummonerSpells(null)
+const { data: runeTree } = useStaticRuneTree(null)
 
-const apiFetch = useApiFetch()
-const { data: champions } = useLazyAsyncData<ChampionStaticListItem[]>(
-  'dev-match-row-champions',
-  () => apiFetch<ChampionStaticListItem[]>('/static/champions'),
-  { default: () => [], server: false },
-)
-
-const { data: items } = useLazyAsyncData<Record<number, StaticItemData>>(
-  'dev-match-row-items',
-  () => apiFetch<Record<number, StaticItemData>>('/static/items', { query: {} }),
-  { default: () => ({}), server: false },
-)
-
-const { data: summonerSpells } = useLazyAsyncData<Record<number, StaticSummonerSpellData>>(
-  'dev-match-row-summoner-spells',
-  () => apiFetch<Record<number, StaticSummonerSpellData>>('/static/summoner-spells', { query: {} }),
-  { default: () => ({}), server: false },
-)
-
-const { data: runeTree } = useLazyAsyncData<RuneTreeResponse>(
-  'dev-match-row-rune-tree',
-  () => apiFetch<RuneTreeResponse>('/static/rune-tree', { query: {} }),
-  { default: () => ({ styles: [], perks: {}, perkStyles: {}, shardSlots: [] }), server: false },
-)
-
-// ─── Mock matches ──────────────────────────────────────────────────────────
-// Three rows covering the visual states we need to support today:
-//   1. Win + MVP (high-KDA aggressive carry game)
-//   2. Loss + ACE (defeat but best on losing side)
-//   3. Loss, no badge (mid-of-the-pack performance)
-
-const now = new Date()
-function isoMinutesAgo(minutes: number): string {
-  return new Date(now.getTime() - minutes * 60 * 1000).toISOString()
-}
-
-function makeMockParticipants(): MatchSummaryResponse['participants'] {
-  // Champion ids picked to be widely available across patches so the icons
-  // resolve cleanly (Yasuo, Lux, Garen, Ahri, Thresh on each side).
-  return [
-    { championId: 157, teamId: 100, position: 'TOP', gameName: 'BlueTop', tagLine: 'EUW' },
-    { championId: 64, teamId: 100, position: 'JUNGLE', gameName: 'BlueJng', tagLine: 'EUW' },
-    { championId: 99, teamId: 100, position: 'MIDDLE', gameName: 'BlueMid', tagLine: 'EUW' },
-    { championId: 222, teamId: 100, position: 'BOTTOM', gameName: 'BlueBot', tagLine: 'EUW' },
-    { championId: 412, teamId: 100, position: 'UTILITY', gameName: 'BlueSup', tagLine: 'EUW' },
-    { championId: 86, teamId: 200, position: 'TOP', gameName: 'RedTop', tagLine: 'EUW' },
-    { championId: 121, teamId: 200, position: 'JUNGLE', gameName: 'RedJng', tagLine: 'EUW' },
-    { championId: 103, teamId: 200, position: 'MIDDLE', gameName: 'RedMid', tagLine: 'EUW' },
-    { championId: 51, teamId: 200, position: 'BOTTOM', gameName: 'RedBot', tagLine: 'EUW' },
-    { championId: 117, teamId: 200, position: 'UTILITY', gameName: 'RedSup', tagLine: 'EUW' },
-  ]
-}
-
-const mockMatches = computed<MatchSummaryResponse[]>(() => [
-  {
-    matchId: 'EUW1_MOCK_1',
-    queueId: 420,
-    gameMode: 'CLASSIC',
-    gameStartTimeUtc: isoMinutesAgo(60 * 8),
-    gameDurationSeconds: 1789,
-    self: {
-      championId: 157,
-      championLevel: 18,
-      summoner1Id: 4,
-      summoner2Id: 12,
-      primaryStyleId: 8000,
-      subStyleId: 8200,
-      keystoneId: 8005,
-      kills: 13,
-      deaths: 3,
-      assists: 5,
-      cs: 215,
-      killParticipation: 0.67,
-      items: [3031, 3046, 3036, 3072, 3009, 3026],
-      trinketItemId: 3340,
-      // Recorded before the role-bound slot existed: the boots sit in slot 4.
-      roleBoundItemId: 0,
-      teamId: 100,
-      position: 'TOP',
-      win: true,
-      lpDelta: 23,
-      performanceScore: 84,
-      placement: 1,
-      isMvp: true,
-      isAce: false,
-    },
-    participants: makeMockParticipants(),
-  },
-  {
-    matchId: 'EUW1_MOCK_2',
-    queueId: 420,
-    gameMode: 'CLASSIC',
-    gameStartTimeUtc: isoMinutesAgo(60 * 30),
-    gameDurationSeconds: 2189,
-    self: {
-      championId: 222,
-      championLevel: 17,
-      summoner1Id: 4,
-      summoner2Id: 7,
-      primaryStyleId: 8000,
-      subStyleId: 8400,
-      keystoneId: 8008,
-      kills: 13,
-      deaths: 3,
-      assists: 5,
-      cs: 263,
-      killParticipation: 0.67,
-      // Bot laner past the role quest: six items, the boots in the role-bound slot.
-      items: [6672, 3094, 3031, 3036, 3072, 3033],
-      // Herald eye in the trinket slot — must be filtered out (not a build item).
-      trinketItemId: 3513,
-      roleBoundItemId: 3006,
-      // Team 100 to line up with the shared participants fixture, where
-      // champion 222 sits on the blue side.
-      teamId: 100,
-      position: 'BOTTOM',
-      win: false,
-      lpDelta: -30,
-      performanceScore: 71,
-      placement: 3,
-      isMvp: false,
-      isAce: true,
-    },
-    participants: makeMockParticipants(),
-  },
-  {
-    matchId: 'EUW1_MOCK_3',
-    queueId: 440,
-    gameMode: 'CLASSIC',
-    gameStartTimeUtc: isoMinutesAgo(60 * 26),
-    gameDurationSeconds: 1620,
-    self: {
-      championId: 99,
-      championLevel: 16,
-      summoner1Id: 4,
-      summoner2Id: 14,
-      primaryStyleId: 8200,
-      subStyleId: 8100,
-      keystoneId: 8214,
-      kills: 4,
-      deaths: 6,
-      assists: 8,
-      cs: 188,
-      killParticipation: 0.42,
-      // Herald eye sitting among the inventory items — must be filtered from the grid.
-      items: [6655, 3020, 3157, 3165, 3513, 0],
-      trinketItemId: 3340,
-      // Mid lane quest reward.
-      roleBoundItemId: 1206,
-      teamId: 100,
-      position: 'MIDDLE',
-      win: false,
-      lpDelta: -18,
-      performanceScore: 47,
-      placement: 7,
-      isMvp: false,
-      isAce: false,
-    },
-    participants: makeMockParticipants(),
-  },
-])
+// The fixture rows: the first page of the dev mock's first ladder account
+// (run with NUXT_DEV_MOCK_API=1), whose match details the mock also serves.
+const FIXTURE_NAME_TAG = 'Sheiden-1234'
+const { matches: mockMatches } = useTruemainMatches(FIXTURE_NAME_TAG, ref(1), { pageSize: 3 })
 
 // ─── Live data toggle ──────────────────────────────────────────────────────
 // Let the reviewer paste a real nameTag to see the row against live data.
@@ -200,8 +37,8 @@ function applyLive() {
 
 const staticBundleReady = computed(() =>
   champions.value.length > 0
-  && Object.keys(items.value).length > 0
-  && Object.keys(summonerSpells.value).length > 0
+  && Object.keys(items.value ?? {}).length > 0
+  && Object.keys(summonerSpells.value ?? {}).length > 0
   && (runeTree.value?.styles.length ?? 0) > 0,
 )
 </script>
@@ -214,8 +51,8 @@ const staticBundleReady = computed(() =>
       </h1>
       <p class="text-sm text-muted">
         Isolated visual review for <code>MatchRow</code> — mock fixtures on top, optional live fetch by Riot ID below.
-        Click a row to expand the inline detail accordion (scoreboard / details / runes). The mock rows use a
-        dev-only <code>Playground-MOCK</code> detail fixture; live rows fetch the real detail endpoint.
+        Click a row to expand the inline detail accordion (scoreboard / details / runes). The fixture rows are
+        the dev mock's (<code>NUXT_DEV_MOCK_API=1</code>); live rows fetch the real detail endpoint.
       </p>
     </header>
 
@@ -232,7 +69,7 @@ const staticBundleReady = computed(() =>
           :items="items"
           :summoner-spells="summonerSpells"
           :rune-tree="runeTree"
-          name-tag="Playground-MOCK"
+          :name-tag="FIXTURE_NAME_TAG"
         />
       </template>
       <template v-else>

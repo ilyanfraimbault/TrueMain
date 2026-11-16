@@ -1,7 +1,8 @@
-import type { BadgeColor, HealthAlert, HealthAlerts } from '~~/shared/types/ops'
+import type { BadgeColor } from '~~/shared/utils/badge-color'
+import type { HealthAlertReadModel, HealthAlertsReadModel } from '#site-shared/contract/api'
 
 /** How one sent alert is drawn: a refused delivery reads as such before its kind. */
-export function healthAlertBadge(alert: Pick<HealthAlert, 'kind' | 'delivered'>): { label: string, color: BadgeColor } {
+export function healthAlertBadge(alert: Pick<HealthAlertReadModel, 'kind' | 'delivered'>): { label: string, color: BadgeColor } {
   if (!alert.delivered) {
     return { label: 'Not delivered', color: 'warning' }
   }
@@ -11,7 +12,7 @@ export function healthAlertBadge(alert: Pick<HealthAlert, 'kind' | 'delivered'>)
 }
 
 /** The alerter's rules as one sentence, so the panel says what earns a message. */
-export function healthAlertingRules(alerts: Pick<HealthAlerts,
+export function healthAlertingRules(alerts: Pick<HealthAlertsReadModel,
   'evaluationIntervalSeconds' | 'redConfirmations' | 'cooldownMinutes' | 'processFailureThreshold'>): string {
   const minutes = alerts.evaluationIntervalSeconds / 60
   const every = Number.isInteger(minutes) && minutes >= 1

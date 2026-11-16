@@ -7,7 +7,7 @@ import {
   type SideMap,
   type WinProbabilityLane,
 } from '#common/utils/win-probability'
-import { positionIndex } from '#common/utils/positions'
+import { positionIndex } from '#shared/utils/positions'
 
 /**
  * What the items in a player's inventory cost — the arithmetic the scoreboard

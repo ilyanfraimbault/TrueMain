@@ -11,7 +11,7 @@ const stub = (tag: string, text?: (props: Record<string, unknown>) => string) =>
   props: ['label', 'color', 'variant', 'loading', 'disabled', 'icon'],
   emits: ['click'],
   setup(props, { slots, emit, attrs }) {
-    return () => h(tag, { ...attrs, 'data-stub': tag, 'onClick': () => emit('click') }, [text ? text(props) : '', slots.default?.()])
+    return () => h(tag, { ...attrs, 'data-stub': tag, 'data-loading': props.loading ? 'true' : undefined, 'onClick': () => emit('click') }, [text ? text(props) : '', slots.default?.()])
   },
 })
 
@@ -138,5 +138,15 @@ describe('KnownPlayersConflictActions', () => {
     const wrapper = mount(KnownPlayersConflictActions, { global, props: { conflict: conflict(), busy: true } })
     await button(wrapper, 'keep').trigger('click')
     expect(wrapper.emitted('resolve')).toBeUndefined()
+  })
+
+  it('spins only the action it sent (#2471)', async () => {
+    const wrapper = mount(KnownPlayersConflictActions, { global, props: { conflict: conflict(), busy: false } })
+    await button(wrapper, 'keep').trigger('click')
+    await wrapper.setProps({ busy: true })
+    const spinning = ['keep', 'merge-owner', 'merge-claimant', 'detach'].filter(key => button(wrapper, key).attributes('data-loading') === 'true')
+    expect(spinning).toEqual(['keep'])
+    await wrapper.setProps({ busy: false })
+    expect(button(wrapper, 'keep').attributes('data-loading')).not.toBe('true')
   })
 })

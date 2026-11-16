@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchSummarySelf } from '#shared/types/matches'
+import type { MatchSummarySelfReadModel } from '#shared/contract/api'
 import type { RuneTreeResponse, StaticSummonerSpellData } from '#shared/types/static-data'
 
 // What a player locked in before the game: the two summoner spells over each
@@ -8,7 +8,7 @@ import type { RuneTreeResponse, StaticSummonerSpellData } from '#shared/types/st
 // player's portrait — both carry the same ids, so `self` takes either a row's
 // self or a scoreboard participant.
 const props = defineProps<{
-  self: Pick<MatchSummarySelf, 'summoner1Id' | 'summoner2Id' | 'keystoneId' | 'subStyleId'>
+  self: Pick<MatchSummarySelfReadModel, 'summoner1Id' | 'summoner2Id' | 'keystoneId' | 'subStyleId'>
   summonerSpells: Record<number, StaticSummonerSpellData>
   runeTree: RuneTreeResponse
 }>()

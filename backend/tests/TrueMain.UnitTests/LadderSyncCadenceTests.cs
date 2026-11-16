@@ -6,51 +6,15 @@ using Ingestor.Processes.Summaries;
 namespace TrueMain.UnitTests;
 
 /// <summary>
-/// The three bounds #1474 puts on the ladder sync — a run cadence, a daily request ceiling and
-/// an apex-refresh cadence — each measured against the process's own run history rather than
-/// against the loop that happens to invoke it.
+/// Two of the three bounds #1474 puts on the ladder sync — a daily request ceiling and an
+/// apex-refresh cadence — each measured against the process's own run history rather than
+/// against the loop that happens to invoke it. The third, the run cadence, is the recording
+/// decorator's (<c>RecordedProcessCadenceTests</c>).
 /// </summary>
 public sealed class LadderSyncCadenceTests
 {
     // The harness pins the process clock; every run below is placed relative to it.
     private static readonly DateTime NowUtc = LadderSyncProcessTests.NowUtc;
-
-    [Fact]
-    public async Task RunCoreAsync_Skips_WhenLastRunWithinMinRunInterval()
-    {
-        var client = new LadderSyncProcessTests.RecordingPlatformClient();
-        var harness = new LadderSyncProcessTests.Harness(client) { LastCompletedRunUtc = NowUtc.AddHours(-1) };
-
-        var summary = await harness.RunRawAsync(new LadderSyncOptions
-        {
-            Platforms = ["KR"],
-            TierScope = ["Master", "Diamond"],
-            MaxRequestsPerRun = 5,
-            MinRunInterval = TimeSpan.FromHours(4)
-        });
-
-        summary.Should().BeOfType<SkippedSummary>().Which.Skipped.Should().BeTrue();
-        client.ApexCalls.Should().BeEmpty();
-        client.PagedCalls.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task RunCoreAsync_Runs_WhenLastRunOlderThanMinRunInterval()
-    {
-        var client = new LadderSyncProcessTests.RecordingPlatformClient { PagesPerDivision = 1 };
-        var harness = new LadderSyncProcessTests.Harness(client) { LastCompletedRunUtc = NowUtc.AddHours(-5) };
-
-        var summary = await harness.RunAsync(new LadderSyncOptions
-        {
-            Platforms = ["KR"],
-            TierScope = ["Master", "Diamond"],
-            MaxRequestsPerRun = 2,
-            MinRunInterval = TimeSpan.FromHours(4)
-        });
-
-        summary.ApexCalls.Should().Be(1);
-        summary.PagedCalls.Should().Be(2);
-    }
 
     [Fact]
     public async Task RunCoreAsync_SpendsOnlyWhatIsLeftOfTheDay()

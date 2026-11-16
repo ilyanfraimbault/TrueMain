@@ -10,10 +10,11 @@
 # container on `AggregateLane`. The env file wins over that default, so a
 # leftover `INGESTOR_JOB_MODE=Full` turns `ingestor` back into the whole
 # pipeline and every aggregate step runs twice, once per container — the 1.20.5
-# deploy went green that way. `Full` (any casing) is therefore rejected next to
-# an aggregate lane; the single-process freeze modes docs/riot-key-switch.md
-# relies on (`AccountRefreshOnly`, `MainAnalysisOnly`, ...) and an unset
-# variable stay allowed. Without an aggregate lane, any value is accepted.
+# deploy went green that way. Every composite mode that runs the aggregate lane
+# (any casing) is therefore rejected next to an aggregate lane; the
+# single-process freeze modes docs/riot-key-switch.md relies on
+# (`AccountRefreshOnly`, `MainAnalysisOnly`, ...) and an unset variable stay
+# allowed. Without an aggregate lane, any value is accepted.
 #
 # The env file is the deploy secret: it is read from ENV_FILE, never from argv
 # or disk, and no value other than the offending mode is ever printed. Every
@@ -21,6 +22,10 @@
 set -euo pipefail
 
 compose_file="$1"
+
+# The composite modes whose pass runs aggregate-lane steps: PipelineCatalog.ModesRunning(Aggregate)
+# in backend/Data/Pipeline. PipelineCatalogJobModeCheckTests pins this list to the catalog.
+aggregate_lane_modes="Full AggregateLane"
 
 if [ ! -f "${compose_file}" ]; then
   echo "::error::Compose file not found: ${compose_file}"
@@ -57,11 +62,15 @@ modes="$(printf '%s\n' "${ENV_FILE:-}" | awk -v q="'" '
   }
 ')"
 
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 while IFS= read -r mode; do
-  if [ "$(printf '%s' "${mode}" | tr '[:upper:]' '[:lower:]')" = "full" ]; then
-    echo "::error::The env file sets INGESTOR_JOB_MODE=${mode}, but ${compose_file} already runs the aggregate lane in ingestor-aggregate: the ingestor would run the whole pipeline and every aggregate step would run twice. Remove INGESTOR_JOB_MODE from the env file (or set a single-process freeze mode, docs/riot-key-switch.md) and re-run."
-    exit 1
-  fi
+  for rejected in ${aggregate_lane_modes}; do
+    if [ "$(lower "${mode}")" = "$(lower "${rejected}")" ]; then
+      echo "::error::The env file sets INGESTOR_JOB_MODE=${mode}, but ${compose_file} already runs the aggregate lane in ingestor-aggregate: the ingestor would run aggregate steps too and every one of them would run twice. Remove INGESTOR_JOB_MODE from the env file (or set a single-process freeze mode, docs/riot-key-switch.md) and re-run."
+      exit 1
+    fi
+  done
 done <<< "${modes}"
 
 echo "INGESTOR_JOB_MODE agrees with the lanes ${compose_file} deploys."

@@ -1,4 +1,4 @@
-import type { RiotApiHeadroom } from '~~/shared/types/ops'
+import type { RiotApiHeadroomReadModel } from '#site-shared/contract/api'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import ProcessesRiotApiHeadroom from '~~/app/components/processes/ProcessesRiotApiHeadroom.vue'
@@ -14,7 +14,7 @@ const global = {
   },
 }
 
-const sufficient: RiotApiHeadroom = {
+const sufficient: RiotApiHeadroomReadModel = {
   sufficientData: true,
   observedWindowHours: 168,
   requiredWindowHours: 24,
@@ -43,7 +43,7 @@ const sufficient: RiotApiHeadroom = {
   ],
 }
 
-function insufficient(overrides: Partial<RiotApiHeadroom>): RiotApiHeadroom {
+function insufficient(overrides: Partial<RiotApiHeadroomReadModel>): RiotApiHeadroomReadModel {
   return {
     sufficientData: false,
     observedWindowHours: 2,
@@ -75,7 +75,7 @@ describe('ProcessesRiotApiHeadroom', () => {
   })
 
   it('keeps the fraction of a call a real roster costs per account', () => {
-    const fractional: RiotApiHeadroom = {
+    const fractional: RiotApiHeadroomReadModel = {
       ...sufficient,
       routes: [{ ...sufficient.routes[0]!, callsPerAccountPerDay: 0.16125, additionalAccountsHeadroom: 1_211_273_602 }],
     }

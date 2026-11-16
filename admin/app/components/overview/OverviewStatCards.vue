@@ -5,12 +5,12 @@
 // The match-side figures are planner estimates (#2301) — exact counts scanned the
 // two largest tables and timed the endpoint out — so they read `≈`. Unavailable,
 // they read as a dash with the reason, never as zero.
-import type { OverviewStats } from '~~/shared/types/ops'
+import type { OverviewReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import { formatNumber } from '~~/shared/utils/format'
 
 const props = defineProps<{
-  stats: OverviewStats | null | undefined
+  stats: OverviewReadModel | null | undefined
   pending: boolean
 }>()
 

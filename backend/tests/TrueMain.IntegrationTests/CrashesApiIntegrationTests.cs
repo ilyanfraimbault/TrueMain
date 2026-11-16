@@ -77,7 +77,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
                 "exitCode", "recentLogTail"
             ]);
 
-        var payload = await response.Content.ReadFromJsonAsync<CrashesTestContract>();
+        var payload = await response.Content.ReadFromJsonAsync<CrashesTestContract>(ApiJson.Options);
         payload.Should().NotBeNull();
 
         payload!.Total.Should().Be(4);
@@ -103,7 +103,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var payload = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?process=Ingestor");
+        var payload = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?process=Ingestor", ApiJson.Options);
 
         payload!.Total.Should().Be(2);
         payload.Entries.Should().OnlyContain(entry => entry.ProcessName == "Ingestor");
@@ -119,13 +119,13 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
 
         // Lowercase on purpose: the casing is resolved against the CrashSource catalog so
         // the filter stays an indexable $eq.
-        var unclean = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?source=uncleanshutdown");
+        var unclean = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?source=uncleanshutdown", ApiJson.Options);
         unclean!.Total.Should().Be(1);
         unclean.Entries.Should().ContainSingle().Which.Source.Should().Be(nameof(CrashSource.UncleanShutdown));
 
         // A value outside the catalog falls through as-is and matches nothing — it must
         // never widen to "no filter", which would show every crash under a wrong heading.
-        var nonsense = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?source=Meltdown");
+        var nonsense = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?source=Meltdown", ApiJson.Options);
         nonsense!.Total.Should().Be(0);
         nonsense.Entries.Should().BeEmpty();
     }
@@ -140,12 +140,12 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
 
         // "npgsql" appears in one message and, on a different row, only in the stack
         // trace — both must come back.
-        var payload = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?search=NPGSQL");
+        var payload = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?search=NPGSQL", ApiJson.Options);
         payload!.Total.Should().Be(2);
 
         // Regex metacharacters are escaped, so this is a substring search and not a
         // wildcard that matches every row.
-        var literal = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?search=.%2A");
+        var literal = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?search=.%2A", ApiJson.Options);
         literal!.Total.Should().Be(0);
     }
 
@@ -176,8 +176,8 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var first = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?page=1&pageSize=2");
-        var second = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?page=2&pageSize=2");
+        var first = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?page=1&pageSize=2", ApiJson.Options);
+        var second = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?page=2&pageSize=2", ApiJson.Options);
 
         first!.Total.Should().Be(4, "the total is the unpaged match count on every page");
         second!.Total.Should().Be(4);
@@ -189,7 +189,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
         combined.Should().BeInDescendingOrder(entry => entry.TimestampUtc);
         combined.Select(entry => entry.Id).Should().OnlyHaveUniqueItems();
 
-        var oversized = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?pageSize=10000");
+        var oversized = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?pageSize=10000", ApiJson.Options);
         oversized!.PageSize.Should().Be(100);
     }
 
@@ -201,7 +201,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var payload = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?source=HostRun");
+        var payload = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?source=HostRun", ApiJson.Options);
         var entry = payload!.Entries.Should().ContainSingle().Subject;
 
         entry.ExceptionType.Should().Be("System.Net.Sockets.SocketException");
@@ -230,7 +230,7 @@ public sealed class CrashesApiIntegrationTests : IAsyncLifetime
         await using var factory = CreateFactory();
         using var client = CreateClient(factory);
 
-        var payload = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?source=UncleanShutdown");
+        var payload = await client.GetFromJsonAsync<CrashesTestContract>("/ops/crashes?source=UncleanShutdown", ApiJson.Options);
         var entry = payload!.Entries.Should().ContainSingle().Subject;
 
         // No stack trace is possible for a SIGKILL; the exit code and the last-known

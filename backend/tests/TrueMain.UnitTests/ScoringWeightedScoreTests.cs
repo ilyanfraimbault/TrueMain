@@ -1,6 +1,6 @@
 using AwesomeAssertions;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Coverage;
@@ -46,10 +46,7 @@ public sealed class ScoringWeightedScoreTests
         { 1.00, 0.00, 0.00, 0.50 },
         // Recency disabled, and weights that do not add up to 1.
         { 0.00, 0.50, 0.50, 0.00 },
-        { 2.00, 1.00, 1.00, 0.00 },
-        // All weights 0: startup validation rejects this, so it only happens when the
-        // validator is bypassed. Exercises the defensive fallback.
-        { 0.00, 0.00, 0.00, 0.00 }
+        { 2.00, 1.00, 1.00, 0.00 }
     };
 
     [Theory]
@@ -84,31 +81,15 @@ public sealed class ScoringWeightedScoreTests
     }
 
     [Fact]
-    public async Task LadderCandidate_WithZeroTotalWeight_FallsBackToDefaultWeights()
+    public async Task ZeroTotalWeight_IsAWiringFault_NotACaseToRankAround()
     {
+        // Startup validation rejects weights summing to 0; a bypassed validator throws instead
+        // of ranking on a second copy of the defaults (#2481, F14).
         var scoring = BuildOptions(recencyWeight: 0, rankWeight: 0, pointsWeight: 0, scarcityWeight: 0);
 
-        var score = await ScoreAsync(BuildLadderCandidate(), scoring);
+        var act = () => ScoreAsync(BuildLadderCandidate(), scoring);
 
-        // Unchanged from the inline formula: default weights, scarcity dropped.
-        var expected = 100 * (0.65 * RecencyScore + 0.20 * RankScore + 0.15 * PointsScore);
-        score.Should().BeApproximately(expected, 1e-9);
-        score.Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public async Task HarvestCandidate_WithZeroTotalWeight_FallsBackToDefaultWeights()
-    {
-        // Reconciled with the ladder branch (#497): the fallback now runs before the source
-        // split, so a bypassed validator degrades both branches the same way instead of
-        // flattening every harvested candidate to 0.
-        var scoring = BuildOptions(recencyWeight: 0, rankWeight: 0, pointsWeight: 0, scarcityWeight: 0);
-
-        var score = await ScoreAsync(BuildHarvestCandidate(), scoring);
-
-        var expected = 100 * (0.65 * RecencyScore + 0.35 * ObservedScore);
-        score.Should().BeApproximately(expected, 1e-9);
-        score.Should().BeGreaterThan(0);
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Fact]
@@ -133,8 +114,6 @@ public sealed class ScoringWeightedScoreTests
 
     private static double ScarcityScore => 0.75;
 
-    private static double ObservedScore => Math.Log10(CandidateObservedGames + 1) / 1.5;
-
     /// <summary>
     /// The ladder formula exactly as it was inlined in <c>ComputeScore</c> before #497,
     /// defensive <c>weightSum &lt;= 0</c> fallback included.
@@ -146,14 +125,6 @@ public sealed class ScoringWeightedScoreTests
         double scarcityWeight)
     {
         var weightSum = recencyWeight + rankWeight + pointsWeight + scarcityWeight;
-        if (weightSum <= 0)
-        {
-            recencyWeight = 0.65;
-            rankWeight = 0.20;
-            pointsWeight = 0.15;
-            scarcityWeight = 0;
-            weightSum = 1.0;
-        }
 
         return 100 * ((recencyWeight / weightSum) * RecencyScore
                       + (rankWeight / weightSum) * RankScore
@@ -239,7 +210,7 @@ public sealed class ScoringWeightedScoreTests
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
             Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         return candidate.Score;
     }

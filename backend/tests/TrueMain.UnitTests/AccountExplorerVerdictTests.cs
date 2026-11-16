@@ -150,5 +150,5 @@ public sealed class AccountExplorerVerdictTests
         => new() { ChampionId = 1, IsMain = isMain, IsActive = isActive };
 
     private static AccountExplorerCandidateReadModel Candidate(MainCandidateStatus status)
-        => new() { ChampionId = 1, Status = status.ToString() };
+        => new() { ChampionId = 1, Status = status };
 }

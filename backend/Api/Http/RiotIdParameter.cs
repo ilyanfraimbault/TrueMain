@@ -5,7 +5,8 @@ using TrueMain.Services.Truemains.Identity;
 namespace TrueMain.Http;
 
 /// <summary>
-/// A Riot ID passed as a query parameter (<c>Name#TAG</c>). Only well-formedness is checked
+/// A Riot ID passed as a query parameter or route segment (<c>Name#TAG</c>, or the URL form
+/// <c>Name-TAG</c>). Only well-formedness is checked
 /// here — whether an account exists is an answer the query services give, not a client error.
 /// </summary>
 /// <remarks>
@@ -20,7 +21,7 @@ internal static class RiotIdParameter
     /// parameter so a caller passing several can tell which failed.
     /// </summary>
     public static string InvalidMessage(string parameterName)
-        => $"{parameterName} must be a Riot ID of the form Name#TAG "
+        => $"{parameterName} must be a Riot ID of the form Name#TAG or Name-TAG "
            + $"(at most {NameTagParser.MaxRiotIdLength} characters).";
 
     /// <summary>
@@ -61,5 +62,26 @@ internal static class RiotIdParameter
 
         problem = null;
         return true;
+    }
+
+    /// <summary>
+    /// Parses a required Riot ID into its two halves, for the routes that look the account up
+    /// by name rather than handing the raw string to a resolver. Not well-formed is a 400.
+    /// </summary>
+    public static bool TryParseRiotId(
+        this ControllerBase controller,
+        string? riotId,
+        string parameterName,
+        out (string GameName, string TagLine) parsed,
+        [NotNullWhen(false)] out ActionResult? problem)
+    {
+        if (NameTagParser.TryParseRiotId(riotId, out parsed))
+        {
+            problem = null;
+            return true;
+        }
+
+        problem = controller.ValidationProblem(InvalidMessage(parameterName));
+        return false;
     }
 }

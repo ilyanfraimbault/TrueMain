@@ -1,11 +1,7 @@
 // The bulk resolution of the most certain conflicts (#2295): the floors the operator
 // picks from, how the preview names each merge, and what the API's outcomes say.
 // Kept under `shared/` so it is importable — and tested — without the Nuxt runtime.
-import type {
-  PersonaConflictBulkCandidate,
-  PersonaConflictBulkResolved,
-  PersonaConflictBulkSkipReason,
-} from '~~/shared/types/ops'
+import type { PersonaConflictBulkCandidateReadModel, PersonaConflictBulkResolveResponse, PersonaConflictBulkSkipReason } from '#site-shared/contract/api'
 import { personaName } from './persona-conflicts'
 
 /** The score floors offered: 10 per shared social channel, so each step is about one more channel. */
@@ -18,7 +14,7 @@ export const BULK_FLOORS: readonly { value: number, label: string }[] = [
 export const DEFAULT_BULK_FLOOR = 20
 
 /** "Peng (dpm) into Peng": the known player that goes, then the one that stays. */
-export function bulkMergeLine(candidate: PersonaConflictBulkCandidate): { merged: string, kept: string } {
+export function bulkMergeLine(candidate: PersonaConflictBulkCandidateReadModel): { merged: string, kept: string } {
   const { claimant, owner } = candidate.conflict
   const keptIsClaimant = candidate.keep === 'claimant'
   const kept = keptIsClaimant ? claimant : owner
@@ -42,7 +38,7 @@ function conflictWord(count: number): string {
 }
 
 /** "3 conflicts merged", with the skips when there were some. */
-export function bulkResolvedMessage(result: PersonaConflictBulkResolved): { title: string, description?: string } {
+export function bulkResolvedMessage(result: PersonaConflictBulkResolveResponse): { title: string, description?: string } {
   const title = `${result.resolved} ${conflictWord(result.resolved)} merged`
   const also = result.outcomes.reduce((sum, o) => sum + (o.resolution?.alsoResolved ?? 0), 0)
   const parts: string[] = []

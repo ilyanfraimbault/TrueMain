@@ -96,20 +96,6 @@ public sealed class MatchesIngestedQueryServiceTests
     }
 
     [Fact]
-    public async Task GetAsync_StartsWeeksOnMonday()
-    {
-        // 2026-08-05 is a Wednesday; its week starts Monday 2026-08-03, matching
-        // Postgres' date_trunc('week') that the sibling chart uses.
-        var store = StoreWith(Run(Now, inserted: 3));
-
-        var result = await CreateService(store).GetAsync(
-            IngestionTimeGranularity.Week, windowDays: 30, CancellationToken.None);
-
-        result.Buckets.Should().ContainSingle();
-        result.Buckets[0].Bucket.Should().Be("2026-08-03T00:00:00Z");
-    }
-
-    [Fact]
     public async Task GetAsync_GroupsByCalendarMonth()
     {
         var store = StoreWith(

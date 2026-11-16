@@ -1,4 +1,4 @@
-import type { TruemainDedication, TruemainScorePartKey } from '#shared/types/dedication'
+import type { DedicationPart, DedicationReadModel } from '#shared/contract/api'
 import { formatCompactCount } from '#shared/utils/counts'
 import { formatPercentage } from '#shared/utils/ddragon'
 
@@ -13,7 +13,7 @@ export const TRUEMAIN_SCORE_LABEL = 'Truemain score'
 
 /** One part of the score, ready to render: the fact behind it and what it added. */
 export interface TruemainScorePartView {
-  key: TruemainScorePartKey
+  key: DedicationPart
   label: string
   /** The raw fact, phrased for a human. */
   detail: string
@@ -37,7 +37,7 @@ export function formatDedicationScore(score: number): string {
  * and the `otpOnly` filter use — so the three can never disagree. Every scored
  * champion is a main, so the only other answer is "Main".
  */
-export function dedicationVerdict(dedication: TruemainDedication): 'OTP' | 'Main' {
+export function dedicationVerdict(dedication: DedicationReadModel): 'OTP' | 'Main' {
   return dedication.isOtp ? 'OTP' : 'Main'
 }
 
@@ -57,14 +57,14 @@ function masteryPointsDetail(points: number | null): string {
   return `${formatCompactCount(points)} points`
 }
 
-function masteryRankDetail(dedication: TruemainDedication): string {
+function masteryRankDetail(dedication: DedicationReadModel): string {
   if (dedication.masteryPoints === null) return NOT_CHECKED
   if (dedication.masteryRank === null) return 'no mastery'
   if (dedication.masteryRank === 1) return 'their most-played ever'
   return `#${dedication.masteryRank} in their mastery`
 }
 
-function partDetail(key: TruemainScorePartKey, dedication: TruemainDedication): string {
+function partDetail(key: DedicationPart, dedication: DedicationReadModel): string {
   switch (key) {
     case 'playRate':
       return `${formatPercentage(dedication.playRate, 0)} of last ${dedication.recentGames} ranked`
@@ -75,7 +75,7 @@ function partDetail(key: TruemainScorePartKey, dedication: TruemainDedication): 
   }
 }
 
-const PART_LABELS: Record<TruemainScorePartKey, string> = {
+const PART_LABELS: Record<DedicationPart, string> = {
   playRate: 'Play rate',
   mastery: 'Mastery',
   masteryRank: 'Mastery rank',
@@ -102,7 +102,7 @@ function wholePoints(points: number[], total: number): number[] {
 }
 
 /** The parts with their facts, in payload order (heaviest first). */
-export function dedicationParts(dedication: TruemainDedication): TruemainScorePartView[] {
+export function dedicationParts(dedication: DedicationReadModel): TruemainScorePartView[] {
   const points = wholePoints(
     dedication.parts.map(part => part.points),
     Math.round(dedication.score),

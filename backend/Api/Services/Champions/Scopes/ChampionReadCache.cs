@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Services.Champions.Warmup;
 
 namespace TrueMain.Services.Champions.Scopes;
 
@@ -29,11 +30,17 @@ public interface IChampionReadCache
     /// What the entry charges against the shared cache's <c>SizeLimit</c>. One unit —
     /// "roughly one response" — unless the value is something else entirely.
     /// </param>
+    /// <param name="failureBackoff">
+    /// When set, a failed read is not run again for this long, whatever the version: callers
+    /// get a <see cref="ReadBackoffException"/> at once (see <see cref="FailureBackoff"/>).
+    /// For a read too long to repeat, not for the ordinary ones.
+    /// </param>
     Task<T> GetOrComputeAsync<T>(
         string key,
         Func<CancellationToken, Task<T>> compute,
         CancellationToken ct,
-        int size = 1);
+        int size = 1,
+        TimeSpan? failureBackoff = null);
 }
 
 /// <summary>
@@ -82,8 +89,15 @@ public interface IChampionReadCache
 /// its own, which the token now covers like the others; item timings was dropped
 /// instead, having had no caller since #628.
 /// </para>
+/// <para>
+/// <b>With the warm-up on, a reader's version is the published one</b> (#2425), not the stamp:
+/// see <see cref="ChampionReadVersion"/>.
+/// </para>
 /// </remarks>
-public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCache cache) : IChampionReadCache
+public sealed class ChampionReadCache(
+    IChampionAggregationStamp stamp,
+    IMemoryCache cache,
+    ChampionReadVersion version) : IChampionReadCache
 {
     /// <summary>Cache key holding the current aggregation version token.</summary>
     internal const string VersionCacheKey = "champions:aggregation-version";
@@ -106,58 +120,24 @@ public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCa
     /// <summary>The token used when nothing has been aggregated yet.</summary>
     internal const string EmptyVersion = "none";
 
-    // Static because the services are scoped: the point is to coalesce across
-    // concurrent *requests*, which each get their own instance. Non-generic payload
-    // so one instance serves every response type that goes through here.
-    private static readonly RequestCoalescer<object?> ReadCoalescer = new();
-    private static readonly RequestCoalescer<string> VersionCoalescer = new();
-
     /// <inheritdoc />
     public async Task<T> GetOrComputeAsync<T>(
         string key,
         Func<CancellationToken, Task<T>> compute,
         CancellationToken ct,
-        int size = 1)
+        int size = 1,
+        TimeSpan? failureBackoff = null)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(compute);
 
-        var versionedKey = ComposeKey(await GetAggregationVersionAsync(ct), key);
-
-        // Presence, not truthiness: several of these reads answer a legitimate "no data
-        // for this slice" with null (an unplayed matchup, a lane a champion never
-        // takes), and those are exactly the slices nobody has warmed. Treating a cached
-        // null as a miss would leave the emptiest corners of the site re-scanning on
-        // every visit. Only this key writes this entry, so the cast is safe.
-        if (cache.TryGetValue(versionedKey, out var cached))
-        {
-            return (T)cached!;
-        }
-
-        var computed = await ReadCoalescer.GetOrJoinAsync(
-            versionedKey,
-            async () =>
-            {
-                // Re-check under the coalescer: this caller may have queued behind a
-                // pass that has since finished and cached its answer.
-                if (cache.TryGetValue(versionedKey, out var justCached))
-                {
-                    return justCached;
-                }
-
-                // Detached from any one caller's token: the pass is shared, and the
-                // owner is holding its request open for it (ownerAwaitsToCompletion),
-                // so cancelling here would only throw away work everyone is waiting
-                // for. The bound is the command timeout, as it is for every read here.
-                var value = await compute(CancellationToken.None);
-                return cache.Store(versionedKey, (object?)value, AbsoluteBackstop, size);
-            },
+        return await cache.GetOrComputeAsync(
+            ComposeKey(await GetAggregationVersionAsync(ct), key),
+            version.EntryLifetime(AbsoluteBackstop),
+            compute,
             ct,
-            // These reads run on the caller's request-scoped DbContext, so the pass
-            // dies with the owning request. See RequestCoalescer.
-            ownerAwaitsToCompletion: true);
-
-        return (T)computed!;
+            size,
+            failureBackoff is { } window ? new ReadBackoff(window, key) : null);
     }
 
     /// <summary>
@@ -174,29 +154,17 @@ public sealed class ChampionReadCache(IChampionAggregationStamp stamp, IMemoryCa
     /// </summary>
     private async Task<string> GetAggregationVersionAsync(CancellationToken ct)
     {
-        if (cache.TryGetValue<string>(VersionCacheKey, out var cached) && cached is not null)
+        if (version.Current is { } pinned)
         {
-            return cached;
+            return pinned;
         }
 
-        return await VersionCoalescer.GetOrJoinAsync(
+        return await cache.GetOrComputeAsync(
             VersionCacheKey,
-            async () =>
-            {
-                if (cache.TryGetValue<string>(VersionCacheKey, out var justCached) && justCached is not null)
-                {
-                    return justCached;
-                }
-
-                var latest = await stamp.GetLatestAsync(CancellationToken.None);
-
-                var token = latest is { } aggregatedAt
-                    ? aggregatedAt.Ticks.ToString(CultureInfo.InvariantCulture)
-                    : EmptyVersion;
-
-                return cache.Store(VersionCacheKey, token, VersionTtl);
-            },
-            ct,
-            ownerAwaitsToCompletion: true);
+            VersionTtl,
+            async token => await stamp.GetLatestAsync(token) is { } aggregatedAt
+                ? aggregatedAt.Ticks.ToString(CultureInfo.InvariantCulture)
+                : EmptyVersion,
+            ct);
     }
 }

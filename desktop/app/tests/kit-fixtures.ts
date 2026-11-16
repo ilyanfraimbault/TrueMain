@@ -1,4 +1,4 @@
-import type { Kit, KitRunePage } from '#shared/types/kit'
+import type { Kit, KitRunePage } from '~/types/kit'
 import type { RuneTreeResponse, StaticItemData } from '#shared/types/static-data'
 
 /** Two trees of the shape Community Dragon's are: a keystone row, three rows of three, and the three shard rows. */

@@ -8,9 +8,10 @@ public interface IItemClassProvider
     /// <summary>
     /// The classes of every item that has one, for the patch <paramref name="gameVersion"/>
     /// belongs to (the newest published data when null), each in the game data's order — the
-    /// item's main class first. Throws when the source is unreachable.
+    /// item's main class first — or why there are none (<see cref="StaticData{T}"/>). Never throws
+    /// but on cancellation.
     /// </summary>
-    Task<ItemClasses> GetClassesAsync(string? gameVersion, CancellationToken ct);
+    Task<StaticData<ItemClasses>> GetClassesAsync(string? gameVersion, CancellationToken ct);
 }
 
 /// <summary>

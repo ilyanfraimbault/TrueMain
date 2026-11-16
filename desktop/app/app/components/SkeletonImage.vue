@@ -35,6 +35,8 @@ const props = defineProps<{
   settled?: boolean
   /** Transparent pixels (a lane glyph, a rune): no skeleton behind the picture. */
   transparent?: boolean
+  /** The square the site's twin fetches. Ignored: the app draws the source as given. */
+  fetchSize?: number
 }>()
 
 const failed = ref(false)
@@ -76,7 +78,7 @@ onMounted(() => markIconPainted(props.src))
         :alt="alt"
         :title="title"
         :loading="loading"
-        class="relative size-full"
+        class="relative size-full text-transparent"
         :class="!transparent && 'img-skeleton'"
         @error="failed = true"
       >

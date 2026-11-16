@@ -161,8 +161,8 @@ internal sealed class MongoLogSink(
             Category = typeof(MongoLogSink).FullName!,
             Message = $"{dropped} log record(s) were dropped because the log channel (capacity {channel.Capacity}) "
                       + "was full; the rows around this one are incomplete.",
-            ProcessName = Truncate(_options.ProcessName, 64),
-            Host = Truncate(Environment.MachineName, 128),
+            ProcessName = StoredText.Truncate(_options.ProcessName, 64),
+            Host = StoredText.Truncate(Environment.MachineName, 128),
             EventId = OpsEvents.LogRecordsDropped.Id,
             EventType = OpsEvents.LogRecordsDropped.Name
         });
@@ -204,8 +204,8 @@ internal sealed class MongoLogSink(
         Category = TruncateRequired(record.Category, 256),
         Message = record.Message,
         Exception = record.Exception,
-        ProcessName = Truncate(record.ProcessName, 64),
-        Host = Truncate(record.Host, 128),
+        ProcessName = StoredText.Truncate(record.ProcessName, 64),
+        Host = StoredText.Truncate(record.Host, 128),
         EventId = record.EventId == 0 ? null : record.EventId,
         // Never truncated: the value always comes from the fixed OpsEvents catalog
         // (MongoLogger.Resolve), so its length is bounded by the catalog itself.
@@ -213,15 +213,12 @@ internal sealed class MongoLogSink(
         // Request fields come from request data a caller controls (the path above
         // all), so they are bounded like the infra fields, not left uncapped like a
         // stack trace.
-        TraceId = Truncate(record.Request.TraceId, 64),
-        RequestMethod = Truncate(record.Request.RequestMethod, 16),
-        RequestPath = Truncate(record.Request.RequestPath, 512),
+        TraceId = StoredText.Truncate(record.Request.TraceId, 64),
+        RequestMethod = StoredText.Truncate(record.Request.RequestMethod, 16),
+        RequestPath = StoredText.Truncate(record.Request.RequestPath, 512),
         StatusCode = record.Request.StatusCode,
         DurationMs = record.Request.DurationMs
     };
-
-    private static string? Truncate(string? value, int maxLength)
-        => string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value[..maxLength];
 
     private static string TruncateRequired(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength];

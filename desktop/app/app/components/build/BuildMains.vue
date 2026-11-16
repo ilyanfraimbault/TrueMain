@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { LeaderboardResponse, LeaderboardRowResponse, RegionSlug } from '#shared/types/leaderboard'
-import type { ProfileIdentity } from '#shared/types/profile'
-import type { SearchResult } from '#shared/types/search'
+import type { RegionSlug } from '#shared/types/leaderboard'
+import type { LeaderboardResponse, LeaderboardRowReadModel, ProfileIdentityReadModel, SearchResultReadModel } from '#shared/contract/api'
 import { riotIdLabel } from '#shared/utils/truemain-path'
+import { regionOf } from '#shared/utils/region'
 
 /**
  * The champion's best true mains — what the reference client lists as pro
@@ -28,11 +28,11 @@ const props = defineProps<{
   selectedNameTag?: string | null
 }>()
 
-const emit = defineEmits<{ select: [main: { identity: ProfileIdentity }] }>()
+const emit = defineEmits<{ select: [main: { identity: ProfileIdentityReadModel }] }>()
 
 const TOP_N = 5
 
-const cache = useState<Record<number, LeaderboardRowResponse[]>>('champion-mains', () => ({}))
+const cache = useState<Record<number, LeaderboardRowReadModel[]>>('champion-mains', () => ({}))
 const failed = ref(false)
 
 const topRows = computed(() => cache.value[props.championId] ?? null)
@@ -57,12 +57,12 @@ const favoriteMains = useFavoriteMains(() => props.championId)
 const truemainBuilds = useTruemainBuild()
 
 /** The mains picked in the search, per champion, latest first — kept while the view is open, never saved. */
-const searched = ref<Record<number, SearchResult[]>>({})
+const searched = ref<Record<number, SearchResultReadModel[]>>({})
 const searchedHere = computed(() => searched.value[props.championId] ?? [])
 
-const nameTagOf = (identity: ProfileIdentity) => favoriteNameTag(identity.gameName, identity.tagLine)
+const nameTagOf = (identity: ProfileIdentityReadModel) => favoriteNameTag(identity.gameName, identity.tagLine)
 
-function pickSearched(result: SearchResult) {
+function pickSearched(result: SearchResultReadModel) {
   const key = nameTagOf(result.identity).toLowerCase()
   const others = searchedHere.value.filter(entry => nameTagOf(entry.identity).toLowerCase() !== key)
   searched.value = { ...searched.value, [props.championId]: [result, ...others] }
@@ -78,7 +78,7 @@ watch([favoriteMains, searchedHere, () => props.position], ([mains, picked, posi
 /** One row of the list, whichever source it comes from. */
 interface MainRow {
   nameTag: string
-  identity: ProfileIdentity
+  identity: ProfileIdentityReadModel
   region: RegionSlug | null
   ranked: { tier: string, division: string, leaguePoints: number, wins: number | null, losses: number | null, winRate: number | null } | null
   keystoneId: number | null
@@ -105,7 +105,7 @@ const rows = computed<MainRow[] | null>(() => {
     return {
       nameTag,
       identity: result.identity,
-      region: result.region,
+      region: regionOf(result.region),
       ranked: result.ranked && { ...result.ranked, wins: null, losses: null, winRate: null },
       keystoneId: build?.primaryKeystoneId ?? null,
       firstItemId: build?.firstItemId ?? null,
@@ -124,7 +124,7 @@ const rows = computed<MainRow[] | null>(() => {
       return {
         nameTag: nameTagOf(row.identity),
         identity: row.identity,
-        region: row.region,
+        region: regionOf(row.region),
         ranked: row.ranked && { ...row.ranked, wins: row.stats.wins, losses: row.stats.losses, winRate: row.stats.winRate },
         keystoneId: onChampion?.primaryKeystoneId ?? null,
         firstItemId: onChampion?.firstItemId ?? null,

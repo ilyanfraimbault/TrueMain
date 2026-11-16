@@ -3,13 +3,13 @@ using Core.Options;
 using Data;
 using Data.Entities;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
-using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
-using TrueMain.Services.Ops.Processes;
+using TrueMain.Services.Ops.Database;
 
 namespace TrueMain.Services.Ops.Health;
 
@@ -42,22 +42,19 @@ public sealed class PipelineHealthQueryService(
     IOptions<StorageHistoryOptions> storageHistoryOptions,
     TimeProvider timeProvider,
     IHostEnvironment environment,
-    ILogger<PipelineHealthQueryService> logger) : IPipelineHealthQueryService
+    Measurements<PipelineHealthQueryService> measurements) : IPipelineHealthQueryService
 {
-    /// <summary>The only failure text a production client ever sees.</summary>
-    private const string InternalError = "internal error";
-
     private static readonly string[] ProcessNames =
     [
-        "Discovery",
-        "Scoring",
-        "MatchIngestion",
-        "MainAnalysis",
-        "MatchParticipantEloBracketEnrichment",
-        "ChampionPatternAggregation",
-        "ChampionMatchupLeadAggregation",
-        "AccountRefresh",
-        "MatchDataRetention"
+        PipelineCatalog.Discovery.Name,
+        PipelineCatalog.Scoring.Name,
+        PipelineCatalog.MatchIngestion.Name,
+        PipelineCatalog.MainAnalysis.Name,
+        PipelineCatalog.EloBracketEnrichment.Name,
+        PipelineCatalog.PatternAggregation.Name,
+        PipelineCatalog.MatchupAggregation.Name,
+        PipelineCatalog.AccountRefresh.Name,
+        PipelineCatalog.MatchDataRetention.Name
     ];
 
     public async Task<PipelineHealthReadModel> GetAsync(CancellationToken ct)
@@ -124,7 +121,7 @@ public sealed class PipelineHealthQueryService(
         // process last actually succeeded. Unbounded window on purpose — "last succeeded"
         // has no useful window, and a process that last worked five months ago must not
         // report the same null as one that has never worked at all.
-        var rollups = await processRunStore.GetRollupsAsync(processName: null, windowStart: null, ct);
+        var rollups = await processRunStore.GetRollupsAsync(processName: null, windowStart: null, nowUtc, ct);
 
         var sanitizeErrors = environment.IsProduction();
         var processes = new List<ProcessHealthReadModel>(ProcessNames.Length);
@@ -136,8 +133,7 @@ public sealed class PipelineHealthQueryService(
             {
                 processes.Add(new ProcessHealthReadModel
                 {
-                    ProcessName = processName,
-                    Status = PipelineHealthEvaluator.MissingStatus
+                    ProcessName = processName
                 });
                 continue;
             }
@@ -146,24 +142,25 @@ public sealed class PipelineHealthQueryService(
             var effectiveStatus = ProcessRunStaleness.EffectiveStatus(
                 run.Status, run.LastHeartbeatAtUtc, nowUtc);
 
-            // Only ask for the streak when the latest run did not succeed. On a healthy
-            // pipeline that is zero extra queries; on a broken one it is one small counted
-            // query for the process that is actually broken. Skipped counts as healthy
-            // here (#1149): a cadence guard declining to run is the guard working, not a
-            // failure, so it must not open a streak on an otherwise-fine process. Cancelled
-            // is healthy for the neighbouring reason (#1513): the run stopped because the
-            // host asked it to, which is what a redeploy looks like, not a defect.
-            var consecutiveFailures = effectiveStatus is ProcessRunStatus.Success
-                or ProcessRunStatus.Skipped
-                or ProcessRunStatus.Cancelled
+            // Only ask for the streak when the latest run did not settle healthily. On a
+            // healthy pipeline that is zero extra queries; on a broken one it is one small
+            // counted query for the process that is actually broken. Skipped counts as
+            // healthy here (#1149): a cadence guard declining to run is the guard working,
+            // not a failure. Cancelled is healthy for the neighbouring reason (#1513): the
+            // run stopped because the host asked it to, which is what a redeploy looks like.
+            // A Running latest run keeps the streak it is retrying. The count judges every
+            // run on its effective status, as this one is (#2474), so a dead host's stale
+            // Running row counts toward the streak that opens the per-process alert.
+            var settledHealthy = effectiveStatus.IsTerminal() && !effectiveStatus.CountsAsFailure();
+            var consecutiveFailures = settledHealthy
                 ? 0
-                : await processRunStore.CountTerminalRunsSinceAsync(
-                    processName, rollup?.LastSuccessAtUtc, ct);
+                : await processRunStore.CountFailuresSinceAsync(
+                    processName, rollup?.LastSuccessAtUtc, nowUtc, ct);
 
             processes.Add(new ProcessHealthReadModel
             {
                 ProcessName = run.ProcessName,
-                Status = effectiveStatus.ToString(),
+                Status = effectiveStatus,
                 LastStartedAtUtc = run.StartedAtUtc,
                 LastFinishedAtUtc = run.FinishedAtUtc,
                 LastSuccessAtUtc = rollup?.LastSuccessAtUtc,
@@ -253,21 +250,9 @@ public sealed class PipelineHealthQueryService(
     /// </summary>
     private async Task<RawCorpusEstimates> SafeRawCorpusEstimatesAsync(CancellationToken ct)
     {
-        try
-        {
-            return await RawCorpusEstimates.ReadAsync(db, ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Pipeline-health raw-corpus estimates failed to measure");
-
-            return new RawCorpusEstimates(
-                null, null, FailureReason(ex));
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        var estimates = await measurements.TryAsync(
+            "Pipeline-health raw-corpus estimates", () => RawCorpusEstimates.ReadAsync(db, ct), ct);
+        return estimates.IsMeasured ? estimates.Value! : new RawCorpusEstimates(null, null, estimates.UnknownReason);
     }
 
     private async Task<PipelineGapReadModel> BuildGapsAsync(
@@ -291,15 +276,15 @@ public sealed class PipelineHealthQueryService(
         // The newest *successful* finish of each side, not the newest run: a failed
         // MatchIngestion says nothing about how far MainAnalysis trails the data it has.
         var successes = await processRunStore.GetLatestPerProcessAsync(
-            ["MatchIngestion", "MainAnalysis"], onlySuccesses: true, ct);
+            [PipelineCatalog.MatchIngestion.Name, PipelineCatalog.MainAnalysis.Name], onlySuccesses: true, ct);
 
         var latestMatchIngestionSuccess = successes
-            .Where(run => run.ProcessName == "MatchIngestion")
+            .Where(run => run.ProcessName == PipelineCatalog.MatchIngestion.Name)
             .Select(run => (DateTime?)run.FinishedAtUtc)
             .FirstOrDefault();
 
         var latestMainAnalysisSuccess = successes
-            .Where(run => run.ProcessName == "MainAnalysis")
+            .Where(run => run.ProcessName == PipelineCatalog.MainAnalysis.Name)
             .Select(run => (DateTime?)run.FinishedAtUtc)
             .FirstOrDefault();
 
@@ -318,36 +303,26 @@ public sealed class PipelineHealthQueryService(
     private async Task<IReadOnlyList<PipelineHealthSignalReadModel>> SafeDetectorSignalsAsync(
         CancellationToken ct)
     {
-        try
+        var detectors = await measurements.TryAsync(
+            "Pipeline-health data-quality signals", () => dataQualityDetectors.GetDetectorsAsync(ct), ct);
+        if (!detectors.IsMeasured)
         {
-            var detectors = await dataQualityDetectors.GetDetectorsAsync(ct);
-
             return
             [
-                PipelineHealthEvaluator.EvaluateDataQuality(detectors),
-                PipelineHealthEvaluator.EvaluateDetectorAsSignal(
-                    detectors,
-                    detectorKey: "ingestionLag",
-                    signalKey: "ingestionLag",
-                    title: "Ingestion lag & queues")
+                UnmeasurableSignal("dataQuality", "Data quality", "/data-quality", detectors.UnknownReason),
+                UnmeasurableSignal("ingestionLag", "Ingestion lag & queues", "/data-quality", detectors.UnknownReason)
             ];
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Pipeline-health data-quality signals failed to measure");
 
-            var reason = FailureReason(ex);
-
-            return
-            [
-                UnmeasurableSignal("dataQuality", "Data quality", "/data-quality", reason),
-                UnmeasurableSignal("ingestionLag", "Ingestion lag & queues", "/data-quality", reason)
-            ];
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        return
+        [
+            PipelineHealthEvaluator.EvaluateDataQuality(detectors.Value!),
+            PipelineHealthEvaluator.EvaluateDetectorAsSignal(
+                detectors.Value!,
+                detectorKey: "ingestionLag",
+                signalKey: "ingestionLag",
+                title: "Ingestion lag & queues")
+        ];
     }
 
     /// <summary>
@@ -356,23 +331,9 @@ public sealed class PipelineHealthQueryService(
     /// </summary>
     private async Task<RegionBalanceReadModel> SafeRegionBalanceAsync(DateTime nowUtc, CancellationToken ct)
     {
-        try
-        {
-            return await regionBalance.GetAsync(nowUtc, ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Pipeline-health region balance failed to measure");
-
-            return new RegionBalanceReadModel
-            {
-                UnknownReason = FailureReason(ex)
-            };
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        var balance = await measurements.TryAsync(
+            "Pipeline-health region balance", () => regionBalance.GetAsync(nowUtc, ct), ct);
+        return balance.IsMeasured ? balance.Value! : new RegionBalanceReadModel { UnknownReason = balance.UnknownReason };
     }
 
     private async Task<PipelineHealthSignalReadModel> SafeSignalAsync(
@@ -382,21 +343,8 @@ public sealed class PipelineHealthQueryService(
         Func<Task<PipelineHealthSignalReadModel>> build,
         CancellationToken ct)
     {
-        try
-        {
-            return await build();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Pipeline-health signal {Signal} failed to measure", key);
-
-            return UnmeasurableSignal(
-                key, title, detailPath, FailureReason(ex));
-        }
-        finally
-        {
-            ct.ThrowIfCancellationRequested();
-        }
+        var signal = await measurements.TryAsync($"Pipeline-health signal {key}", build, ct);
+        return signal.IsMeasured ? signal.Value! : UnmeasurableSignal(key, title, detailPath, signal.UnknownReason);
     }
 
     private static PipelineHealthSignalReadModel UnmeasurableSignal(
@@ -408,7 +356,7 @@ public sealed class PipelineHealthQueryService(
         {
             Key = key,
             Title = title,
-            Status = "unknown",
+            Status = DetectorStatus.Unknown,
             Headline = "This signal could not be measured.",
             UnknownReason = reason,
             DetailPath = detailPath
@@ -425,12 +373,10 @@ public sealed class PipelineHealthQueryService(
     }
 
     /// <summary>
-    /// What an unmeasurable tile or block says about its failure: the sanitised message, or
-    /// <see cref="InternalError"/> when the exception carries none.
+    /// A process run's error as the cockpit shows it: in full outside production, so operators
+    /// can diagnose without the logs; never in production, where raw exception text can leak
+    /// paths, connection-string fragments or internal type names.
     /// </summary>
-    private string FailureReason(Exception ex)
-        => SanitizeError(ex.Message, environment.IsProduction()) ?? InternalError;
-
     private static string? SanitizeError(string? error, bool sanitize)
     {
         if (string.IsNullOrWhiteSpace(error))
@@ -438,17 +384,6 @@ public sealed class PipelineHealthQueryService(
             return null;
         }
 
-        if (!sanitize)
-        {
-            // Dev/QA: surface the full payload (stack, paths, message) so
-            // operators can diagnose without poking at logs.
-            return error;
-        }
-
-        // Production: never echo raw exception text to API clients. It can
-        // leak filesystem paths, connection-string fragments or internal
-        // type names. The status field already carries the failure signal;
-        // operators reach for logs/tracing for the real cause.
-        return InternalError;
+        return sanitize ? Measurements.InternalError : error;
     }
 }

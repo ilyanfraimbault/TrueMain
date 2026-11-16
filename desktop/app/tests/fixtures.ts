@@ -1,4 +1,4 @@
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { PlayerGame } from '~/types/record'
 
 export const MINUTE = 60_000
@@ -41,6 +41,6 @@ export function game(overrides: Partial<PlayerGame> = {}): PlayerGame {
   }
 }
 
-export function snapshot(at: number, leaguePoints: number, tier = 'GOLD', division = 'II'): RankHistoryEntry {
+export function snapshot(at: number, leaguePoints: number, tier = 'GOLD', division = 'II'): RankHistoryEntryReadModel {
   return { capturedAtUtc: new Date(at).toISOString(), tier, division, leaguePoints }
 }

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text.Json;
 using Core.Lol.Patches;
 using Microsoft.Extensions.Logging;
@@ -6,53 +5,47 @@ using Microsoft.Extensions.Logging;
 namespace Data.Statics;
 
 /// <summary>
-/// Reads champion statics from Data Dragon, once per patch per process: the version
-/// list to map a <c>major.minor</c> patch onto the CDN's <c>major.minor.build</c>
-/// folder, then <c>champion.json</c> for every champion's numeric key, attack range and
-/// attack / magic ratings.
+/// Reads champion statics from Data Dragon's <c>champion.json</c>: every champion's numeric key,
+/// attack range and attack / magic ratings, through the shared per-patch cache
+/// (<see cref="PerPatchStaticCache{T}"/>). Attack ranges are among the most stable numbers in the
+/// game, so the newest published version answering a patch-day request costs nothing.
 /// </summary>
-/// <remarks>
-/// Data Dragon publishes a patch hours after Riot ships it, so on patch day the first
-/// games of the new patch can be folded while its folder does not exist yet. Like the
-/// item-metadata provider's <c>latest</c> fallback, the newest published version is
-/// used in that case: attack ranges are among the most stable numbers in the game, and
-/// the alternative — no ranged flag for the whole first batch — is strictly worse. The
-/// fallback is remembered for the life of the process; the flag is a <c>COALESCE</c>d
-/// static column, so a later run on a later patch corrects nothing that matters.
-/// A faulted load is evicted so the next batch retries instead of replaying the error.
-/// </remarks>
-public sealed class DataDragonChampionStaticsProvider(
-    HttpClient httpClient,
-    ILogger<DataDragonChampionStaticsProvider> logger) : IChampionStaticsProvider
+public sealed class DataDragonChampionStaticsProvider : IChampionStaticsProvider
 {
-    private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyDictionary<int, ChampionStatics>>>> _cache =
-        new(StringComparer.Ordinal);
+    private readonly Func<HttpClient> _createClient;
+    private readonly ILogger<DataDragonChampionStaticsProvider> _logger;
+    private readonly PerPatchStaticCache<IReadOnlyDictionary<int, ChampionStatics>> _cache;
 
-    public async Task<IReadOnlyDictionary<int, ChampionStatics>> GetChampionsAsync(string gameVersion, CancellationToken ct)
+    public DataDragonChampionStaticsProvider(
+        Func<HttpClient> createClient,
+        ILogger<DataDragonChampionStaticsProvider> logger,
+        TimeProvider timeProvider)
     {
-        var patch = PatchVersion.Parse(gameVersion).ToMajorMinor();
-
-        var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
-            new Lazy<Task<IReadOnlyDictionary<int, ChampionStatics>>>(
-                () => provider.LoadAsync(normalizedPatch, CancellationToken.None),
-                LazyThreadSafetyMode.ExecutionAndPublication),
-            this);
-
-        try
-        {
-            return await lazyTask.Value.WaitAsync(ct);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            ((ICollection<KeyValuePair<string, Lazy<Task<IReadOnlyDictionary<int, ChampionStatics>>>>>)_cache)
-                .Remove(new KeyValuePair<string, Lazy<Task<IReadOnlyDictionary<int, ChampionStatics>>>>(patch, lazyTask));
-            throw;
-        }
+        _createClient = createClient;
+        _logger = logger;
+        _cache = new(
+            "Champion statics",
+            (patch, ct) => LoadAsync(patch, ct),
+            async ct => (await LoadAsync(null, ct))!,
+            logger,
+            timeProvider);
     }
 
-    private async Task<IReadOnlyDictionary<int, ChampionStatics>> LoadAsync(string patch, CancellationToken ct)
+    public Task<StaticData<IReadOnlyDictionary<int, ChampionStatics>>> GetChampionsAsync(
+        string gameVersion,
+        CancellationToken ct)
+        => PatchVersion.TryParse(gameVersion, out var patch)
+            ? _cache.GetAsync(patch.ToMajorMinor(), ct)
+            : Task.FromResult(StaticData<IReadOnlyDictionary<int, ChampionStatics>>.Unavailable(
+                $"'{gameVersion}' is not a patch."));
+
+    private async Task<IReadOnlyDictionary<int, ChampionStatics>?> LoadAsync(string? patch, CancellationToken ct)
     {
-        var version = await DataDragonVersions.ResolveAsync(httpClient, patch, logger, "champion statics", ct);
+        using var httpClient = _createClient();
+        if (await DataDragonVersions.ResolveAsync(httpClient, patch, ct) is not { } version)
+        {
+            return null;
+        }
 
         var url = $"https://ddragon.leagueoflegends.com/cdn/{version}/data/en_US/champion.json";
         await using var stream = await httpClient.GetStreamAsync(url, ct);
@@ -81,7 +74,7 @@ public sealed class DataDragonChampionStaticsProvider(
                 Rating(value, "magic"));
         }
 
-        logger.LogInformation("Loaded statics for {Count} champions from Data Dragon {Version}.", champions.Count, version);
+        _logger.LogInformation("Loaded statics for {Count} champions from Data Dragon {Version}.", champions.Count, version);
         return champions;
     }
 

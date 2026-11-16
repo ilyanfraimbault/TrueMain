@@ -1,6 +1,6 @@
 using AwesomeAssertions;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.Coverage;
@@ -73,7 +73,7 @@ public sealed class ScoringHarvestBranchTests
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions()),
             Microsoft.Extensions.Options.Options.Create(new IntakeOptions()));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         return candidate.Score;
     }

@@ -349,7 +349,7 @@ New-Item -ItemType Directory -Force -Path $config | Out-Null
 @{ installId = [guid]::NewGuid().ToString(); enabled = $false } | ConvertTo-Json | Set-Content (Join-Path $config "telemetry.json")
 # The panels' triggers; every other setting is left to its default.
 @{
-    version  = 3
+    version  = 4
     nextItem = @{ trigger = @{ kind = "whileHeld"; chord = @{ alt = $true; shift = $true; key = "Digit1" } } }
     stats    = @{ trigger = @{ kind = "toggle"; chord = @{ alt = $true; shift = $true; key = "Digit3" }; startShown = $true } }
 } | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $config "overlay-settings.json")

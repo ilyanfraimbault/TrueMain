@@ -125,7 +125,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       AppVersion: ${APP_VERSION:-}
-      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_HTTP_PORTS: "8080"
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=22;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
       Database__ApplyMigrationsOnStartup: "false"
@@ -134,11 +134,16 @@ services:
       LogIngest__ApiKey: ${LOG_INGEST_KEY:-}
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Alerting__DiscordWebhookUrl: "${ALERTING_DISCORD_WEBHOOK_URL:-}"
+      PersonaPictures__YouTubeApiKey: "${PERSONA_PICTURES_YOUTUBE_API_KEY:-}"
+      PersonaPictures__TwitchClientId: "${PERSONA_PICTURES_TWITCH_CLIENT_ID:-}"
+      PersonaPictures__TwitchClientSecret: "${PERSONA_PICTURES_TWITCH_CLIENT_SECRET:-}"
       Alerting__AdminBaseUrl: "https://admin.truemain.lol"
       Alerting__EnvironmentLabel: prod
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
       RateLimit__WindowSeconds: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
       RateLimit__QueueLimit: "${RATE_LIMIT_QUEUE:-10}"
+      ChampionWarmup__Enabled: "true"
+      ChampionWarmup__Concurrency: "3"
       Cors__Origins__0: "https://truemain.lol"
       Cors__Origins__1: "https://www.truemain.lol"
       Cors__Origins__2: "https://admin.truemain.lol"
@@ -166,14 +171,20 @@ services:
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
+      NUXT_WARMUP_ENABLED: "true"
+      NUXT_HTML_CACHE_ENABLED: "true"
+      NUXT_IPX_CACHE_DIR: /app/.ipx-cache
       NITRO_CLUSTER_WORKERS: "3"
       NUXT_API_BASE_URL: http://api:8080
       NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
       NUXT_DESKTOP_CHANNEL: stable
       NUXT_PUBLIC_APP_ENV: production
       NUXT_PUBLIC_APP_VERSION: ${APP_VERSION:-}
+      NUXT_PUBLIC_SITE_URL: https://truemain.lol
       NUXT_PUBLIC_UMAMI_HOST: https://analytics.truemain.lol
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+    volumes:
+      - truemain_web_images:/app/.ipx-cache
     depends_on:
       api:
         condition: service_healthy
@@ -229,7 +240,7 @@ services:
       - truemain_internal
 
   umami:
-    image: umamisoftware/umami:3.4.1
+    image: umamisoftware/umami:3.5.0
     container_name: truemain-umami
     restart: unless-stopped
     environment:
@@ -375,6 +386,7 @@ configs:
       done
 
 volumes:
+  truemain_web_images:
   truemain_db_data:
   truemain_mongo_data:
   truemain_api_crashes:

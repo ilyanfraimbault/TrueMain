@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MatchDetailItemEvent } from '#shared/types/match-detail'
+import type { MatchDetailItemEventReadModel } from '#shared/contract/api'
 import type { StaticItemData } from '#shared/types/static-data'
 import { isBuildOrderEvent, resolveEventItemId } from '#shared/utils/build'
 import { formatGameClock } from '#common/utils/win-probability-swing'
@@ -10,14 +10,14 @@ import { formatGameClock } from '#common/utils/win-probability-swing'
 // strips auto-granted transforms (quest stages, empowered-recall boots) and
 // their paired ITEM_DESTROYED so they don't clutter it.
 const props = defineProps<{
-  itemEvents: MatchDetailItemEvent[]
+  itemEvents: MatchDetailItemEventReadModel[]
   items: Record<number, StaticItemData>
 }>()
 
 interface BuildGroup {
   minute: number
   label: string
-  events: MatchDetailItemEvent[]
+  events: MatchDetailItemEventReadModel[]
 }
 const groups = computed<BuildGroup[]>(() => {
   const result: BuildGroup[] = []
@@ -31,7 +31,7 @@ const groups = computed<BuildGroup[]>(() => {
   return result
 })
 
-function itemOf(ev: MatchDetailItemEvent) {
+function itemOf(ev: MatchDetailItemEventReadModel) {
   const id = resolveEventItemId(ev)
   return id ? props.items[id] ?? null : null
 }

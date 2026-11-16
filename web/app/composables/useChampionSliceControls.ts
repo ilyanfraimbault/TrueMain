@@ -1,5 +1,5 @@
-import type { ChampionPosition } from '#common/utils/positions'
-import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '#common/utils/elo-brackets'
+import type { ChampionPosition } from '#shared/utils/positions'
+import { ELO_BRACKET_ALL, eloBracketLabel, normalizeEloBracket } from '#shared/utils/elo-brackets'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 type FilterState = ReturnType<typeof useChampionFilters>

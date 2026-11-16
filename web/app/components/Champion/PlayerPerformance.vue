@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PositionFilter } from '#common/utils/positions'
+import type { PositionFilter } from '#shared/utils/positions'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { isLoadingStatus } from '#common/utils/async-data'
 

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
 using Core.Lol.Patches;
@@ -8,122 +7,73 @@ namespace Data.Statics;
 
 /// <summary>
 /// Reads the shop classes of the game's items from CommunityDragon's dump of the game's item
-/// data (<c>game/items.cdtb.bin.json</c>), once per patch per process: each <c>ItemData</c>
-/// entry's <c>itemID</c> and <c>mItemAttributes</c>, a list of <see cref="ItemShopClass"/> bits.
+/// data (<c>game/items.cdtb.bin.json</c>): each <c>ItemData</c> entry's <c>itemID</c> and
+/// <c>mItemAttributes</c>, a list of <see cref="ItemShopClass"/> bits, through the shared
+/// per-patch cache (<see cref="PerPatchStaticCache{T}"/>).
 /// </summary>
 /// <remarks>
 /// Neither Data Dragon nor the client's <c>items.json</c> carries the classes (their categories
 /// are stat tags), so the game's own data is the only source. The dump is large (about 16 MB),
 /// which is why it is read here once per patch and served small, never by the desktop app
-/// itself. Like the item-metadata provider, a patch CommunityDragon has not published yet is
-/// answered from its <c>latest</c> branch — read once for all such patches, the patch probed again
-/// once <see cref="FallbackRecheckInterval"/> has passed — and a faulted load is evicted so the
-/// next call retries. The cache is bounded (<see cref="MaxCachedPatches"/>). A singleton, so the
-/// cache outlives a request; each load takes a fresh client from <paramref name="createClient"/>
-/// (the host's <c>IHttpClientFactory</c>), so no client outlives its handler's rotation.
+/// itself. A patch CommunityDragon has not published yet is answered from its <c>latest</c>
+/// branch, whose <see cref="ItemClasses.Patch"/> then reads <c>latest</c>.
 /// </remarks>
-public sealed class CommunityDragonItemClassProvider(
-    Func<HttpClient> createClient,
-    ILogger<CommunityDragonItemClassProvider> logger,
-    TimeProvider timeProvider) : IItemClassProvider
+public sealed class CommunityDragonItemClassProvider : IItemClassProvider
 {
     private const string LatestBranch = "latest";
 
-    /// <summary>How long a patch read from the fallback branch stands before its own branch is probed again.</summary>
-    private static readonly TimeSpan FallbackRecheckInterval = TimeSpan.FromMinutes(30);
+    /// <summary>
+    /// More patches than a running app ever asks for, so a caller naming patch after patch
+    /// cannot grow the cache of a 16 MB source without bound.
+    /// </summary>
+    private const int MaxCachedPatches = 8;
 
     private static readonly ItemShopClass[] KnownClasses = Enum.GetValues<ItemShopClass>()
         .Where(value => value != ItemShopClass.None)
         .ToArray();
 
-    /// <summary>
-    /// More patches than a running app ever asks for: past it the cache is emptied but for the latest
-    /// branch, so a caller naming patch after patch cannot grow it without bound.
-    /// </summary>
-    private const int MaxCachedPatches = 8;
+    private readonly Func<HttpClient> _createClient;
+    private readonly ILogger<CommunityDragonItemClassProvider> _logger;
+    private readonly PerPatchStaticCache<ItemClasses> _cache;
 
-    private readonly ConcurrentDictionary<string, Lazy<Task<Loaded>>> _cache = new(StringComparer.Ordinal);
-
-    public async Task<ItemClasses> GetClassesAsync(string? gameVersion, CancellationToken ct)
+    public CommunityDragonItemClassProvider(
+        Func<HttpClient> createClient,
+        ILogger<CommunityDragonItemClassProvider> logger,
+        TimeProvider timeProvider)
     {
-        var patch = string.IsNullOrWhiteSpace(gameVersion)
-            ? LatestBranch
-            : PatchVersion.Parse(gameVersion).ToMajorMinor();
-
-        // Two attempts at most: the second runs against an entry this call just created.
-        for (var attempt = 0; attempt < 2; attempt++)
-        {
-            var lazyTask = Entry(patch);
-
-            Loaded loaded;
-            try
-            {
-                loaded = await lazyTask.Value.WaitAsync(ct);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                Evict(patch, lazyTask);
-                throw;
-            }
-
-            if (loaded.Classes is not null)
-            {
-                return loaded.Classes;
-            }
-
-            // Not published yet: probed again once the wait is over, the latest branch meanwhile —
-            // read once for every such patch, never once per patch.
-            if (attempt == 0 && timeProvider.GetUtcNow() - loaded.LoadedAtUtc >= FallbackRecheckInterval)
-            {
-                Evict(patch, lazyTask);
-                continue;
-            }
-
-            break;
-        }
-
-        logger.LogDebug("CommunityDragon has not published patch {Patch} yet; serving its '{Branch}' branch.", patch, LatestBranch);
-        return await GetClassesAsync(null, ct);
+        _createClient = createClient;
+        _logger = logger;
+        _cache = new(
+            "Item shop classes",
+            LoadAsync,
+            async ct => await LoadAsync(LatestBranch, ct)
+                ?? throw new InvalidOperationException($"CommunityDragon does not serve its '{LatestBranch}' branch."),
+            logger,
+            timeProvider,
+            MaxCachedPatches);
     }
 
-    private Lazy<Task<Loaded>> Entry(string patch)
+    public Task<StaticData<ItemClasses>> GetClassesAsync(string? gameVersion, CancellationToken ct)
     {
-        if (!_cache.ContainsKey(patch) && _cache.Count >= MaxCachedPatches)
+        if (string.IsNullOrWhiteSpace(gameVersion))
         {
-            foreach (var key in _cache.Keys.Where(key => key != LatestBranch))
-            {
-                _cache.TryRemove(key, out _);
-            }
+            return _cache.GetAsync(null, ct);
         }
 
-        return _cache.GetOrAdd(patch, static (branch, provider) =>
-            new Lazy<Task<Loaded>>(
-                () => provider.LoadAsync(branch, CancellationToken.None),
-                LazyThreadSafetyMode.ExecutionAndPublication),
-            this);
+        return PatchVersion.TryParse(gameVersion, out var patch)
+            ? _cache.GetAsync(patch.ToMajorMinor(), ct)
+            : Task.FromResult(StaticData<ItemClasses>.Unavailable($"'{gameVersion}' is not a patch."));
     }
 
-    private void Evict(string patch, Lazy<Task<Loaded>> entry)
-        => ((ICollection<KeyValuePair<string, Lazy<Task<Loaded>>>>)_cache)
-            .Remove(new KeyValuePair<string, Lazy<Task<Loaded>>>(patch, entry));
-
-    /// <summary>A branch read, or <see langword="null"/> classes when it is not published yet, and when.</summary>
-    private sealed record Loaded(ItemClasses? Classes, DateTimeOffset LoadedAtUtc);
-
-    private async Task<Loaded> LoadAsync(string branch, CancellationToken ct)
+    private async Task<ItemClasses?> LoadAsync(string branch, CancellationToken ct)
     {
-        var items = await TryReadBranchAsync(branch, ct);
-        if (items is null && branch == LatestBranch)
+        if (await TryReadBranchAsync(branch, ct) is not { } items)
         {
-            throw new InvalidOperationException($"CommunityDragon does not serve its '{LatestBranch}' branch.");
+            return null;
         }
 
-        if (items is not null)
-        {
-            logger.LogInformation("Loaded shop classes for {Count} items from CommunityDragon '{Branch}'.", items.Count, branch);
-        }
-
-        return new Loaded(items is null ? null : new ItemClasses(branch, items), timeProvider.GetUtcNow());
+        _logger.LogInformation("Loaded shop classes for {Count} items from CommunityDragon '{Branch}'.", items.Count, branch);
+        return new ItemClasses(branch, items);
     }
 
     /// <summary>
@@ -133,7 +83,7 @@ public sealed class CommunityDragonItemClassProvider(
     private async Task<IReadOnlyDictionary<int, IReadOnlyList<ItemShopClass>>?> TryReadBranchAsync(string branch, CancellationToken ct)
     {
         var url = $"https://raw.communitydragon.org/{branch}/game/items.cdtb.bin.json";
-        using var httpClient = createClient();
+        using var httpClient = _createClient();
         using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {

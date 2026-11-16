@@ -14,7 +14,9 @@ namespace Ingestor.Processes.Components.Retention;
 /// <para>
 /// <b>Written in the deleting transaction.</b> <see cref="WriteAsync"/> runs inside each
 /// batch's transaction, before the match's rows are deleted, so a match is either still whole
-/// or already truncated — never lost between the two, and never truncated twice.
+/// or already truncated — never lost between the two. A match can still come back: ingested
+/// again after its truncation, it has raw rows and seats at once until retention deletes it
+/// again, and it keeps the seats it has (#2449).
 /// </para>
 /// <para>
 /// <b>Two tiers, both bounded.</b> Every seat of the newest <c>TruncatedRetainedPatchCount</c>
@@ -47,7 +49,8 @@ public static class TruncatedMatchRetention
             .Where(match => matchIds.Contains(match.Id)
                 && match.QueueId == queueId
                 && match.GameDurationSeconds >= ChampionCohort.MinimumGameDurationSeconds
-                && !match.EndedInEarlySurrender)
+                && !match.EndedInEarlySurrender
+                && !db.TruncatedMatchSeats.Any(seat => seat.MatchId == match.Id))
             .ToListAsync(ct);
         if (matches.Count == 0)
         {
@@ -99,31 +102,6 @@ public static class TruncatedMatchRetention
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();
         return seats.Count;
-    }
-
-    /// <summary>
-    /// The item data of a truncated match's patch; null when it is unavailable, so its seats
-    /// keep every fact but the items rather than failing the batch.
-    /// </summary>
-    public static Func<string, CancellationToken, Task<IReadOnlyDictionary<int, ItemMetadata>?>> ItemMetadataReader(
-        IItemMetadataProvider provider,
-        ILogger logger)
-    {
-        ArgumentNullException.ThrowIfNull(provider);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        return async (gameVersion, ct) =>
-        {
-            try
-            {
-                return await provider.GetItemsAsync(gameVersion, ct);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                logger.LogWarning(exception, "Item metadata unavailable for {GameVersion}; truncated seats keep no item facts.", gameVersion);
-                return null;
-            }
-        };
     }
 
     /// <summary>

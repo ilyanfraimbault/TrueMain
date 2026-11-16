@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ChampionPosition } from '#common/utils/positions'
-import type { MatchSummaryResponse } from '~~/shared/types/matches'
+import type { ChampionPosition } from '#shared/utils/positions'
+import type { MatchSummaryReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticListItem,
   RuneTreeResponse,
@@ -17,11 +17,13 @@ defineProps<{
   nameTag: string
   /** Champion display name for the heading; null while the statics load. */
   championName: string | null
-  matches: MatchSummaryResponse[]
+  matches: MatchSummaryReadModel[]
   total: number
   pageSize: number
   loading: boolean
   notFound: boolean
+  /** The page could not be read (#2476). */
+  error?: unknown
   /**
    * The static bundle the rows need. Passed in rather than fetched here so
    * this list shares the page's already-resolved (and patch-keyed) fetches
@@ -67,6 +69,7 @@ function setPosition(next: ChampionPosition | null) {
       :rune-tree="runeTree"
       :name-tag="nameTag"
       :not-found="notFound"
+      :error="error"
       :filtered="position !== null"
     />
   </section>

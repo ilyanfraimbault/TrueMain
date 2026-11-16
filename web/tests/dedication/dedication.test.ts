@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { TruemainDedication } from '~~/shared/types/dedication'
+import type { DedicationReadModel } from '#shared/contract/api'
 import {
   dedicationParts,
   dedicationVerdict,
@@ -12,7 +12,7 @@ import {
  * helpers render comes from the API, so the fixture is the contract — nothing
  * here recomputes a score.
  */
-function dedication(overrides: Partial<TruemainDedication> = {}): TruemainDedication {
+function dedication(overrides: Partial<DedicationReadModel> = {}): DedicationReadModel {
   return {
     score: 50.7,
     championId: 64,

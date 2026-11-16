@@ -1,11 +1,13 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { fileURLToPath } from 'node:url'
 import { addServerHandler, defineNuxtModule } from '@nuxt/kit'
-import { IPX_CACHE_SECONDS, IPX_ROUTE_BASE } from './shared/utils/ipx'
+import { IPX_CACHE_SECONDS, IPX_ROUTE_BASE, IPX_SOURCE_DOMAINS } from './shared/utils/ipx'
+import { SITE_PAGES, sitePageGlob, type SitePage } from './shared/utils/site-pages'
 
-// How long a rendered text page stays in the Nitro cache before it is
-// re-rendered in the background (see the `routeRules` entries below).
-const STATIC_PAGE_SWR_SECONDS = 60 * 60 // 1 hour
+// The sitemap families and route rules derive from the site's page catalogue.
+const sitemapGlobs = (family: SitePage['sitemap']) =>
+  SITE_PAGES.filter(page => page.sitemap === family).map(page => sitePageGlob(page.path))
+const DYNAMIC_SITEMAP_FAMILIES = ['champions', 'players', 'truemains'] as const
 
 // The static Inter cuts the share cards render with (see `ogImage` below):
 // latin only, the weights `app/components/OgImage/*` set. From @fontsource/inter
@@ -77,13 +79,10 @@ export default defineNuxtConfig({
     },
   },
   sitemap: {
-    // `/truemains/favorites` renders a per-visitor localStorage list — there is
-    // nothing stable for a crawler to index (the page also sets `noindex`).
-    // `/builder` is the legacy redirect to `/matchup` (#939) — kept for old
-    // links, not something to advertise. `/dev/*` is stripped from the prod
-    // build entirely (hook below) but excluded here too so a dev-mode sitemap
-    // stays clean. Applies to every sitemap below.
-    exclude: ['/dev/**', '/truemains/favorites', '/builder'],
+    // Pages no sitemap lists (`shared/utils/site-pages.ts` says why for each),
+    // plus `/dev/*`, which the production build strips (hook below). Applies to
+    // every sitemap below.
+    exclude: ['/dev/**', ...sitemapGlobs(null)],
     // An index (`/sitemap_index.xml`, which `/sitemap.xml` redirects to) over
     // one sitemap per page family (#1538), so Search Console reports what it
     // read and indexed family by family. Static pages are auto-discovered from
@@ -91,10 +90,9 @@ export default defineNuxtConfig({
     // endpoint (server/routes/__sitemap__/urls.ts, which also says why truemain
     // profiles are *not* advertised, #1337), split by path.
     sitemaps: {
-      pages: { includeAppSources: true, exclude: ['/champions/*', '/players/*', '/truemains/*'] },
-      champions: { sources: ['/__sitemap__/urls'], include: ['/champions/*'] },
-      players: { sources: ['/__sitemap__/urls'], include: ['/players/*'] },
-      truemains: { sources: ['/__sitemap__/urls'], include: ['/truemains/*'] },
+      pages: { includeAppSources: true, exclude: DYNAMIC_SITEMAP_FAMILIES.flatMap(sitemapGlobs) },
+      ...Object.fromEntries(DYNAMIC_SITEMAP_FAMILIES.map(family =>
+        [family, { sources: ['/__sitemap__/urls'], include: sitemapGlobs(family) }])),
     },
   },
   // On-demand social-share artwork (#926). This was `enabled: false` from the
@@ -223,6 +221,16 @@ export default defineNuxtConfig({
     // network dependency #1106 removes — and fall back to its bundled Inter
     // 400/700 when that fails, setting every `fontWeight: 600` in the wrong
     // weight. The list is replaced with the committed files instead.
+    // No `<link rel="prefetch">` for every lazy chunk in every page's HTML (#2425): Nuxt lists
+    // them all by default, so a visitor to `/about` downloaded the whole site, the charts'
+    // library included, ahead of what the page needed. A `<NuxtLink>` about to be used still
+    // preloads where it leads, which is the part of this that pays for itself.
+    'build:manifest'(manifest) {
+      for (const chunk of Object.values(manifest)) {
+        chunk.prefetch = false
+        chunk.dynamicImports = []
+      }
+    },
     'nitro:config'(config) {
       config.handlers = config.handlers?.filter(handler => handler?.route !== '/_scripts/p/**')
       config.virtual = { ...config.virtual, '#og-image/fonts': `export default ${JSON.stringify(OG_IMAGE_FONTS)}` }
@@ -236,6 +244,13 @@ export default defineNuxtConfig({
     // Measured: one fewer request on a first visit to those pages, client
     // navigation unchanged. It is Nuxt 5's default.
     payloadExtraction: 'client',
+    // A link preloads where it leads when it is about to be used, not as soon as it is on screen:
+    // the navigation bar alone had every visitor download the other pages' chunks on landing (#2425).
+    defaults: {
+      nuxtLink: {
+        prefetchOn: { visibility: false, interaction: true },
+      },
+    },
   },
   compatibilityDate: '2026-05-15',
   devtools: { enabled: true },
@@ -254,7 +269,7 @@ export default defineNuxtConfig({
   image: {
     // Allow-list for the ipx provider's URL generation. The storage options
     // themselves live in server/handlers/ipx-cached.ts, which owns `/_ipx/**`.
-    domains: ['ddragon.leagueoflegends.com', 'raw.communitydragon.org'],
+    domains: IPX_SOURCE_DOMAINS,
   },
   // Satori shapes text with harfbuzzjs, which loads `hb.wasm` from a path it
   // computes at runtime. Nitro's dependency trace only follows static
@@ -266,6 +281,9 @@ export default defineNuxtConfig({
   nitro: {
     // One worker per useful core behind the same port (#1579); see docs/ci.md.
     preset: 'node-cluster',
+    // Compressed once, at the highest level, at build time rather than per request at the
+    // edge's default: a page's JS is what its visitor waits longest for (#2425).
+    compressPublicAssets: { brotli: true, gzip: true },
     externals: {
       traceInclude: [fileURLToPath(import.meta.resolve('harfbuzzjs/hb.wasm'))],
     },
@@ -279,19 +297,8 @@ export default defineNuxtConfig({
         'cache-control': `public, max-age=${IPX_CACHE_SECONDS}, immutable`,
       },
     },
-    // The three text pages fetch nothing of their own, so their HTML only
-    // depends on the shell: render it once, then serve it from the Nitro cache
-    // and re-render in the background when the entry ages out (#1617).
-    // `swr` rather than `prerender` on purpose: a prerendered page would carry
-    // the *build* environment's `runtimeConfig.public` — no Umami, no version
-    // stamp, the prod canonical URL on preprod — for the whole visit that lands
-    // on it, which is exactly what the runtime-config decision below avoids.
-    // The TTL matches the champion slug map's own server cache
-    // (`layers/nitro/server/api/static/champion-slugs.get.ts`), so a cached page is never
-    // staler than an SSR one.
-    '/about': { swr: STATIC_PAGE_SWR_SECONDS },
-    '/privacy': { swr: STATIC_PAGE_SWR_SECONDS },
-    '/terms': { swr: STATIC_PAGE_SWR_SECONDS },
+    // Pages served stale-while-revalidate (`shared/utils/site-pages.ts`, #1617).
+    ...Object.fromEntries(SITE_PAGES.flatMap(page => page.swrSeconds ? [[page.path, { swr: page.swrSeconds }]] : [])),
   },
   runtimeConfig: {
     apiBaseUrl: process.env.NUXT_API_BASE_URL
@@ -304,6 +311,17 @@ export default defineNuxtConfig({
     // `stable` serves only a release promoted by hand, `beta` (preprod) the newest
     // build too. See server/utils/desktop-release.ts.
     desktopChannel: 'stable',
+    // Warm this worker before the edge opens the site (#2425), from NUXT_WARMUP_ENABLED.
+    // Past the budget the site opens anyway. It has to leave the API's own budget
+    // (`ChampionWarmup:ReadyBudgetSeconds`) room, since web waits for the API first.
+    warmupEnabled: false,
+    warmupBudgetSeconds: 480,
+    // Where the processed images outlive a deploy, from NUXT_IPX_CACHE_DIR. Empty keeps
+    // them in memory only (`server/utils/ipx-disk-store.ts`).
+    ipxCacheDir: '',
+    // Serve the pages everyone reads from a cache the workers share, from NUXT_HTML_CACHE_ENABLED
+    // (`server/utils/html-cache.ts`).
+    htmlCacheEnabled: false,
     public: {
       // Which deployed environment this container is (`preprod` / `production`),
       // and the build running in it — the preprod pipeline stamps a prerelease
@@ -323,6 +341,13 @@ export default defineNuxtConfig({
         host: '',
         websiteId: '',
       },
+    },
+  },
+  // Development-only: the backend mock's one mount (`server/dev/api-mock-handler.ts`,
+  // opted into with NUXT_DEV_MOCK_API=1), so no fixture is ever part of a build.
+  $development: {
+    nitro: {
+      handlers: [{ route: '/api', middleware: true, handler: '~~/server/dev/api-mock-handler.ts' }],
     },
   },
   // Production-only overrides. `$production` applies on `nuxt build` and is

@@ -4,7 +4,7 @@
 // `AccountsSeed.vue` (#1436); exposes `refresh`/`refreshFromFirstPage`/`pending`
 // so the tab can refresh it after a submit and the hub's navbar button drives it.
 import type { TableColumn } from '@nuxt/ui'
-import type { SeedRequestReadModel, SeedRequestStatus } from '~~/shared/types/ops'
+import type { SeedRequestReadModel, SeedRequestStatus } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 
 // Server-paginated rather than a capped "recent" list (#1166): the weekly OTP
@@ -15,10 +15,7 @@ import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 const statusFilter = ref<'all' | SeedRequestStatus>(ALL)
 const statusFilterItems = [
   { label: 'All statuses', value: ALL },
-  { label: 'Pending', value: 'Pending' },
-  { label: 'Resolving', value: 'Resolving' },
-  { label: 'Ingested', value: 'Ingested' },
-  { label: 'Failed', value: 'Failed' },
+  ...SEED_STATUSES.map(status => ({ label: status, value: status })),
 ]
 const regionFilter = ref<string>(ALL)
 const searchFilter = ref('')

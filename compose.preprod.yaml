@@ -1,4 +1,10 @@
+x-main-analysis-environment: &main-analysis-environment
+      MainAnalysis__MatchesToConsider: "30"
+      MainAnalysis__MinMatchesToEvaluate: "10"
+      MainAnalysis__AggregateNonMainPopulation: "true"
+
 x-ingestor-environment: &ingestor-environment
+      <<: *main-analysis-environment
       DOTNET_ENVIRONMENT: Production
       AppVersion: ${APP_VERSION:-}
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Maximum Pool Size=5;No Reset On Close=true;Application Name=truemain-ingestor
@@ -16,9 +22,6 @@ x-ingestor-environment: &ingestor-environment
       Harvest__MaxCandidatesPerRun: "500"
       MatchIngestion__BatchSize: "25"
       MatchIngestion__MatchesPerAccount: "10"
-      MainAnalysis__MatchesToConsider: "30"
-      MainAnalysis__MinMatchesToEvaluate: "10"
-      MainAnalysis__AggregateNonMainPopulation: "true"
 
 services:
   postgres:
@@ -139,9 +142,10 @@ services:
     cpu_shares: 1024
     init: true
     environment:
+      <<: *main-analysis-environment
       ASPNETCORE_ENVIRONMENT: Production
       AppVersion: ${APP_VERSION:-}
-      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_HTTP_PORTS: "8080"
       Database__ApplyMigrationsOnStartup: "false"
       ConnectionStrings__TrueMain: Host=pgbouncer;Port=6432;Database=${POSTGRES_DB}_api;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=65;Maximum Pool Size=22;No Reset On Close=true;Application Name=truemain-api
       ConnectionStrings__TrueMainMigrations: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Command Timeout=300;Application Name=truemain-migrator
@@ -150,11 +154,16 @@ services:
       LogIngest__ApiKey: ${LOG_INGEST_KEY:-}
       StorageHistory__DiskCapacityBytes: "${STORAGE_DISK_CAPACITY_BYTES:-0}"
       Alerting__DiscordWebhookUrl: "${ALERTING_DISCORD_WEBHOOK_URL:-}"
+      PersonaPictures__YouTubeApiKey: "${PERSONA_PICTURES_YOUTUBE_API_KEY:-}"
+      PersonaPictures__TwitchClientId: "${PERSONA_PICTURES_TWITCH_CLIENT_ID:-}"
+      PersonaPictures__TwitchClientSecret: "${PERSONA_PICTURES_TWITCH_CLIENT_SECRET:-}"
       Alerting__AdminBaseUrl: "${PREPROD_ADMIN_URL:?set PREPROD_ADMIN_URL before deploying}"
       Alerting__EnvironmentLabel: preprod
       RateLimit__PermitLimit: "${RATE_LIMIT_PERMITS:-500}"
       RateLimit__WindowSeconds: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
       RateLimit__QueueLimit: "${RATE_LIMIT_QUEUE:-10}"
+      ChampionWarmup__Enabled: "true"
+      ChampionWarmup__Concurrency: "2"
       Cors__Origins__0: "${PREPROD_SITE_URL:?set PREPROD_SITE_URL before deploying}"
       Cors__Origins__1: "${PREPROD_ADMIN_URL:?set PREPROD_ADMIN_URL before deploying}"
       MongoLogging__CrashFilePath: /home/app/crashes
@@ -184,6 +193,9 @@ services:
     environment:
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: 3000
+      NUXT_WARMUP_ENABLED: "true"
+      NUXT_HTML_CACHE_ENABLED: "true"
+      NUXT_IPX_CACHE_DIR: /app/.ipx-cache
       NITRO_CLUSTER_WORKERS: "1"
       NUXT_API_BASE_URL: http://api:8080
       NUXT_LOG_INGEST_KEY: ${LOG_INGEST_KEY:-}
@@ -194,6 +206,8 @@ services:
       NUXT_PUBLIC_SITE_URL: "${PREPROD_SITE_URL:?set PREPROD_SITE_URL before deploying}"
       NUXT_PUBLIC_UMAMI_HOST: ${UMAMI_PUBLIC_URL:-}
       NUXT_PUBLIC_UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+    volumes:
+      - truemain_preprod_web_images:/app/.ipx-cache
     depends_on:
       api:
         condition: service_healthy
@@ -310,7 +324,7 @@ services:
       - truemain_internal
 
   umami:
-    image: umamisoftware/umami:3.4.1
+    image: umamisoftware/umami:3.5.0
     container_name: truemain-preprod-umami
     restart: unless-stopped
     cpus: 0.5
@@ -436,6 +450,7 @@ configs:
       done
 
 volumes:
+  truemain_preprod_web_images:
   truemain_preprod_db_data:
     name: truemain_preprod_db_data
   truemain_preprod_mongo_data:

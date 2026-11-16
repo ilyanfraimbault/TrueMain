@@ -1,6 +1,6 @@
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
-import type { PersonaListRow } from '~~/shared/types/ops'
-import { formatRiotId, parseRiotIdOrSlug } from '~~/shared/utils/riot-id'
+import type { PersonaListRowReadModel } from '#site-shared/contract/api'
+import { formatRiotId, parseRiotIdOrSlug } from '#site-shared/utils/riot-id'
 
 // What the ⌘K palette recognises in the typed term (#2290), on top of the pages:
 // a Riot ID, a known player, a match ID, a champion. Each one becomes a result
@@ -59,7 +59,7 @@ function foldName(value: string): string {
 
 export interface EntitySearchSources {
   /** Known players the ops API matched for the term; empty until it answered. */
-  personas: readonly PersonaListRow[]
+  personas: readonly PersonaListRowReadModel[]
   champions: readonly PaletteChampion[]
 }
 
@@ -113,7 +113,7 @@ function riotIdGroup(term: string) {
   ])
 }
 
-function personaGroup(personas: readonly PersonaListRow[]) {
+function personaGroup(personas: readonly PersonaListRowReadModel[]) {
   return group('known-players', 'Known players', personas.slice(0, PERSONA_RESULT_LIMIT).map(persona => ({
     label: persona.displayName,
     description: persona.removedAtUtc ? `${persona.slug} · removed` : persona.slug,

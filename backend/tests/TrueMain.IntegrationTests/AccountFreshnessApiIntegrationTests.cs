@@ -71,7 +71,7 @@ public sealed class AccountFreshnessApiIntegrationTests : IAsyncLifetime
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<FreshnessResponse>();
+        var body = await response.Content.ReadFromJsonAsync<FreshnessResponse>(ApiJson.Options);
         body.Should().NotBeNull();
         body!.Accounts.Should().HaveCount(5, "the response mirrors the request one-for-one");
 
@@ -122,7 +122,7 @@ public sealed class AccountFreshnessApiIntegrationTests : IAsyncLifetime
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<FreshnessResponse>();
+        var body = await response.Content.ReadFromJsonAsync<FreshnessResponse>(ApiJson.Options);
         body!.Accounts[0].Known.Should().BeTrue();
         body.Accounts[1].Known.Should().BeFalse();
     }
@@ -179,7 +179,7 @@ public sealed class AccountFreshnessApiIntegrationTests : IAsyncLifetime
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var row = (await response.Content.ReadFromJsonAsync<FreshnessResponse>())!.Accounts.Single();
+        var row = (await response.Content.ReadFromJsonAsync<FreshnessResponse>(ApiJson.Options))!.Accounts.Single();
         row.Known.Should().BeTrue();
         row.LastMatchIngestAtUtc.Should().BeNull("the recently-refreshed row wins on last activity");
     }
@@ -193,7 +193,7 @@ public sealed class AccountFreshnessApiIntegrationTests : IAsyncLifetime
         var response = await client.PostAsJsonAsync("/ops/accounts/freshness", new { accounts = Array.Empty<object>() });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadFromJsonAsync<FreshnessResponse>())!.Accounts.Should().BeEmpty();
+        (await response.Content.ReadFromJsonAsync<FreshnessResponse>(ApiJson.Options))!.Accounts.Should().BeEmpty();
     }
 
     private static RiotAccount Account(

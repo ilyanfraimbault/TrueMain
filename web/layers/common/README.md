@@ -12,6 +12,10 @@ A shared page is a component under `app/components/page/` (`<PageTierList>`). Ea
 what is the app's own — the site's head tags and structured data, the app's `SharedPage` frame (scroll container,
 and a `<Suspense>` so a tab changes before the page's first read is in, #1788) — and nothing else.
 
+A page whose head depends on what it reads takes that read from its route instead: both routes call the same
+composable and hand the result over (`useKnownPlayer` and `<PageKnownPlayer>`). The site awaits it, so its head and
+status are in the first HTML; the app does not, and the page's skeleton stands until the read is in.
+
 ## Imports
 
 - `#common/…` — this layer's `app/` directory. Never `~/…` from in here: inside a layer `~` is the *consuming*
@@ -35,7 +39,8 @@ set up:
 
 ## What each app provides
 
-A shared page that calls a new endpoint needs it allow-listed in the app's shell, and the endpoint on production
+A shared page that calls a new endpoint needs it in the app shell's route table (`desktop/src-tauri/api-routes.json`;
+`desktop/app/tests/api-routes.test.ts` fails until it is), and the endpoint on production
 before the next app release (`docs/ci.md`, "Desktop releases").
 
 The shared code calls these by name; each app defines them for its host. A signature drift fails that app's
@@ -43,15 +48,20 @@ typecheck.
 
 | Name | Site (`web/app`) | App (`desktop/app/app`) |
 | --- | --- | --- |
-| `useApiFetch()` | `composables/useApi.ts` — the Nitro `/api` proxy, visitor forwarded during SSR | `composables/useApi.ts` — TrueMain reads through the shell (`api_get`, and `api_post` for the composition build), each path allow-listed in `desktop/src-tauri/src/lib.rs`; `/static/*` answered from Data Dragon (`utils/static-endpoints.ts`) |
+| `useApiFetch()` | `composables/useApi.ts` — the Nitro `/api` proxy, visitor forwarded during SSR | `composables/useApi.ts` — TrueMain reads through the shell (`api_get`, `api_post`), each a route of `desktop/src-tauri/api-routes.json`; `/static/*` answered from Data Dragon (`utils/static-endpoints.ts`) |
 | `useChampionSlugs()` | `composables/useChampionSlugs.ts` — slugged `/champions/{slug}` | `composables/useSiteShims.ts` — the app's `/champions/{id}` |
 | `useCanonicalIcon()` | `composables/useCanonicalIcon.ts` — IPX | `composables/useSiteShims.ts` — the CDN URL as given |
 | `useCanonicalLoadingArt()` | `composables/useCanonicalIcon.ts` — IPX, at Data Dragon's own width | `composables/useSiteShims.ts` — the CDN URL as given |
 
 Shared pages link to the site's routes as they are (`truemainProfilePath`, …). A route the app does not have — a
-player's champion page — opens on truemain.lol in the browser (`desktop/app/app/plugins/site-routes.ts`), so the
+player's champion page — opens on truemain.lol in the browser (`desktop/app/app/pages/[...siteRoute].vue`), so the
 shared code never asks which app it runs in. A player's profile is a route both have, on the same page
-(`page/PlayerProfile.vue`).
+(`page/PlayerProfile.vue`), and so is a known player's page (`page/KnownPlayer.vue`).
+
+The app's webview opens no new tab. A new-tab link in a shared page goes through the shell, which opens only a known
+player's channels (`desktop/app/app/plugins/channel-links.ts`, `desktop/src-tauri/src/channels.rs`): a new external
+link needs its host listed there. The app also bundles its icons at build time, so an icon from a new collection
+needs that collection in its `package.json`.
 
 What a host must supply rather than a name: the banner art of `PageHero` (`splashUrl` — the site through IPX,
 `useCanonicalSplash`, the app straight from Data Dragon), and where an open match row reads its game. The match detail

@@ -1,4 +1,4 @@
-import type { ActivityBucket, ActivityMode, ActivitySeries, TruemainActivityResponse } from '#shared/types/activity'
+import type { ActivityMode, TruemainActivityBucketReadModel, TruemainActivityReadModel, TruemainActivitySeriesReadModel } from '#shared/contract/api'
 import type { PlayerGame } from '~/types/record'
 
 const DAY_MS = 86_400_000
@@ -6,7 +6,7 @@ const DAY_MS = 86_400_000
 const startOfUtcDay = (ms: number) => ms - (ms % DAY_MS)
 const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10)
 
-function series(mode: ActivityMode, buckets: ActivityBucket[]): ActivitySeries {
+function series(mode: ActivityMode, buckets: TruemainActivityBucketReadModel[]): TruemainActivitySeriesReadModel {
   const games = buckets.reduce((sum, bucket) => sum + bucket.games, 0)
   const wins = buckets.reduce((sum, bucket) => sum + bucket.wins, 0)
   return {
@@ -22,9 +22,9 @@ function series(mode: ActivityMode, buckets: ActivityBucket[]): ActivitySeries {
 }
 
 /** The last `days` UTC days, today included, one cell each — played or not. */
-function calendar(mode: ActivityMode, games: PlayerGame[], days: number, now: number): ActivitySeries {
+function calendar(mode: ActivityMode, games: PlayerGame[], days: number, now: number): TruemainActivitySeriesReadModel {
   const today = startOfUtcDay(now)
-  const buckets: ActivityBucket[] = Array.from({ length: days }, (_, index) => {
+  const buckets: TruemainActivityBucketReadModel[] = Array.from({ length: days }, (_, index) => {
     const start = today - (days - 1 - index) * DAY_MS
     const played = games.filter(game => startOfUtcDay(game.playedAt) === start)
     const wins = played.filter(game => game.win).length
@@ -49,7 +49,7 @@ function calendar(mode: ActivityMode, games: PlayerGame[], days: number, now: nu
  * empty and the dashboard does not offer it. Remakes count for nothing, as
  * everywhere else.
  */
-export function activityFromGames(all: PlayerGame[], now: number = Date.now()): TruemainActivityResponse {
+export function activityFromGames(all: PlayerGame[], now: number = Date.now()): TruemainActivityReadModel {
   const games = all.filter(game => !game.remake)
   const today = startOfUtcDay(now)
   const todays = games

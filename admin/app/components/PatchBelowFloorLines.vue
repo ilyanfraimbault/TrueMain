@@ -19,12 +19,12 @@
 // of a healthy patch — the sentence carries the section on its own: an empty list under
 // "146 lines below the floor" reads as a bug, and "no champion is short of games on its
 // own lane" is the answer.
-import type { PatchCoverageRow } from '~~/shared/types/ops'
-import { POSITION_BY_VALUE } from '~/utils/positions'
+import type { PatchCoverageRowReadModel } from '#site-shared/contract/api'
+import { POSITION_BY_VALUE } from '#site-shared/utils/positions'
 import { formatNumber } from '~~/shared/utils/format'
 
 const { patch, floor } = defineProps<{
-  patch: PatchCoverageRow
+  patch: PatchCoverageRowReadModel
   /** `ChampionsList:MinSampleGames` — printed per line, since "9 short" of an unstated bar is not a number. */
   floor: number
 }>()

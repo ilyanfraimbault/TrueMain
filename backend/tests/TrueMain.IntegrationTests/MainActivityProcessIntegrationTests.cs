@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Core.Lol.Identifiers;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Data.Ops.Mongo;
 using Ingestor.Options;
 using Ingestor.Processes.Summaries;
@@ -40,7 +40,7 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
 
         var process = BuildProcess(new FakeRiotPlatformClient(Mastery(22, daysAgo: 90)));
 
-        var summary = await process.RunCoreAsync(CancellationToken.None);
+        var summary = await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<MainActivitySummary>()
             .Which.MainsDeactivated.Should().Be(1);
@@ -76,7 +76,7 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
                 return [Mastery(22, daysAgo: 1)];
             });
 
-        var summary = await BuildProcess(platformClient).RunCoreAsync(CancellationToken.None);
+        var summary = await BuildProcess(platformClient).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<MainActivitySummary>().Which.AccountsChecked.Should().Be(1);
         await using var db = _fixture.CreateDbContext();
@@ -93,7 +93,7 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
 
         var process = BuildProcess(new FakeRiotPlatformClient(Mastery(22, daysAgo: 1)));
 
-        var summary = await process.RunCoreAsync(CancellationToken.None);
+        var summary = await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<MainActivitySummary>()
             .Which.MainsReactivated.Should().Be(1);
@@ -112,7 +112,7 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
             Mastery(22, daysAgo: 90),
             Mastery(51, daysAgo: 2)));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var stats = db.MainChampionStats
@@ -137,7 +137,7 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
             Mastery(22, daysAgo: 5, points: 800_000),
             Mastery(51, daysAgo: 2, points: 1_200_000)));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var stats = db.MainChampionStats
@@ -217,7 +217,7 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
 
         var process = BuildProcess(new ThrowingRiotPlatformClient());
 
-        var summary = await process.RunCoreAsync(CancellationToken.None);
+        var summary = await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<MainActivitySummary>()
             .Which.AccountsFailed.Should().Be(1);
@@ -238,7 +238,7 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
 
         var process = BuildProcess(new FakeRiotPlatformClient(Mastery(22, daysAgo: 1)));
 
-        var summary = await process.RunCoreAsync(CancellationToken.None);
+        var summary = await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<MainActivitySummary>()
             .Which.AccountsSkipped.Should().Be(1);
@@ -260,7 +260,6 @@ public sealed class MainActivityProcessIntegrationTests : IAsyncLifetime
             NullLogger<MainActivityProcess>.Instance,
             platformClient,
             _fixture.CreateSessionFactory(),
-            Substitute.For<IProcessRunStore>(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new MainActivityOptions
             {

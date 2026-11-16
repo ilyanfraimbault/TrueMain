@@ -59,16 +59,16 @@ internal static class PatchCoverageRows
         // guess which of the two low-coverage causes they are looking at.
         var headline = verdict.Verdict switch
         {
-            "unknown" => "No match and no aggregate row on this patch — nothing to judge.",
-            "notAggregated" => string.Create(
+            PatchVerdict.Unknown => "No match and no aggregate row on this patch — nothing to judge.",
+            PatchVerdict.NotAggregated => string.Create(
                 CultureInfo.InvariantCulture,
                 $"{matches} match(es) ingested and not one aggregate row yet — the folds have not reached this patch. Not thin: unaggregated."),
-            "servable" => string.Create(
+            PatchVerdict.Servable => string.Create(
                 CultureInfo.InvariantCulture,
                 $"{linesPastFloor} of {lines} (champion, lane) lines clear the {floor}-game floor, at or above the bar of {bar.Value:F0} — enough for the directory and tier list to rank on."),
             // Aggregated, and still with nothing to rank. Worth its own sentence: the
             // generic thin wording would print "0 of 0 lines", which reads as a bug.
-            "thin" when lines <= 0 => string.Create(
+            PatchVerdict.Thin when lines <= 0 => string.Create(
                 CultureInfo.InvariantCulture,
                 $"{aggregateRows} aggregate row(s) on this patch and not one carries a lane, so the directory and tier list have nothing to rank. Aggregated, not rankable."),
             _ => string.Create(
@@ -81,7 +81,7 @@ internal static class PatchCoverageRows
             Patch = patch,
             IsCurrent = isCurrent,
             Verdict = verdict.Verdict,
-            Status = verdict.Status.ToWireName(),
+            Status = verdict.Status,
             Headline = headline,
             Matches = matches,
             Participants = ingestion?.Participants ?? 0,
@@ -115,7 +115,7 @@ internal static class PatchCoverageRows
             {
                 Key = fold.Spec.Key,
                 Label = fold.Spec.Label,
-                Status = DetectorStatus.Unknown.ToWireName(),
+                Status = DetectorStatus.Unknown,
                 PendingMatches = pending,
                 Note = "This fold could not be measured: " + fold.UnknownReason
             };
@@ -137,7 +137,7 @@ internal static class PatchCoverageRows
                 Measured = false,
                 FirstMeasuredPatch = first,
                 NotMeasuredNote = $"Not measured before {first} — the fold shipped mid-corpus and raw matches are not kept, so this patch can never be backfilled.",
-                Status = DetectorStatus.Unknown.ToWireName(),
+                Status = DetectorStatus.Unknown,
                 PendingMatches = pending,
                 Note = fold.Spec.Note
             };
@@ -157,7 +157,7 @@ internal static class PatchCoverageRows
             AgeHours = age,
             Status = DataQualityDetectorEvaluator
                 .Classify(age, settings.AggregationStaleAmberHours, settings.AggregationStaleRedHours)
-                .ToWireName(),
+                ,
             PendingMatches = pending,
             Note = fold.Spec.Note
         };
@@ -172,7 +172,7 @@ internal static class PatchCoverageRows
 
         // The newest ingested patch and the patch the site serves are different things,
         // and the gap between them is invisible on every public page.
-        var waiting = !newestIngested.IsCurrent && newestIngested.Verdict == "notAggregated"
+        var waiting = !newestIngested.IsCurrent && newestIngested.Verdict == PatchVerdict.NotAggregated
             ? string.Create(
                 CultureInfo.InvariantCulture,
                 $" Patch {newestIngested.Patch} has {newestIngested.Matches} ingested match(es) and no aggregate row, so the site is still serving {current.Patch}.")

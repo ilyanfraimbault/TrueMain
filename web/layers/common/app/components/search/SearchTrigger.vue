@@ -8,11 +8,13 @@
 const props = withDefaults(defineProps<{
   variant?: 'field' | 'button'
   /**
-   * Field height: `sm` for a narrow column (the app's build page), `md` the
-   * default (the leaderboard), `lg` the homepage hero — taller, more rounded,
-   * larger text and the ⌘K hint.
+   * Field height: `sm` for a narrow column or a bar (the app's build page, its
+   * top bar), `md` the default (the leaderboard), `lg` the homepage hero —
+   * taller, more rounded, larger text and the ⌘K hint.
    */
   size?: 'sm' | 'md' | 'lg'
+  /** Show the ⌘K hint on a field of any size, for the instance that owns the shortcut. */
+  hint?: boolean
   placeholder: string
   /** The accessible name, which the placeholder may abbreviate. */
   label: string
@@ -20,6 +22,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   variant: 'field',
   size: 'md',
+  hint: false,
   activeChampion: null,
 })
 
@@ -55,10 +58,11 @@ const ariaLabel = computed(() => (props.activeChampion
         <span class="truncate font-medium text-highlighted">{{ activeChampion.name }}</span>
       </span>
       <span v-else class="flex-1 truncate text-dimmed">{{ placeholder }}</span>
-      <!-- ⌘K hint on the prominent hero bar only. The shortcut itself is owned
-           by the always-mounted header instance; pressing ⌘K opens the
-           (identical) unified search, and `usingInput` blocks it while a modal
-           input is focused, so it can't stack a second modal.
+      <!-- ⌘K hint on the prominent hero bar and on the field that owns the
+           shortcut (the app's top bar). The shortcut itself is owned by the
+           always-mounted header instance; pressing ⌘K opens the (identical)
+           unified search, and it does nothing while another dialog is open, so
+           it can't stack a second modal.
 
            `<ClientOnly>` because `UKbd value="meta"` resolves the modifier from
            the *platform* (`⌘` on macOS, `Ctrl` everywhere else), which the
@@ -67,9 +71,9 @@ const ariaLabel = computed(() => (props.activeChampion
            homepage. No fallback on purpose — the hint advertises a shortcut
            that does not work until the handler is mounted. -->
       <ClientOnly>
-        <span v-if="size === 'lg'" class="hidden items-center gap-0.5 sm:flex">
-          <UKbd value="meta" class="font-mono" />
-          <UKbd value="K" class="font-mono" />
+        <span v-if="size === 'lg' || hint" class="hidden items-center gap-0.5 sm:flex">
+          <UKbd value="meta" class="font-mono" :size="size === 'sm' ? 'sm' : 'md'" />
+          <UKbd value="K" class="font-mono" :size="size === 'sm' ? 'sm' : 'md'" />
         </span>
       </ClientOnly>
     </button>

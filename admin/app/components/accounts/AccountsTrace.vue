@@ -18,8 +18,9 @@
 //
 // Each section is its own card component (`AccountsTrace*.vue`, #1436); this one
 // owns the search and the one fetch, and hands each card its slice of the answer.
-import type { AccountExplorer } from '~~/shared/types/ops'
-import { RIOT_ID_MAX_LENGTH, isRiotIdOrSlug } from '~~/shared/utils/riot-id'
+import type { AccountExplorerReadModel } from '#site-shared/contract/api'
+import { RIOT_ID_MAX_LENGTH, isRiotIdOrSlug } from '#site-shared/utils/riot-id'
+import { useKeyedFetch } from '~/composables/useKeyedFetch'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,15 +34,25 @@ const router = useRouter()
 const riotIdInput = ref('')
 const regionInput = ref<string>(ALL)
 
-const result = ref<AccountExplorer | null>(null)
-const pending = ref(false)
-const error = ref<unknown>(null)
+// One keyed fetch (#2471): the trace on screen is the one for the latest search, so
+// a slow answer for the previous Riot ID can neither replace it nor end its loading.
+interface TraceKey { riotId: string, region: string | undefined }
+const { state: trace, load: loadTrace } = useKeyedFetch<TraceKey, AccountExplorerReadModel>(
+  key => getAccountExplorer(key.riotId, key.region),
+  { same: (a, b) => a.riotId === b.riotId && a.region === b.region },
+)
+// The endpoint never 404s — an unknown Riot ID is a populated answer — so an
+// `error` is a real failure (400 on a malformed input, or the backend being down)
+// and deserves the error alert.
+const result = computed(() => trace.value.s === 'ready' ? trace.value.value : null)
+const pending = computed(() => trace.value.s === 'loading')
+const error = computed(() => trace.value.s === 'error' ? trace.value.error : null)
 
 const selectedRegion = computed(() => (regionInput.value === ALL ? undefined : regionInput.value))
 
 // `GET /ops/accounts/{nameTag}` validates against `NameTagParser.TryParseRiotId`
 // and 400s on anything else, so the same rules gate the input here (via
-// `shared/utils/riot-id`) rather than letting the operator spend a round trip to
+// `#site-shared/utils/riot-id`) rather than letting the operator spend a round trip to
 // be told the thing they pasted was never a Riot ID. Both typed `Name#TAG` and
 // the hyphen slug `Name-TAG` are accepted, exactly as the endpoint does.
 const searchable = computed(() => isRiotIdOrSlug(riotIdInput.value))
@@ -53,22 +64,8 @@ const inputHint = computed(() => (
     : `Enter a Riot ID as Name#TAG or Name-TAG, at most ${RIOT_ID_MAX_LENGTH} characters.`
 ))
 
-async function load(riotId: string, region: string | undefined) {
-  pending.value = true
-  error.value = null
-  try {
-    result.value = await getAccountExplorer(riotId, region)
-  }
-  catch (err) {
-    // The endpoint never 404s — an unknown Riot ID is a populated answer — so
-    // anything landing here is a real failure (400 on a malformed input, or the
-    // backend being down) and deserves the error alert.
-    error.value = err
-    result.value = null
-  }
-  finally {
-    pending.value = false
-  }
+function load(riotId: string, region: string | undefined) {
+  return loadTrace({ riotId, region })
 }
 
 function submit() {

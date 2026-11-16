@@ -105,6 +105,9 @@ internal sealed class ChampionDirectoryPatchResolver(
     /// Every patch the aggregate table holds for the queue, newest first. Cached on
     /// the active-patch TTL: the set only changes when a patch's first fold lands.
     /// </summary>
+    public Task<IReadOnlyList<string>> GetPatchesNewestFirstAsync(CancellationToken ct)
+        => LoadPatchesNewestFirstAsync(ct);
+
     private async Task<IReadOnlyList<string>> LoadPatchesNewestFirstAsync(CancellationToken ct)
     {
         return await cache.GetOrComputeAsync(PatchListCacheKey, LoadPatchesNewestFirstCoreAsync, ct);

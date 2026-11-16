@@ -1,5 +1,5 @@
-import type { ChampionSynergies, ChampionTrioSynergies } from '~~/shared/types/champions'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionSynergiesResponse, ChampionTrioSynergiesResponse } from '#shared/contract/api'
+import type { ChampionPosition } from '#shared/utils/positions'
 
 export interface UseChampionSynergiesOptions {
   /**
@@ -31,7 +31,7 @@ export function useChampionSynergies(
 
   const apiFetch = useApiFetch()
 
-  return useLazyAsyncData<ChampionSynergies | null>(
+  return useLazyAsyncData<ChampionSynergiesResponse | null>(
     () => [
       'champion-synergies',
       championIdRef.value,
@@ -49,7 +49,7 @@ export function useChampionSynergies(
       if (eloBracketRef.value) query.eloBracket = eloBracketRef.value
       if (patchRef.value) query.patch = patchRef.value
 
-      return await apiFetch<ChampionSynergies>(
+      return await apiFetch<ChampionSynergiesResponse>(
         `/champions/${championIdRef.value}/synergies`,
         { query, signal },
       )
@@ -81,7 +81,7 @@ export function useChampionTrioSynergies(
 
   const apiFetch = useApiFetch()
 
-  return useLazyAsyncData<ChampionTrioSynergies | null>(
+  return useLazyAsyncData<ChampionTrioSynergiesResponse | null>(
     () => [
       'champion-trio-synergies',
       championIdRef.value,
@@ -106,7 +106,7 @@ export function useChampionTrioSynergies(
       if (eloBracketRef.value) query.eloBracket = eloBracketRef.value
       if (patchRef.value) query.patch = patchRef.value
 
-      return await apiFetch<ChampionTrioSynergies>(
+      return await apiFetch<ChampionTrioSynergiesResponse>(
         `/champions/${championIdRef.value}/synergies/trios`,
         { query, signal },
       )

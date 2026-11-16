@@ -17,14 +17,12 @@ public sealed class RiotMatchClient : IRiotMatchClient
 
     public Task<RiotMatchDto> GetMatchAsync(string matchId, RegionalRoute region, CancellationToken ct)
     {
-        var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/{matchId}");
-        return GetAsync<RiotMatchDto>(uri, ct);
+        return GetAsync<RiotMatchDto>(RiotEndpoint.Match, region, $"/lol/match/v5/matches/{matchId}", ct);
     }
 
     public async Task<MatchTimelineDto> GetTimelineAsync(string matchId, RegionalRoute region, CancellationToken ct)
     {
-        var uri = BuildRegionalUri(region, $"/lol/match/v5/matches/{matchId}/timeline");
-        var riotTimeline = await GetAsync<RiotTimelineDto>(uri, ct);
+        var riotTimeline = await GetAsync<RiotTimelineDto>(RiotEndpoint.MatchTimeline, region, $"/lol/match/v5/matches/{matchId}/timeline", ct);
         return RiotTimelineMapper.Map(riotTimeline);
     }
 
@@ -67,17 +65,9 @@ public sealed class RiotMatchClient : IRiotMatchClient
             uri.Append("&startTime=").Append(epochSeconds.ToString(CultureInfo.InvariantCulture));
         }
 
-        return GetAsync<List<string>>(BuildRegionalUri(query.Region, uri.ToString()), ct);
+        return GetAsync<List<string>>(RiotEndpoint.MatchIdsByPuuid, query.Region, uri.ToString(), ct);
     }
 
-    private Task<T> GetAsync<T>(Uri uri, CancellationToken ct)
-    {
-        return _httpClient.GetFromJsonStreamingAsync<T>(uri, ct);
-    }
-
-    private static Uri BuildRegionalUri(RegionalRoute region, string path)
-    {
-        var host = region.ToRegionalHost();
-        return new Uri($"https://{host}.api.riotgames.com{path}");
-    }
+    private Task<T> GetAsync<T>(RiotEndpoint endpoint, RegionalRoute region, string pathAndQuery, CancellationToken ct)
+        => _httpClient.GetFromJsonStreamingAsync<T>(RiotCall.Get(endpoint, region.ToRegionalHost(), pathAndQuery), ct);
 }

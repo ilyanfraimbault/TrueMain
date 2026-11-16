@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import type { RegionSlug } from '#shared/types/leaderboard'
-import type { ChampionPosition } from '#common/utils/positions'
+import { REGION_SLUGS, type RegionSlug } from '#shared/types/leaderboard'
+import { REGIONS, regionIcon } from '#shared/utils/region'
+import type { ChampionPosition } from '#shared/utils/positions'
 
 // Position anchors the left edge and region the right edge; the OTP toggle
 // sits in a `flex-1 justify-center` middle group so it's centered in the gap
@@ -35,9 +36,7 @@ interface RegionItem {
 // Nuxt UI sizes them to the label's line height in the trigger and rows.
 const REGION_OPTIONS: RegionItem[] = [
   { label: 'All regions', value: null, icon: 'i-lucide-globe' },
-  { label: 'Europe', value: 'europe', icon: 'i-region-europe' },
-  { label: 'Americas', value: 'americas', icon: 'i-region-americas' },
-  { label: 'Korea', value: 'korea', icon: 'i-region-korea' },
+  ...REGION_SLUGS.map(slug => ({ label: REGIONS[slug].label, value: slug, icon: regionIcon(slug) })),
 ]
 
 const selectedRegion = computed<RegionItem>(() =>

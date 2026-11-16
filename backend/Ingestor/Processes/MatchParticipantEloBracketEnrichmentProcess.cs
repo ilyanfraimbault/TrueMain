@@ -1,6 +1,7 @@
 using Core.Lol.Ranking;
 using Data;
-using Data.Aggregation;
+using Data.Pipeline;
+using Ingestor.Processes.Components.PatternAggregation;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +28,7 @@ namespace Ingestor.Processes;
 /// <c>UNRANKED</c>) and never revisited, so steady-state runs only touch
 /// newly-ingested or still-snapshotless rows.
 /// </summary>
+[PipelineStep(JobMode.EloBracketEnrichmentOnly)]
 public sealed class MatchParticipantEloBracketEnrichmentProcess(
     ILogger<MatchParticipantEloBracketEnrichmentProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory) : IIngestorProcess
@@ -37,10 +39,7 @@ public sealed class MatchParticipantEloBracketEnrichmentProcess(
     // advances even through rows it deliberately leaves unenriched (accounts with
     // no snapshot yet) and terminates at the end of the set.
     private const int BatchSize = 5000;
-
-    public string Name => "MatchParticipantEloBracketEnrichment";
-
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var totalStamped = 0;
         var totalDeferred = 0;

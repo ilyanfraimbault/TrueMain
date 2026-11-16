@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TruemainDedication } from '#shared/types/dedication'
+import type { DedicationReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { championDisplayName } from '#shared/utils/champion-name'
 import { TRUEMAIN_SCORE_LABEL, dedicationParts, formatDedicationLastPlayed, formatDedicationScore } from '#common/utils/dedication'
@@ -10,7 +10,7 @@ import { TRUEMAIN_SCORE_LABEL, dedicationParts, formatDedicationLastPlayed, form
 // `GET /truemains/{nameTag}/profile`; nothing is derived or estimated here, so
 // the card can't disagree with the leaderboard column.
 const props = defineProps<{
-  dedication: TruemainDedication
+  dedication: DedicationReadModel
   champions: ChampionStaticListItem[]
   /** Profile slug ({gameName}-{tagLine}); drives the player-scoped champion link. */
   nameTag: string

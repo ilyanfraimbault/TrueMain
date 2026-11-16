@@ -1,3 +1,4 @@
+using Data.Entities;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -41,7 +42,7 @@ public sealed record SeedRequestReadModel
 
     public string PlatformId { get; init; } = string.Empty;
 
-    public string Status { get; init; } = string.Empty;
+    public SeedRequestStatus Status { get; init; }
 
     public string? Error { get; init; }
 

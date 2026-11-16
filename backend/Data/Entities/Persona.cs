@@ -59,6 +59,18 @@ public class Persona
     /// </summary>
     public DateTime? RemovedAtUtc { get; set; }
 
+    /// <summary>
+    /// The person's picture, read from their first channel that has one (#2446); null when none does.
+    /// Never set by a source or an operator: the picture worker owns it.
+    /// </summary>
+    public string? PictureUrl { get; set; }
+
+    /// <summary>
+    /// When the picture worker reads this person next; null means as soon as it can. A change to the
+    /// person's channels sets it back to null.
+    /// </summary>
+    public DateTime? PictureRefreshAtUtc { get; set; }
+
     public ICollection<PersonaLink> Links { get; set; } = new List<PersonaLink>();
 
     public ICollection<PersonaAccount> Accounts { get; set; } = new List<PersonaAccount>();

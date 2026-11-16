@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TruemainDedication } from '#shared/types/dedication'
+import type { DedicationReadModel } from '#shared/contract/api'
 
 // A truemain's score on their signature champion (#1701), with the verdict,
 // the facts and the points each one added on hover. Every figure comes from
@@ -11,7 +11,7 @@ import type { TruemainDedication } from '#shared/types/dedication'
 defineOptions({ inheritAttrs: false })
 
 const props = defineProps<{
-  dedication: TruemainDedication
+  dedication: DedicationReadModel
   championName: string
   /** The list is ranked by this score: the figure is underlined as the sort key. */
   highlighted?: boolean

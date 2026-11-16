@@ -293,7 +293,7 @@ public sealed class DraftRecommendationQueryService(
         CancellationToken ct)
     {
         var response = await synergies.GetSynergiesAsync(
-            allyChampionId, allyPosition, patch, position, criteria.EloBracket, ct);
+            new ChampionScope(allyChampionId, allyPosition, patch, criteria.EloBracket), position, ct);
         return response.Partners
             .GroupBy(partner => partner.PartnerChampionId)
             .ToDictionary(group => group.Key, group =>

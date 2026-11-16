@@ -12,7 +12,7 @@
 //! loads before starting the CLI.
 
 /// The public site, for a build that names no other.
-const PRODUCTION: &str = "https://truemain.lol";
+pub(crate) const PRODUCTION: &str = "https://truemain.lol";
 
 /// Read at build time (the build's site), and again at startup so a developer
 /// can repoint a built app without rebuilding it. The runtime value wins.

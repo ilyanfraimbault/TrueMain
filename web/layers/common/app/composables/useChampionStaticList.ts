@@ -10,19 +10,25 @@ import type { ChampionStaticListItem } from '#shared/types/static-data'
  * boot, so `getCachedData` lets consumers reuse the payload instead of
  * refetching (notably the header search, which mounts on every page).
  *
+ * On the server too (#2425): the directory and the tier list print names and portraits
+ * in their first HTML, and the list is a few KB once compressed.
+ *
  * No `default` on purpose: matches the other `champion-static-list` callsites,
  * so `data` is `ChampionStaticListItem[] | null` — guard with `?? []`.
  */
+/** The list's `useAsyncData` key, which the boot prefetch (`static-prefetch.client.ts`) warms. */
+export const CHAMPION_STATIC_LIST_KEY = 'champion-static-list'
+
 export function useChampionStaticList() {
   const nuxtApp = useNuxtApp()
   const apiFetch = useApiFetch()
   return useLazyAsyncData<ChampionStaticListItem[]>(
-    'champion-static-list',
+    CHAMPION_STATIC_LIST_KEY,
     async (_nuxtApp, { signal }) => {
       const data = await apiFetch<ChampionStaticListItem[]>('/static/champions', { signal })
-      markStaticFetched('champion-static-list', nuxtApp)
+      markStaticFetched(CHAMPION_STATIC_LIST_KEY, nuxtApp)
       return data
     },
-    { getCachedData: key => getStaticCachedData(key, nuxtApp), server: false },
+    { getCachedData: key => getStaticCachedData(key, nuxtApp) },
   )
 }

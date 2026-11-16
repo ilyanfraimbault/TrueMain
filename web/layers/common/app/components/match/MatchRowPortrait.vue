@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { getPositionIconUrl } from '#shared/utils/ddragon'
-import { POSITION_BY_VALUE } from '#common/utils/positions'
+import { POSITION_BY_VALUE } from '#shared/utils/positions'
 
 // Champion portrait of a match row, badged with the player's role — or with the
 // champion level when there is no role to show (old rows, modes without lanes,

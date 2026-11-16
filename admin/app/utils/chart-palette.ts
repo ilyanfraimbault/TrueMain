@@ -1,3 +1,5 @@
+import { THEME_HEX } from '#site-shared/utils/theme-tokens'
+
 // Chart palette for the admin portal.
 //
 // The portal's charts were the first part of the chrome moved onto the public
@@ -24,7 +26,7 @@
 
 // The app accent, and the first slot of every series list: a single-series
 // chart picks it up without asking.
-export const CHART_PRIMARY = '#e58f83' // rosegold-400
+export const CHART_PRIMARY = THEME_HEX['rosegold-400']
 
 // The two remaining categorical hues.
 export const CHART_ACCENT_SKY = '#38bdf8' // sky-400

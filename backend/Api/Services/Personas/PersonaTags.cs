@@ -28,11 +28,11 @@ internal static class PersonaTags
                 ctx.Personas.AsNoTracking(),
                 link => link.PersonaId,
                 persona => persona.Id,
-                (link, persona) => new { AccountId = link.RiotAccountId!.Value, persona.Slug, persona.DisplayName })
+                (link, persona) => new { AccountId = link.RiotAccountId!.Value, persona.Slug, persona.DisplayName, persona.PictureUrl })
             .ToListAsync(ct);
 
         return rows.ToDictionary(
             row => row.AccountId,
-            row => new PersonaTagReadModel { Slug = row.Slug, DisplayName = row.DisplayName });
+            row => new PersonaTagReadModel { Slug = row.Slug, DisplayName = row.DisplayName, PictureUrl = row.PictureUrl });
     }
 }

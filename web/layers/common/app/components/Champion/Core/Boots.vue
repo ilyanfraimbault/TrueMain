@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { BuildItemSet } from '#shared/types/champions'
+import type { BuildItemSetReadModel } from '#shared/contract/api'
 import type { StaticItemData } from '#shared/types/static-data'
 import { itemSlots } from '#shared/utils/build'
 import type { ItemContextCard } from '#shared/utils/item-context'
 import { resolveItemContext } from '#shared/utils/item-context'
 
 const props = defineProps<{
-  boots: BuildItemSet | null
+  boots: BuildItemSetReadModel | null
   itemsMap: Record<number, StaticItemData>
   /** Situational verdicts (#1451), keyed by slot + item. Absent where the surface has no slice for them. */
   itemContext?: Map<string, ItemContextCard>

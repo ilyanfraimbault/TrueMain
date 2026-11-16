@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ApexCutoff } from '#shared/types/apex-cutoffs'
+import type { ApexCutoffReadModel } from '#shared/contract/api'
 import type { RankChartPoint } from '#common/utils/rank-chart'
 import type { PlotFrame } from '#common/utils/rank-chart-geometry'
 import { monotonePath } from '#common/utils/monotone-path'
@@ -21,7 +21,7 @@ import { tierHex } from '#common/utils/tiers'
 // as dashed lines, with the tier crests as the y-axis.
 const props = withDefaults(defineProps<{
   points: RankChartPoint[]
-  cutoffs?: readonly ApexCutoff[]
+  cutoffs?: readonly ApexCutoffReadModel[]
 }>(), {
   cutoffs: () => [],
 })

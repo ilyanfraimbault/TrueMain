@@ -39,7 +39,7 @@ public sealed class ProcessRunCadenceQueryIntegrationTests : IAsyncLifetime
 
         using var context = BuildContext();
         var store = new ProcessRunStore(context);
-        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", CancellationToken.None);
+        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", now, CancellationToken.None);
 
         lastRun.Should().Be(latestCompleted);
     }
@@ -64,7 +64,7 @@ public sealed class ProcessRunCadenceQueryIntegrationTests : IAsyncLifetime
 
         using var context = BuildContext();
         var store = new ProcessRunStore(context);
-        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", CancellationToken.None);
+        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", now, CancellationToken.None);
 
         // Measured against the real run, so a 1-day interval has 20h elapsed and the next
         // iteration past the 24h mark runs for real instead of skipping forever.
@@ -84,7 +84,7 @@ public sealed class ProcessRunCadenceQueryIntegrationTests : IAsyncLifetime
 
         using var context = BuildContext();
         var store = new ProcessRunStore(context);
-        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", CancellationToken.None);
+        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", now, CancellationToken.None);
 
         // Never actually ran, so the guard has nothing to measure against and must let the
         // process run rather than treating its own skips as a prior cadence.
@@ -105,7 +105,7 @@ public sealed class ProcessRunCadenceQueryIntegrationTests : IAsyncLifetime
 
         using var context = BuildContext();
         var store = new ProcessRunStore(context);
-        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", CancellationToken.None);
+        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", now, CancellationToken.None);
 
         // A failed attempt still called Riot, so it counts: the guard is a budget gate, not
         // a success gate.
@@ -119,9 +119,95 @@ public sealed class ProcessRunCadenceQueryIntegrationTests : IAsyncLifetime
 
         using var context = BuildContext();
         var store = new ProcessRunStore(context);
-        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", CancellationToken.None);
+        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", DateTime.UtcNow, CancellationToken.None);
 
         lastRun.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetLastCompletedRunStartAsync_CountsAStaleRunningRow_AsTheAbandonedRunItIs()
+    {
+        var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+        var deadRunStart = now.AddHours(-1);
+
+        // A run whose host died an hour ago without anyone closing it: stored Running,
+        // effectively Abandoned (#2474), so it started its work and counts.
+        var dead = Run("Discovery", deadRunStart, ProcessRunStatus.Running);
+        dead.LastHeartbeatAtUtc = deadRunStart.AddMinutes(5);
+        await Collection().InsertManyAsync(
+        [
+            Run("Discovery", now.AddHours(-3), ProcessRunStatus.Success),
+            dead,
+            // The caller's own in-flight row, beating: still excluded.
+            Run("Discovery", now.AddSeconds(-30), ProcessRunStatus.Running)
+        ]);
+
+        using var context = BuildContext();
+        var store = new ProcessRunStore(context);
+        var lastRun = await store.GetLastCompletedRunStartAsync("Discovery", now, CancellationToken.None);
+
+        lastRun.Should().Be(deadRunStart);
+    }
+
+    [Fact]
+    public async Task CountFailuresSinceAsync_CountsAStaleRunningRow_AsAFailure()
+    {
+        var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+        var lastSuccessFinish = now.AddHours(-4);
+
+        var dead = Run("Discovery", now.AddHours(-1), ProcessRunStatus.Running);
+        dead.LastHeartbeatAtUtc = now.AddMinutes(-50);
+        var neverBeat = Run("Discovery", now.AddHours(-2), ProcessRunStatus.Running);
+        neverBeat.LastHeartbeatAtUtc = null;
+
+        await Collection().InsertManyAsync(
+        [
+            Run("Discovery", now.AddHours(-5), ProcessRunStatus.Failed),
+            Run("Discovery", lastSuccessFinish.AddSeconds(-5), ProcessRunStatus.Success),
+            Run("Discovery", now.AddHours(-3), ProcessRunStatus.Failed),
+            neverBeat,
+            dead,
+            // Not failures: a skip, a redeploy's cancel and a live run.
+            Run("Discovery", now.AddMinutes(-40), ProcessRunStatus.Skipped),
+            Run("Discovery", now.AddMinutes(-30), ProcessRunStatus.Cancelled),
+            Run("Discovery", now.AddSeconds(-30), ProcessRunStatus.Running),
+            Run("Scoring", now.AddHours(-1), ProcessRunStatus.Failed)
+        ]);
+
+        using var context = BuildContext();
+        var store = new ProcessRunStore(context);
+
+        // Before #2474 the two dead hosts' rows counted for nothing: the streak read 1 and
+        // the per-process alert, which waits for a streak, never opened.
+        (await store.CountFailuresSinceAsync("Discovery", lastSuccessFinish, now, CancellationToken.None))
+            .Should().Be(3);
+        (await store.CountFailuresSinceAsync("Discovery", null, now, CancellationToken.None))
+            .Should().Be(4);
+    }
+
+    [Fact]
+    public async Task GetRollupsAsync_CountsAbandonedAndStaleRunningRows_AsFailures()
+    {
+        var now = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+        var dead = Run("Discovery", now.AddHours(-1), ProcessRunStatus.Running);
+        dead.LastHeartbeatAtUtc = now.AddMinutes(-50);
+
+        await Collection().InsertManyAsync(
+        [
+            Run("Discovery", now.AddHours(-4), ProcessRunStatus.Success),
+            Run("Discovery", now.AddHours(-3), ProcessRunStatus.Failed),
+            Run("Discovery", now.AddHours(-2), ProcessRunStatus.Abandoned),
+            dead,
+            Run("Discovery", now.AddSeconds(-30), ProcessRunStatus.Running)
+        ]);
+
+        using var context = BuildContext();
+        var store = new ProcessRunStore(context);
+        var rollup = (await store.GetRollupsAsync("Discovery", windowStart: null, now, CancellationToken.None))
+            .Should().ContainSingle().Subject;
+
+        rollup.RunCountInWindow.Should().Be(5);
+        rollup.FailureCountInWindow.Should().Be(3);
     }
 
     private IMongoCollection<ProcessRunDocument> Collection()
@@ -143,6 +229,8 @@ public sealed class ProcessRunCadenceQueryIntegrationTests : IAsyncLifetime
         StartedAtUtc = startedAtUtc,
         FinishedAtUtc = status == ProcessRunStatus.Running ? startedAtUtc : startedAtUtc.AddSeconds(5),
         DurationMs = status == ProcessRunStatus.Running ? 0 : 5000,
-        Status = status
+        Status = status,
+        // A live run beats; the tests that want a dead one say so.
+        LastHeartbeatAtUtc = startedAtUtc
     };
 }

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // Database panel: the largest tables by total size, from the page's
 // `GET /api/ops/db/tables` payload (both engines, #1023).
-import type { DbTableRow } from '~~/shared/types/ops'
+import type { TableStatRow } from '#site-shared/contract/api'
 import { humanizeBytes } from '~~/shared/utils/format'
 
 const props = defineProps<{
-  tables: DbTableRow[] | null | undefined
+  tables: TableStatRow[] | null | undefined
   pending: boolean
 }>()
 

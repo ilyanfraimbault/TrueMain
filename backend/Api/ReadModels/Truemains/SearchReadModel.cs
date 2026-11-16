@@ -30,6 +30,9 @@ public sealed record SearchPlayerReadModel
     /// <summary>The person's tracked accounts — the ones their page lists. Never 0: a person with none is not returned.</summary>
     public int AccountCount { get; init; }
 
+    /// <summary>The picture of the person's first channel that has one; null when none does.</summary>
+    public string? PictureUrl { get; init; }
+
     /// <summary>The best-ranked tracked account's icon.</summary>
     public int? ProfileIconId { get; init; }
 

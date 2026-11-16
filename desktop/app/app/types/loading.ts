@@ -1,83 +1,28 @@
-import type { GameTeam } from '~/types/game'
-import type { RankedQueue } from '~/types/record'
+import { writable } from '~/utils/writable'
+import type { LoadingView, Read } from '~/generated/shell'
+import { IDLE_LOADING as SHELL_IDLE_LOADING } from '~/generated/shell'
 
-/** Mirrors `PlayerForm` in `crates/lcu/src/form.rs`. */
-export interface PlayerForm {
-  /** Summoner's Rift games read (up to 20), remakes left out. */
-  games: number
-  /** Of those, the ones on the champion the player is on now. */
-  championGames: number
-  championWins: number
-  /** Kills, deaths and assists summed over the games on the champion. */
-  championKills: number
-  championDeaths: number
-  championAssists: number
-  /** The roles the player was given, most played first, over role-assigned queues. */
-  positions: PositionGames[]
-  /** The run the latest games make: 3 for three wins in a row, -2 for two losses. */
-  streak: number
-  /** The latest of those, newest first, at most ten. */
-  recent: RecentGame[]
-}
+/** The loading screen's board as the shell reads it (`src-tauri/src/loading`), generated from Rust. */
+export type {
+  LaningForm,
+  LoadingPlayer,
+  LoadingStatus,
+  LoadingView,
+  PlayerForm,
+  PositionGames,
+  Read,
+  RecentGame,
+} from '~/generated/shell'
 
-/** Mirrors `PositionGames` in `crates/lcu/src/form.rs`. */
-export interface PositionGames {
-  position: string
-  games: number
-}
+/** A player whose name and history are read. */
+export type KnownPlayer = Extract<LoadingView['players'][number], { kind: 'known' }>
+/** A player who hides their name (Streamer Mode): only their champion and lane show. */
+export type HiddenPlayer = Extract<LoadingView['players'][number], { kind: 'hidden' }>
 
-/** Mirrors `RecentGame` in `crates/lcu/src/form.rs`. */
-export interface RecentGame {
-  championId: number
-  /** The assigned role; null on a queue without roles. */
-  position: string | null
-  win: boolean
-  kills: number
-  deaths: number
-  assists: number
-  /** Epoch milliseconds. */
-  playedAt: number
-}
+/** `LoadingView::default()`: no game loading. */
+export const IDLE_LOADING: LoadingView = writable(SHELL_IDLE_LOADING)
 
-/** Mirrors `LaningForm` in `crates/lcu/src/laning.rs`. */
-export interface LaningForm {
-  /** Games on the champion weighed, at most ten. */
-  games: number
-  wins: number
-  /** Of those, the ones whose fifteen-minute gaps were read. */
-  measured: number
-  /** Average leads over the lane opponent at fifteen minutes; null with none measured. */
-  goldDiff15: number | null
-  csDiff15: number | null
-  xpDiff15: number | null
-}
-
-/** Mirrors `LoadingPlayer` in `src-tauri/src/loading.rs`. */
-export interface LoadingPlayer {
-  /** Empty for an anonymous player, and until the name is read. */
-  riotId: string
-  championId: number
-  team: GameTeam
-  position: string
-  isMe: boolean
-  /** The player hides their name (Streamer Mode): only their champion shows. */
-  anonymous: boolean
-  /** Absent until read, and for good when the client could not read it. */
-  form: PlayerForm | null
-  failed: boolean
-  /** Solo/Duo, else a ranked Flex; null until read, when unranked, or unreadable. */
-  rank: RankedQueue | null
-  /** The standing was read: a null `rank` is then an unranked player. */
-  rankRead: boolean
-  /** The client could not read the standing. */
-  rankFailed: boolean
-  /** Their form on the champion (#1863); null until read, and when their history could not be. */
-  laning: LaningForm | null
-}
-
-/** Mirrors `LoadingView` in `src-tauri/src/loading.rs`. */
-export interface LoadingView {
-  players: LoadingPlayer[]
-  /** The shard the game is played on, e.g. `EUW1`; empty until the first history is read. */
-  platformId: string
+/** The value of a read once it is in; null while pending or failed. */
+export function readValue<T>(read: Read<T>): T | null {
+  return read.state === 'ok' ? read.value : null
 }

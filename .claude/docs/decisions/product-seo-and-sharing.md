@@ -16,7 +16,7 @@ lie. The dedication score is only printed when its `championId` matches the main
 
 **Share cards resolve their own data server-side instead of receiving it from the page.**
 `nuxt-og-image` encodes the template props into the (signed) image URL, which is minted during SSR — but
-both pages fetch `server: false` (the #149 hydration fix on champions, the deliberate no-cross-viewer-SSR
+both pages fetched `server: false` then (the #149 hydration fix on champions, since #2425 rendered on the server; the deliberate no-cross-viewer-SSR
 rule on profiles), so at that moment the page holds no numbers to hand over. The URL therefore carries
 *identifiers only* and the templates resolve the real slice through `server/api/og/**` when a crawler
 renders the image. The alternative — adding an SSR-enabled fetch to the pages purely to feed the card —

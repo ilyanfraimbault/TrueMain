@@ -38,7 +38,7 @@ is a build-time constant, so the watcher does not exist on the server at all —
 body happening to no-op there.
 
 **A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own
-`pending`.** `createChampionPatchSlice` and `useChampionTrend` hold their request
+`pending`.** `useChampionScaling` and `useChampionTrend` hold their request
 until the champion's lane lands, and while held they resolve the empty read-model — which reaches
 `status: "success"` with nothing loaded. A consumer driving a skeleton off `status` therefore renders its
 "no data" state for the whole (client-only) champion fetch and only then fills in. Each composable now
@@ -106,8 +106,9 @@ runtime — #1590.
   on the element it keeps for good, and it opens on `pointermove`, so the resting pointer opens it on its next
   move and nothing is opened by hand. Arming does re-create the icon once (Vue cannot move the slot under the
   trigger), so a re-created icon whose picture was already painted comes back drawn — loaded, no fade,
-  `decoding="sync"` — instead of loading again, which blinked it out and back on the first hover
-  (`utils/icon-repaint.ts`).
+  `decoding="sync"` — instead of loading again, which blinked it out and back on the first hover. Arming waits
+  for the picture to be decoded in memory first: painted is not available, and an opaque `<img>` with no picture
+  yet paints its alt text (`utils/icon-repaint.ts`).
 
 - **Game-entity hover cards open above their icon, flipping below only when they must (2026-09-25, #1698).**
   `GameTooltip/LazyTooltip.vue` defaults `content` to `{ side: 'top' }` for every item, rune and spell card.
@@ -148,6 +149,11 @@ persistent/disk cache and a boot-time pre-warm were both **rejected**: they buy 
 same disk-exhaustion class that already crash-looped this box (#680). Pre-warming was rejected additionally
 because it fires ~500 requests at Riot and the volunteer-run CommunityDragon mirror on **every** boot, and this
 stack has had restart loops. What is left is payload size and queue depth — #997.
+↳ **Revised by #2425 (2026-11-03), at the product owner's request: both now exist.** The split above still holds
+for a warm proxy; what it left out is the first visitor after a deploy, who waited on every worker's upstream
+fetches. The two objections are answered rather than dropped: the disk cache (`server/utils/ipx-disk-cache.ts`)
+is bounded by bytes and age and only keeps the shapes the site asks for (`isDurableImagePath`), and the pre-warm reads
+that disk first, on a volume that outlives the container, so a boot or a restart loop fetches next to nothing upstream.
 
 **`SkeletonImage` serves WebP; `RankIcon` deliberately does not.** At the canonical 64×64 fetch size the live
 assets go champion 10194 B → 1100 B, perk 8933 B → 3396 B, item 6096 B → 2130 B with no visible difference —
@@ -590,10 +596,10 @@ and counts were written by hand in ~30 places, and a missing champion name was `
 - **Signed differences** — `shared/utils/deltas.ts`: `formatSigned` (`+312`, `−1,204`, the typographic minus,
   no sign on a zero) and `formatPointDelta` for a move between two rates, always in percentage points written
   `pts` (`+3.1 pts`). Unit, sign and decimals are options, never a hand-written copy.
-- **Percentages** `formatPercentage(OrDash)`, **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
+- **Percentages** `formatPercentage(OrDash)`, whole numbers by default since #2552 (`51%`, never `50.6%`; only `formatPercentageAdaptive` keeps a decimal, under 1%), **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
   recordings), **champion names** `championDisplayName` (`Champion {id}`), and lookups by id through
   `useChampionsById`, never a linear `find`.
-- **Positions** — `utils/positions.ts` holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
+- **Positions** — `web/shared/utils/positions.ts` (site, app and admin) holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the
   names (`positionLabel`; `short` gives the app's `Mid` / `Bot`) and the icons (`getPositionIconUrl`).
 
 ## Favorites beyond players: a key per shape, no matchups, the clip flag stays the library's (2026-10-20)
@@ -619,3 +625,71 @@ their position) and, in the app, clips.
   champions, never clips.
 - **One star**: `FavoriteStar.vue` draws every star (filled when on), so the players, champions and clips on the
   page read the same.
+
+## The directory and the tier list render on the server, and the HTML no longer prefetches the whole site (2026-11-03)
+
+**The first HTML of `/champions` and `/champions/tierlist` holds the rows** (#2425): `useChampionDirectory`, the tier
+list's fetch and `useChampionStaticList` now run during SSR, and neither page wraps its body in `<ClientOnly>`. They were
+client-only since #149, whose mismatch came from a client-only fetch racing the render: awaited on the server and
+hydrated from the payload, both sides render the same branch. The API answers these from the warmed cache, so SSR
+costs them nothing. The rune and item icons stay client-only, the item map being far too large to inline
+(`useStaticItems`), and their cells hold a placeholder until those lookups land. A first-load latch that reads a
+watcher never settles during SSR, where no watcher runs, and bakes the skeleton into the HTML: `isInitialLoading` reads
+the status as well.
+
+**`build:manifest` drops the prefetch links.** Nuxt lists every lazy chunk as `<link rel="prefetch">` in every page's
+HTML by default, so a visitor to `/about` downloaded the whole site, the charts' library included, which alone was
+about 40% of a page's JS. **A `<NuxtLink>` preloads when it is about to be used, not as soon as it is on screen**
+(`prefetchOn`, #2431): the navigation bar alone had every visitor download the other pages' chunks on landing, and a
+hover leads the click by enough to fetch them. **Public assets are precompressed**
+(`nitro.compressPublicAssets`, brotli and gzip at build time), and the edge's `encode` leaves them as they are.
+
+Source: #2425, #149, #818.
+
+## The pages everyone reads come from a cache the workers share (2026-11-03)
+
+**Decision:** `server/utils/html-cache.ts` answers `/`, `/champions`, the tier list, a champion's page and `/truemains`
+from a file per page, before anything renders them. Fresh for a minute; for an hour after that it is still served at
+once while a background render replaces it. The warm-up renders every champion page before the site opens — #2431.
+
+- **Why.** A render costs 100–450 ms of a worker's only thread, for HTML that is the same for every visitor, and a
+  render per visit is what limits how many visitors a worker can take.
+- **Why files.** The workers are separate processes and only a file reaches them all, so a page is rendered once for
+  the three of them. Not on a volume: a page names its build's script files, so it must not outlive its build.
+- **Not Nitro's `swr` route rule**, which the text pages use. Its store has no bound, so junk parameters would grow it
+  without limit, and it caches a page whose fetch failed under its 200.
+- **What keeps a visitor's or a moment's page from reaching the next visitor.** Nothing in these pages' server render
+  reads a cookie or a visitor's header. A render with a failed fetch is not stored (`html-cache-guard.server.ts`, the
+  rule of #1557). Neither is a page that set a cookie, nor one asked for on a host other than the site's, since a
+  page prints its own address. A query parameter these pages do not read renders without being stored.
+- **A render the process asks for itself goes past the cache, with the host and the protocol the edge would send.**
+  Without them it would print `http://localhost` in its share links.
+- **The warm-up's renders come from documentation addresses (RFC 5737), one per page**, so the API's per-client limit
+  has no reason to apply: rendering every champion is a few thousand reads in under a minute from one container.
+
+Source: #2431, #2425, #1557.
+
+## Only a 404 is "not found": a remote read is one `RemoteRead` phase (2026-11-08)
+
+**Decision:** a client read of one resource (the truemain profile, its matches, rank history and activity, a
+known player, a match's detail) is one `RemoteRead<T>` value (`web/layers/common/app/utils/remote-read.ts`):
+`waiting | cleared | loading(previous) | ready | notFound | error(previous)`. `useTruemainFetch` holds it; its
+`isLoading` / `isInitialLoading` / `notFound` / `error` are read-only views of it. A request lets a failed
+response throw (no `ignoreResponseError`), and only a thrown 404 becomes `notFound`; a 5xx, a 429 or a network
+failure is an `error`, shown with `FetchErrorAlert`, and the last answer stays on screen beside it.
+In the desktop app the shell rejects with a string (`TrueMain answered 404 …`, `api.rs`); its `useApiFetch` hands
+the shared pages that rejection as the same ofetch-shaped error (`desktop/app/app/utils/shell-error.ts`).
+
+- **Why.** With `ignoreResponseError` every failure resolved to an error body, failed the shape check and read as
+  "not found": an API outage answered `/players/{slug}` with an "Unknown player" page *and an HTTP 404 to
+  crawlers*, told a favorite's follower the player was "no longer tracked", and showed "Player not found" under a
+  profile that had loaded. Four independent refs also let "loading" stick on after the name tag emptied, and let a
+  previous not-found or error stand while the next request loaded.
+- **Why the SSR status stays 200 on an error.** The edge answers a 503 with its own maintenance page
+  (`compose.*.edge.yaml`), so the page says the failure itself; only a real 404 sets a 404, as
+  `useTruemainPageIndexing` already did ("a 502 or a 429 is no verdict").
+- **How to apply.** A new read of one resource uses `RemoteRead` and `isNotFoundError`; a host that receives an
+  `error` renders it (`MatchHistoryList` takes an `error` prop, `MatchDetailState` an optional `error`). The
+  panel-level phase for champion pages and directories is #2469.
+
+Source: #2476, #2468, #2359, #2336.

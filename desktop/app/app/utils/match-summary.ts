@@ -1,6 +1,5 @@
-import type { ProfileRanked } from '#shared/types/profile'
-import type { MatchSummaryResponse, MatchSummarySelf } from '#shared/types/matches'
-import type { MatchDetailResponse } from '#shared/types/match-detail'
+import type { MatchSummaryReadModel, MatchSummarySelfReadModel, ProfileRankedReadModel } from '#shared/contract/api'
+import type { MatchDetail } from '#shared/types/match-detail'
 import type { GameParticipant, PlayerGame, RankedQueue, TimelineMark } from '~/types/record'
 import type { ScoredParticipant } from '~/utils/match-performance'
 import { gradeMatch } from '~/utils/match-performance'
@@ -19,7 +18,7 @@ import { killParticipation } from '~/utils/player-form'
  */
 
 /** The score half of a match row's `self`. */
-export type GameScore = Pick<MatchSummarySelf, 'performanceScore' | 'placement' | 'isMvp' | 'isAce'>
+export type GameScore = Pick<MatchSummarySelfReadModel, 'performanceScore' | 'placement' | 'isMvp' | 'isAce'>
 
 /** A game this short was a remake (`lcu::record`): never graded. */
 const REMAKE_SECONDS = 300
@@ -44,7 +43,7 @@ function scoredFromRecord(p: GameParticipant): ScoredParticipant {
  * The client's read of one game (`player_game`) with its ten players graded
  * — the scoreboard of the opened row, consistent with the row itself.
  */
-export function gradeDetail(detail: MatchDetailResponse): MatchDetailResponse {
+export function gradeDetail(detail: MatchDetail): MatchDetail {
   if (detail.gameDurationSeconds < REMAKE_SECONDS) return detail
   const graded = gradeMatch(detail.participants.map(p => ({
     participantId: p.participantId,
@@ -74,9 +73,10 @@ export function gradeDetail(detail: MatchDetailResponse): MatchDetailResponse {
 
 const MAP_MODES: Record<number, string> = { 11: 'CLASSIC', 12: 'ARAM', 30: 'CHERRY' }
 
-export function toMatchSummary(game: PlayerGame, lpDelta: number | null, stored?: GameScore | null): MatchSummaryResponse {
+export function toMatchSummary(game: PlayerGame, lpDelta: number | null, stored?: GameScore | null): MatchSummaryReadModel {
   return {
     matchId: String(game.gameId),
+    isTruncated: false,
     queueId: game.queueId,
     gameMode: MAP_MODES[game.mapId] ?? 'CLASSIC',
     gameStartTimeUtc: new Date(game.playedAt).toISOString(),
@@ -108,7 +108,7 @@ export function toMatchSummary(game: PlayerGame, lpDelta: number | null, stored?
 }
 
 /** The client's Solo/Duo standing as the site's ranked card reads it. */
-export function toProfileRanked(queue: RankedQueue | null): ProfileRanked | null {
+export function toProfileRanked(queue: RankedQueue | null): ProfileRankedReadModel | null {
   if (!queue?.tier || queue.tier === 'NONE') return null
   const games = queue.wins + queue.losses
   return {

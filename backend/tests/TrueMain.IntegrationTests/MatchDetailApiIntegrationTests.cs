@@ -90,7 +90,7 @@ public sealed class MatchDetailApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/truemains/Phantasm-EUW1/matches/{MatchId}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var detail = await response.Content.ReadFromJsonAsync<MatchDetailReadModel>();
+        var detail = await response.Content.ReadFromJsonAsync<MatchDetailReadModel>(ApiJson.Options);
         detail.Should().NotBeNull();
 
         // ── Header ──────────────────────────────────────────────────────────

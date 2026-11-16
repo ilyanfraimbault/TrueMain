@@ -1,3 +1,4 @@
+import type { ItemContextAxis, ItemContextBucket } from '#shared/contract/api'
 import type { ItemContextPhraseToken, ItemContextTone } from '#shared/utils/item-context'
 
 /**
@@ -16,7 +17,7 @@ function phrase(...parts: (string | [string, ItemContextTone])[]): ItemContextPh
   return parts.map(part => (typeof part === 'string' ? { text: part } : { text: part[0], tone: part[1] }))
 }
 
-const BUILT_AXIS_PHRASES: Record<string, { high: ItemContextPhraseToken[], low: ItemContextPhraseToken[] }> = {
+const BUILT_AXIS_PHRASES: Partial<Record<NonNullable<ItemContextAxis>, { high: ItemContextPhraseToken[], low: ItemContextPhraseToken[] }>> = {
   EnemyArmorBuilt: {
     high: phrase('once the enemies have built ', ['armor', 'armor']),
     low: phrase('while the enemies have little ', ['armor', 'armor']),
@@ -51,6 +52,7 @@ const BUILT_AXIS_PHRASES: Record<string, { high: ItemContextPhraseToken[], low: 
 export const BUILT_AXES: readonly string[] = Object.keys(BUILT_AXIS_PHRASES)
 
 /** How an in-game reason reads, or null for an axis this module does not word. */
-export function builtAxisPhrase(axis: string, bucket: 'High' | 'Low'): ItemContextPhraseToken[] | null {
+export function builtAxisPhrase(axis: ItemContextAxis, bucket: ItemContextBucket): ItemContextPhraseToken[] | null {
+  if (!axis) return null
   return BUILT_AXIS_PHRASES[axis]?.[bucket === 'High' ? 'high' : 'low'] ?? null
 }

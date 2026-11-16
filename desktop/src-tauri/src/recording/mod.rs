@@ -32,7 +32,7 @@ use capture_helper::HelperCapture;
 use game_recording::{AutoClipKind, ClipStore, MarkLength, RecordingSettings, Session, Store};
 use lcu::GameflowPhase;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 
 pub use commands::*;
@@ -40,11 +40,19 @@ pub use publish::*;
 pub use views::RecordingStatusView;
 
 /// The recording state changed: started, stopped, finalised.
-pub const STATUS_EVENT: &str = "recording://status";
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "recording://status")]
+pub struct RecordingStatusChanged(pub RecordingStatusView);
 /// Something in the library changed: read it again.
-pub const LIBRARY_EVENT: &str = "recording://library";
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "recording://library")]
+pub struct LibraryChanged;
 /// The game just played stopped recording: open its recap.
-pub const RECAP_EVENT: &str = "recording://recap";
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "recording://recap")]
+pub struct RecapReady {
+    pub id: String,
+}
 
 /// Use this helper binary instead of the bundled one.
 const HELPER_VAR: &str = "TRUEMAIN_CAPTURE_HELPER";
@@ -57,13 +65,100 @@ const ASKED_FILE: &str = "screen-recording-asked";
 /// The game being recorded, shared between the runner and the mark key.
 pub(crate) type SharedSession = Arc<Mutex<Session<HelperCapture>>>;
 
-/// The game the runner is busy with, for the status the page shows.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Activity {
-    pub recording: Option<i64>,
-    pub processing: Option<i64>,
+/// What the runner is busy with (#2472): one state, read by the mark and
+/// Flash keys, the status the sidebar shows and the library alike, so none of
+/// them can say a game records while another says it is over. Mirrored as
+/// `RecordingActivity` in `desktop/app/app/types/recordings.ts`.
+#[derive(Clone, Default, Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum Activity {
+    #[default]
+    Idle,
+    /// A game records: the mark and Flash keys write into its session.
+    Recording {
+        #[serde(rename = "gameId")]
+        game_id: i64,
+        /// The id of the recording being written.
+        #[serde(skip)]
+        folder: String,
+        #[serde(skip)]
+        session: SharedSession,
+    },
+    /// The game is over: its recording is being stopped, cut and finalised
+    /// once the match history has it (highlights not final yet).
+    Processing {
+        #[serde(rename = "gameId")]
+        game_id: i64,
+        #[serde(skip)]
+        folder: String,
+    },
+}
+
+impl Activity {
     /// The id of the recording being written or finalised.
-    pub folder: Option<String>,
+    pub fn folder(&self) -> Option<&str> {
+        match self {
+            Self::Idle => None,
+            Self::Recording { folder, .. } | Self::Processing { folder, .. } => Some(folder),
+        }
+    }
+
+    /// Whether the recording `id` is the one being written right now.
+    pub fn records(&self, id: &str) -> bool {
+        matches!(self, Self::Recording { folder, .. } if folder == id)
+    }
+
+    fn session(&self) -> Option<&SharedSession> {
+        match self {
+            Self::Recording { session, .. } => Some(session),
+            _ => None,
+        }
+    }
+
+    /// The game ended: what was recording is now being processed.
+    fn finished(self) -> Self {
+        match self {
+            Self::Recording {
+                game_id, folder, ..
+            } => Self::Processing { game_id, folder },
+            other => other,
+        }
+    }
+}
+
+impl std::fmt::Debug for Activity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Idle => f.write_str("Idle"),
+            Self::Recording {
+                game_id, folder, ..
+            } => f
+                .debug_struct("Recording")
+                .field("game_id", game_id)
+                .field("folder", folder)
+                .finish_non_exhaustive(),
+            Self::Processing { game_id, folder } => f
+                .debug_struct("Processing")
+                .field("game_id", game_id)
+                .field("folder", folder)
+                .finish(),
+        }
+    }
+}
+
+/// Whether the app can record. Mirrored as `CaptureAvailability`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Availability {
+    /// The helper is there and Screen Recording is allowed.
+    Ready,
+    /// Screen Recording is not allowed for the app (macOS).
+    Permission,
+    /// No capture helper on this platform (Linux), or a Windows too old for
+    /// window capture.
+    Unsupported,
+    /// The helper should be there and is not (a broken install).
+    Missing,
 }
 
 /// The recorder, managed by Tauri.
@@ -74,8 +169,6 @@ pub struct Recorder {
     helper: Option<PathBuf>,
     settings: Mutex<RecordingSettings>,
     activity: Mutex<Activity>,
-    /// The game recording now, for the mark key; `None` between games.
-    session: Mutex<Option<SharedSession>>,
     phase: watch::Sender<GameflowPhase>,
 }
 
@@ -108,7 +201,6 @@ impl Recorder {
             helper: helper_path(),
             settings: Mutex::new(settings),
             activity: Mutex::new(Activity::default()),
-            session: Mutex::new(None),
             phase,
         });
         (recorder, receiver)
@@ -151,29 +243,33 @@ impl Recorder {
         *self.activity.lock().expect("activity poisoned") = activity;
     }
 
-    fn set_session(&self, session: Option<SharedSession>) {
-        *self.session.lock().expect("session slot poisoned") = session;
+    /// The game recording stopped: in one step, so nothing reads it as still
+    /// recording once the mark key is off.
+    fn finish_recording(&self) {
+        let mut activity = self.activity.lock().expect("activity poisoned");
+        *activity = std::mem::take(&mut *activity).finished();
+    }
+
+    /// The game recording now, for the mark and Flash keys.
+    fn session(&self) -> Option<SharedSession> {
+        self.activity
+            .lock()
+            .expect("activity poisoned")
+            .session()
+            .cloned()
     }
 
     /// The chord that marks a moment, while a game records: the key watch
     /// reads it then and only then.
     pub fn mark_key(&self) -> Option<shell_state::keys::Chord> {
-        let recording = self
-            .session
-            .lock()
-            .expect("session slot poisoned")
-            .is_some();
+        let recording = self.session().is_some();
         recording.then(|| self.settings().mark_key).flatten()
     }
 
     /// Whether the key watch reads the Flash key: while a game records and the
     /// Flash plays are among the automatic clips chosen (#2382).
     pub fn reads_flash(&self) -> bool {
-        let recording = self
-            .session
-            .lock()
-            .expect("session slot poisoned")
-            .is_some();
+        let recording = self.session().is_some();
         recording
             && self
                 .settings()
@@ -184,7 +280,7 @@ impl Recorder {
     /// The player pressed their Flash key: note this second of the game being
     /// recorded, for the Flash plays cut once it is finalised.
     pub fn flash(&self) {
-        let Some(session) = self.session.lock().expect("session slot poisoned").clone() else {
+        let Some(session) = self.session() else {
             return;
         };
         let noted = session.lock().expect("session poisoned").flash();
@@ -201,11 +297,7 @@ impl Recorder {
     /// kept, for the overlay's confirmation (#1767); `None` when nothing was
     /// marked.
     pub fn mark(&self) -> Option<MarkLength> {
-        let session = self
-            .session
-            .lock()
-            .expect("session slot poisoned")
-            .clone()?;
+        let session = self.session()?;
         let length = self.settings().mark_length;
         let marked = session
             .lock()
@@ -234,32 +326,30 @@ impl Recorder {
     /// Whether the app can record, and if not why.
     pub fn status(&self) -> RecordingStatusView {
         let (availability, message) = match self.helper() {
-            None => ("unsupported", None),
+            None => (Availability::Unsupported, None),
             Some(helper) if !helper.is_file() => (
-                "missing",
+                Availability::Missing,
                 Some(format!(
                     "the capture helper is missing ({})",
                     helper.display()
                 )),
             ),
             Some(helper) => match media::access(helper, AccessRequest::Check) {
-                Ok(true) => ("ready", None),
+                Ok(true) => (Availability::Ready, None),
                 // Windows asks no permission: a refusal means this Windows
                 // has no window capture at all.
                 Ok(false) if cfg!(windows) => (
-                    "unsupported",
+                    Availability::Unsupported,
                     Some("Recording needs Windows 10 version 1903 or later.".into()),
                 ),
-                Ok(false) => ("permission", None),
-                Err(error) => ("missing", Some(error.0)),
+                Ok(false) => (Availability::Permission, None),
+                Err(error) => (Availability::Missing, Some(error.0)),
             },
         };
-        let activity = self.activity();
         RecordingStatusView {
             availability,
             message,
-            recording_game_id: activity.recording,
-            processing_game_id: activity.processing,
+            activity: self.activity(),
         }
     }
 
@@ -299,20 +389,15 @@ pub fn start(app: &AppHandle, recorder: SharedRecorder, phases: watch::Receiver<
 }
 
 pub(crate) fn emit_status(app: &AppHandle, recorder: &Recorder) {
-    let _ = app.emit(STATUS_EVENT, recorder.status());
+    crate::contract::emit(app, RecordingStatusChanged(recorder.status()));
 }
 
 pub(crate) fn emit_library(app: &AppHandle) {
-    let _ = app.emit(LIBRARY_EVENT, ());
-}
-
-#[derive(Clone, Serialize)]
-struct Recap {
-    id: String,
+    crate::contract::emit(app, LibraryChanged);
 }
 
 pub(crate) fn emit_recap(app: &AppHandle, id: String) {
-    let _ = app.emit(RECAP_EVENT, Recap { id });
+    crate::contract::emit(app, RecapReady { id });
 }
 
 /// Where the helper is: an override, the one bundled beside the app's binary
@@ -355,4 +440,74 @@ fn helper_path() -> Option<PathBuf> {
         }
     }
     Some(bundled)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn session() -> SharedSession {
+        Arc::new(Mutex::new(Session::new(HelperCapture::new(
+            PathBuf::from("helper"),
+            None,
+            "window".into(),
+            false,
+        ))))
+    }
+
+    fn recording() -> Activity {
+        Activity::Recording {
+            game_id: 7,
+            folder: "game-7".into(),
+            session: session(),
+        }
+    }
+
+    #[test]
+    fn only_a_recording_game_has_a_session_for_the_mark_key() {
+        assert!(Activity::Idle.session().is_none());
+        assert!(recording().session().is_some());
+        assert!(recording().finished().session().is_none());
+    }
+
+    #[test]
+    fn a_finished_recording_is_processed_under_the_same_game_and_folder() {
+        let processing = recording().finished();
+        assert!(matches!(
+            &processing,
+            Activity::Processing { game_id: 7, folder } if folder == "game-7"
+        ));
+        assert_eq!(processing.folder(), Some("game-7"));
+        assert!(!processing.records("game-7"), "no longer being written");
+        assert!(recording().records("game-7"));
+        assert!(!recording().records("game-8"));
+    }
+
+    #[test]
+    fn finishing_anything_but_a_recording_changes_nothing() {
+        assert!(matches!(Activity::Idle.finished(), Activity::Idle));
+        assert!(matches!(
+            recording().finished().finished(),
+            Activity::Processing { game_id: 7, .. }
+        ));
+        assert_eq!(Activity::Idle.folder(), None);
+    }
+
+    #[test]
+    fn the_wire_shape_is_the_apps_union() {
+        let json = |activity: Activity| serde_json::to_value(activity).expect("serialises");
+        assert_eq!(json(Activity::Idle), serde_json::json!({ "kind": "idle" }));
+        assert_eq!(
+            json(recording()),
+            serde_json::json!({ "kind": "recording", "gameId": 7 })
+        );
+        assert_eq!(
+            json(recording().finished()),
+            serde_json::json!({ "kind": "processing", "gameId": 7 })
+        );
+        assert_eq!(
+            serde_json::to_value(Availability::Permission).expect("serialises"),
+            serde_json::json!("permission")
+        );
+    }
 }

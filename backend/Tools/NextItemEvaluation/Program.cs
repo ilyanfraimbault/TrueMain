@@ -34,7 +34,10 @@ var totals = CsvRows.Read<ChampionItemContextTotal>(File("totals.csv"))
     .Where(row => trainWindow.Contains(row.Patch))
     .ToLookup(row => (row.ChampionId, row.Position));
 var profiles = ChampionProfileSnapshot.FromRows(
-    CsvRows.Read<ChampionProfileStat>(File("profiles.csv")), testPatch, lookbackPatches: 2, minGames: 100);
+    CsvRows.Read<ChampionProfileStat>(File("profiles.csv")),
+    testPatch,
+    ChampionProfileSnapshotRules.LookbackPatches,
+    ChampionProfileSnapshotRules.MinGames);
 
 var roster = CsvRows.Records(File("roster.csv")).Skip(1)
     .Select(record => new Seat(
@@ -53,7 +56,7 @@ var testRecords = CsvRows.Records(File("tp.csv")).Skip(1).ToList();
 using var http = new HttpClientHandler();
 var metadataProvider = new CommunityDragonItemMetadataProvider(
     () => new HttpClient(http, disposeHandler: false), NullLogger<CommunityDragonItemMetadataProvider>.Instance, TimeProvider.System);
-var metadata = await metadataProvider.GetItemsAsync(testRecords[0][13], CancellationToken.None);
+var metadata = (await metadataProvider.GetItemsAsync(testRecords[0][13], CancellationToken.None)).Require("Item metadata");
 var thresholds = new DraftAxisThresholds();
 
 // The test decisions, resolved once: every build edge and the boots of every test game,

@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Data;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 
 namespace TrueMain.IntegrationTests;
 

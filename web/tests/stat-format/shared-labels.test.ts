@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { championDisplayName } from '~~/shared/utils/champion-name'
-import { compareByPosition, positionIndex, positionLabel } from '#common/utils/positions'
+import { compareByPosition, positionIndex, positionLabel } from '#shared/utils/positions'
 import { formatDuration } from '#common/utils/relativeTime'
 
 describe('championDisplayName', () => {

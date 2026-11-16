@@ -41,8 +41,7 @@ function clip(id: string, createdAtMs: number): Clip {
     videoPath: `/clips/${id}.mp4`,
     thumbnailPath: null,
     moments: [],
-    youtubeUrl: null,
-    videoOnDisk: true,
+    video: { kind: 'local' },
     automatic: [],
   }
 }
@@ -53,7 +52,7 @@ beforeEach(() => {
   vi.stubGlobal('computed', computed)
   vi.stubGlobal('useRecordings', () => ({ library, status }))
   vi.stubGlobal('useChampionStatics', () => ({ nameOf: () => 'Ahri' }))
-  status.value = { availability: 'ready' } as RecordingStatus
+  status.value = { availability: 'ready', message: null, activity: { kind: 'idle' } }
   library.value = null
 })
 

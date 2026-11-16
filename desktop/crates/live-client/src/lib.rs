@@ -31,7 +31,7 @@ pub mod poll;
 pub mod timers;
 
 pub use feed::{Emission, GameFeed, GameUpdate};
-pub use game::{GameChange, GameItem, GamePlayer, GameSpell, GameState, Team};
+pub use game::{GameChange, GameItem, GamePlayer, GameSpell, GameState, Team, GOLD_STEP};
 pub use model::AllGameData;
 pub use objectives::{Objectives, TeamObjectives};
 pub use pace::{Pace, PaceSample};

@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using TrueMain.Configuration;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -7,16 +10,17 @@ namespace TrueMain.Options;
 ///
 /// <para>
 /// <see cref="PickRateWeight"/> + <see cref="BanRateWeight"/> +
-/// <see cref="WinRateWeight"/> must sum to <c>1</c> (enforced at startup in
-/// <c>Program.cs</c>): each metric is percentile-ranked into <c>[0, 1]</c>
+/// <see cref="WinRateWeight"/> must sum to <c>1</c> (enforced at startup): each metric is percentile-ranked into <c>[0, 1]</c>
 /// before weighting, so a score of <c>1.0</c> (or a renormalized ban-free
 /// score — see <see cref="BanRateWeight"/>) is only guaranteed to stay within
 /// <c>[0, 1]</c> when the weights themselves sum to <c>1</c>.
 /// </para>
 /// </summary>
-public sealed class ChampionTierOptions
+public sealed class ChampionTierOptions : IApiOptions, IValidatableObject
 {
     public const string SectionName = "ChampionTier";
+
+    static string IApiOptions.Section => SectionName;
 
     /// <summary>
     /// Weight applied to a row's lane-percentile pick rate. The dominant term
@@ -61,4 +65,35 @@ public sealed class ChampionTierOptions
     /// touching genuinely well-sampled staples.
     /// </summary>
     public int WinRateShrinkageGames { get; set; } = 100;
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+    {
+        if (PickRateWeight < 0)
+        {
+            yield return new ValidationResult("ChampionTier:PickRateWeight must be >= 0.");
+        }
+
+        if (BanRateWeight < 0)
+        {
+            yield return new ValidationResult("ChampionTier:BanRateWeight must be >= 0.");
+        }
+
+        if (WinRateWeight < 0)
+        {
+            yield return new ValidationResult("ChampionTier:WinRateWeight must be >= 0.");
+        }
+
+        // Must sum to 1 (not just "> 0"): TierScore is documented as a [0,1] blend of
+        // percentile-ranked metrics, and the no-ban-data renormalization path
+        // (ChampionTierCalculator.ResolveWeights) only preserves that bound if the weights start at 1.
+        if (Math.Abs(PickRateWeight + BanRateWeight + WinRateWeight - 1.0) >= 1e-9)
+        {
+            yield return new ValidationResult("ChampionTier: PickRateWeight + BanRateWeight + WinRateWeight must sum to 1.");
+        }
+
+        if (WinRateShrinkageGames < 0)
+        {
+            yield return new ValidationResult("ChampionTier:WinRateShrinkageGames must be >= 0.");
+        }
+    }
 }

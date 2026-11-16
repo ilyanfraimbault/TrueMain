@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Data.Entities;
+using Data.Pipeline;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -9,6 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TrueMain.UnitTests.Fixtures;
+using Data.Ops.Mongo;
 
 namespace TrueMain.UnitTests;
 
@@ -20,7 +23,7 @@ namespace TrueMain.UnitTests;
 public sealed class WorkerProcessIsolationTests
 {
     // The keys the worker resolves each step of a Full pass under.
-    private static readonly IReadOnlyList<JobMode> FullSequence = JobModeSequence.For(JobMode.Full);
+    private static readonly IReadOnlyList<JobMode> FullSequence = PipelineCatalog.Steps.Select(step => step.Mode).ToList();
 
     [Fact]
     public async Task ExecuteAsync_RunsRemainingProcesses_WhenFirstProcessThrows()
@@ -64,7 +67,9 @@ public sealed class WorkerProcessIsolationTests
             FullSequence[0],
             new RecordedProcess<ThrowingProcess>(
                 new ThrowingProcess("Discovery"),
+                TestPipelineSteps.Named("Discovery"),
                 recorder,
+                Substitute.For<IProcessRunStore>(),
                 TimeProvider.System,
                 NullLogger<RecordedProcess<ThrowingProcess>>.Instance));
         foreach (var step in FullSequence.Skip(1))
@@ -173,14 +178,15 @@ public sealed class WorkerProcessIsolationTests
             RunOnce = true
         });
 
+        var workerMetrics = TestIngestorMetrics.Create();
         return new Worker(
             NullLogger<Worker>.Instance,
             scopeFactory,
             jobOptions,
             iterationContext,
-            new CallerContext(),
+            new ProcessRunner(scopeFactory, new CallerContext(), workerMetrics, NullLogger<ProcessRunner>.Instance),
             lifetime,
-            TestIngestorMetrics.Create(),
+            workerMetrics,
             TimeProvider.System,
             NoHeartbeatFile.Instance);
     }
@@ -189,7 +195,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => mode.ToString();
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             executed.Add(mode);
@@ -206,7 +212,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             observed.Add(iterationContext.CurrentIterationId);
@@ -218,7 +224,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             throw new InvalidOperationException("simulated process failure");
@@ -229,7 +235,7 @@ public sealed class WorkerProcessIsolationTests
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             await cts.CancelAsync();

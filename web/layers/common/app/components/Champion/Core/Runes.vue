@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { BuildRunePage } from '#shared/types/champions'
+import type { BuildRunePageReadModel } from '#shared/contract/api'
 import type { RuneTreeResponse, RuneTreeStyle } from '#shared/types/static-data'
 
 const props = defineProps<{
-  page: BuildRunePage
+  page: BuildRunePageReadModel
   tree: RuneTreeResponse
   /** Base size (px) for the regular perks. Other rows scale from this. */
   size?: number

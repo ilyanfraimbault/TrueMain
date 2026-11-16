@@ -1,12 +1,13 @@
 import type { HudSettings } from '~/types/overlay'
 import type { Box, Size } from '~/utils/overlay-layout'
 import { SCOREBOARD_NUDGE } from '~/types/overlay'
+import { OVERLAY_GEOMETRY } from '~/generated/shell'
 
 /**
  * Where the game draws its TAB scoreboard's rows (#2186), for the Overlay
- * page's copy of the screen and the dev pages: the shell places the lane-gold
- * window by the same rule (`crates/shell-state/src/scoreboard.rs`, whose tests
- * hold the same values as `tests/scoreboard-geometry.test.ts`).
+ * page's copy of the screen and the dev pages: the shell's rule
+ * (`crates/shell-state/src/scoreboard.rs`) with the shell's measures, checked
+ * against what the shell computes by `tests/overlay-geometry.test.ts`.
  *
  * Centred across the window, five rows growing upwards from a fixed bottom
  * edge as the HUD scale grows, sized by the window's height against 1080p
@@ -16,12 +17,15 @@ import { SCOREBOARD_NUDGE } from '~/types/overlay'
  * several HUD scales** — the nudge covers what they miss.
  */
 
-const REFERENCE = { width: 1920, height: 1080 } as const
-export const SCOREBOARD_ROWS = 5
-const ROW_PITCH_AT_ZERO = 66.4
-const HUD_GROWTH = 0.52
-const ROWS_BOTTOM_BELOW_MIDDLE = 152.8
-const BOARD_WIDTH_AT_ZERO = 996.5
+const {
+  reference: REFERENCE,
+  rows: SCOREBOARD_ROWS,
+  rowPitchAtZero: ROW_PITCH_AT_ZERO,
+  hudGrowth: HUD_GROWTH,
+  rowsBottomBelowMiddle: ROWS_BOTTOM_BELOW_MIDDLE,
+  boardWidthAtZero: BOARD_WIDTH_AT_ZERO,
+} = OVERLAY_GEOMETRY.scoreboard
+export { SCOREBOARD_ROWS }
 
 export interface ScoreboardRows {
   /** The board's middle, across. */

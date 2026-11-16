@@ -1,5 +1,5 @@
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using AwesomeAssertions;
 using Ingestor.Processes.Components.MatchIngestion;
 using Ingestor.Riot.Dto;

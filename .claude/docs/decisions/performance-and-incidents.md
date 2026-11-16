@@ -381,3 +381,76 @@ the deploy the chart counts fewer games until the backlog is through. The direct
 moved to #1945, conditional on a cold-p95 measurement after this ships.
 
 Source: #1368, #628, #1945.
+
+## A warm pass fills the next version before anyone reads it, and the site waits for the first one (2026-11-03)
+
+**Decision.** With `ChampionWarmup:Enabled`, the API replays the site's own requests over loopback at boot and
+after each aggregation run (`Services/Champions/Warmup`). A pass computes under a version of its own, and
+`ChampionReadVersion.Publish` moves every reader to it once it is complete. `/readyz` answers `503` `Degraded`
+until the first pass has published, or `ReadyBudgetSeconds` has gone by, which keeps the public site on the
+maintenance page. This revises the 2026-09-02 entry above on one point: a new stamp no longer retires what readers
+are on. Off by default, so a local API and the test hosts still follow the stamp — #2425, product owner: every page
+under one second, cold or hot, "on reste sur la page maintenance pendant le chauffage".
+
+- **Why a version flip and not a stale-while-revalidate entry.** Every champion read computes on the caller's
+  request-scoped `DbContext`, so a read that answers stale cannot refresh itself once its request ends. A refresh per
+  entry would need each of the 36 call sites to say how to recompute it from nothing. The pass needs none of that, and
+  a reader never sees two versions on one page.
+- **Why requests, not calls into the query services.** The URLs are the ones the site sends, so what is warmed is what
+  is read; a call that normalised one parameter differently would warm an entry nobody hits. They also warm what a
+  direct call would not: routing, serialisers, the first run of each query.
+- **What is warmed.** The directory and the tier list on every rank, population and patch that still has builds;
+  each champion's page as it opens (default rank, active patch, each of its lines); the leaderboard's counts and
+  rankings. A rank or patch picked on a champion page afterwards reads on demand, and those reads do not touch the
+  directory's cost. A leaderboard combining a filter with a non-default sort is still read on demand.
+- **The directory reads a patch once** (`ChampionDirectoryTopBuilds`, `ChampionDirectoryScopeGroups`). Each slice used to
+  run the same scans with a different filter and bring the same dimensions up with it. Games and wins add up across
+  rank bands and populations, so the rows are kept per band and population and a slice is a walk over them in memory.
+  Filling every slice went from a pair of scans per slice to one per patch. The patterns read runs under a
+  `statement_timeout` of its own, in a transaction: a smaller host takes close to a minute over it, and each slice of the
+  patch ran it again after a timeout. Per champion, every statement is short but each row costs a random heap read,
+  where the single read scans the table. A failed read is not retried for a minute (`failureBackoff`).
+- **The leaderboard's count and rankings moved onto the read cache.** The count was nearly all of what a page of the
+  default board cost, recomputed every 30 s for a figure that only sizes the pager. The rankings were not cached at
+  all any more: their entry cap dated from a much smaller population, so each page of a sorted board rescanned. Their
+  order now moves with the aggregation version; the figures on a row still come from the 30 s response.
+- **The leaderboard reads its population once (`LeaderboardPopulation`, #2431).** Every account it can show and their
+  mains, per aggregation version: any combination of filters and sorts is then a walk in memory, where each shape used
+  to re-run its eligibility at seconds a shape, and rarely came up twice within its cache. The figures behind the stat
+  sorts are read once for everyone and narrowed the same way, and the dedication order is scored in memory, which
+  retires the 50,000-candidate cap and its truncated tail. A rank-sorted board's first pages stay on SQL, whose order is
+  live; past 1,000 rows it reads the population's order, up to a pass old, rather than skip that many rows. The rows of
+  a page are always read fresh.
+- **The cache's cap went from 1 024 to 32 768 entries**, because a pass alone fills several thousand, twice over while
+  it replaces the version readers are on.
+
+**Web warms behind the same gate** (`server/plugins/warmup.ts`). Once the API is ready, each worker reads the static
+data, renders the main pages a few times and reads what a champion page keeps in memory, for itself, since V8's
+optimised code and the Nitro cached functions are per process; one of them then fetches the catalogue's images onto the shared disk. `/api/readyz` answers
+`503` `warming` until they have all finished, or `warmupBudgetSeconds` has gone by. The workers report through files in
+a directory named after the primary's start time: Nitro's cluster preset owns the primary, which also loads the
+plugins and serves nothing, and a restarted container keeps its `/tmp`.
+
+Rejected: a rollup table written by the aggregation lane (#1945). It would make the directory free at boot, but moves
+the tree-walk out of the API for a gain the warm-up already gets without a schema change.
+
+Source: #2425, #1945, #1368.
+
+## Every cached Api read goes through one door; an unavailable measurement is a value (2026-11-10)
+
+**Decision.** `ApiCache.GetOrComputeAsync(key, lifetime, compute, ct, size, failureBackoff)` is the one
+read-through primitive of the Api: presence-checked cache, a shared single flight whose pass runs detached from
+any one caller (the owner waits for it, its scoped `DbContext` being borrowed), a sized entry, and an optional
+failure backoff (keyed apart from a versioned key, so a failed read is not retried because the version moved).
+`ChampionReadCache` is that door plus the aggregation version; the leaderboard, the in-game lookup, the nav
+counts, champion stats, benchmarks, apex cutoffs, region balance, run baselines, activity bounds and the player
+performance panel go through it instead of `TryGetValue` + `Store` (+ coalescer, + backoff) by hand. A cached
+read kept warm in the background is registered by one helper (`AddWarmCachedRead`). An ops measurement that
+fails is a `Measured<T>` from one guard (`Measurements`): logged once, its reason never raw exception text in
+production — the patch-coverage and data-quality panels used to echo `ex.Message`.
+
+**Why.** Five caching primitives and four services hand-composing them, each restating the "request-scoped
+`DbContext` inside a detached task" caveat; seven more reads with no single flight; the decorator + warm-payload
+pair wired by hand four times; eight "measurement unavailable" catch blocks with eight result shapes. — #2575 (F15
+of #2481; the warm pass's ambient version is #2577)
+

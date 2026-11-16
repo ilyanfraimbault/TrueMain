@@ -39,10 +39,10 @@ public sealed record PatchCoverageReadModel
     /// The current patch's verdict, hoisted so the page opens on the answer.
     /// See <see cref="PatchCoverageRowReadModel.Verdict"/>.
     /// </summary>
-    public string Verdict { get; init; } = "unknown";
+    public PatchVerdict Verdict { get; init; }
 
     /// <summary><c>green</c> | <c>amber</c> | <c>red</c> | <c>unknown</c> for the current patch.</summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 
     /// <summary>The current patch's verdict in a sentence, with the floor in it.</summary>
     public string Headline { get; init; } = string.Empty;
@@ -92,10 +92,10 @@ public sealed record PatchCoverageRowReadModel
     /// <c>notAggregated</c> and <c>thin</c> are kept apart on purpose: they are the two
     /// causes of the same low number and they call for opposite reactions.
     /// </summary>
-    public string Verdict { get; init; } = "unknown";
+    public PatchVerdict Verdict { get; init; }
 
     /// <summary><c>green</c> | <c>amber</c> | <c>red</c> | <c>unknown</c>.</summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 
     /// <summary>The verdict in a sentence, naming the floor and the bar it was judged against.</summary>
     public string Headline { get; init; } = string.Empty;
@@ -237,7 +237,7 @@ public sealed record PatchFoldCoverageReadModel
     public double? AgeHours { get; init; }
 
     /// <summary><c>green</c> | <c>amber</c> | <c>red</c> | <c>unknown</c> for that age.</summary>
-    public string Status { get; init; } = "unknown";
+    public DetectorStatus Status { get; init; }
 
     /// <summary>
     /// Matches on this patch the fold has not folded yet, from the per-match flag it

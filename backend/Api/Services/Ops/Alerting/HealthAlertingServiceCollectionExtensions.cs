@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Caching.Memory;
+using TrueMain.Configuration;
 using TrueMain.Options;
 
 namespace TrueMain.Services.Ops.Alerting;
@@ -13,10 +14,7 @@ public static class HealthAlertingServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTrueMainHealthAlerting(this IServiceCollection services)
     {
-        services.AddOptions<AlertingOptions>()
-            .BindConfiguration(AlertingOptions.SectionName)
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
+        services.AddApiOptions<AlertingOptions>();
 
         // No request loggers: they print the request URI, and the webhook's URI is its secret.
         services.AddHttpClient(DiscordHealthAlertNotifier.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15))
