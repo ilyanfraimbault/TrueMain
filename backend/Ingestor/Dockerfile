@@ -11,7 +11,7 @@ COPY . .
 WORKDIR /src/Ingestor
 RUN dotnet publish "Ingestor.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+FROM mcr.microsoft.com/dotnet/runtime:11.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 RUN mkdir -p /home/app/crashes && chown app:app /home/app/crashes
