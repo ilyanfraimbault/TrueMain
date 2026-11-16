@@ -15,8 +15,8 @@
          targets the v3 object model (#1054). -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.18.7" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="MongoDB.Driver" Version="3.13.0" />
