@@ -65,6 +65,7 @@ A PR is **done** when, on its current HEAD: CI is green, the Claude review verdi
 - **Ingestor changes are only verified in preprod**: CI cannot see pacing, timeouts or 429 storms. After such a merge, check the preprod process runs, 429 rate and restart counts before calling it done (the `ship` skill's post-merge step).
 - **No fabricated numbers**, on pages or in reports: a metric comes from an endpoint or a measurement, or the figure is omitted.
 - **Out-of-scope findings become issues** (the `new-issue` skill), not local TODO files and not silent scope creep.
+- **Worktrees are disposable**: a landed one is removed without asking. `ship` sweeps after each merge, and a `SessionStart` hook prompts the `cleanup-worktrees` skill past 5 worktrees outside the app's own.
 - **Prod/preprod access is pre-authorized for reads**; restarts, deploys and database writes are confirmed separately, every time.
 
 ## Project board
@@ -96,6 +97,6 @@ Every issue goes on GitHub Project #2 ("TrueMain"). No milestones. Three fields,
 
 ## Skills
 
-Prefer the project skills for lifecycle steps — they encode all of the above: `start-issue`, `ship` (verify → PR → babysit → autonomous merge), `new-issue`, `release` (site → prod), `desktop-release` (app bump → preprod beta → promotion to prod), `cleanup-branches`, `setup-worktree`.
+Prefer the project skills for lifecycle steps — they encode all of the above: `start-issue`, `ship` (verify → PR → babysit → autonomous merge), `new-issue`, `release` (site → prod), `desktop-release` (app bump → preprod beta → promotion to prod), `cleanup-branches`, `cleanup-worktrees`, `setup-worktree`.
 
 Disciplines, adapted from mattpocock/skills (`.claude/skills/THIRD-PARTY.md`): `diagnosing-bugs` (a red feedback loop before any hypothesis), `grilling` (round-based interview before open-ended work), `domain-modeling` (glossary and decision log), `writing-for-agents` (editing skills and steering files). User-invoked: `/grill-with-docs`, `/retro` (improve the agent environment after a session).
