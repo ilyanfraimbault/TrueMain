@@ -38,4 +38,9 @@ internal static partial class AccountLoopLog
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Failed mastery activity check for {Platform}/{Puuid}.")]
     public static partial void ActivityCheckFailed(this ILogger logger, Exception exception, string platform, string puuid);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "{Count} main champion stat row(s) were deleted during the activity check; their verdicts are dropped.")]
+    public static partial void ActivityStatsVanished(this ILogger logger, int count);
 }

@@ -7,6 +7,7 @@ using Ingestor.Options;
 using Ingestor.Processes.Summaries;
 using Ingestor.Riot;
 using Ingestor.Riot.Dto;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Ingestor.Processes;
@@ -37,6 +38,9 @@ public sealed class MainActivityProcess(
     TimeProvider timeProvider,
     IOptions<MainActivityOptions> activityOptions) : ICadencedProcess
 {
+    /// <summary>Saves tried before a batch whose rows keep vanishing fails as before.</summary>
+    private const int MaxSaveAttempts = 3;
+
     /// <inheritdoc />
     public TimeSpan MinRunInterval => activityOptions.Value.MinRunInterval;
 
@@ -154,10 +158,38 @@ public sealed class MainActivityProcess(
 
         // One unit, as the single SaveChanges was: a stamp never lands without its verdict.
         await using var transaction = await session.BeginTransactionAsync(ct);
-        await session.SaveChangesAsync(ct);
+        await SaveDroppingVanishedStatsAsync(session, ct);
         await session.RiotAccounts.StampLastActivityCheckAsync(checkedAccounts, nowUtc, ct);
         await transaction.CommitAsync(ct);
         return summary;
+    }
+
+    /// <summary>
+    /// Saves the verdicts, dropping the stat rows deleted since the batch loaded them (#2644).
+    /// The mastery calls take minutes, and main analysis removing a champion the player
+    /// stopped playing, or an account invalidation, can delete a row meanwhile: its update
+    /// then affects no row and EF throws, which used to fail the whole batch. A vanished row
+    /// has nothing left to update, so its entries are untracked and the rest is saved again.
+    /// </summary>
+    private async Task SaveDroppingVanishedStatsAsync(IDataSession session, CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await session.SaveChangesAsync(ct);
+                return;
+            }
+            catch (DbUpdateConcurrencyException ex) when (attempt < MaxSaveAttempts)
+            {
+                foreach (var entry in ex.Entries)
+                {
+                    entry.State = EntityState.Detached;
+                }
+
+                logger.ActivityStatsVanished(ex.Entries.Count);
+            }
+        }
     }
 
     private static void ApplyVerdict(
