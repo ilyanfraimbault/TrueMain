@@ -51,12 +51,10 @@ const isEmpty = computed(
   () => !props.loading && (props.data?.length ?? 0) === 0,
 )
 
-// Tick text is string-interpolated into an SVG fragment and parsed as strict
-// XML by @unovis/ts, so `&`/`<`/`>` in a label must be escaped here (#842).
-const safeXFormatter = computed(() => escapeTickFormatter(props.xFormatter))
-const safeYFormatter = computed(() => escapeTickFormatter(props.yFormatter))
-
 const crosshairConfig = { color: CHART_GUIDE_COLOR }
+// nuxt-charts 3 centres every x tick on its point, so the last label overhangs
+// the plot's right edge; the extra right margin keeps it from being clipped.
+const chartPadding = { top: 5, right: 24, bottom: 5, left: 5 }
 </script>
 
 <template>
@@ -78,14 +76,15 @@ const crosshairConfig = { color: CHART_GUIDE_COLOR }
         :height="height"
         :x-label="xLabel"
         :y-label="yLabel"
-        :x-formatter="safeXFormatter"
-        :y-formatter="safeYFormatter"
+        :x-formatter="xFormatter"
+        :y-formatter="yFormatter"
         :curve-type="curveType"
         :line-width="lineWidth"
         :y-grid-line="yGridLine"
         :hide-legend="hideLegend"
         :legend-position="legendPosition"
         :crosshair-config="crosshairConfig"
+        :padding="chartPadding"
       />
       <template #fallback>
         <USkeleton class="absolute inset-0 size-full" />

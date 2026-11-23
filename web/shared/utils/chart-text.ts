@@ -14,9 +14,11 @@
 // so the chart keeps working, but Firefox logs an `XML Parsing Error` for every
 // failed parse.
 //
-// The site hits this on every champion page (the scaling buckets are labelled
-// `<20m`, `20-25m`, …) and the admin on every bar chart labelled from data
-// ("Nunu & Willump"). Both read this one copy.
+// The admin hits this on every bar chart labelled from data ("Nunu & Willump").
+// Only the admin still renders through `@unovis/ts` (nuxt-charts 2): the site
+// moved to nuxt-charts 3, whose `vccs` engine writes tick text as a DOM text
+// node — an entity there would show up literally (`&lt; 25 min`), so the
+// site's chart wrappers must not call this.
 //
 // Verified still present in every published `@unovis/ts` — 1.6.5 (ours), 1.6.7
 // (latest) and the 1.7.0 pre-releases — and `vue-chrts@2.2.0` still depends on
