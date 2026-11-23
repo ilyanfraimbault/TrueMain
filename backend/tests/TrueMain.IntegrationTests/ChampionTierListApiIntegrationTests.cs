@@ -38,7 +38,7 @@ public sealed class ChampionTierListApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions/tierlist");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var tierList = await response.Content.ReadFromJsonAsync<ChampionTierListReadModel>();
+        var tierList = await response.Content.ReadFromJsonAsync<ChampionTierListReadModel>(ApiJson.Options);
         tierList.Should().NotBeNull();
         tierList!.PatchVersion.Should().Be("16.5", "the seed wrote the active patch the tier list resolves to");
         tierList.Position.Should().BeNull("no position filter was supplied");
@@ -89,7 +89,7 @@ public sealed class ChampionTierListApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions/tierlist?position=MIDDLE");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var tierList = await response.Content.ReadFromJsonAsync<ChampionTierListReadModel>();
+        var tierList = await response.Content.ReadFromJsonAsync<ChampionTierListReadModel>(ApiJson.Options);
         tierList.Should().NotBeNull();
         tierList!.Position.Should().Be("MIDDLE");
 
@@ -119,12 +119,12 @@ public sealed class ChampionTierListApiIntegrationTests : IAsyncLifetime
 
         var directoryResponse = await client.GetAsync("/champions");
         directoryResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var directory = await directoryResponse.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        var directory = await directoryResponse.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>(ApiJson.Options);
         directory.Should().NotBeNull();
 
         var tierListResponse = await client.GetAsync("/champions/tierlist");
         tierListResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var tierList = await tierListResponse.Content.ReadFromJsonAsync<ChampionTierListReadModel>();
+        var tierList = await tierListResponse.Content.ReadFromJsonAsync<ChampionTierListReadModel>(ApiJson.Options);
         tierList.Should().NotBeNull();
 
         // The tier letter lives on the group, not the entry — flatten each
@@ -175,12 +175,12 @@ public sealed class ChampionTierListApiIntegrationTests : IAsyncLifetime
 
         var allResponse = await client.GetAsync("/champions/tierlist");
         allResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var all = await allResponse.Content.ReadFromJsonAsync<ChampionTierListReadModel>();
+        var all = await allResponse.Content.ReadFromJsonAsync<ChampionTierListReadModel>(ApiJson.Options);
         all.Should().NotBeNull();
 
         var middleResponse = await client.GetAsync("/champions/tierlist?position=MIDDLE");
         middleResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var middle = await middleResponse.Content.ReadFromJsonAsync<ChampionTierListReadModel>();
+        var middle = await middleResponse.Content.ReadFromJsonAsync<ChampionTierListReadModel>(ApiJson.Options);
         middle.Should().NotBeNull();
 
         var unscopedMiddleTiers = all!.Tiers

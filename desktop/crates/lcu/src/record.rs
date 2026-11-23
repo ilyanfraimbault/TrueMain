@@ -22,7 +22,7 @@ pub struct RankedStats {
 }
 
 /// One queue's standing this season.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RankedQueue {
     /// `RANKED_SOLO_5x5`, `RANKED_FLEX_SR`, …
@@ -236,7 +236,7 @@ const DURATION_IN_MS_ABOVE: i64 = 100_000;
 
 /// One of the player's games, as the dashboard reads it. Derived here once so
 /// the frontend never walks the client's payloads itself.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerGame {
     pub game_id: i64,
@@ -288,7 +288,7 @@ pub struct PlayerGame {
 /// One participant of a game: who played what, for a match row's composition
 /// strip, and their line of the scoreboard with their standing at the
 /// timeline's marks, which the site's performance score grades (#2075).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GameParticipant {
     pub participant_id: i64,
@@ -432,7 +432,7 @@ impl Scoreboard {
 }
 
 /// Everything the dashboard draws about the player, in one answer.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerRecord {
     /// The player's shard (`EUW1`), as their history names it.

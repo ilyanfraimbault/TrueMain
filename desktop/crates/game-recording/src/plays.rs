@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::moments::{DragonKind, ObjectiveKind};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum PlayKind {
     /// An epic monster's last hit taken from the side that was on it.
@@ -22,7 +22,7 @@ pub enum PlayKind {
     FirstBlood,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Play {
     pub kind: PlayKind,

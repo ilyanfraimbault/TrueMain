@@ -53,7 +53,7 @@ copy (
   with mm as (
     select m."Id", m."PlatformId" from matches m
     where m."QueueId" = 420 and m."Patch" = :'test_patch' and m."GameStartTimeUtc" >= :'since'
-      and m."GameDurationSeconds" >= 300
+      and m."GameDurationSeconds" >= 300 and not m."EndedInEarlySurrender"
     order by m."GameStartTimeUtc" desc limit 20000
   )
   select p."MatchId", p."ChampionId", p."TeamId", p."TeamPosition", p."Win",

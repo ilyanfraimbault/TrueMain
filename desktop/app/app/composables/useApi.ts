@@ -7,6 +7,7 @@
  * server proxies `/api` to the site's public entry point instead (nuxt.config).
  */
 import { answerStaticEndpoint } from '~/utils/static-endpoints'
+import { apiAnswer, shell } from '~/utils/shell'
 import { asFetchError } from '~/utils/shell-error'
 
 type QueryValue = string | number | boolean | null | undefined
@@ -21,16 +22,6 @@ function pairs(query: Query): [string, string][] {
     .map(([key, value]) => [key, String(value)])
 }
 
-/** The pairs as `$fetch` takes them: a key met twice becomes a list. */
-function fetchQuery(query: Query): Record<string, string | string[]> {
-  const result: Record<string, string | string[]> = {}
-  for (const [key, value] of pairs(query)) {
-    const known = result[key]
-    result[key] = known === undefined ? value : [...(Array.isArray(known) ? known : [known]), value]
-  }
-  return result
-}
-
 /** How a read is sent: a signal, and whether the window's loading bar ignores it. */
 export interface ReadOptions {
   /** Reaches the request in `npm run dev` only: the shell's commands cannot be cancelled. */
@@ -40,6 +31,12 @@ export interface ReadOptions {
    * moves. Every other read runs the loading bar while it is out (#1788).
    */
   background?: boolean
+  /**
+   * A key a newer request under the same key replaces this one by, inside the
+   * app: the shell aborts this one and it rejects as superseded
+   * (`isSuperseded`) — champion select moves faster than the API answers.
+   */
+  replaces?: string
 }
 
 /** A read counted by the loading bar, unless it runs in the background. */
@@ -48,30 +45,26 @@ function tracked<T>(work: Promise<T>, options: ReadOptions): Promise<T> {
 }
 
 /**
- * A read-only GET. Inside Tauri only the paths `api_get` lists are reachable —
- * the shell is not a general proxy onto the API.
+ * A read-only GET. Inside Tauri only the routes the shell lists are reachable
+ * (`src-tauri/api-routes.json`) — it is not a general proxy onto the API.
  */
 export function apiGet<T>(path: string, query: Query = {}, options: ReadOptions = {}): Promise<T> {
   return tracked((async () => {
-    if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<T>('api_get', { path, query: pairs(query) })
-    }
-    return await $fetch<T>(`/api${path}`, { query: fetchQuery(query), signal: options.signal })
+    return await apiAnswer<T>(shell.apiGet(path, pairs(query)).catch((error: unknown) => {
+      throw asFetchError(error)
+    }))
   })(), options)
 }
 
 /**
- * A POST read — the composition build and its games, which take the draft as
- * a body. Inside Tauri only the paths `api_post` lists are reachable.
+ * A POST read — a read that takes a draft or a game as its body. Inside Tauri
+ * only the routes the shell lists are reachable.
  */
 export function apiPost<T>(path: string, body: unknown, query: Query = {}, options: ReadOptions = {}): Promise<T> {
   return tracked((async () => {
-    if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<T>('api_post', { path, query: pairs(query), request: body })
-    }
-    return await $fetch<T>(`/api${path}`, { method: 'POST', body: body as Record<string, unknown>, query: fetchQuery(query), signal: options.signal })
+    return await apiAnswer<T>(shell.apiPost(path, pairs(query), body, options.replaces ?? null).catch((error: unknown) => {
+      throw asFetchError(error)
+    }))
   })(), options)
 }
 
@@ -81,12 +74,7 @@ export function apiPost<T>(path: string, body: unknown, query: Query = {}, optio
  * Which site is the shell's to say (`site.rs`): a preprod build opens preprod.
  */
 export async function openOnSite(path: string) {
-  if (insideTauri()) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('open_on_site', { path })
-    return
-  }
-  window.open(`${import.meta.env.TRUEMAIN_SITE_URL}${path}`, '_blank', 'noopener')
+  await shell.openOnSite(path)
 }
 
 /** The options the shared pages pass to their fetcher — the site's `ApiFetchOptions`, as far as the app reads them. */
@@ -103,11 +91,9 @@ export interface ApiFetchOptions {
  * Whether a failed read got an answer from TrueMain — an HTTP error status —
  * rather than none at all. Only the first is what `ignoreResponseError` turns
  * into `null`: an offline app must say it cannot reach TrueMain, not that a
- * player does not exist. The shell reports a status as `TrueMain answered …`
- * (`api.rs`); in `npm run dev` the error is ofetch's, carrying the status.
+ * player does not exist.
  */
 function isResponseError(error: unknown): boolean {
-  if (typeof error === 'string') return error.startsWith('TrueMain answered')
   return typeof (error as { statusCode?: unknown } | null)?.statusCode === 'number'
 }
 
@@ -132,8 +118,7 @@ export function useApiFetch() {
     }
     catch (error) {
       if (options.ignoreResponseError && isResponseError(error)) return null as T
-      // The shared pages read the status off an ofetch-shaped error (#2476).
-      throw asFetchError(error)
+      throw error
     }
   }
 }

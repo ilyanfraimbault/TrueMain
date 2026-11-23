@@ -3,13 +3,13 @@
 // hosts. Riot keeps one app budget per routing host, so each host is its own row —
 // adding two hosts' figures would describe a pool that does not exist. A row expands
 // into the caller × endpoint pairs spending that host's budget.
-import type { RiotRouteQuota } from '~~/shared/types/ops'
+import type { RiotRouteQuotaReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber, formatPercent, formatPercentOrDash } from '~~/shared/utils/format'
 
 defineProps<{
   title: string
   info: string
-  routes: RiotRouteQuota[]
+  routes: RiotRouteQuotaReadModel[]
 }>()
 
 const expanded = ref<Set<string>>(new Set())
@@ -34,7 +34,7 @@ function fillColor(ratio: number | null): 'primary' | 'warning' | 'error' | 'neu
   return ratio >= 0.7 ? 'warning' : 'primary'
 }
 
-function limitLabel(route: RiotRouteQuota): string {
+function limitLabel(route: RiotRouteQuotaReadModel): string {
   const binding = route.bindingLimit
   return binding ? `${formatNumber(binding.limit)} / ${binding.windowSeconds}s` : 'no limit header'
 }

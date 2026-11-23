@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Data.Pipeline;
+
 namespace Ingestor.Processes.Summaries;
 
 /// <summary>
@@ -7,7 +10,7 @@ namespace Ingestor.Processes.Summaries;
 /// caps are worth raising.
 /// </summary>
 public sealed record PaceSamplingSummary(
-    int RiotCalls,
+    [property: JsonPropertyName(RunSummaryFields.PaceSampling.RiotCalls)] int RiotCalls,
     int LadderPages,
     int MatchIdLists,
     int MatchesSampled,

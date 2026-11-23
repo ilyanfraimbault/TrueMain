@@ -21,7 +21,6 @@ export interface KdaLine {
 /** The decimals a KDA ratio is written with, on every surface. */
 export const KDA_DIGITS = 2
 
-/** `(kills + assists) / deaths`, deaths floored at one. */
 export function kdaRatio(line: KdaLine): number {
   return (line.kills + line.assists) / Math.max(line.deaths, 1)
 }

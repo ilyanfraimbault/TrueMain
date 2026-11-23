@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import type { ApexCutoff } from '~~/shared/types/apex-cutoffs'
-import type { ProfileRanked } from '~~/shared/types/profile'
-import type { RankHistoryEntry } from '~~/shared/types/rank-history'
+import type { ApexCutoffReadModel, ProfileRankedReadModel, RankHistoryEntryReadModel } from '#shared/contract/api'
 import { ELO_TIERS, rankScore } from '~~/shared/utils/ranks'
 
 useSeoMeta({
@@ -20,7 +18,7 @@ const DAY = 24 * 60 * 60 * 1000
 
 interface Cutoffs { gm: number, ch: number }
 
-function entryOf(at: number, score: number, cutoffs: Cutoffs): RankHistoryEntry {
+function entryOf(at: number, score: number, cutoffs: Cutoffs): RankHistoryEntryReadModel {
   const capturedAtUtc = new Date(at).toISOString()
   const rounded = Math.round(score)
   if (rounded >= MASTER_FLOOR) {
@@ -46,9 +44,9 @@ interface Scenario {
   id: string
   title: string
   note: string
-  history: RankHistoryEntry[]
-  cutoffs: ApexCutoff[]
-  ranked: ProfileRanked
+  history: RankHistoryEntryReadModel[]
+  cutoffs: ApexCutoffReadModel[]
+  ranked: ProfileRankedReadModel
 }
 
 function scenario(
@@ -60,8 +58,8 @@ function scenario(
   cutoffsAt: (t: number, i: number) => Cutoffs,
   measuredFrom = 0,
 ): Scenario {
-  const history: RankHistoryEntry[] = []
-  const cutoffs: ApexCutoff[] = []
+  const history: RankHistoryEntryReadModel[] = []
+  const cutoffs: ApexCutoffReadModel[] = []
   for (let i = 0; i < days; i++) {
     const t = days === 1 ? 1 : i / (days - 1)
     const at = END - (days - 1 - i) * DAY

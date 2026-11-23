@@ -13,14 +13,19 @@ namespace Data.Ops.Mongo;
 public static class ProcessRunStaleness
 {
     /// <summary>
-    /// A Running row whose heartbeat is older than this — or missing entirely — is
-    /// treated as Abandoned: its owner died without finalising it. Kept comfortably
-    /// larger than the ingestor's heartbeat interval (see
-    /// <c>RecordedProcess.HeartbeatInterval</c>) so a healthy-but-slow run that
-    /// misses a beat or two doesn't flap to Abandoned. Not coupled to that exact
-    /// value on purpose — it only needs to be a few intervals' worth of slack.
+    /// How often the ingestor refreshes a running run's heartbeat — and, on the same cadence,
+    /// its container liveness file, since a signal that only ticks at pass boundaries cannot
+    /// tell a wedged process from a slow one (#1229).
     /// </summary>
-    public static readonly TimeSpan Threshold = TimeSpan.FromMinutes(2);
+    public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// A Running row whose heartbeat is older than this — or missing entirely — is
+    /// treated as Abandoned: its owner died without finalising it. Four
+    /// <see cref="HeartbeatInterval"/>s, so a healthy-but-slow run that misses a beat
+    /// or two doesn't flap to Abandoned.
+    /// </summary>
+    public static readonly TimeSpan Threshold = HeartbeatInterval * 4;
 
     /// <summary>
     /// Maps a run's stored status to its effective status: a Running row reads as

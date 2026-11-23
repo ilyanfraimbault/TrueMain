@@ -65,21 +65,12 @@ public sealed class ChampionMainsComparisonController(
             return mainProblem;
         }
 
-        if (!this.TryNormalizeOptionalPosition(position, out var normalizedPosition, out var problem))
+        if (!this.TryParseChampionScope(
+                championId, position, patch, eloBracket: null, PositionRule.EveryByDefault, out var scope, out var problem))
         {
             return problem;
         }
 
-        var normalizedPatch = PatchParameter.Normalize(patch);
-
-        var response = await mainsComparisonQueryService.GetAsync(
-            championId,
-            account,
-            main,
-            normalizedPosition,
-            normalizedPatch,
-            ct);
-
-        return Ok(response);
+        return Ok(await mainsComparisonQueryService.GetAsync(scope, account, main, ct));
     }
 }

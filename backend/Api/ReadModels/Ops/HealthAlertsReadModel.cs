@@ -39,7 +39,7 @@ public sealed record HealthAlertReadModel
     public DateTime SentAtUtc { get; init; }
 
     /// <summary><c>failing</c> | <c>recovered</c>.</summary>
-    public string Kind { get; init; } = string.Empty;
+    public HealthAlertChangeKind Kind { get; init; }
 
     public string Title { get; init; } = string.Empty;
 
@@ -61,7 +61,7 @@ public sealed record HealthAlertChangeReadModel
     public string Title { get; init; } = string.Empty;
 
     /// <summary><c>failing</c> | <c>recovered</c>.</summary>
-    public string Change { get; init; } = string.Empty;
+    public HealthAlertChangeKind Change { get; init; }
 
     public string Status { get; init; } = string.Empty;
 

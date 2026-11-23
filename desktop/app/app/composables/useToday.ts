@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import { computed, onScopeDispose, ref } from 'vue'
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { PlayerGame } from '~/types/record'
 import type { DaySummary } from '~/utils/today'
 import { todayOf } from '~/utils/today'
@@ -15,7 +15,7 @@ const MINUTE_MS = 60_000
 export function useToday(
   games: Ref<PlayerGame[]>,
   allGames: Ref<PlayerGame[]>,
-  history: Ref<RankHistoryEntry[]>,
+  history: Ref<RankHistoryEntryReadModel[]>,
 ): Ref<DaySummary | null> {
   const now = ref(new Date())
   const clock = setInterval(() => { now.value = new Date() }, MINUTE_MS)

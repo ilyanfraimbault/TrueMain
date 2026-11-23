@@ -221,22 +221,19 @@ public sealed class MatchFetchWorkerPoolTests
 
         claims = Substitute.For<IMatchClaimService>();
         var services = new ServiceCollection();
-        services.AddScoped<MatchIngestionScope>();
         services.AddSingleton(claims);
-        services.AddKeyedScoped<IIngestorProcess>(
-            JobMode.MatchIngestionOnly,
-            (provider, _) => new ScopedProcess(process, provider.GetRequiredService<MatchIngestionScope>()));
+        services.AddKeyedScoped<IIngestorProcess>(JobMode.MatchIngestionOnly, (_, _) => new ScriptedRun(process));
+        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         limiter = Substitute.For<IRiotRateLimiter>();
         return new MatchFetchWorkerPool(
-            services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            scopeFactory,
             iterations,
-            callers,
+            new ProcessRunner(scopeFactory, callers, TestIngestorMetrics.Create(), NullLogger<ProcessRunner>.Instance),
             limiter,
             backpressure ?? Unpressured(),
             Microsoft.Extensions.Options.Options.Create(new MatchIngestionOptions { Platforms = platforms, BatchSize = laneBatchSize }),
             Microsoft.Extensions.Options.Options.Create(new MatchFetchWorkersOptions { BatchSize = batchSize }),
-            TestIngestorMetrics.Create(),
             timeProvider ?? TimeProvider.System,
             NullLogger<MatchFetchWorkerPool>.Instance);
     }
@@ -271,9 +268,9 @@ public sealed class MatchFetchWorkerPoolTests
             _callers = callers;
         }
 
-        public Task<IProcessRunSummary?> RunAsync(MatchIngestionScope scope, CancellationToken ct)
+        public Task<IProcessRunSummary?> RunAsync(RunInput input, CancellationToken ct)
         {
-            _batches.Enqueue(new Batch(scope.Platforms!, scope.BatchSize!.Value, _callers!.CurrentCaller, _iterations!.CurrentJobMode));
+            _batches.Enqueue(new Batch(input.Platforms!, input.BatchSize!.Value, _callers!.CurrentCaller, _iterations!.CurrentJobMode));
             if (script.Length == 0)
             {
                 return Task.FromResult(Worked(ct));
@@ -300,10 +297,8 @@ public sealed class MatchFetchWorkerPoolTests
         }
     }
 
-    private sealed class ScopedProcess(ScriptedProcess script, MatchIngestionScope scope) : IIngestorProcess
+    private sealed class ScriptedRun(ScriptedProcess script) : IIngestorProcess
     {
-        public string Name => "MatchIngestion";
-
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => script.RunAsync(scope, ct);
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct) => script.RunAsync(input, ct);
     }
 }

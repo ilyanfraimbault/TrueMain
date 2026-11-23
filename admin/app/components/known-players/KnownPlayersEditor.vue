@@ -3,7 +3,7 @@
 // it against its sources, its history (#2288), and removal. Every edit is written where the weekly
 // scrapers cannot undo it, and audited. Emits `changed` after each one so the list
 // behind the panel catches up, and `removed` once the player is gone.
-import type { PersonaAccountInput, PersonaAdminAccount, PersonaAdminDetail, PersonaAdminLink, PersonaLinkInput } from '~~/shared/types/ops'
+import type { PersonaAccountEntry, PersonaAdminAccountReadModel, PersonaAdminDetailReadModel, PersonaAdminLinkReadModel, PersonaLinkEntry } from '#site-shared/contract/api'
 import type { PersonaEditAction, PersonaEditorMode } from '~/utils/persona-editor-mode'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { formatDateTime } from '~~/shared/utils/format'
@@ -19,7 +19,7 @@ const emit = defineEmits<{ changed: [], removed: [] }>()
 
 // Keyed by the player (#2471): after a ⌘K jump A→B, A's late answer is dropped, so
 // the accounts on screen are always those of the player every edit is sent for.
-const { state, reload } = useKeyedFetch<string, PersonaAdminDetail>(id => getPersona(id), { id: () => props.personaId })
+const { state, reload } = useKeyedFetch<string, PersonaAdminDetailReadModel>(id => getPersona(id), { id: () => props.personaId })
 // The player on screen and its detail — only ever the one `personaId` names.
 const shownId = computed(() => keyedId(state.value) === props.personaId ? props.personaId : null)
 const detail = computed(() => shownId.value === null ? null : keyedValue(state.value))
@@ -107,7 +107,7 @@ function rename() {
   }, draft)
 }
 
-function addAccount(account: PersonaAccountInput) {
+function addAccount(account: PersonaAccountEntry) {
   void edit('addAccount', 'Account not added', async (personaId) => {
     const edited = await addPersonaAccount(personaId, account)
     const message = accountOutcomeMessage(edited.accounts[0]?.status ?? 'invalid')
@@ -115,17 +115,17 @@ function addAccount(account: PersonaAccountInput) {
   }, () => {})
 }
 
-function unlinkAccount(account: PersonaAdminAccount) {
+function unlinkAccount(account: PersonaAdminAccountReadModel) {
   void edit('unlinkAccount', 'Account not unlinked', personaId => unlinkPersonaAccount(personaId, account.id), () => {
     toast.success(`${account.gameName}#${account.tagLine} unlinked`, 'This player\'s sources can no longer link it back.')
   })
 }
 
-function addLink(link: PersonaLinkInput) {
+function addLink(link: PersonaLinkEntry) {
   void edit('addLink', 'Link not added', personaId => addPersonaLink(personaId, link), () => toast.success('Link added'))
 }
 
-function removeLink(link: PersonaAdminLink) {
+function removeLink(link: PersonaAdminLinkReadModel) {
   void edit('removeLink', 'Link not removed', personaId => removePersonaLink(personaId, link.id), () => {
     toast.success('Link removed', 'The sources can no longer add it back.')
   })

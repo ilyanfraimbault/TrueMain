@@ -1,6 +1,6 @@
-import { isChampSelect } from '~/utils/gameflow'
 import type { AppState, Screen } from '~/types/lcu'
 import { EMPTY_STATE } from '~/types/lcu'
+import { follow, shell, shellEvents } from '~/utils/shell'
 
 /**
  * Whether the shell is hosting us, rather than a plain browser.
@@ -16,8 +16,9 @@ export function insideTauri() {
 /**
  * The app's state, pushed from Rust.
  *
- * Runs in a plain browser too: `npm run dev` outside Tauri opens on a dev
- * scenario, which is how the UI is worked on without League installed.
+ * Runs in a plain browser too: on `npm run dev` the fake shell answers with a
+ * dev scenario (`dev-shell/`), which is how the UI is worked on without League
+ * installed.
  */
 export function useLcuState() {
   const state = useState<AppState>('lcu-state', () => ({ ...EMPTY_STATE }))
@@ -32,42 +33,12 @@ export function useLcuState() {
   }
 
   async function subscribe() {
-    if (!insideTauri()) {
-      if (import.meta.dev) {
-        const { load, select } = useDevScenarios()
-        await load()
-        select(new URLSearchParams(window.location.search).get('scenario') ?? '')
-      }
-      ready.value = true
-      return
-    }
-
-    const { invoke } = await import('@tauri-apps/api/core')
-    const { listen } = await import('@tauri-apps/api/event')
-
-    // Subscribe before the first read, or a change landing between the two
-    // would be lost and the shell would sit on a stale state.
-    const stop = await listen<AppState>('lcu://state', (event) => {
-      state.value = event.payload
-    })
-    onScopeDispose(stop)
-
-    state.value = await invoke<AppState>('current_state')
+    onScopeDispose(await follow(shellEvents.lcuState, shell.currentState, next => (state.value = next)))
     ready.value = true
   }
 
-  /**
-   * Which screen to show. Mirrors `AppState::screen()` in Rust, which is the
-   * authority — this exists so the frontend does not round-trip on every
-   * render, not to hold a second copy of the rule.
-   */
-  const screen = computed<Screen>(() => {
-    if (!state.value.connected) return 'no-client'
-    if (isChampSelect(state.value.phase)) return 'draft'
-    // Not `isGameRunning`: during a reconnect the game's API is down.
-    if (state.value.phase === 'InProgress') return 'in-game'
-    return 'dashboard'
-  })
+  /** Which screen to show, by the shell's navigation rule (`AppState::screen`). */
+  const screen = computed<Screen>(() => state.value.screen)
 
   return { state, screen, ready }
 }

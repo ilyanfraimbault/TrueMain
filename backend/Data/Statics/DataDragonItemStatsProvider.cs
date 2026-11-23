@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Text.Json;
 using Core.Lol.Patches;
@@ -7,53 +6,50 @@ using Microsoft.Extensions.Logging;
 namespace Data.Statics;
 
 /// <summary>
-/// Reads item stats from Data Dragon's <c>item.json</c>, once per patch per process (#1750).
+/// Reads item stats from Data Dragon's <c>item.json</c> (#1750), through the shared per-patch
+/// cache (<see cref="PerPatchStaticCache{T}"/>): an item's armour rarely moves between two patches,
+/// so the newest published version answering a patch-day request beats no in-game axis at all.
 /// </summary>
-/// <remarks>
-/// Same shape as <see cref="DataDragonChampionStaticsProvider"/>: the newest published version
-/// answers a patch Data Dragon has not mirrored yet (an item's armour rarely moves between two
-/// patches, and the alternative is no in-game axis for the first games of the new one), and a
-/// faulted load is evicted so the next batch retries instead of replaying the error.
-/// </remarks>
-public sealed class DataDragonItemStatsProvider(
-    HttpClient httpClient,
-    ILogger<DataDragonItemStatsProvider> logger) : IItemStatsProvider
+public sealed class DataDragonItemStatsProvider : IItemStatsProvider
 {
-    private readonly ConcurrentDictionary<string, Lazy<Task<IReadOnlyDictionary<int, ItemStats>>>> _cache =
-        new(StringComparer.Ordinal);
+    private readonly Func<HttpClient> _createClient;
+    private readonly ILogger<DataDragonItemStatsProvider> _logger;
+    private readonly PerPatchStaticCache<IReadOnlyDictionary<int, ItemStats>> _cache;
 
-    public async Task<IReadOnlyDictionary<int, ItemStats>> GetItemsAsync(string gameVersion, CancellationToken ct)
+    public DataDragonItemStatsProvider(
+        Func<HttpClient> createClient,
+        ILogger<DataDragonItemStatsProvider> logger,
+        TimeProvider timeProvider)
     {
-        var patch = PatchVersion.Parse(gameVersion).ToMajorMinor();
-
-        var lazyTask = _cache.GetOrAdd(patch, static (normalizedPatch, provider) =>
-            new Lazy<Task<IReadOnlyDictionary<int, ItemStats>>>(
-                () => provider.LoadAsync(normalizedPatch, CancellationToken.None),
-                LazyThreadSafetyMode.ExecutionAndPublication),
-            this);
-
-        try
-        {
-            return await lazyTask.Value.WaitAsync(ct);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            ((ICollection<KeyValuePair<string, Lazy<Task<IReadOnlyDictionary<int, ItemStats>>>>>)_cache)
-                .Remove(new KeyValuePair<string, Lazy<Task<IReadOnlyDictionary<int, ItemStats>>>>(patch, lazyTask));
-            throw;
-        }
+        _createClient = createClient;
+        _logger = logger;
+        _cache = new(
+            "Item stats",
+            (patch, ct) => LoadAsync(patch, ct),
+            async ct => (await LoadAsync(null, ct))!,
+            logger,
+            timeProvider);
     }
 
-    private async Task<IReadOnlyDictionary<int, ItemStats>> LoadAsync(string patch, CancellationToken ct)
+    public Task<StaticData<IReadOnlyDictionary<int, ItemStats>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+        => PatchVersion.TryParse(gameVersion, out var patch)
+            ? _cache.GetAsync(patch.ToMajorMinor(), ct)
+            : Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemStats>>.Unavailable(
+                $"'{gameVersion}' is not a patch."));
+
+    private async Task<IReadOnlyDictionary<int, ItemStats>?> LoadAsync(string? patch, CancellationToken ct)
     {
-        var version = await DataDragonVersions.ResolveAsync(httpClient, patch, logger, "item stats", ct);
+        using var httpClient = _createClient();
+        if (await DataDragonVersions.ResolveAsync(httpClient, patch, ct) is not { } version)
+        {
+            return null;
+        }
 
         var url = $"https://ddragon.leagueoflegends.com/cdn/{version}/data/en_US/item.json";
         await using var stream = await httpClient.GetStreamAsync(url, ct);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-
         var items = Parse(document.RootElement);
-        logger.LogInformation("Loaded stats for {Count} items from Data Dragon {Version}.", items.Count, version);
+        _logger.LogInformation("Loaded stats for {Count} items from Data Dragon {Version}.", items.Count, version);
         return items;
     }
 

@@ -1,4 +1,3 @@
-using Data.BuildFacts;
 using Data.Statics;
 using TrueMain.Configuration;
 using TrueMain.Options;
@@ -77,26 +76,16 @@ public static class ChampionsServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// The static game data providers on one named client, plain: the Api reads them inside
+    /// the champion read cache, so a CDN hiccup costs one degraded answer, not a retry storm.
+    /// </summary>
     private static void AddStaticGameData(this IServiceCollection services)
     {
-        // Typed clients, so their per-patch cache dies with the request: per request on purpose,
-        // since they keep a patch-day fallback for good, which a singleton would serve for the life
-        // of the Api (#1107). Every caller reads them inside the champion read cache.
-        services.AddHttpClient<IChampionStaticsProvider, DataDragonChampionStaticsProvider>();
-        services.AddHttpClient<IItemStatsProvider, DataDragonItemStatsProvider>();
-        // Singletons, so the per-patch cache and the clock of how long an unpublished patch has
-        // been served from the fallback outlive a request: the build paths read them outside the
-        // champion read cache on every next-item call (#2212).
-        services.AddHttpClient(nameof(CommunityDragonItemMetadataProvider));
-        services.AddSingleton<IItemMetadataProvider>(provider => new CommunityDragonItemMetadataProvider(
-            () => provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(CommunityDragonItemMetadataProvider)),
-            provider.GetRequiredService<ILogger<CommunityDragonItemMetadataProvider>>(),
-            provider.GetRequiredService<TimeProvider>()));
-        // The shop classes for the desktop kit editor, from CommunityDragon's ~16 MB game-data dump.
-        services.AddHttpClient(nameof(CommunityDragonItemClassProvider));
-        services.AddSingleton<IItemClassProvider>(provider => new CommunityDragonItemClassProvider(
-            () => provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(CommunityDragonItemClassProvider)),
-            provider.GetRequiredService<ILogger<CommunityDragonItemClassProvider>>(),
-            provider.GetRequiredService<TimeProvider>()));
+        services.AddHttpClient(StaticGameDataServiceCollectionExtensions.ClientName);
+        StaticGameDataServiceCollectionExtensions.AddStaticGameData(
+            services,
+            provider => provider.GetRequiredService<IHttpClientFactory>()
+                .CreateClient(StaticGameDataServiceCollectionExtensions.ClientName));
     }
 }

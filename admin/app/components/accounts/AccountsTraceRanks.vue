@@ -1,16 +1,16 @@
 <script setup lang="ts">
 // Rank snapshots card of the Trace tab. Split out of `AccountsTrace.vue` (#1436).
 import type { TableColumn } from '@nuxt/ui'
-import type { AccountExplorerRankSnapshot } from '~~/shared/types/ops'
+import type { AccountExplorerRankSnapshotReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 
 const props = defineProps<{
-  snapshots: AccountExplorerRankSnapshot[]
+  snapshots: AccountExplorerRankSnapshotReadModel[]
   /** When AccountRefresh last read league-v4 for the account — phrases the empty state. */
   lastRankSyncAtUtc: string | null | undefined
 }>()
 
-const rankColumns: TableColumn<AccountExplorerRankSnapshot>[] = [
+const rankColumns: TableColumn<AccountExplorerRankSnapshotReadModel>[] = [
   { accessorKey: 'capturedAtUtc', header: 'Captured' },
   { accessorKey: 'tier', header: 'Rank' },
   { accessorKey: 'leaguePoints', header: 'LP' },

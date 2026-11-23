@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import type { ProfileRanked } from '#shared/types/profile'
-import type { ApexCutoff } from '#shared/types/apex-cutoffs'
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { ApexCutoffReadModel, ProfileRankedReadModel, RankHistoryEntryReadModel } from '#shared/contract/api'
 import { rankChartPoints } from '#common/utils/rank-chart'
 
 // The player's Solo/Duo standing: rank, record, LP moved over 7 and 30 days,
@@ -11,10 +9,10 @@ import { rankChartPoints } from '#common/utils/rank-chart'
 // knows through two slots the site leaves empty: `standing` under the Solo/Duo
 // block (the Flex standing), `moves` under the curve (the latest games' LP).
 const props = withDefaults(defineProps<{
-  ranked: ProfileRanked | null
-  history?: readonly RankHistoryEntry[]
+  ranked: ProfileRankedReadModel | null
+  history?: readonly RankHistoryEntryReadModel[]
   /** The region's Grandmaster / Challenger cutoffs over the window, for the curve's apex thresholds. */
-  cutoffs?: readonly ApexCutoff[]
+  cutoffs?: readonly ApexCutoffReadModel[]
   historyLoading?: boolean
 }>(), {
   history: () => [],

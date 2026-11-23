@@ -3,10 +3,10 @@
 // one process running, from the recorded process runs — the quantity a throughput ramp
 // is meant to move. Each process's own share sits under its lane; they do not add up to
 // the lane's figure when two of them overlap.
-import type { LaneDutyCycle } from '~~/shared/types/ops'
+import type { LaneDutyCycleReadModel } from '#site-shared/contract/api'
 import { formatNumber, formatPercent } from '~~/shared/utils/format'
 
-defineProps<{ lanes: LaneDutyCycle[] }>()
+defineProps<{ lanes: LaneDutyCycleReadModel[] }>()
 
 function hours(value: number): string {
   return value >= 10 ? `${Math.round(value)}h` : `${value.toFixed(1)}h`

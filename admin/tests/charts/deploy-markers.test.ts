@@ -7,7 +7,7 @@ import DeployMarkers from '~/components/charts/DeployMarkers.vue'
 import { useDeployMarkers, useDeployments } from '~/composables/useDeployMarkers'
 import type { ChartMarker } from '~/utils/deploy-markers'
 import { indexToPixelFromTicks, labelRows, placeDeployMarkers } from '~/utils/deploy-markers'
-import type { Deployment } from '~~/shared/types/ops'
+import type { DeploymentReadModel } from '#site-shared/contract/api'
 
 // Deploy markers (#2297). The placement is what makes a marker mean "this release started
 // in this bucket", so it is pinned case by case; the overlay is pinned against a hand-built
@@ -15,7 +15,7 @@ import type { Deployment } from '~~/shared/types/ops'
 
 const DAYS = ['2026-10-20T00:00:00Z', '2026-10-21T00:00:00Z', '2026-10-22T00:00:00Z', '2026-10-23T00:00:00Z']
 
-function deploy(version: string, at: string, overrides: Partial<Deployment> = {}): Deployment {
+function deploy(version: string, at: string, overrides: Partial<DeploymentReadModel> = {}): DeploymentReadModel {
   return { processName: 'Api', role: null, version, previousVersion: null, deployedAtUtc: at, ...overrides }
 }
 
@@ -97,7 +97,7 @@ describe('useDeployMarkers', () => {
 
   it('reads one shared, day-stable window and places its deploys', () => {
     const calls: unknown[][] = []
-    const data = ref<{ deployments: Deployment[] } | undefined>(undefined)
+    const data = ref<{ deployments: DeploymentReadModel[] } | undefined>(undefined)
     vi.stubGlobal('useOps', (...args: unknown[]) => {
       calls.push(args)
       return { data }

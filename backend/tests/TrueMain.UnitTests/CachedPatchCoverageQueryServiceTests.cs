@@ -89,7 +89,7 @@ public sealed class CachedPatchCoverageQueryServiceTests
                 throw new InvalidOperationException("57014: canceling statement due to statement timeout");
             }
 
-            return new PatchCoverageReadModel { Verdict = "servable", Status = "green", EvaluatedAtUtc = DateTime.UtcNow };
+            return new PatchCoverageReadModel { Verdict = PatchVerdict.Servable, Status = DetectorStatus.Green, EvaluatedAtUtc = DateTime.UtcNow };
         }
     }
 }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using Data.BuildFacts;
 namespace TrueMain.ReadModels.Champions;
 
 /// <summary>
@@ -36,7 +38,7 @@ public sealed record ChampionDamageProfileReadModel
     public string? ProfilePosition { get; init; }
 
     /// <summary><c>measured</c> (folded from games) or <c>fallback</c> (a static classification, no shares).</summary>
-    public string Source { get; init; } = ChampionDamageProfileSources.Measured;
+    public ChampionDamageProfileSource Source { get; init; } = ChampionDamageProfileSource.Measured;
 
     /// <summary>The patch the profile was folded on — may be older than the response's, by design of the snapshot.</summary>
     public string? Patch { get; init; }
@@ -67,7 +69,7 @@ public sealed record ChampionDamageProfileReadModel
 public sealed record ChampionDamageBuildReadModel
 {
     /// <summary><c>AbilityPower</c>, <c>Crit</c>, <c>ArmorPenetration</c>, <c>OnHit</c>, <c>Tank</c> or <c>None</c>.</summary>
-    public string Archetype { get; init; } = string.Empty;
+    public ItemArchetype Archetype { get; init; }
 
     public int Games { get; init; }
 
@@ -81,10 +83,14 @@ public sealed record ChampionDamageBuildReadModel
     public double TrueShare { get; init; }
 }
 
-/// <summary>The values of <see cref="ChampionDamageProfileReadModel.Source"/>.</summary>
-public static class ChampionDamageProfileSources
+/// <summary>Where a champion's damage profile comes from.</summary>
+public enum ChampionDamageProfileSource
 {
-    public const string Measured = "measured";
+    /// <summary>Folded from games.</summary>
+    [JsonStringEnumMemberName("measured")]
+    Measured,
 
-    public const string Fallback = "fallback";
+    /// <summary>A static classification, no shares.</summary>
+    [JsonStringEnumMemberName("fallback")]
+    Fallback,
 }

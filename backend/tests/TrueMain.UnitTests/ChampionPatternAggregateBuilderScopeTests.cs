@@ -1,5 +1,6 @@
 using Core.Lol.Patches;
 using Data.BuildFacts;
+using Data.Statics;
 using Data.Entities;
 using AwesomeAssertions;
 using Ingestor.Processes.Components.PatternAggregation;
@@ -21,12 +22,12 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
         var metadataProvider = Substitute.For<IItemMetadataProvider>();
         metadataProvider
             .GetItemsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyDictionary<int, ItemMetadata>>(new Dictionary<int, ItemMetadata>
+            .Returns(Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(new Dictionary<int, ItemMetadata>
             {
                 [1001] = new(1001, 300, true, false, true, true, false, false),
                 [3006] = new(3006, 1100, true, false, true, false, true, true),
                 [3153] = new(3153, 3200, true, false, false, false, true, false)
-            }));
+            })));
         var builder = new ChampionPatternAggregateBuilder(metadataProvider);
 
         var accountA = Guid.NewGuid();
@@ -73,7 +74,7 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
         var metadataProvider = Substitute.For<IItemMetadataProvider>();
         metadataProvider
             .GetItemsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyDictionary<int, ItemMetadata>>(new Dictionary<int, ItemMetadata>()));
+            .Returns(Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(new Dictionary<int, ItemMetadata>())));
         var builder = new ChampionPatternAggregateBuilder(metadataProvider);
 
         var account = Guid.NewGuid();
@@ -120,7 +121,7 @@ public sealed class ChampionPatternAggregateBuilderScopeTests
         var metadataProvider = Substitute.For<IItemMetadataProvider>();
         metadataProvider
             .GetItemsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyDictionary<int, ItemMetadata>>(new Dictionary<int, ItemMetadata>()));
+            .Returns(Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(new Dictionary<int, ItemMetadata>())));
         var builder = new ChampionPatternAggregateBuilder(metadataProvider);
 
         var account = Guid.NewGuid();

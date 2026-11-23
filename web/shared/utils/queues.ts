@@ -11,7 +11,6 @@
 /** Ranked Solo/Duo: the one queue TrueMain stores and scores (#680). */
 export const RANKED_SOLO_QUEUE_ID = 420
 
-/** Ranked Flex. */
 export const RANKED_FLEX_QUEUE_ID = 440
 
 const QUEUE_LABELS: Record<number, string> = {
@@ -24,7 +23,6 @@ const QUEUE_LABELS: Record<number, string> = {
   [RANKED_FLEX_QUEUE_ID]: 'Flex',
   480: 'Swiftplay',
 
-  // Co-op vs AI
   830: 'Co-op vs AI',
   840: 'Co-op vs AI',
   850: 'Co-op vs AI',

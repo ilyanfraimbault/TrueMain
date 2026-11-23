@@ -33,10 +33,9 @@ public sealed class DataDragonItemStatsProviderTests
     public async Task GetItemsAsync_ReadsEachStatTheAxesSum()
     {
         using var handler = new FakeHandler();
-        using var client = new HttpClient(handler);
-        var provider = CreateProvider(client);
+        var provider = CreateProvider(handler);
 
-        var items = await provider.GetItemsAsync("16.20.712.4321", CancellationToken.None);
+        var items = (await provider.GetItemsAsync("16.20.712.4321", CancellationToken.None)).Value!;
 
         items.Keys.Should().BeEquivalentTo([3075, 4633, 3031, 3153, 3065], "an id that does not parse is skipped");
         items[3075].Armor.Should().Be(75);
@@ -55,8 +54,7 @@ public sealed class DataDragonItemStatsProviderTests
     public async Task GetItemsAsync_FallsBackToTheNewestVersion_AndLoadsOncePerPatch()
     {
         using var handler = new FakeHandler();
-        using var client = new HttpClient(handler);
-        var provider = CreateProvider(client);
+        var provider = CreateProvider(handler);
 
         await provider.GetItemsAsync("16.22.1.1", CancellationToken.None);
         await provider.GetItemsAsync("16.22.5.5", CancellationToken.None);
@@ -69,18 +67,17 @@ public sealed class DataDragonItemStatsProviderTests
     public async Task GetItemsAsync_RetriesAfterAFailedLoad()
     {
         using var handler = new FakeHandler { FailVersionsOnce = true };
-        using var client = new HttpClient(handler);
-        var provider = CreateProvider(client);
+        var provider = CreateProvider(handler);
 
-        var act = () => provider.GetItemsAsync("16.20.1.1", CancellationToken.None);
-        await act.Should().ThrowAsync<HttpRequestException>();
+        (await provider.GetItemsAsync("16.20.1.1", CancellationToken.None)).Status
+            .Should().Be(StaticDataStatus.Unavailable);
 
-        (await provider.GetItemsAsync("16.20.1.1", CancellationToken.None))
+        (await provider.GetItemsAsync("16.20.1.1", CancellationToken.None)).Value!
             .Should().NotBeEmpty("the faulted load was evicted rather than cached");
     }
 
-    private static DataDragonItemStatsProvider CreateProvider(HttpClient client)
-        => new(client, NullLogger<DataDragonItemStatsProvider>.Instance);
+    private static DataDragonItemStatsProvider CreateProvider(HttpMessageHandler handler)
+        => new(() => new HttpClient(handler, disposeHandler: false), NullLogger<DataDragonItemStatsProvider>.Instance, TimeProvider.System);
 
     private sealed class FakeHandler : HttpMessageHandler
     {

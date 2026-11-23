@@ -23,12 +23,11 @@ use shell_state::overlay::{
 use shell_state::scoreboard;
 use shell_state::screens::{self, Monitor};
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, Position, Size,
-    WindowEvent,
+    AppHandle, LogicalPosition, LogicalSize, Manager, PhysicalPosition, Position, Size, WindowEvent,
 };
 
 use super::platform;
-use super::{label, SharedOverlay, CONFIRMATION_EVENT, CONFIRMATION_LABEL, VIEW_EVENT};
+use super::{label, ConfirmationShown, OverlayViewChanged, SharedOverlay, CONFIRMATION_LABEL};
 use crate::recording::SharedRecorder;
 
 const KEYS_EVERY: Duration = Duration::from_millis(30);
@@ -162,7 +161,7 @@ pub fn confirm(app: &AppHandle, text: String) {
             }
         }
         // A page just built reads it itself (`overlay_confirmation`).
-        let _ = handle.emit_to(CONFIRMATION_LABEL, CONFIRMATION_EVENT, &text);
+        crate::contract::emit_to(&handle, CONFIRMATION_LABEL, ConfirmationShown(text.clone()));
         apply(&handle);
     });
 }
@@ -458,7 +457,7 @@ fn dragged(app: &AppHandle, which: OverlayPanel, position: tauri::PhysicalPositi
         which,
         OverlaySettings::point_at(screen.area, origin, applied.size),
     );
-    let _ = app.emit(VIEW_EVENT, overlay.view());
+    crate::contract::emit(app, OverlayViewChanged(overlay.view()));
     apply(app);
 }
 

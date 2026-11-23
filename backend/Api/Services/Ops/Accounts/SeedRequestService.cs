@@ -33,7 +33,7 @@ public sealed record SeedRequestCreateResult
 {
     public Guid Id { get; init; }
 
-    public string Status { get; init; } = string.Empty;
+    public SeedRequestStatus Status { get; init; }
 
     public bool Created { get; init; }
 
@@ -119,7 +119,7 @@ public sealed class SeedRequestService(
             return new SeedRequestCreateResult
             {
                 Id = existing.Id,
-                Status = existing.Status.ToString(),
+                Status = existing.Status,
                 Created = false
             };
         }
@@ -149,33 +149,25 @@ public sealed class SeedRequestService(
         // re-auditing). "Lossless" here means the audit channel is synchronous and
         // unbatched vs the lossy batched diagnostic channel — it is not a
         // guarantee against a Mongo outage.
-        try
-        {
-            await auditLog.RecordAsync(
-                action: AuditActions.SeedAccount,
-                actor: AuditActors.Operator,
-                targetType: AuditTargets.SeedRequest,
-                targetId: seedRequest.Id.ToString(),
-                metadata: new Dictionary<string, string>
+        await auditLog.TryRecordAsync(
+            new AuditEntry(
+                AuditActions.SeedAccount,
+                AuditActors.Operator,
+                AuditTargets.SeedRequest,
+                seedRequest.Id.ToString(),
+                new Dictionary<string, string>
                 {
                     ["gameName"] = gameName,
                     ["tagLine"] = tagLine,
                     ["platformId"] = platform
-                },
-                ct: ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(
-                ex,
-                "Audit write failed for seed request {SeedRequestId}; the request was persisted, audit event missed.",
-                seedRequest.Id);
-        }
+                }),
+            logger,
+            ct);
 
         return new SeedRequestCreateResult
         {
             Id = seedRequest.Id,
-            Status = seedRequest.Status.ToString(),
+            Status = seedRequest.Status,
             Created = true
         };
     }

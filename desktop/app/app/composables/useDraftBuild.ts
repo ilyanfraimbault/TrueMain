@@ -1,11 +1,7 @@
-import type {
-  BuildCoreView,
-  BuildTreeNode,
-  ChampionBuildResponse,
-  CompositionBuildRequest,
-  CompositionBuildResponse,
-  CompositionLane,
-} from '~/types/build'
+import type { BuildCoreView, CompositionBuildRequest } from '~/types/build'
+import type { BuildTreeNodeReadModel, ChampionResponse, CompositionBuildResponse, CompositionLaneReadModel } from '#shared/contract/api'
+import { apiGet, apiPost } from '~/composables/useApi'
+import { isSuperseded } from '~/utils/shell-error'
 
 /** Whose build to show: a champion on its lane, and the draft around it from its side. */
 export interface BuildSubject {
@@ -19,11 +15,11 @@ export interface DraftBuild {
   championId: number
   core: BuildCoreView
   firstItemId: number
-  buildTree: BuildTreeNode[]
+  buildTree: BuildTreeNodeReadModel[]
   games: number
   wins: number
   /** The lane at 15 over the sampled games; null on the standard fallback. */
-  lane: CompositionLane | null
+  lane: CompositionLaneReadModel | null
   /** `draft` — computed for this composition; `standard` — the lane build, the matchup never having been recorded. */
   source: 'draft' | 'standard'
 }
@@ -48,9 +44,6 @@ export function draftBuildOf(championId: number, answer: CompositionBuildRespons
  * an enemy pick — collapse into one request instead of one each.
  */
 const DEBOUNCE_MS = 150
-
-/** What Rust answers for a request a newer one replaced. */
-const SUPERSEDED = 'superseded'
 
 /**
  * The build for one champion against the draft as it stands — the endpoint
@@ -78,26 +71,11 @@ export function useDraftBuild(subject: Ref<BuildSubject | null>) {
   let timer: ReturnType<typeof setTimeout> | undefined
 
   async function post(champion: number, body: CompositionBuildRequest, signal: AbortSignal) {
-    if (insideTauri()) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      return await invoke<CompositionBuildResponse>('composition_build', { championId: champion, request: body })
-    }
-    // `npm run dev` in a browser: the dev server proxies `/api` (nuxt.config).
-    return await $fetch<CompositionBuildResponse>(`/api/champions/${champion}/composition-build`, {
-      method: 'POST',
-      body,
-      signal,
-    })
+    return await apiPost<CompositionBuildResponse>(`/champions/${champion}/composition-build`, body, {}, { background: true, signal, replaces: 'draft-build' })
   }
 
   async function standard(champion: number, position: string, signal: AbortSignal): Promise<DraftBuild | null> {
-    const answer = insideTauri()
-      ? await (await import('@tauri-apps/api/core')).invoke<ChampionBuildResponse>('champion_build', {
-          championId: champion,
-          position,
-          opponentChampionId: null,
-        })
-      : await $fetch<ChampionBuildResponse>(`/api/champions/${champion}`, { query: { position }, signal })
+    const answer = await apiGet<ChampionResponse>(`/champions/${champion}`, { position }, { background: true, signal })
     const first = answer.builds[0]
     if (!first) return null
     return {
@@ -133,7 +111,7 @@ export function useDraftBuild(subject: Ref<BuildSubject | null>) {
       if (id === latest) build.value = next
     }
     catch (cause) {
-      if (id !== latest || String(cause).includes(SUPERSEDED) || signal.aborted) return
+      if (id !== latest || isSuperseded(cause) || signal.aborted) return
       error.value = String(cause)
     }
     finally {

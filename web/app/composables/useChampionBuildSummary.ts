@@ -1,4 +1,5 @@
 import type { ChampionBuildSummary } from '~~/shared/types/champion-build-summary'
+import { championSliceQuery } from '#common/utils/champion-slice-query'
 
 type ChampionFilters = ReturnType<typeof useChampionFilters>['filters']
 
@@ -45,18 +46,9 @@ export function useChampionBuildSummary(championId: ComputedRef<number>, filters
       filters.value.truemainsOnly ? 'truemains' : 'everyone',
     ].join('-'),
     (_nuxtApp, { signal }) => apiFetch<ChampionBuildSummary>(`/champion-summary/${championId.value}`, {
-      query: {
-        patch: filters.value.patch || undefined,
-        position: filters.value.position || undefined,
-        eloBracket: filters.value.eloBracket || undefined,
-        // Same reason as the matchup filter below: without it the prose describes
-        // the truemain build under panels folded from every player.
-        truemainsOnly: filters.value.truemainsOnly ? undefined : 'false',
-        // #923's matchup filter re-slices every build section server-side, so the
-        // summary has to carry it or it describes the global build in prose right
-        // under panels showing the matchup's.
-        opponentChampionId: filters.value.opponentChampionId || undefined,
-      },
+      // The whole slice, matchup and population included: without them the prose
+      // describes another build than the panels right above it (#923, #1346).
+      query: championSliceQuery(filters.value),
       signal,
     }),
     {

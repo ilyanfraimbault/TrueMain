@@ -51,6 +51,7 @@ fn open(app: &AppHandle, url: &str) -> Result<(), String> {
 
 /// Open YouTube's upload page in the player's browser.
 #[tauri::command]
+#[specta::specta]
 pub fn open_youtube_upload(app: AppHandle) -> Result<(), String> {
     open(&app, UPLOAD_URL)?;
     telemetry::feature(&app, Feature::YoutubeUploadOpened);
@@ -59,6 +60,7 @@ pub fn open_youtube_upload(app: AppHandle) -> Result<(), String> {
 
 /// Open the YouTube video a clip was published as.
 #[tauri::command]
+#[specta::specta]
 pub fn clip_open_youtube(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
@@ -76,6 +78,7 @@ pub fn clip_open_youtube(
 /// The page the clip player frames to play a published clip from YouTube
 /// (`embed.rs`).
 #[tauri::command]
+#[specta::specta]
 pub fn clip_youtube_embed(
     recorder: State<'_, SharedRecorder>,
     id: String,
@@ -130,6 +133,7 @@ async fn check_video(url: &str, clip_title: &str) -> Result<(), String> {
 /// Keep the YouTube video a clip was published as — once YouTube confirms it
 /// is the clip's (`check_video`) — or forget it, for an empty link.
 #[tauri::command]
+#[specta::specta]
 pub async fn clip_set_youtube_url(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
@@ -173,6 +177,7 @@ pub async fn clip_set_youtube_url(
 /// library with its thumbnail and plays from YouTube. A clip without a YouTube
 /// link keeps its file — this would leave it pointing at nothing.
 #[tauri::command]
+#[specta::specta]
 pub fn clip_delete_video(
     app: AppHandle,
     recorder: State<'_, SharedRecorder>,
@@ -193,6 +198,7 @@ pub fn clip_delete_video(
 /// from the press on the drag handle; the path is the shell's, never the
 /// webview's. Async so it is not already on the main thread it hops to.
 #[tauri::command]
+#[specta::specta]
 pub async fn clip_start_drag(
     app: AppHandle,
     window: Window,

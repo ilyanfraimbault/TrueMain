@@ -1,4 +1,5 @@
 using Data.Entities;
+using Data.Logging;
 using Data.Ops.Mongo;
 using Ingestor.Processes.Summaries;
 
@@ -6,9 +7,9 @@ namespace Ingestor.Services;
 
 public sealed class ProcessRunRecorder(
     IProcessRunStore store,
-    IIterationContext iterationContext) : IProcessRunRecorder
+    IIterationContext iterationContext,
+    TimeProvider timeProvider) : IProcessRunRecorder
 {
-    private const int MaxErrorLength = 2048;
 
     public async Task<Guid> RecordStartAsync(string processName, DateTime startedAtUtc, CancellationToken ct)
     {
@@ -58,7 +59,7 @@ public sealed class ProcessRunRecorder(
         // Clamp before the int cast: an extreme span (e.g. a very stale run) could
         // exceed int.MaxValue ms (~24.8 days) and overflow into a negative duration.
         var durationMs = (int)Math.Clamp((finishedAtUtc - startedAtUtc).TotalMilliseconds, 0, int.MaxValue);
-        var truncatedError = Truncate(error, MaxErrorLength);
+        var truncatedError = StoredText.Truncate(error, StoredText.MaxErrorLength);
 
         // Finalise the in-flight Running document in place. If no document has this id
         // (it was reaped by the TTL before completion, or runId isn't a real id) fall back
@@ -99,7 +100,7 @@ public sealed class ProcessRunRecorder(
         // is gone (reaped) or already terminal — only an in-flight Running document
         // carries a meaningful heartbeat, and refreshing a finished one would
         // resurrect it as "fresh".
-        => store.TouchHeartbeatAsync(runId, DateTime.UtcNow, ct);
+        => store.TouchHeartbeatAsync(runId, timeProvider.GetUtcNow().UtcDateTime, ct);
 
     public Task<int> ReconcileOrphanedRunsAsync(IReadOnlyCollection<string> processNames, CancellationToken ct)
         // Anything still Running at startup among *this* instance's own processes was owned
@@ -107,18 +108,8 @@ public sealed class ProcessRunRecorder(
         // scoping matters since #1362: with a fetch lane and an aggregate lane in separate
         // processes, an unscoped sweep would abandon runs that are very much alive.
         => store.AbandonRunningAsync(
-            DateTime.UtcNow,
+            timeProvider.GetUtcNow().UtcDateTime,
             "Abandoned: ingestor restarted while this run was in flight.",
             processNames,
             ct);
-
-    private static string? Truncate(string? value, int maxLength)
-    {
-        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
-        {
-            return value;
-        }
-
-        return value[..maxLength];
-    }
 }

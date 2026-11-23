@@ -1,4 +1,4 @@
-import type { ProfileResponse } from '#shared/types/profile'
+import type { ProfileReadModel } from '#shared/contract/api'
 
 interface UseTruemainProfileOptions {
   /** Hold the request back while false — see {@link useTruemainFetch}. */
@@ -29,17 +29,17 @@ export function useTruemainProfile(
 ) {
   if (options.ssr) return useServerRenderedProfile(nameTag)
 
-  const data = ref<ProfileResponse | null>(null)
+  const data = ref<ProfileReadModel | null>(null)
   const apiFetch = useApiFetch()
 
-  const { isLoading, isInitialLoading, notFound, error, reload, ready } = useTruemainFetch<ProfileResponse>(nameTag, {
+  const { isLoading, isInitialLoading, notFound, error, reload, ready } = useTruemainFetch<ProfileReadModel>(nameTag, {
     enabled: options.enabled,
-    request: (tag, signal) => apiFetch<ProfileResponse | null>(
+    request: (tag, signal) => apiFetch<ProfileReadModel | null>(
       `/truemains/${encodeURIComponent(tag)}/profile`,
       { signal },
     ),
     // A 2xx missing the identity object reads as a 404.
-    validate: (response): response is ProfileResponse =>
+    validate: (response): response is ProfileReadModel =>
       Boolean(response && typeof response === 'object' && response.identity),
     onResponse: (response) => { data.value = response },
     onClear: () => { data.value = null },
@@ -53,7 +53,7 @@ export function useTruemainProfile(
   // Intentionally exposing raw refs (not `readonly()` wrappers) — readonly
   // proxies cascade DeepReadonly across the entire response shape, which
   // then collides with the consuming components' mutable prop types
-  // (`ProfileMainChampion[]` vs. `readonly ProfileMainChampion[]`).
+  // (`ProfileMainChampionReadModel[]` vs. `readonly ProfileMainChampionReadModel[]`).
   return {
     data,
     isLoading,
@@ -65,8 +65,8 @@ export function useTruemainProfile(
   }
 }
 
-function isProfile(response: unknown): response is ProfileResponse {
-  return Boolean(response && typeof response === 'object' && (response as ProfileResponse).identity)
+function isProfile(response: unknown): response is ProfileReadModel {
+  return Boolean(response && typeof response === 'object' && (response as ProfileReadModel).identity)
 }
 
 /**
@@ -78,12 +78,12 @@ function useServerRenderedProfile(nameTag: MaybeRefOrGetter<string>) {
   const nameTagRef = computed(() => toValue(nameTag))
   const apiFetch = useApiFetch()
 
-  const result = useAsyncData<ProfileResponse | null>(
+  const result = useAsyncData<ProfileReadModel | null>(
     () => `truemain-profile-${nameTagRef.value}`,
     async (_nuxtApp, { signal }) => {
       if (!nameTagRef.value) return null
       try {
-        const response = await apiFetch<ProfileResponse | null>(
+        const response = await apiFetch<ProfileReadModel | null>(
           `/truemains/${encodeURIComponent(nameTagRef.value)}/profile`,
           { signal },
         )

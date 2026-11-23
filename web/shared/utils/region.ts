@@ -27,6 +27,11 @@ export function platformIdToRegion(platformId: string | null | undefined): Regio
   return PLATFORM_TO_REGION.get(platformId.toUpperCase()) ?? null
 }
 
+/** The region a slug from the API names (`""` for a shard with none), or null. */
+export function regionOf(slug: string | null | undefined): RegionSlug | null {
+  return slug && Object.hasOwn(REGIONS, slug) ? slug as RegionSlug : null
+}
+
 /** The region's flag icon, from the layer's `region` collection. */
 export function regionIcon(region: RegionSlug): string {
   return `i-region-${region}`

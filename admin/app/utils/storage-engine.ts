@@ -1,6 +1,4 @@
 // Engine labels for the Database panel's cards (split out of `pages/database.vue`, #1436).
-import type { StorageEngine } from '~~/shared/types/ops'
-
 // Two engines can carry the same name (process_runs, seed_requests were both a
 // Postgres table and a Mongo collection until #1244), so rows are keyed and labelled
 // by engine rather than by name alone.
@@ -11,6 +9,6 @@ const ENGINE_LABELS: Record<string, string> = {
   mongo: 'Mongo',
 }
 
-export function storageEngineLabel(engine: StorageEngine): string {
+export function storageEngineLabel(engine: string): string {
   return ENGINE_LABELS[engine] ?? engine
 }

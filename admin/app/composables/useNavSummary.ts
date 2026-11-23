@@ -1,4 +1,4 @@
-import type { NavSummary } from '~~/shared/types/ops'
+import type { NavSummaryReadModel } from '#site-shared/contract/api'
 
 /** How often the sidebar re-asks while the tab is visible. */
 export const NAV_SUMMARY_REFRESH_MS = 60_000
@@ -14,10 +14,10 @@ export const NAV_SUMMARY_REFRESH_MS = 60_000
  * by the layout; anything else wanting the current verdict reads `healthStatus`.
  */
 export function useNavSummary() {
-  const fetched = useOps<NavSummary>('/nav-summary')
+  const fetched = useOps('/nav-summary')
   useLiveRefresh(fetched, { every: NAV_SUMMARY_REFRESH_MS })
 
-  const summary = computed<NavSummary | null>(() =>
+  const summary = computed<NavSummaryReadModel | null>(() =>
     fetched.error.value ? null : (fetched.data.value ?? null),
   )
   const healthStatus = computed(() => summary.value?.healthStatus ?? null)

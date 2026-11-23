@@ -3,7 +3,7 @@
 // `GET /api/ops/accounts/seed/{id}` every ~2s until a terminal status or a ~30s
 // timeout, so the form can drive a live status stepper.
 import type { Ref } from 'vue'
-import type { SeedAccountBody, SeedRequestReadModel } from '~~/shared/types/ops'
+import type { SeedAccountRequest, SeedRequestReadModel } from '#site-shared/contract/api'
 import type { SeedTracking } from '~/utils/seed-tracking'
 // Explicit imports rather than Nuxt auto-imports: unit tested outside the Nuxt
 // context (`tests/seed-tracking`).
@@ -78,7 +78,7 @@ export function useSeedTracking({ onSubmitted, onSettled }: SeedTrackingHooks) {
     schedule(id, mine, deadline)
   }
 
-  async function submit(body: SeedAccountBody) {
+  async function submit(body: Record<keyof SeedAccountRequest, string>) {
     const mine = stop()
     state.value = { s: 'submitting' }
 

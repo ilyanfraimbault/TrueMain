@@ -5,7 +5,7 @@ import type { BulletLegendItemInterface } from 'vue-chrts/types'
 // Imports below are explicit rather than auto-imported: this component is
 // mounted directly by the unit tests, which run outside Nuxt and resolve
 // neither auto-imported utils nor auto-registered components.
-import { escapeTickFormatter } from '~/utils/chart-text'
+import { escapeTickFormatter } from '#site-shared/utils/chart-text'
 import type { ChartMarker } from '~/utils/deploy-markers'
 import ChartTooltip from './ChartTooltip.vue'
 import DeployMarkers from './DeployMarkers.vue'

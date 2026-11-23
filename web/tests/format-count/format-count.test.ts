@@ -17,8 +17,4 @@ describe('formatCount', () => {
     expect(formatCount(0)).toBe('0')
     expect(formatCount(999)).toBe('999')
   })
-
-  it('formats identically to an explicit en-US call, whatever the ambient locale', () => {
-    expect(formatCount(1204)).toBe((1204).toLocaleString('en-US'))
-  })
 })

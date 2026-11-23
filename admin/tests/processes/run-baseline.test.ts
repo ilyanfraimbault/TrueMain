@@ -1,4 +1,4 @@
-import type { ProcessRunBaseline } from '~~/shared/types/ops'
+import type { ProcessRunBaselineReadModel } from '#site-shared/contract/api'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import ProcessSummaryView from '~~/app/components/ProcessSummaryView.vue'
@@ -16,7 +16,7 @@ const global = {
   },
 }
 
-const baseline: ProcessRunBaseline = {
+const baseline: ProcessRunBaselineReadModel = {
   sampleCount: 20,
   duration: { median: 60_000, deviation: 1.8, flagged: true },
   counters: {

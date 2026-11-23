@@ -60,6 +60,9 @@ for compose in compose.prod.yaml compose.preprod.yaml; do
   expect "${compose}: another variable named alike" "${file}" "INGESTOR_JOB_MODE_OLD=Full" pass
   expect "${compose}: the aggregate container's own variable" "${file}" "INGESTOR_AGGREGATE_JOB_MODE=Full" pass
   expect "${compose}: a mode that merely contains full" "${file}" "INGESTOR_JOB_MODE=FullPipeline" pass
+  expect "${compose}: the aggregate lane on the fetch container" "${file}" "INGESTOR_JOB_MODE=AggregateLane" fail
+  expect "${compose}: aggregatelane" "${file}" "INGESTOR_JOB_MODE=aggregatelane" fail
+  expect "${compose}: the permanent fetch workers" "${file}" "INGESTOR_JOB_MODE=FetchWorkers" pass
 done
 
 expect "no aggregate lane: Full is the default" "${single_lane}" "INGESTOR_JOB_MODE=Full" pass

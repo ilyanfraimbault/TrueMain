@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createDiskCache, type DiskCache } from './disk-cache'
+import { SITE_PAGES, sitePageMatcher } from '~~/shared/utils/site-pages'
 
 /**
  * The rendered HTML of the pages everyone reads, shared by the workers (#2425). A render costs
@@ -25,21 +26,21 @@ export const HTML_RENDER_KEY = randomUUID()
 // Not on a volume: a page names the build's own script files, so it must not outlive its build.
 const HTML_MAX_BYTES = 256 * 1024 * 1024
 
-const CACHEABLE_PATHS = [/^\/$/, /^\/champions$/, /^\/champions\/tierlist$/, /^\/champions\/[a-z0-9-]+$/i, /^\/truemains$/]
-
-// What these pages read from their URL. Anything else varies nothing on the page, so a request
-// carrying it renders without being stored: a crawler's junk parameters cannot fill the budget.
-const CACHEABLE_PARAMS = new Set(['elo', 'everyone', 'order', 'otpOnly', 'page', 'patch', 'position', 'region', 'sort', 'vs', 'championId'])
+// The pages that declare the query keys they read (`shared/utils/site-pages.ts`).
+const CACHEABLE_PAGES = SITE_PAGES.flatMap(page => page.htmlCacheParams
+  ? [{ matcher: sitePageMatcher(page.path), params: new Set(page.htmlCacheParams) }]
+  : [])
 
 /** The cache key of a request's path and query, or null when it does not go through the cache. */
 export function htmlCacheKey(requestPath: string): string | null {
   const [path = '', query] = requestPath.split('?', 2)
-  if (!CACHEABLE_PATHS.some(pattern => pattern.test(path))) return null
+  const page = CACHEABLE_PAGES.find(candidate => candidate.matcher.test(path))
+  if (!page) return null
   if (!query) return path
 
   const params = new URLSearchParams(query)
   for (const name of params.keys()) {
-    if (!CACHEABLE_PARAMS.has(name)) return null
+    if (!page.params.has(name)) return null
   }
   params.sort()
   return `${path}?${params.toString()}`

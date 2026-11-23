@@ -36,7 +36,7 @@ public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>(ApiJson.Options);
         summaries.Should().NotBeNull();
         summaries!.Should().HaveCount(60, "the seeder writes 60 (champion, position) pairs and the endpoint streams them all in one payload");
 
@@ -61,7 +61,7 @@ public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
             BaseAddress = new Uri("https://localhost")
         });
 
-        var summaries = await client.GetFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>("/champions?patch=16.5");
+        var summaries = await client.GetFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>("/champions?patch=16.5", ApiJson.Options);
         summaries.Should().BeEmpty("a purged patch would otherwise list totals and tiers over builds that are gone");
     }
 
@@ -79,7 +79,7 @@ public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>(ApiJson.Options);
         summaries.Should().NotBeNull();
 
         // Verify the computed/aggregated fields for one known seeded slice so a
@@ -206,7 +206,7 @@ public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>(ApiJson.Options);
         summaries.Should().NotBeNull();
 
         var championIds = summaries!.Select(item => item.ChampionId).ToHashSet();
@@ -271,7 +271,7 @@ public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>(ApiJson.Options);
         summaries.Should().NotBeNull();
 
         summaries!.Where(item => item.ChampionId == 300).Select(item => item.Position)
@@ -362,7 +362,7 @@ public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>(ApiJson.Options);
         summaries.Should().NotBeNull();
 
         return summaries!
@@ -421,7 +421,7 @@ public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+        var summaries = await response.Content.ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>(ApiJson.Options);
         summaries.Should().NotBeNull();
         summaries!.Should().HaveCount(6, "the six 16.15 lines are served, not the two unrankable 16.16 ones");
         summaries.Should().OnlyContain(summary => summary.PatchVersion == "16.15",
@@ -431,7 +431,7 @@ public sealed class ChampionSummariesApiIntegrationTests : IAsyncLifetime
         // not what an unqualified read defaults to.
         var explicitResponse = await client.GetAsync("/champions?patch=16.16");
         var explicitSummaries = await explicitResponse.Content
-            .ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>();
+            .ReadFromJsonAsync<IReadOnlyList<ChampionSummaryReadModel>>(ApiJson.Options);
         explicitSummaries.Should().BeEmpty("16.16's lines are all under the sample floor");
     }
 

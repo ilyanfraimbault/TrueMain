@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using System.Threading.Channels;
 using Data.Logging.Mongo;
+using Data.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
@@ -200,9 +201,9 @@ internal sealed class RiotApiMetricsSink(
             var bucket = new DateTime(
                 record.TimestampUtc.Year, record.TimestampUtc.Month, record.TimestampUtc.Day,
                 record.TimestampUtc.Hour, record.TimestampUtc.Minute, 0, DateTimeKind.Utc);
-            var endpoint = Truncate(record.Endpoint, 128) ?? string.Empty;
-            var callerProcess = Truncate(record.CallerProcess, 64);
-            var route = Truncate(record.Route, 32);
+            var endpoint = StoredText.Truncate(record.Endpoint, 128) ?? string.Empty;
+            var callerProcess = StoredText.Truncate(record.CallerProcess, 64);
+            var route = StoredText.Truncate(record.Route, 32);
             var key = (bucket, endpoint, record.StatusCode, callerProcess, route);
 
             if (!accumulators.TryGetValue(key, out var acc))
@@ -239,14 +240,14 @@ internal sealed class RiotApiMetricsSink(
 
             // Last-seen non-null wins; a null is skipped so it never clobbers a
             // value an earlier flush persisted for the same bucket.
-            SetIfPresent(updates, doc => doc.Method, Truncate(acc.Method, 16));
-            SetIfPresent(updates, doc => doc.AppRateLimit, Truncate(acc.AppRateLimit, 128));
-            SetIfPresent(updates, doc => doc.AppRateLimitCount, Truncate(acc.AppRateLimitCount, 128));
-            SetIfPresent(updates, doc => doc.MethodRateLimit, Truncate(acc.MethodRateLimit, 128));
-            SetIfPresent(updates, doc => doc.MethodRateLimitCount, Truncate(acc.MethodRateLimitCount, 128));
-            SetIfPresent(updates, doc => doc.RateLimitType, Truncate(acc.RateLimitType, 32));
+            SetIfPresent(updates, doc => doc.Method, StoredText.Truncate(acc.Method, 16));
+            SetIfPresent(updates, doc => doc.AppRateLimit, StoredText.Truncate(acc.AppRateLimit, 128));
+            SetIfPresent(updates, doc => doc.AppRateLimitCount, StoredText.Truncate(acc.AppRateLimitCount, 128));
+            SetIfPresent(updates, doc => doc.MethodRateLimit, StoredText.Truncate(acc.MethodRateLimit, 128));
+            SetIfPresent(updates, doc => doc.MethodRateLimitCount, StoredText.Truncate(acc.MethodRateLimitCount, 128));
+            SetIfPresent(updates, doc => doc.RateLimitType, StoredText.Truncate(acc.RateLimitType, 32));
             // Host-level tag, stamped from config rather than carried per record.
-            SetIfPresent(updates, doc => doc.ProcessName, Truncate(_options.ProcessName, 64));
+            SetIfPresent(updates, doc => doc.ProcessName, StoredText.Truncate(_options.ProcessName, 64));
             if (acc.RetryAfterSeconds is int retryAfter)
             {
                 updates.Add(Update.Set(doc => doc.RetryAfterSeconds, retryAfter));
@@ -311,9 +312,6 @@ internal sealed class RiotApiMetricsSink(
             RateLimitType = record.RateLimitType ?? RateLimitType;
         }
     }
-
-    private static string? Truncate(string? value, int maxLength)
-        => string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value[..maxLength];
 
     private static void ReportError(string message)
     {

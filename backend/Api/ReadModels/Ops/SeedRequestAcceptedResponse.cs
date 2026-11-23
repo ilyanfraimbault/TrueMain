@@ -1,3 +1,4 @@
+using Data.Entities;
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
@@ -10,7 +11,7 @@ public sealed record SeedRequestAcceptedResponse
 {
     public Guid Id { get; init; }
 
-    public string Status { get; init; } = string.Empty;
+    public SeedRequestStatus Status { get; init; }
 
     public bool Created { get; init; }
 }

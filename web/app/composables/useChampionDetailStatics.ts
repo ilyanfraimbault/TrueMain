@@ -1,20 +1,18 @@
-import type { ChampionResponse } from '~~/shared/types/champions'
+import type { ChampionResponse } from '#shared/contract/api'
 import { isChampionPosition, type ChampionPosition } from '#shared/utils/positions'
 import { resolveChampionStaticPatch } from '~/utils/champion-patch'
+import type { ChampionScope } from '#common/utils/champion-scope'
 
 type Filters = ReturnType<typeof useChampionFilters>['filters']
 
 interface UseChampionDetailStaticsOptions {
   /**
-   * Which patch wins in `selectedPatch` while both the loaded champion's
-   * patch and the URL filter are set. The global champion page binds to the
-   * API-returned patch first so the picker reflects what's actually shown
-   * (covering the 404 fallback in useChampion where a dead URL filter is
-   * dropped and the API returns its default patch); the player-scoped page
-   * keeps the URL filter first. Deliberately NOT unified — each page keeps
-   * its historical order.
+   * Which patch the picker shows while both the loaded champion's patch and the
+   * URL filter are set. Everyone's games show the patch the API answered with,
+   * which covers `useChampion`'s 404 fallback dropping a dead URL filter; one
+   * account's page has no such fallback, so it shows the filter it was asked for.
    */
-  preferFilterPatch?: boolean
+  scope?: ChampionScope['kind']
   /**
    * Whether the champion fetch has settled (success or error). Gates the
    * "latest DDragon version" fallback in `activePatch` — see the comment
@@ -114,9 +112,7 @@ export function useChampionDetailStatics(
     () => filters.value.patch,
   )
 
-  // See UseChampionDetailStaticsOptions for why the fallback order differs
-  // between the two consuming pages.
-  const selectedPatch = computed(() => (options.preferFilterPatch
+  const selectedPatch = computed(() => (options.scope === 'player'
     ? filters.value.patch || championRef.value?.patch
     : championRef.value?.patch || filters.value.patch) || '')
 

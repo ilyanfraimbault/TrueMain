@@ -23,7 +23,11 @@ export default defineEventHandler(async (event) => {
 function renderInBackground(path: string): void {
   if (rendering.has(path)) return
   rendering.add(path)
-  void useNitroApp().localFetch(path, { headers: renderRequestHeaders() })
-    .catch(() => {})
+  const nitroApp = useNitroApp()
+  // A render that fails is reported by the error hook like any request; this
+  // catches the one that never got that far, so a stale page served for the
+  // next hour is never served in silence.
+  void nitroApp.localFetch(path, { headers: renderRequestHeaders() })
+    .catch((error: unknown) => nitroApp.captureError(error as Error, { tags: ['html-cache'] }))
     .finally(() => rendering.delete(path))
 }

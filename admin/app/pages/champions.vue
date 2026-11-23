@@ -16,13 +16,13 @@
 // sortable column it was a column of zeros; it rides under the Mains figure it
 // qualifies instead, and only when there is something to say.
 import type { TableColumn } from '@nuxt/ui'
-import type { ChampionStatsRow } from '~~/shared/types/ops'
+import type { ChampionStatRow } from '#site-shared/contract/api'
 import { getPositionIconUrl } from '#site-shared/utils/ddragon'
 import { POSITION_OPTIONS } from '#site-shared/utils/positions'
 import { formatNumber } from '~~/shared/utils/format'
 import { championSitePath } from '~~/shared/utils/site-link'
 
-interface ChampionRowView extends ChampionStatsRow {
+interface ChampionRowView extends ChampionStatRow {
   name: string
   iconUrl: string | null
 }

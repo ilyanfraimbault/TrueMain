@@ -1,4 +1,4 @@
-import type { ChampionScalingBucket, ChampionTrendPoint } from '~~/shared/types/champions'
+import type { ChampionScalingBucket, ChampionTrendPoint } from '#shared/contract/api'
 import type { ChampionStaticListItem, StaticItemData } from '~~/shared/types/static-data'
 
 /**

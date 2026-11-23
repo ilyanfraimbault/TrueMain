@@ -24,23 +24,24 @@ export { eloBracketLabel as formatEloBracket } from '#shared/utils/elo-brackets'
 export { formatCount } from '~~/shared/utils/counts'
 
 import { POSITION_BY_VALUE } from '#shared/utils/positions'
+import { THEME_HEX } from '#shared/utils/theme-tokens'
 
 /** `--color-ink-950`, the app's darkest surface — the card ground. */
-export const INK = '#0b0b0d'
+export const INK = THEME_HEX['ink-950']
 /** The `--ui-bg-elevated` step: panel fills inside the card. */
 export const PANEL = '#1b1b20'
 /** `--color-ink-800` — the quiet border around non-accented panels. */
-export const PANEL_BORDER = '#26262c'
+export const PANEL_BORDER = THEME_HEX['ink-800']
 /** `--color-ink-200` — primary text on the dark ground. */
-export const TEXT = '#d9d9dd'
+export const TEXT = THEME_HEX['ink-200']
 /** `--color-ink-400` — labels and secondary text. */
-export const TEXT_MUTED = '#8b8b95'
+export const TEXT_MUTED = THEME_HEX['ink-400']
 /** `--color-ink-500` — the dimmest legible step (footer, units). */
-export const TEXT_DIM = '#6a6a74'
+export const TEXT_DIM = THEME_HEX['ink-500']
 /** `--color-rosegold-400`, the brand accent as it reads on dark. */
-export const ROSEGOLD = '#e58f83'
+export const ROSEGOLD = THEME_HEX['rosegold-400']
 /** `--color-rosegold-300`, the lighter end of the wordmark ramp. */
-export const ROSEGOLD_LIGHT = '#eeaea3'
+export const ROSEGOLD_LIGHT = THEME_HEX['rosegold-300']
 /**
  * `--color-gold` at its on-dark hairline opacity. Spelled `rgba()` rather than
  * an 8-digit hex because Satori's colour parsing is only reliable on the former.
@@ -48,21 +49,16 @@ export const ROSEGOLD_LIGHT = '#eeaea3'
 export const GOLD_HAIRLINE = 'rgba(217, 182, 118, 0.22)'
 
 /**
- * The `--color-tier-*` performance ladder — the medal scale, rose gold at S
- * down to iron at D. This one has no hex counterpart in `app/utils` —
- * `TierBadge.vue` reaches for it through `bg-tier-*` classes — so it is
- * restated here rather than imported, and **has to be updated by hand whenever
- * theme.css moves**: Satori cannot resolve a CSS variable, which is why these
- * are literals in the first place. An unknown or missing tier is deliberately
- * absent from the map: the card drops the badge, mirroring the badge's own
- * dash-instead-of-a-guess behaviour.
+ * The `--color-tier-*` performance ladder — the medal scale, rose gold at S down
+ * to iron at D. An unknown or missing tier is absent from the map: the card drops
+ * the badge, mirroring the badge's own dash-instead-of-a-guess behaviour.
  */
 export const TIER_COLOR: Record<string, string> = {
-  S: '#e58f83',
-  A: '#e2b95c',
-  B: '#b9c2cd',
-  C: '#b3763f',
-  D: '#837a7c',
+  S: THEME_HEX['tier-s'],
+  A: THEME_HEX['tier-a'],
+  B: THEME_HEX['tier-b'],
+  C: THEME_HEX['tier-c'],
+  D: THEME_HEX['tier-d'],
 }
 
 /**

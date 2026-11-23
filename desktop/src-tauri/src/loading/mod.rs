@@ -38,12 +38,12 @@ use std::time::Duration;
 use lcu::laning::LaneGaps;
 use lcu::record::MatchHistory;
 use lcu::{
-    gaps_at_fifteen, laning_games, GameflowPhase, GameflowPlayer, LaningForm, LcuClient,
-    FORM_GAMES, LANING_DEPTH, LANING_GAMES,
+    gaps_at_fifteen, laning_games, GameflowPlayer, LaningForm, LcuClient, FORM_GAMES, LANING_DEPTH,
+    LANING_GAMES,
 };
 use shell_state::AppState;
 use tauri::async_runtime::JoinHandle;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tokio::sync::Semaphore;
 use tokio::task::{Id, JoinSet};
 
@@ -52,10 +52,12 @@ use crate::record::SharedClient;
 mod view;
 
 pub use view::LoadingView;
-use view::{Answer, Field, Identity, Known, LoadingPlayer};
+use view::{Answer, Field, Identity, Known, LoadingPlayer, Team};
 
-/// The players changed: the payload is the new `LoadingView`.
-pub const EVENT: &str = "loading://players";
+/// The players changed.
+#[derive(Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "loading://players")]
+pub struct LoadingChanged(pub LoadingView);
 
 /// The session lists the players a moment after the phase turns; asked again
 /// this often, this many times.
@@ -87,11 +89,11 @@ pub fn follow(app: &AppHandle, state: &AppState) {
             std::mem::take(&mut *view) != LoadingView::default()
         };
         if cleared {
-            let _ = app.emit(EVENT, LoadingView::default());
+            crate::contract::emit(app, LoadingChanged(LoadingView::default()));
         }
         return;
     }
-    if task.is_some() || state.phase != GameflowPhase::InProgress {
+    if task.is_some() || !state.phase.is_game_api_up() {
         return;
     }
     let client = app
@@ -121,6 +123,7 @@ pub fn follow(app: &AppHandle, state: &AppState) {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn loading_players(loading: tauri::State<'_, SharedLoading>) -> LoadingView {
     loading.view.lock().expect("loading view poisoned").clone()
 }
@@ -131,7 +134,7 @@ fn publish(app: &AppHandle, loading: &Loading, change: impl FnOnce(&mut LoadingV
         change(&mut view);
         view.clone()
     };
-    let _ = app.emit(EVENT, view);
+    crate::contract::emit(app, LoadingChanged(view));
 }
 
 /// Who we are, to find our own line: by puuid, the session's key, or by name.
@@ -316,8 +319,8 @@ async fn roster(client: &LcuClient, me: &Me) -> Option<Vec<LoadingPlayer>> {
 fn ordered(blue: &[GameflowPlayer], red: &[GameflowPlayer], me: &Me) -> Vec<LoadingPlayer> {
     let mut rows: Vec<LoadingPlayer> = blue
         .iter()
-        .map(|player| (player, "ORDER"))
-        .chain(red.iter().map(|player| (player, "CHAOS")))
+        .map(|player| (player, Team::Order))
+        .chain(red.iter().map(|player| (player, Team::Chaos)))
         .map(|(player, team)| {
             let is_me = me.is(player);
             // Our own line is ours to read, whatever the others are shown.
@@ -392,7 +395,7 @@ mod tests {
         assert_eq!(names, ["Me#EUW", "Mirror#EUW", "Ally#EUW", "Foe#EUW"]);
         assert_eq!(puuid(&players[1]), Some("puuid-Mirror"));
         assert!(players[0].is_me);
-        assert_eq!(players[1].team, "CHAOS");
+        assert_eq!(players[1].team, Team::Chaos);
         assert!(players
             .iter()
             .filter_map(LoadingPlayer::known)

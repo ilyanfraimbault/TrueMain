@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CompositionLane } from '#shared/types/composition'
+import type { CompositionLaneReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { formatPercentage } from '#shared/utils/ddragon'
 import type { ChampionPosition } from '#shared/utils/positions'
@@ -20,7 +20,7 @@ const props = defineProps<{
   champion: ChampionStaticListItem | null
   opponent: ChampionStaticListItem | null
   /** The lane read over the recommendation's sample; null until it resolves. */
-  lane: CompositionLane | null
+  lane: CompositionLaneReadModel | null
   loading: boolean
 }>()
 

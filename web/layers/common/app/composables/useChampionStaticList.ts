@@ -16,14 +16,17 @@ import type { ChampionStaticListItem } from '#shared/types/static-data'
  * No `default` on purpose: matches the other `champion-static-list` callsites,
  * so `data` is `ChampionStaticListItem[] | null` — guard with `?? []`.
  */
+/** The list's `useAsyncData` key, which the boot prefetch (`static-prefetch.client.ts`) warms. */
+export const CHAMPION_STATIC_LIST_KEY = 'champion-static-list'
+
 export function useChampionStaticList() {
   const nuxtApp = useNuxtApp()
   const apiFetch = useApiFetch()
   return useLazyAsyncData<ChampionStaticListItem[]>(
-    'champion-static-list',
+    CHAMPION_STATIC_LIST_KEY,
     async (_nuxtApp, { signal }) => {
       const data = await apiFetch<ChampionStaticListItem[]>('/static/champions', { signal })
-      markStaticFetched('champion-static-list', nuxtApp)
+      markStaticFetched(CHAMPION_STATIC_LIST_KEY, nuxtApp)
       return data
     },
     { getCachedData: key => getStaticCachedData(key, nuxtApp) },

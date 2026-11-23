@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PersonaLink, PersonaLinkKind } from '#shared/types/players'
+import type { PersonaLinkReadModel } from '#shared/contract/api'
 
 // A known player's channels (#2016): Twitch, YouTube and X only, as square
 // buttons carrying the brand's coloured logo and no label — the logo says which
@@ -9,18 +9,18 @@ import type { PersonaLink, PersonaLinkKind } from '#shared/types/players'
 // nothing, and a source often lists one channel twice (old and new URL forms,
 // a renamed account). The API sorts each kind newest first, so the first wins.
 // The order is the API's (by kind), so a page never reshuffles.
-const props = defineProps<{ links: PersonaLink[] }>()
+const props = defineProps<{ links: PersonaLinkReadModel[] }>()
 
 // Literal class strings, for Tailwind's scan. X's mark is black on white, so it
 // takes the text colour and stays visible in both themes.
-const SHOWN: Partial<Record<PersonaLinkKind, { label: string, icon: string, color: string }>> = {
+const SHOWN: Partial<Record<string, { label: string, icon: string, color: string }>> = {
   twitch: { label: 'Twitch', icon: 'i-simple-icons-twitch', color: 'text-[#9146FF]' },
   youtube: { label: 'YouTube', icon: 'i-simple-icons-youtube', color: 'text-[#FF0000]' },
   x: { label: 'X', icon: 'i-simple-icons-x', color: 'text-highlighted' },
 }
 
 const shown = computed(() => {
-  const firstOfKind = new Map<PersonaLinkKind, string>()
+  const firstOfKind = new Map<string, string>()
   for (const link of props.links) {
     if (SHOWN[link.kind] && !firstOfKind.has(link.kind)) {
       firstOfKind.set(link.kind, link.url)

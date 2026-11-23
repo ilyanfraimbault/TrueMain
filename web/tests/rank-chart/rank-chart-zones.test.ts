@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ApexCutoff } from '#shared/types/apex-cutoffs'
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { ApexCutoffReadModel, RankHistoryEntryReadModel } from '#shared/contract/api'
 import { rankChartPoints } from '#common/utils/rank-chart'
 import {
   apexFloorsAt,
@@ -13,11 +12,11 @@ import {
 const DAY = 24 * 60 * 60 * 1000
 const START = Date.parse('2026-09-01T12:00:00Z')
 
-function snapshot(day: number, tier: string, division: string, leaguePoints: number): RankHistoryEntry {
+function snapshot(day: number, tier: string, division: string, leaguePoints: number): RankHistoryEntryReadModel {
   return { capturedAtUtc: new Date(START + day * DAY).toISOString(), tier, division, leaguePoints }
 }
 
-function cutoff(day: number, gm: number | null, ch: number | null): ApexCutoff {
+function cutoff(day: number, gm: number | null, ch: number | null): ApexCutoffReadModel {
   return { dateUtc: new Date(START + day * DAY).toISOString().slice(0, 10), grandmasterMinLp: gm, challengerMinLp: ch }
 }
 

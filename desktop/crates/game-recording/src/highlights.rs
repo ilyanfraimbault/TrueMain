@@ -20,7 +20,7 @@ const PENTAKILL_WINDOW_MS: i64 = 30_000;
 
 const MAX_MULTIKILL: u8 = 5;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum HighlightKind {
     Kill,
@@ -28,7 +28,7 @@ pub enum HighlightKind {
     Assist,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum HighlightSource {
     /// The match history's timeline: authoritative, every participant numbered.
@@ -37,7 +37,7 @@ pub enum HighlightSource {
     Live,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Highlight {
     pub kind: HighlightKind,

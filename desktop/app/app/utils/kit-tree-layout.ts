@@ -1,4 +1,4 @@
-import type { KitNode } from '#shared/types/kit'
+import type { KitNode } from '~/types/kit'
 
 /** A node placed: its address in the tree (`kit-tree.ts`), its item, its centre in px. */
 export interface PlacedKitNode {

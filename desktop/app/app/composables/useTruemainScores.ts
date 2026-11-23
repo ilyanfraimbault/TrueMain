@@ -1,4 +1,4 @@
-import type { MatchSummariesResponse } from '#shared/types/matches'
+import type { MatchSummariesResponse } from '#shared/contract/api'
 import type { GameScore } from '~/utils/match-summary'
 
 /** TrueMain's page size ceiling for a player's matches. */

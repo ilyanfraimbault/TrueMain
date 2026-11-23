@@ -2,7 +2,7 @@
 // A known player's own trail in the edit panel (#2288): the operator actions that
 // targeted it, newest first, from the same endpoint as the Audit page. `version`
 // moves after each edit the panel makes, so the new action shows up at once.
-import type { AuditEventsResponse } from '~~/shared/types/ops'
+import type { AuditEventsReadModel } from '#site-shared/contract/api'
 import { computed, watch } from 'vue'
 import { useKeyedFetch } from '~/composables/useKeyedFetch'
 import { panelPhase } from '~/composables/useLastGoodPayload'
@@ -13,7 +13,7 @@ const PAGE_SIZE = 20
 
 // Keyed by the player (#2471): a ⌘K jump drops the previous player's trail at once,
 // and its late answer never lands here; a reload after an edit keeps the trail drawn.
-const { state, value: page, load } = useKeyedFetch<string, AuditEventsResponse>(
+const { state, value: page, load } = useKeyedFetch<string, AuditEventsReadModel>(
   personaId => getAuditEvents({ targetType: 'Persona', targetId: personaId, pageSize: PAGE_SIZE }),
 )
 watch(() => [props.personaId, props.version] as const, ([personaId]) => load(personaId), { immediate: true })

@@ -161,7 +161,6 @@ function onMoment(moment: Pick<Moment, 'videoMs'>) {
 <template>
   <div class="select-none">
     <div class="flex gap-2">
-      <!-- The lanes' legend. -->
       <RecapTimelineLegend :height="trackHeight" :curve="!!winProbability" />
 
       <div

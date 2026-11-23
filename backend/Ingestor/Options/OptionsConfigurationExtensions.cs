@@ -195,10 +195,6 @@ public static class OptionsConfigurationExtensions
                 configuration, ScalingAggregationOptions.SectionName)
             .ValidateOnStart();
 
-        services.AddOptionsWithValidator<LaneOutcomeAggregationOptions, LaneOutcomeAggregationOptionsValidator>(
-                configuration, LaneOutcomeAggregationOptions.SectionName)
-            .ValidateOnStart();
-
         services.AddOptionsWithValidator<BanAggregationOptions, BanAggregationOptionsValidator>(
                 configuration, BanAggregationOptions.SectionName)
             .ValidateOnStart();

@@ -38,7 +38,7 @@ is a build-time constant, so the watcher does not exist on the server at all —
 body happening to no-op there.
 
 **A closed `enabled` gate resolves `success` with an empty model, so the gated composables expose their own
-`pending`.** `createChampionPatchSlice` and `useChampionTrend` hold their request
+`pending`.** `useChampionScaling` and `useChampionTrend` hold their request
 until the champion's lane lands, and while held they resolve the empty read-model — which reaches
 `status: "success"` with nothing loaded. A consumer driving a skeleton off `status` therefore renders its
 "no data" state for the whole (client-only) champion fetch and only then fills in. Each composable now
@@ -596,7 +596,7 @@ and counts were written by hand in ~30 places, and a missing champion name was `
 - **Signed differences** — `shared/utils/deltas.ts`: `formatSigned` (`+312`, `−1,204`, the typographic minus,
   no sign on a zero) and `formatPointDelta` for a move between two rates, always in percentage points written
   `pts` (`+3.1 pts`). Unit, sign and decimals are options, never a hand-written copy.
-- **Percentages** `formatPercentage(OrDash)`, **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
+- **Percentages** `formatPercentage(OrDash)`, whole numbers by default since #2552 (`51%`, never `50.6%`; only `formatPercentageAdaptive` keeps a decimal, under 1%), **counts** `formatCount`, **clocks** `formatDuration` (`hours` for
   recordings), **champion names** `championDisplayName` (`Champion {id}`), and lookups by id through
   `useChampionsById`, never a linear `find`.
 - **Positions** — `web/shared/utils/positions.ts` (site, app and admin) holds the order (`POSITIONS`, `positionIndex`, `compareByPosition`), the

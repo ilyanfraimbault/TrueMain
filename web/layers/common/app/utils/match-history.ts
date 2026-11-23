@@ -1,4 +1,4 @@
-import type { MatchSummaryResponse } from '#shared/types/matches'
+import type { MatchSummaryReadModel } from '#shared/contract/api'
 
 // Day grouping for the match-history lists. A page of 20 identically-shaped
 // rows reads as one undifferentiated wall; players think in play sessions
@@ -15,7 +15,7 @@ export interface MatchDayGroup {
    * the rows with no heading rather than a bogus date.
    */
   label: string
-  matches: MatchSummaryResponse[]
+  matches: MatchSummaryReadModel[]
 }
 
 // Shared formatter instances — rebuilding Intl.DateTimeFormat per row is
@@ -53,7 +53,7 @@ export function formatMatchDay(isoTimestamp: string, now: Date = new Date()): st
  * contiguous run, never a reshuffled history.
  */
 export function groupMatchesByDay(
-  matches: MatchSummaryResponse[],
+  matches: MatchSummaryReadModel[],
   now: Date = new Date(),
 ): MatchDayGroup[] {
   const groups: MatchDayGroup[] = []

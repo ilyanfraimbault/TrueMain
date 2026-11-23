@@ -2,8 +2,7 @@ import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref, toValue } from 'vue'
 import { PagePlayerProfile, PlayersPlayerAccountRow, PlayersPlayerLinks, SearchPlayerItem, UApp } from '#components'
-import type { PersonaAccount } from '~~/shared/types/players'
-import type { SearchPlayer } from '~~/shared/types/search'
+import type { PersonaAccountReadModel, SearchPlayerReadModel } from '#shared/contract/api'
 import { useTruemainSearch } from '#common/composables/useTruemainSearch'
 import PlayerPage from '~/pages/players/[slug].vue'
 
@@ -72,7 +71,7 @@ describe('PlayerLinks', () => {
 })
 
 describe('PlayerAccountRow', () => {
-  const account: PersonaAccount = {
+  const account: PersonaAccountReadModel = {
     gameName: 'Aileri',
     tagLine: 'KR1',
     platformId: 'KR',
@@ -106,7 +105,7 @@ describe('PlayerAccountRow', () => {
 })
 
 describe('SearchPlayerItem', () => {
-  const player: SearchPlayer = {
+  const player: SearchPlayerReadModel = {
     persona: { slug: 'irelking', displayName: 'Irelking', pictureUrl: null },
     accountCount: 3,
     pictureUrl: null,
@@ -173,7 +172,7 @@ describe('PlayerProfile', () => {
 describe('useTruemainSearch', () => {
   it('exposes the known players the search answered, and clears them below the floor', async () => {
     vi.useFakeTimers()
-    const player: SearchPlayer = { persona: { slug: 'irelking', displayName: 'Irelking', pictureUrl: null }, accountCount: 1, pictureUrl: null, profileIconId: 6, ranked: null }
+    const player: SearchPlayerReadModel = { persona: { slug: 'irelking', displayName: 'Irelking', pictureUrl: null }, accountCount: 1, pictureUrl: null, profileIconId: 6, ranked: null }
     apiFetch.mockResolvedValue({ results: [], players: [player] })
 
     const term = ref('')

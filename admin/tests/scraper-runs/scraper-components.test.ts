@@ -1,4 +1,4 @@
-import type { ProcessRun, ProcessRunsResponse } from '~~/shared/types/ops'
+import type { ProcessRunReadModel, ProcessRunsReadModel } from '#site-shared/contract/api'
 import type { ScraperStep } from '~~/shared/utils/scraper-runs'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
@@ -84,7 +84,7 @@ describe('ProcessesScraperSteps', () => {
   })
 })
 
-function run(over: Partial<ProcessRun>): ProcessRun {
+function run(over: Partial<ProcessRunReadModel>): ProcessRunReadModel {
   return {
     id: 'r1',
     processName: 'PersonaScraper',
@@ -101,7 +101,7 @@ function run(over: Partial<ProcessRun>): ProcessRun {
   }
 }
 
-function response(runs: ProcessRun[]): ProcessRunsResponse {
+function response(runs: ProcessRunReadModel[]): ProcessRunsReadModel {
   return { runs, rollup: [], total: runs.length, page: 1, pageSize: 9 }
 }
 

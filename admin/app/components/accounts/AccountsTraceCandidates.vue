@@ -3,17 +3,17 @@
 // the manual seed request that brought it in, if any. Split out of
 // `AccountsTrace.vue` (#1436).
 import type { TableColumn } from '@nuxt/ui'
-import type { AccountExplorerCandidate, SeedRequestReadModel } from '~~/shared/types/ops'
+import type { AccountExplorerCandidateReadModel, SeedRequestReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatNumber } from '~~/shared/utils/format'
 
 defineProps<{
-  candidates: AccountExplorerCandidate[]
+  candidates: AccountExplorerCandidateReadModel[]
   seedRequest: SeedRequestReadModel | null
 }>()
 
 const { nameFor, iconFor } = useChampionStatic()
 
-const candidateColumns: TableColumn<AccountExplorerCandidate>[] = [
+const candidateColumns: TableColumn<AccountExplorerCandidateReadModel>[] = [
   { accessorKey: 'championId', header: 'Champion' },
   { accessorKey: 'status', header: 'Status' },
   { accessorKey: 'source', header: 'Source' },
@@ -26,7 +26,7 @@ const candidateColumns: TableColumn<AccountExplorerCandidate>[] = [
 // The score inputs a candidate actually carries depend on where it came from:
 // ladder rows hold mastery rank/points, harvest rows hold observed games. Show
 // the ones its source populated rather than a row of zeros for the others.
-function scoreInputsLabel(candidate: AccountExplorerCandidate): string {
+function scoreInputsLabel(candidate: AccountExplorerCandidateReadModel): string {
   const inputs = candidate.scoreInputs
   const parts = [`last played ${formatDateTime(inputs.lastPlayTimeUtc)}`]
   if (candidate.source === 'Harvest') {

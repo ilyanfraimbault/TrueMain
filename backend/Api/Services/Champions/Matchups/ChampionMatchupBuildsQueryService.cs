@@ -2,7 +2,6 @@ using Core.Lol.Patches;
 using Core.Lol.Ranking;
 using Core.Options;
 using Data;
-using Data.Queries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Champions;
@@ -11,6 +10,7 @@ using TrueMain.RequestLogging;
 using TrueMain.Services.Champions.Builds;
 using TrueMain.Services.Champions.Composition;
 using TrueMain.Services.Champions.Scopes;
+using TrueMain.Services.Sql;
 
 namespace TrueMain.Services.Champions.Matchups;
 
@@ -22,33 +22,17 @@ namespace TrueMain.Services.Champions.Matchups;
 public interface IChampionMatchupBuildsQueryService
 {
     /// <summary>
-    /// Builds, variations, core and item tree recomputed from the games where
-    /// <paramref name="championId"/> faced <paramref name="opponentChampionId"/> in
-    /// <paramref name="position"/>.
+    /// Builds, variations, core and item tree recomputed from the games where the
+    /// champion faced its lane opponent. A null patch resolves the newest patch the
+    /// matchup was played on, within what <c>match_participants</c> still holds.
     /// </summary>
-    /// <param name="championId">Champion the page is about.</param>
-    /// <param name="opponentChampionId">Lane opponent to scope to.</param>
-    /// <param name="patch">
-    /// Optional <c>major.minor</c> patch. Null spans every patch still held in
-    /// <c>match_participants</c> — retention keeps the two most recent.
-    /// </param>
-    /// <param name="position">Canonical Riot position; both sides are matched on it.</param>
-    /// <param name="eloBracket">
-    /// Optional elo filter, same vocabulary as the aggregate path (<c>ALL</c>, a bare
-    /// tier, or a <c>TIER_PLUS</c> form).
-    /// </param>
+    /// <param name="matchup">The champion side, the shared lane and the opponent.</param>
     /// <param name="ct">Request cancellation token.</param>
     /// <returns>
     /// Null when the retained window holds no game of this matchup — distinct from a
     /// response with zero builds, so the caller can say "no data for this matchup".
     /// </returns>
-    Task<ChampionResponse?> GetAsync(
-        int championId,
-        int opponentChampionId,
-        string? patch,
-        string position,
-        string? eloBracket,
-        CancellationToken ct);
+    Task<ChampionResponse?> GetAsync(LaneMatchupScope matchup, CancellationToken ct);
 }
 
 /// <summary>
@@ -86,17 +70,16 @@ public sealed class ChampionMatchupBuildsQueryService(
     /// </summary>
     private const int MaxMatchupGames = 2_000;
 
-    public Task<ChampionResponse?> GetAsync(
-        int championId,
-        int opponentChampionId,
-        string? patch,
-        string position,
-        string? eloBracket,
-        CancellationToken ct)
+    public Task<ChampionResponse?> GetAsync(LaneMatchupScope matchup, CancellationToken ct)
         => cache.GetOrComputeAsync(
-            $"champions:matchup-builds:{championId}:{opponentChampionId}:{position}"
-                + $":{PatchFilter.Normalize(patch) ?? "all"}:{EloBracket.ResolveToken(eloBracket)}",
-            token => ComputeAsync(championId, opponentChampionId, patch, position, eloBracket, token),
+            $"champions:matchup-builds:{matchup.CacheToken()}",
+            token => ComputeAsync(
+                matchup.Champion.ChampionId,
+                matchup.OpponentChampionId,
+                matchup.Champion.Patch,
+                matchup.Lane,
+                matchup.Champion.EloBracket,
+                token),
             ct);
 
     private async Task<ChampionResponse?> ComputeAsync(

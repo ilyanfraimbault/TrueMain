@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ProfilePositionStat } from '#shared/types/profile'
+import type { ProfilePositionStatReadModel } from '#shared/contract/api'
 import { formatPercentage, getPositionIconUrl } from '#shared/utils/ddragon'
 import { positionLabel } from '#shared/utils/positions'
 
@@ -7,7 +7,7 @@ import { positionLabel } from '#shared/utils/positions'
 // dashboard adds how the player fares on each through the `games` slot
 // (`DashboardRolesCard`).
 const props = withDefaults(defineProps<{
-  positions: ProfilePositionStat[]
+  positions: ProfilePositionStatReadModel[]
   title?: string
 }>(), {
   title: 'Role distribution',
@@ -15,7 +15,7 @@ const props = withDefaults(defineProps<{
 
 defineSlots<{
   /** The figures beside the role's icon. Defaults to its game count. */
-  games?: (props: { role: ProfilePositionStat }) => unknown
+  games?: (props: { role: ProfilePositionStatReadModel }) => unknown
 }>()
 
 // Each position under its one name (`positions.ts`), the name the filters and

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import type { MatchSummaryResponse } from '#shared/types/matches'
-import type { PersonaTag } from '#shared/types/players'
+import type { MatchSummaryReadModel, PersonaTagReadModel } from '#shared/contract/api'
 import { playerPath } from '#shared/utils/player-path'
 import type { FormReference } from '#common/utils/match-form'
 import { formTiles, RECENT_GAMES } from '#common/utils/match-form'
@@ -26,11 +25,11 @@ const props = withDefaults(defineProps<{
   /** Data Dragon patch for the profile icon; null until the version list has loaded. */
   patch: string | null
   /** The known player this account belongs to (#2016), linking to all their accounts. */
-  persona?: PersonaTag | null
+  persona?: PersonaTagReadModel | null
   splashUrl?: string | null
   splashPosition?: string
   /** The games the form tiles read, newest first. */
-  matches: MatchSummaryResponse[]
+  matches: MatchSummaryReadModel[]
   /** The tier the tiles are set against (#2076), where the host knows it: the app's dashboard. */
   formReference?: FormReference | null
   loading?: boolean

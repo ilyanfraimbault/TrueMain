@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Clip, RecordingLibrary } from '../app/types/recordings'
+import type { Clip } from '../app/types/recordings'
 import { devRecordingCall } from '../app/utils/recordings-dev'
 import { devLoadingView } from '../app/utils/loading-dev'
 
@@ -10,30 +10,30 @@ import { devLoadingView } from '../app/utils/loading-dev'
  */
 
 async function clips(): Promise<Clip[]> {
-  return (await devRecordingCall('recording_library') as RecordingLibrary).clips
+  return (await devRecordingCall('recordingLibrary')).clips
 }
 
 describe('the dev clip video', () => {
   it('goes local → both → youtube as the player publishes and frees a clip', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => {})
     const local = (await clips()).find(clip => clip.video.kind === 'local')!
-    const both = await devRecordingCall('clip_set_youtube_url', { id: local.id, url: 'https://youtu.be/jNQXAC9IVRw' }) as Clip
+    const both = await devRecordingCall('clipSetYoutubeUrl', local.id, 'https://youtu.be/jNQXAC9IVRw')
     expect(both.video).toEqual({ kind: 'both', url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' })
-    expect(await devRecordingCall('clip_youtube_embed', { id: local.id })).toContain('/embed/jNQXAC9IVRw')
-    await devRecordingCall('clip_open_youtube', { id: local.id })
+    expect(await devRecordingCall('clipYoutubeEmbed', local.id)).toContain('/embed/jNQXAC9IVRw')
+    await devRecordingCall('clipOpenYoutube', local.id)
 
-    const youtube = await devRecordingCall('clip_delete_video', { id: local.id }) as Clip
+    const youtube = await devRecordingCall('clipDeleteVideo', local.id)
     expect(youtube.video).toEqual({ kind: 'youtube', url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' })
-    await expect(devRecordingCall('clip_set_youtube_url', { id: local.id, url: '' })).rejects.toThrow('only on YouTube')
+    await expect(devRecordingCall('clipSetYoutubeUrl', local.id, '')).rejects.toThrow('only on YouTube')
   })
 
   it('forgets a link back to the file alone, and refuses to free an unpublished clip', async () => {
     const local = (await clips()).find(clip => clip.video.kind === 'local')!
-    await devRecordingCall('clip_set_youtube_url', { id: local.id, url: 'https://youtu.be/jNQXAC9IVRw' })
-    const forgotten = await devRecordingCall('clip_set_youtube_url', { id: local.id, url: '' }) as Clip
+    await devRecordingCall('clipSetYoutubeUrl', local.id, 'https://youtu.be/jNQXAC9IVRw')
+    const forgotten = await devRecordingCall('clipSetYoutubeUrl', local.id, '')
     expect(forgotten.video).toEqual({ kind: 'local' })
-    await expect(devRecordingCall('clip_delete_video', { id: local.id })).rejects.toThrow('only a clip published')
-    await expect(devRecordingCall('clip_youtube_embed', { id: local.id })).rejects.toThrow('no YouTube link')
+    await expect(devRecordingCall('clipDeleteVideo', local.id)).rejects.toThrow('only a clip published')
+    await expect(devRecordingCall('clipYoutubeEmbed', local.id)).rejects.toThrow('no YouTube link')
   })
 
   it('lists a clip with nothing left to play as missing', async () => {

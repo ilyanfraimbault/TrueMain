@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 import type { RouteLocationRaw } from 'vue-router'
-import type { ChampionSummaryResponse } from '#shared/types/champions'
+import type { ChampionSummaryReadModel } from '#shared/contract/api'
 import type { RuneTreeResponse, StaticItemData } from '#shared/types/static-data'
 import { formatPercentage, formatPercentageOrDash } from '#shared/utils/ddragon'
 import { formatCount } from '#shared/utils/counts'
@@ -10,7 +10,7 @@ import { winRateTone } from '#common/utils/rate-tone'
 import { directoryOrderToSorting, parseDirectoryOrder, type DirectoryOrder, type TableSorting } from '#common/utils/table-sorting'
 import { clickSelectableRow, wantsNewTab } from '#common/utils/table-rows'
 
-type DirectoryRow = ChampionSummaryResponse & { name: string, iconUrl: string }
+type DirectoryRow = ChampionSummaryReadModel & { name: string, iconUrl: string }
 
 // The /champions directory as a `UTable` (#1734): one page of (champion, lane)
 // lines, already filtered, ordered and paged by `GET /champions/directory`.

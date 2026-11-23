@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PersonaAccount } from '#shared/types/players'
+import type { PersonaAccountReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { truemainNameTag } from '#shared/utils/truemain-path'
@@ -11,7 +11,7 @@ import { formatRelativeTime } from '#common/utils/relativeTime'
 // rank, mains linking to the player's champion pages. Only tracked accounts
 // reach this row; the page lists no account it could not open.
 const props = defineProps<{
-  account: PersonaAccount
+  account: PersonaAccountReadModel
   championsById: Map<number, ChampionStaticListItem>
   patch: string | null
 }>()

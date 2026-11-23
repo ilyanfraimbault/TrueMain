@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // Identity card of the Trace tab: when each half of the pipeline last touched the
 // account. Split out of `AccountsTrace.vue` (#1436).
-import type { AccountExplorerIdentity } from '~~/shared/types/ops'
+import type { AccountExplorerIdentityReadModel } from '#site-shared/contract/api'
 import { formatNumber } from '~~/shared/utils/format'
 import { truemainPath } from '~~/shared/utils/site-link'
 
 defineProps<{
-  identity: AccountExplorerIdentity
+  identity: AccountExplorerIdentityReadModel
 }>()
 </script>
 

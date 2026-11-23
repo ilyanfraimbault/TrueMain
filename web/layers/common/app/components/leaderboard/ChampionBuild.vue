@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardTopChampion } from '#shared/types/leaderboard'
+import type { LeaderboardTopChampionReadModel } from '#shared/contract/api'
 import type { StaticItemData, StaticPerkData, StaticPerkStyleData } from '#shared/types/static-data'
 import { formatPercentage } from '#shared/utils/ddragon'
 
@@ -16,7 +16,7 @@ import { formatPercentage } from '#shared/utils/ddragon'
 // to the link. Omit `nameTag` (homepage, where the whole row is already a
 // link) to render a plain, non-interactive cluster.
 const props = withDefaults(defineProps<{
-  champion: LeaderboardTopChampion
+  champion: LeaderboardTopChampionReadModel
   name: string
   iconUrl: string | null
   keystone: StaticPerkData | null

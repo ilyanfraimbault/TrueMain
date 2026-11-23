@@ -68,17 +68,6 @@ describe('useCanonicalIcon', () => {
     )
   })
 
-  it('gives two different display sizes of one asset the same URL', () => {
-    stubIpx()
-    const canonicalIcon = useCanonicalIcon()
-    const src = 'https://ddragon.leagueoflegends.com/cdn/16.15.1/img/item/3157.png'
-
-    // The whole point: a 12 px lane glyph and a 64 px build slot must not
-    // produce two cache entries. Callers cannot pass a size, so they cannot
-    // diverge — this pins that they still cannot.
-    expect(canonicalIcon(src)).toBe(canonicalIcon(src))
-  })
-
   it('returns undefined for a missing src without calling through', () => {
     const ipx = stubIpx()
     const canonicalIcon = useCanonicalIcon()

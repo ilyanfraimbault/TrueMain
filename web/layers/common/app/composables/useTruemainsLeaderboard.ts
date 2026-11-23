@@ -1,4 +1,5 @@
-import type { LeaderboardResponse, LeaderboardRowResponse, LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
+import type { LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
+import type { LeaderboardResponse, LeaderboardRowReadModel } from '#shared/contract/api'
 import { parseLeaderboardSort } from '#shared/utils/leaderboard-sort'
 import { describeStaleFetchError } from '#common/utils/errors'
 
@@ -140,7 +141,7 @@ export function useTruemainsLeaderboard(
   const error = fallback?.error ?? leaderboardFetch.error
   const staleError = fallback?.staleError ?? computed(() => null)
 
-  const rows = computed<LeaderboardRowResponse[]>(() => data.value?.rows ?? [])
+  const rows = computed<LeaderboardRowReadModel[]>(() => data.value?.rows ?? [])
   const total = computed(() => data.value?.total ?? 0)
   const pageSize = computed(() => data.value?.pageSize ?? fallbackPageSize)
 

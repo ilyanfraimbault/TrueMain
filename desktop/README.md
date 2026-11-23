@@ -162,7 +162,7 @@ Recordings go to `~/Movies/TrueMain` (`Videos\TrueMain`
 on Windows) unless the player picked a folder; clips cut in the recap go to
 its `clips/` subfolder, each its own `clip.mp4` + `clip.json` + thumbnail. The
 helper also cuts the clips (a passthrough export, no re-encoding) and takes the
-thumbnails (`crates/capture-helper`, shared with the spike).
+thumbnails (`crates/capture-helper`).
 
 There is one helper per platform, speaking the same JSON-lines protocol
 (`capture/macos/Sources/truemain-capture/main.swift` documents it), so nothing
@@ -191,7 +191,7 @@ permission on each update (its signature changes), which the page shows.
 
 The webview side (`app/app/pages/recordings/`, `components/recordings/`,
 `components/recap/`, `composables/useRecordings.ts`) reads all of it through
-the shell's recording commands and events (`types/recordings.ts` mirrors them):
+the shell's recording commands and events (generated, `types/recordings.ts` names them):
 the **Recordings** page lists full games and clips in DPM's layout with search,
 filters and grouping; the **recap** (`/recordings/<id>`) plays a full game over
 its timeline of moments, cuts clips by hand — drag across the timeline, or I / O
@@ -267,11 +267,15 @@ With that file, `npm run tauri dev`, `npm run tauri:sim` and a local
 Those calls go through **Rust**, not the webview's `fetch`. From the webview
 they would be subject to CORS against an origin the site was never configured
 for, and would force the content-security policy open to a remote host. From
-Rust neither applies and the CSP stays closed. The draft and build calls have a
-command each; the pages' reads go through `api_get`, which forwards a short
-allow-list of read-only paths (tier list, truemains leaderboard and search, and
-one true main's build on a champion — `/truemains/{nameTag}/champions/{id}`,
-checked segment by segment) and nothing else.
+Rust neither applies and the CSP stays closed. Every read goes through `api_get`
+or `api_post`, which forward the routes of `src-tauri/api-routes.json` and
+nothing else — each path named as the API's OpenAPI document names it, each
+`{parameter}` checked as one segment of its own shape (`src/api/routes.rs`),
+with a longer deadline for the reads the API computes slowly. Two tests hold
+the table to the code around it: every route is one the API serves, and every
+read the app and the shared pages make is a route. A read a newer one replaces
+(the draft's build) passes a `replaces` key, and the shell aborts the older
+one.
 
 Static game data is the exception: the webview fetches Data Dragon and Community
 Dragon itself (the CSP lets those two hosts through), the same files the site's
@@ -356,6 +360,7 @@ screen hold. Update this table with what the tape shows.
 
 ```
 desktop/
+  crates/keys/            the keyboard model: key codes, chords, refusals, the game's binds
   crates/lcu/             pure Rust client for the League client API — no Tauri, no GUI
   crates/live-client/     the running game's own API, and the in-game state derived from it
   crates/shell-state/     the app's state and the screen it calls for, and the overlay's
@@ -363,11 +368,9 @@ desktop/
   crates/game-recording/  game recording minus the capture (#1744): settings, highlights,
                           game-clock anchor, storage budget — no Tauri, no GUI
   crates/capture-helper/  drives the capture helper: records, cuts clips, takes thumbnails,
-                          reads the Screen Recording permission — shared by app and spike
-  crates/capture-spike/   dev tool: records one game through the capture helper and
-                          reports what it measured (#1745)
+                          reads the Screen Recording permission
   capture/macos/          the macOS capture helper (Swift, ScreenCaptureKit) — built on
-                          a Mac only; run with capture/spike.sh
+                          a Mac only
   capture/windows/        the Windows capture helper (Rust, Windows.Graphics.Capture +
                           Media Foundation) — its code is cfg(windows), a stub elsewhere
   tools/                  overlay-probe.swift: the window server's view of a game (#1673);
@@ -379,12 +382,23 @@ desktop/
 
 The crates deliberately carry no Tauri dependency, so they build and test on
 any platform — including Linux CI, where the shell itself cannot build. Run
-their tests with `cargo test -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p truemain-capture` from
+their tests with `cargo test -p keys -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p truemain-capture` from
 `desktop/`.
 
 The **navigation rule lives in Rust** (`crates/shell-state/src/lib.rs`), not in the
 frontend: which screen belongs to which phase is a product decision, and two
 implementations of it would drift.
+
+The **contract between the shell and the webview is generated from Rust**
+(`src-tauri/src/contract.rs`, with `specta` and `tauri-specta`): every command the
+webview may call, every event it may hear, their payload types and the shell's
+refusal codes land in `app/app/generated/shell.ts`, which the webview reaches
+through `app/app/utils/shell.ts`. A new command or event is added to that list, a
+type that crosses the boundary derives `specta::Type`, and the file is
+regenerated with `UPDATE_BINDINGS=1 cargo test -p truemain-desktop contract`; the
+same test fails in CI when the checked-in file is stale. A type that reads
+differently than it writes (a `default` field) is `X` as the shell sends it and
+`XInput` as it takes it.
 
 The main window runs with `dragDropEnabled: false`. Left on, Tauri takes every
 drop at the native level to report dropped files, and the page's own HTML5
@@ -458,13 +472,16 @@ TRUEMAIN_API_BASE=http://localhost:5008 TRUEMAIN_LCU_REPLAY=fixtures/ranked-draf
 cd desktop/app && npm run dev        # then pick a scenario at the bottom
 ```
 
-`npm run dev` outside Tauri has no client and no Rust, so it opens on a picker
-of states the client would have pushed — `?scenario=draft-locked#/draft` links
-to one directly (the route is in the hash). This is for working on the UI with
-hot reload; it proves nothing below the frontend. `app/app/fixtures/scenarios.json`
-holds the states. Everything else is real data: the dev server proxies `/api`
-to the site's `/api` — preprod with `desktop/.env.local`, production without
-(`nuxt.config.ts`, dev only) — since there is no Rust to ask. In a production build the picker never renders — `import.meta.dev`
+`npm run dev` outside Tauri has no client and no Rust, so a fake shell answers
+the app's commands instead (`app/app/dev-shell/`, installed by
+`app/app/utils/shell.ts`; typed by the generated bindings, so a new command needs
+its dev answer there and nowhere else). It opens on a picker of states the client
+would have pushed — `?scenario=draft-locked#/draft` links to one directly (the
+route is in the hash). This is for working on the UI with hot reload; it proves
+nothing below the frontend. `app/app/fixtures/scenarios.json` holds the states.
+TrueMain's reads are real data: the fake shell sends them through the dev server's
+proxy of the site's `/api` — preprod with `desktop/.env.local`, production
+without (`nuxt.config.ts`, dev only). In a production build the picker never renders — `import.meta.dev`
 is false — but Nuxt still bundles it, and the fixtures sit in a small lazy chunk
 that is never fetched.
 

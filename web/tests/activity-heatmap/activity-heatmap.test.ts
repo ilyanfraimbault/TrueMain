@@ -10,7 +10,7 @@ import {
   activityCellsAreGames,
   activityMaxGames,
 } from '#common/utils/activity-heatmap'
-import type { ActivityBucket, ActivitySeries } from '~~/shared/types/activity'
+import type { TruemainActivityBucketReadModel, TruemainActivitySeriesReadModel } from '#shared/contract/api'
 
 /**
  * The activity heatmap's colour scale and copy (#927, reshaped in #1473).
@@ -30,7 +30,7 @@ import type { ActivityBucket, ActivitySeries } from '~~/shared/types/activity'
  * never inferred from the data.
  */
 
-function bucket(partial: Partial<ActivityBucket> = {}): ActivityBucket {
+function bucket(partial: Partial<TruemainActivityBucketReadModel> = {}): TruemainActivityBucketReadModel {
   return {
     key: '2026-07-29',
     startUtc: '2026-07-29T00:00:00Z',
@@ -42,7 +42,7 @@ function bucket(partial: Partial<ActivityBucket> = {}): ActivityBucket {
   }
 }
 
-function series(partial: Partial<ActivitySeries> = {}): ActivitySeries {
+function series(partial: Partial<TruemainActivitySeriesReadModel> = {}): TruemainActivitySeriesReadModel {
   return {
     mode: 'patch',
     patch: '16.6',

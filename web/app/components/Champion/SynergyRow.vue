@@ -40,7 +40,7 @@ const synergyClass = computed(() => {
 })
 const gamesTooltip = computed(() =>
   `${formatCount(props.games)} game(s) together — `
-  + `${formatPercentage(props.playRate ?? 0, 1)} of this champion's games`,
+  + `${formatPercentage(props.playRate ?? 0)} of this champion's games`,
 )
 const synergyLabel = computed(() => formatPointDelta(props.synergy, { unit: false }))
 </script>

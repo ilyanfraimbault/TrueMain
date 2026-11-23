@@ -3,7 +3,7 @@
 // would touch and the merge it would get — into the older known player — then
 // confirm twice, like every merge. What is sent is the ids on screen, never the
 // floor alone; the API re-checks each and answers what it did, shown in place.
-import type { PersonaConflictBulkPreview, PersonaConflictBulkResolved } from '~~/shared/types/ops'
+import type { PersonaConflictBulkPreviewReadModel, PersonaConflictBulkResolveResponse } from '#site-shared/contract/api'
 import { computed, ref, watch } from 'vue'
 import { formatNumber } from '~~/shared/utils/format'
 import { BULK_FLOORS, DEFAULT_BULK_FLOOR, bulkMergeLine, bulkResolvedMessage, skipReasonLabel } from '~~/shared/utils/persona-conflict-bulk'
@@ -20,7 +20,7 @@ const floor = ref<number>(DEFAULT_BULK_FLOOR)
 // The preview is keyed by the floor it was asked for (#2471): only the answer for
 // the floor on screen is ever drawn — or sent. A superseded request, failed or not,
 // writes nothing.
-const { state: previewState, load, reset } = useKeyedFetch<number, PersonaConflictBulkPreview>(asked => previewBulkResolve(asked))
+const { state: previewState, load, reset } = useKeyedFetch<number, PersonaConflictBulkPreviewReadModel>(asked => previewBulkResolve(asked))
 const preview = computed(() => {
   const current = previewState.value
   return current.s === 'ready' && current.id === floor.value ? current : null
@@ -30,7 +30,7 @@ const loading = computed(() => previewState.value.s === 'loading')
 const confirmation = useArmedConfirm<'bulk'>({ scope: preview })
 const armed = computed(() => confirmation.armed.value === 'bulk')
 const busy = computed(() => confirmation.sending.value === 'bulk')
-const result = ref<PersonaConflictBulkResolved | null>(null)
+const result = ref<PersonaConflictBulkResolveResponse | null>(null)
 const toast = useActionToast()
 
 const candidates = computed(() => preview.value?.value.conflicts ?? [])

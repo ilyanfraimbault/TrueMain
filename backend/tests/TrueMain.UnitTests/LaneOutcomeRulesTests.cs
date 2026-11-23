@@ -21,7 +21,7 @@ public class LaneOutcomeRulesTests
     [InlineData(10_000)]
     public void Judge_CallsALaneWonOnlyStrictlyAboveTheThreshold(int goldDiff)
     {
-        LaneOutcomeRules.Judge(goldDiff, LaneOutcomeRules.DefaultGoldLeadThreshold)
+        LaneOutcomeRules.Judge(goldDiff, LaneOutcomeRules.GoldLeadThreshold)
             .Should().Be(LaneStanding.Won);
     }
 
@@ -31,7 +31,7 @@ public class LaneOutcomeRulesTests
     [InlineData(-10_000)]
     public void Judge_CallsALaneLostOnlyStrictlyBelowTheNegatedThreshold(int goldDiff)
     {
-        LaneOutcomeRules.Judge(goldDiff, LaneOutcomeRules.DefaultGoldLeadThreshold)
+        LaneOutcomeRules.Judge(goldDiff, LaneOutcomeRules.GoldLeadThreshold)
             .Should().Be(LaneStanding.Lost);
     }
 
@@ -45,7 +45,7 @@ public class LaneOutcomeRulesTests
     {
         // The band is a third outcome on purpose: folding it into losses would print
         // "lane lost" where nothing was settled.
-        LaneOutcomeRules.Judge(goldDiff, LaneOutcomeRules.DefaultGoldLeadThreshold)
+        LaneOutcomeRules.Judge(goldDiff, LaneOutcomeRules.GoldLeadThreshold)
             .Should().Be(LaneStanding.Even);
     }
 
@@ -98,22 +98,5 @@ public class LaneOutcomeRulesTests
         LaneOutcomeRules.Judge(1, 0).Should().Be(LaneStanding.Won);
         LaneOutcomeRules.Judge(-1, 0).Should().Be(LaneStanding.Lost);
         LaneOutcomeRules.Judge(0, 0).Should().Be(LaneStanding.Even);
-    }
-
-    /// <summary>
-    /// The anti-drift guard. Neither consumer reads
-    /// <see cref="LaneOutcomeRules.DefaultGoldLeadThreshold"/> at judgement time — each
-    /// binds its own option — so nothing else in the build fails when one of the two
-    /// defaults is edited in isolation. That edit is exactly how the champion page and
-    /// the matchup tool would start meaning different things by "the lane was won".
-    /// </summary>
-    [Fact]
-    public void BothConsumersDefaultToTheSharedThreshold()
-    {
-        new LaneOutcomeAggregationOptions().GoldLeadThreshold
-            .Should().Be(LaneOutcomeRules.DefaultGoldLeadThreshold);
-
-        new CompositionSearchOptions().LaneGoldLeadThreshold
-            .Should().Be(LaneOutcomeRules.DefaultGoldLeadThreshold);
     }
 }

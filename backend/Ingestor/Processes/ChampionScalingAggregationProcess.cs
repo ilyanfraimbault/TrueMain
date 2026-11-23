@@ -5,6 +5,7 @@ using Data.Entities;
 using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes.Components.IncrementalFolds;
+using Ingestor.Processes.Components.ScalingAggregation;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -54,7 +55,7 @@ public sealed class ChampionScalingAggregationProcess(
             .Key("Bucket", IntegerType, r => r.Key.Bucket)
             .Sum("Games", IntegerType, r => r.Value.Games)
             .Sum("Wins", IntegerType, r => r.Value.Wins);
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         var queueId = (int)analysisOptions.Value.QueueId;
         var batchSize = options.Value.MatchBatchSize;

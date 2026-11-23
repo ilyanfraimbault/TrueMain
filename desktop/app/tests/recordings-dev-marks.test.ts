@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { Chord, TriggerCheck } from '../app/types/overlay'
+import type { Chord } from '../app/types/overlay'
 import { OVERLAY_PANELS } from '../app/types/overlay'
 import { suggestedChord } from '../app/utils/overlay-keys'
-import type { Clip, RecordingLibrary, RecordingSettingsView } from '../app/types/recordings'
 import { devChordView, devLibrary, devMarkKeyRefusal, devSettings } from '../app/fixtures/recordings'
 import { devRecordingCall } from '../app/utils/recordings-dev'
 
@@ -43,32 +42,26 @@ describe('the dev recordings and the mark key', () => {
   })
 
   it('check, save and refuse a mark key through the commands', async () => {
-    const check = await devRecordingCall('recording_check_mark_key', { chord: chord({ alt: true, shift: true, key: 'Digit1' }) }) as TriggerCheck
+    const check = await devRecordingCall('recordingCheckMarkKey', chord({ alt: true, shift: true, key: 'Digit1' }))
     expect(check.refusal).toBe('Already the shortcut of Build path.')
 
-    const view = await devRecordingCall('recording_settings') as RecordingSettingsView
-    const off = await devRecordingCall('set_recording_settings', { settings: { ...view.settings, markKey: null } }) as RecordingSettingsView
+    const view = await devRecordingCall('recordingSettings')
+    const off = await devRecordingCall('setRecordingSettings', { ...view.settings, markKey: null })
     expect(off.markKey).toBeNull()
-    const moved = await devRecordingCall('set_recording_settings', { settings: { ...view.settings, markKey: chord({ ctrl: true, key: 'KeyM' }) } }) as RecordingSettingsView
+    const moved = await devRecordingCall('setRecordingSettings', { ...view.settings, markKey: chord({ ctrl: true, key: 'KeyM' }) })
     expect(moved.markKey?.label).toMatch(/M$/)
-    await expect(devRecordingCall('set_recording_settings', { settings: { ...view.settings, markKey: chord({ key: 'Enter' }) } }))
+    await expect(devRecordingCall('setRecordingSettings', { ...view.settings, markKey: chord({ key: 'Enter' }) }))
       .rejects.toThrow('Esc and Enter')
   })
 
   it('replace a clip with its adjusted range, keeping its favourite', async () => {
-    const before = await devRecordingCall('recording_library') as RecordingLibrary
+    const before = await devRecordingCall('recordingLibrary')
     const target = before.clips.find(clip => clip.title.startsWith('Ahri at') && clip.recordingId)!
-    await devRecordingCall('clip_update', { id: target.id, favorite: true })
+    await devRecordingCall('clipUpdate', target.id, null, true)
 
-    const saved = await devRecordingCall('clip_save', {
-      recordingId: target.recordingId,
-      startMs: target.startMs - 10_000,
-      endMs: target.endMs,
-      title: target.title,
-      replaces: target.id,
-    }) as Clip
+    const saved = await devRecordingCall('clipSave', target.recordingId!, target.startMs - 10_000, target.endMs, target.title, target.id)
 
-    const after = await devRecordingCall('recording_library') as RecordingLibrary
+    const after = await devRecordingCall('recordingLibrary')
     expect(after.clips).toHaveLength(before.clips.length)
     expect(after.clips.some(clip => clip.id === target.id)).toBe(false)
     expect(saved).toMatchObject({ startMs: target.startMs - 10_000, endMs: target.endMs, favorite: true })

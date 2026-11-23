@@ -59,7 +59,7 @@ pub const RIFT: SpawnRules = SpawnRules {
 };
 
 /// One objective's next appearance.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Spawn {
     /// The game time it is on the map from — up while the clock is past it.
@@ -71,7 +71,7 @@ pub struct Spawn {
 }
 
 /// A drake's element, named as the Rift's terrain names it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum DrakeElement {
     Infernal,
@@ -113,7 +113,7 @@ impl DrakeElement {
 }
 
 /// The neutral objectives' timers; only on Summoner's Rift's standard rules.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NeutralTimers {
     /// The dragon pit: a drake, or the Elder when `elder`.

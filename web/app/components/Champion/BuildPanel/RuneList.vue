@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { BuildRunePage } from '~~/shared/types/champions'
+import type { BuildRunePageReadModel } from '#shared/contract/api'
 import type { RuneTreeResponse } from '~~/shared/types/static-data'
 import { variationOptions } from '~~/shared/utils/build'
 
 const props = defineProps<{
-  runePages: BuildRunePage[]
+  runePages: BuildRunePageReadModel[]
   runeTree: RuneTreeResponse
   /** Scaffolding rather than data — see `ChampionBuildTabs`' own `pending`. */
   pending?: boolean

@@ -77,13 +77,13 @@ public sealed class AggregationStatsQueryService(
             MeasuredAtUtc = timeProvider.GetUtcNow().UtcDateTime,
             Families =
             [
-                Family("builds", PipelineCatalog.PatternAggregation.Name, coverage.BuildChampions, estimates, Run,
+                Family(AggregationFamilyKey.Builds, PipelineCatalog.PatternAggregation.Name, coverage.BuildChampions, estimates, Run,
                     "champion_aggregate_scopes", "champion_aggregate_patterns"),
-                Family("matchups", PipelineCatalog.MatchupAggregation.Name, coverage.MatchupChampions, estimates, Run,
+                Family(AggregationFamilyKey.Matchups, PipelineCatalog.MatchupAggregation.Name, coverage.MatchupChampions, estimates, Run,
                     "champion_matchup_stats"),
-                Family("synergies", PipelineCatalog.SynergyAggregation.Name, coverage.SynergyChampions, estimates, Run,
+                Family(AggregationFamilyKey.Synergies, PipelineCatalog.SynergyAggregation.Name, coverage.SynergyChampions, estimates, Run,
                     "champion_synergy_stats", "champion_synergy_baseline_stats"),
-                Family("mains", PipelineCatalog.MainAnalysis.Name, coverage.MainChampions, estimates, Run,
+                Family(AggregationFamilyKey.Mains, PipelineCatalog.MainAnalysis.Name, coverage.MainChampions, estimates, Run,
                     "main_champion_stats")
             ],
             Backlog = new AggregationBacklogReadModel
@@ -95,7 +95,7 @@ public sealed class AggregationStatsQueryService(
     }
 
     private static AggregationFamilyReadModel Family(
-        string key,
+        AggregationFamilyKey key,
         string processName,
         long distinctChampions,
         IReadOnlyDictionary<string, long> estimates,
@@ -203,7 +203,7 @@ public sealed class AggregationStatsQueryService(
 
         return new AggregationRunReadModel
         {
-            Status = latest.Status.ToString().ToLowerInvariant(),
+            Status = latest.Status,
             LastStartedAtUtc = latest.StartedAtUtc,
             LastFinishedAtUtc = latest.FinishedAtUtc,
             LastSuccessAtUtc = latestSuccess?.FinishedAtUtc,

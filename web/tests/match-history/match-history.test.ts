@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MatchSummaryResponse } from '~~/shared/types/matches'
+import type { MatchSummaryReadModel } from '#shared/contract/api'
 import { formatMatchDay, groupMatchesByDay } from '#common/utils/match-history'
 
 // Local-midnight timestamps, so the grouping assertions below don't depend on
@@ -10,8 +10,8 @@ function at(year: number, month: number, day: number, hour: number): string {
   return new Date(year, month - 1, day, hour).toISOString()
 }
 
-function match(matchId: string, gameStartTimeUtc: string): MatchSummaryResponse {
-  return { matchId, gameStartTimeUtc } as MatchSummaryResponse
+function match(matchId: string, gameStartTimeUtc: string): MatchSummaryReadModel {
+  return { matchId, gameStartTimeUtc } as MatchSummaryReadModel
 }
 
 const NOW = new Date(2026, 7, 20, 12)

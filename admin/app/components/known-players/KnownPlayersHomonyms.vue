@@ -4,7 +4,7 @@
 // published under two slugs, sometimes two pros with one handle — only the
 // operator can tell, and the call holds: a merged page redirects, a group marked
 // as different people only comes back with a new known player of that name.
-import type { PersonaHomonymDistinctBody, PersonaHomonymMergeBody } from '~~/shared/types/ops'
+import type { PersonaHomonymDistinctRequest, PersonaHomonymMergeRequest } from '#site-shared/contract/api'
 import { computed, ref, watch } from 'vue'
 import { formatNumber } from '~~/shared/utils/format'
 import { resolveErrorMessage } from '~~/shared/utils/persona-conflicts'
@@ -46,11 +46,11 @@ async function act(key: string, run: () => Promise<{ title: string, description?
   }
 }
 
-function merge(key: string, body: PersonaHomonymMergeBody) {
+function merge(key: string, body: PersonaHomonymMergeRequest) {
   return act(key, async () => mergedMessage(await mergePersonaHomonyms(body)), 'Not merged')
 }
 
-function distinct(key: string, body: PersonaHomonymDistinctBody) {
+function distinct(key: string, body: PersonaHomonymDistinctRequest) {
   return act(key, async () => markedMessage(await markPersonaHomonymsDistinct(body)), 'Not marked')
 }
 

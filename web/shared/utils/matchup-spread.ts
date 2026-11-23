@@ -1,4 +1,4 @@
-import type { ChampionMatchupEntry } from '../types/champions'
+import type { ChampionMatchupEntry } from '../contract/api'
 
 /**
  * The champion page's matchup spread (#2094): every lane opponent placed on one

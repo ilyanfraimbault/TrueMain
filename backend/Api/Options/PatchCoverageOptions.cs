@@ -18,7 +18,6 @@ namespace TrueMain.Options;
 /// </summary>
 public sealed class PatchCoverageOptions : IApiOptions, IValidatableObject
 {
-    /// <summary>Configuration section name.</summary>
     public const string SectionName = "PatchCoverage";
 
     static string IApiOptions.Section => SectionName;

@@ -17,6 +17,12 @@ public interface IProcessIterationsQueryService
     /// keeps only the passes that ran that lane; anything else applies no lane filter.
     /// </summary>
     Task<ProcessIterationsReadModel> GetAsync(int? page, int? pageSize, bool finishedOnly, string? lane, CancellationToken ct);
+
+    /// <summary>
+    /// The newest pass of each pipeline lane, newest first, each listed once: a <c>Full</c> pass
+    /// that is the newest of both lanes appears a single time. A lane that never ran adds nothing.
+    /// </summary>
+    Task<IReadOnlyList<ProcessIterationReadModel>> GetLatestPerLaneAsync(CancellationToken ct);
 }
 
 public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProcessRunBaselineService baselines)
@@ -30,6 +36,23 @@ public sealed class ProcessIterationsQueryService(IProcessRunStore store, IProce
     // to no lane and only shows unfiltered.
     private static readonly string[] FetchLaneModes = ModeNames(PipelineLane.Fetch);
     private static readonly string[] AggregateLaneModes = ModeNames(PipelineLane.Aggregate);
+
+    public async Task<IReadOnlyList<ProcessIterationReadModel>> GetLatestPerLaneAsync(CancellationToken ct)
+    {
+        var latest = new List<ProcessIterationReadModel>();
+        foreach (var lane in PipelineCatalog.Lanes)
+        {
+            var page = await GetAsync(page: 1, pageSize: 1, finishedOnly: false, lane.Id, ct);
+            latest.AddRange(page.Iterations);
+        }
+
+        return
+        [
+            .. latest
+                .DistinctBy(iteration => iteration.IterationId)
+                .OrderByDescending(iteration => iteration.StartedAtUtc)
+        ];
+    }
 
     public async Task<ProcessIterationsReadModel> GetAsync(
         int? page, int? pageSize, bool finishedOnly, string? lane, CancellationToken ct)

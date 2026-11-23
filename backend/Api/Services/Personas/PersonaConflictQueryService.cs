@@ -98,7 +98,7 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
                 return new PersonaConflictBulkCandidateReadModel
                 {
                     Conflict = c,
-                    Keep = keepClaimant ? "claimant" : "owner",
+                    Keep = keepClaimant ? PersonaConflictSide.Claimant : PersonaConflictSide.Owner,
                     KeptSlug = keepClaimant ? c.Claimant.Slug : c.Owner.Slug,
                     MergedSlug = keepClaimant ? c.Owner.Slug : c.Claimant.Slug,
                 };
@@ -209,9 +209,9 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
         query.Select(c => new PersonaConflictReadModel
         {
             Id = c.Id,
-            Status = c.Status.ToString(),
-            Resolution = c.Resolution == null ? null : c.Resolution.ToString(),
-            Source = c.Source.ToString(),
+            Status = c.Status,
+            Resolution = c.Resolution,
+            Source = c.Source,
             FirstSeenAtUtc = c.FirstSeenAtUtc,
             LastSeenAtUtc = c.LastSeenAtUtc,
             TimesSeen = c.TimesSeen,
@@ -230,7 +230,7 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
                 Id = c.ClaimantPersonaId,
                 Slug = c.Claimant!.Slug,
                 DisplayName = c.Claimant.DisplayName,
-                Source = c.Claimant.Source.ToString(),
+                Source = c.Claimant.Source,
                 CreatedAtUtc = c.Claimant.CreatedAtUtc,
                 AccountCount = c.Claimant.Accounts.Count,
                 LinkCount = c.Claimant.Links.Count,
@@ -240,7 +240,7 @@ public sealed class PersonaConflictQueryService(TrueMainDbContext db) : IPersona
                 Id = c.OwnerPersonaId,
                 Slug = c.Owner!.Slug,
                 DisplayName = c.Owner.DisplayName,
-                Source = c.Owner.Source.ToString(),
+                Source = c.Owner.Source,
                 CreatedAtUtc = c.Owner.CreatedAtUtc,
                 AccountCount = c.Owner.Accounts.Count,
                 LinkCount = c.Owner.Links.Count,

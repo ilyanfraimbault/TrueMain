@@ -100,7 +100,7 @@ public class DraftEnemyTeamTests
             enemies);
 
         var reason = Assert.Single(candidate.Reasons);
-        Assert.Equal(DraftReasonKinds.EnemyTeam, reason.Kind);
+        Assert.Equal(DraftReasonKind.EnemyTeam, reason.Kind);
         Assert.Equal(64, reason.ChampionId);
         Assert.Equal(-0.05, candidate.EnemyDelta, 9);
         Assert.True(candidate.Score < 0d);

@@ -159,7 +159,7 @@ public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/truemains/Phantasm-EUW1/profile");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var profile = await response.Content.ReadFromJsonAsync<ProfileReadModel>();
+        var profile = await response.Content.ReadFromJsonAsync<ProfileReadModel>(ApiJson.Options);
         profile.Should().NotBeNull();
 
         profile!.Identity.GameName.Should().Be("Phantasm");
@@ -276,7 +276,7 @@ public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/truemains/Retired-EUW1/profile");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var profile = await response.Content.ReadFromJsonAsync<ProfileReadModel>();
+        var profile = await response.Content.ReadFromJsonAsync<ProfileReadModel>(ApiJson.Options);
         profile.Should().NotBeNull();
 
         var retired = profile!.Mains.Single(m => m.ChampionId == 104);
@@ -337,7 +337,7 @@ public sealed class TruemainsProfileApiIntegrationTests : IAsyncLifetime
 
         var profileResponse = await client.GetAsync("/truemains/Faker-KR1/profile");
         profileResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        var profile = await profileResponse.Content.ReadFromJsonAsync<ProfileReadModel>();
+        var profile = await profileResponse.Content.ReadFromJsonAsync<ProfileReadModel>(ApiJson.Options);
         profile!.Identity.PlatformId.Should().Be("EUW1", "EUW1 was more recently ingested");
         profile.Identity.ProfileIconId.Should().Be(2);
         profile.Identity.SummonerLevel.Should().Be(50);

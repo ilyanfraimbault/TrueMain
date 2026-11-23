@@ -1,9 +1,13 @@
-import type { ProcessIteration, ProcessRun } from '~~/shared/types/ops'
+import type { ProcessIterationReadModel, ProcessRunReadModel } from '#site-shared/contract/api'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import ProcessesIterationRow from '~~/app/components/processes/ProcessesIterationRow.vue'
 import ProcessesIterationSteps from '~~/app/components/processes/ProcessesIterationSteps.vue'
 import ProcessesRecentIterations from '~~/app/components/processes/ProcessesRecentIterations.vue'
+import { CATALOG } from '../pipeline-chain/catalog'
+
+vi.mock('~/composables/usePipelineCatalog', () => ({ usePipelineCatalog: () => ref(CATALOG) }))
 
 // Pins what an operator reads off the recent-iterations list: the one-line row (kind,
 // span, duration, icon tallies and their wording), the hover recap of the step under
@@ -38,7 +42,7 @@ const global = {
   },
 }
 
-function run(processName: string, startedAtUtc: string, durationMs: number, overrides: Partial<ProcessRun> = {}): ProcessRun {
+function run(processName: string, startedAtUtc: string, durationMs: number, overrides: Partial<ProcessRunReadModel> = {}): ProcessRunReadModel {
   return {
     id: `${processName}-${startedAtUtc}`,
     processName,
@@ -57,7 +61,7 @@ function run(processName: string, startedAtUtc: string, durationMs: number, over
 
 // A fetch pass shaped like the preprod ones: two cadence skips, a 30 s harvest, a
 // 90 s ingestion that recorded counters, and a refresh that failed.
-const fetchPass: ProcessIteration = {
+const fetchPass: ProcessIterationReadModel = {
   iterationId: 'fetch-1',
   jobMode: 'FetchLane',
   startedAtUtc: '2026-10-18T21:10:00.000Z',
@@ -72,7 +76,7 @@ const fetchPass: ProcessIteration = {
   ],
 }
 
-function mountRow(iteration: ProcessIteration = fetchPass, open = false) {
+function mountRow(iteration: ProcessIterationReadModel = fetchPass, open = false) {
   return mount(ProcessesIterationRow, { props: { iteration, open }, global })
 }
 
@@ -165,11 +169,11 @@ describe('ProcessesIterationSteps', () => {
     await items.find(item => item.text().includes('Pace Sampling'))!.trigger('click')
 
     expect(wrapper.emitted('openRun')).toHaveLength(1)
-    expect((wrapper.emitted('openRun')![0]![0] as ProcessRun).processName).toBe('Harvest')
+    expect((wrapper.emitted('openRun')![0]![0] as ProcessRunReadModel).processName).toBe('Harvest')
   })
 
   it('splits a Full pass into one timeline per lane', () => {
-    const full: ProcessIteration = {
+    const full: ProcessIterationReadModel = {
       ...fetchPass,
       jobMode: 'Full',
       runs: [
@@ -202,11 +206,12 @@ describe('ProcessesRecentIterations', () => {
       .toContain('Failed to load recent iterations.')
   })
 
-  it('switches lane from the tabs and pages only when there is more than a page', async () => {
+  it('offers a tab per lane of the pipeline catalog, switches lane from them, and pages only when there is more than a page', async () => {
     const wrapper = mount(ProcessesRecentIterations, { props: base, global })
+    expect(wrapper.findAll('.tab').map(tab => tab.text())).toEqual(['All', 'Fetch lane', 'Aggregate lane'])
     expect(wrapper.find('.pagination').exists()).toBe(false)
 
-    await wrapper.findAll('.tab').find(tab => tab.text() === 'Aggregate')!.trigger('click')
+    await wrapper.findAll('.tab').find(tab => tab.text() === 'Aggregate lane')!.trigger('click')
     expect(wrapper.emitted('update:lane')).toEqual([['aggregate']])
 
     const paged = mount(ProcessesRecentIterations, { props: { ...base, total: 20 }, global })

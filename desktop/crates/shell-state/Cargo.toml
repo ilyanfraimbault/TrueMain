@@ -6,6 +6,8 @@ license.workspace = true
 description = "The app's state and the rule that maps it onto a screen."
 
 [dependencies]
+keys = { path = "../keys" }
 lcu = { path = "../lcu" }
 serde.workspace = true
+specta.workspace = true
 serde_json.workspace = true

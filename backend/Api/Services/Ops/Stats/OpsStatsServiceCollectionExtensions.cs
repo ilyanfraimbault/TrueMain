@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Caching.Memory;
 using TrueMain.Options;
+using TrueMain.ReadModels.Ops;
 
 namespace TrueMain.Services.Ops.Stats;
 
@@ -19,14 +19,10 @@ public static class OpsStatsServiceCollectionExtensions
         services.AddScoped<IMatchesIngestedQueryService, MatchesIngestedQueryService>();
         // Callers get the cached, single-flighted payload; only the decorator reaches the
         // measurement itself (#2303).
-        services.AddScoped<AggregationStatsQueryService>();
-        services.AddScoped<IAggregationStatsQueryService>(provider => new CachedAggregationStatsQueryService(
-            provider.GetRequiredService<AggregationStatsQueryService>(),
-            provider.GetRequiredService<IMemoryCache>(),
-            provider.GetRequiredService<TimeProvider>()));
-        services.AddWarmPayload(
+        services.AddWarmCachedRead<IAggregationStatsQueryService, AggregationStatsQueryService, AggregationsReadModel>(
             CachedAggregationStatsQueryService.Payload,
-            provider => provider.GetRequiredService<AggregationStatsQueryService>().GetAsync(CancellationToken.None));
+            (inner, cache, clock) => new CachedAggregationStatsQueryService(inner, cache, clock),
+            inner => inner.GetAsync(CancellationToken.None));
         services.AddScoped<IRiotApiUsageQueryService, RiotApiUsageQueryService>();
         services.AddScoped<IRiotQuotaQueryService, RiotQuotaQueryService>();
         services.AddScoped<IIngestorMetricsQueryService, IngestorMetricsQueryService>();

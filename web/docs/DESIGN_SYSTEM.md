@@ -87,8 +87,8 @@ Reach for the material utilities rather than composing a surface by hand:
   for panels. The general-purpose `glass` is gone — the home hero's search field reads better solid against
   the eclipse.
 - **`eyebrow`** — the short label above a page or section heading: Inter `text-sm`, medium, sentence case,
-  rose gold. Headings under it are Inter semibold with tight tracking (`tracking-tight`, `tracking-tighter`
-  on the home hero). A mono uppercase eyebrow and lighter, looser headings were tried in #1709 and withdrawn.
+  rose gold. Headings under it are Inter semibold with `tracking-tight`. The home page carries none: it
+  opens on its headline and titles its sections plainly. A mono uppercase eyebrow and lighter, looser headings were tried in #1709 and withdrawn.
 
 **`surface` owns `background-color` and `border` — don't restate them.** Writing `class="surface border
 border-default/60 bg-elevated/60"` is not merely redundant: a plain utility out-cascades a `@utility`

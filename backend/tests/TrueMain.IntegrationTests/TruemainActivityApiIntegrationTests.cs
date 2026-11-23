@@ -87,12 +87,12 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
-            "/truemains/Grinder-EUW1/activity");
+            "/truemains/Grinder-EUW1/activity", ApiJson.Options);
 
         activity.Should().NotBeNull();
 
         var patch = activity!.Patch;
-        patch.Mode.Should().Be(TruemainActivityKinds.PatchMode);
+        patch.Mode.Should().Be(ActivityMode.Patch);
         patch.Patch.Should().Be(CurrentPatch);
 
         // Seven cells: the patch opened six days ago and today is its last day.
@@ -142,7 +142,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
-            "/truemains/Pruned-EUW1/activity");
+            "/truemains/Pruned-EUW1/activity", ApiJson.Options);
 
         activity!.Month.Buckets.Should().HaveCount(12);
         activity.Month.Buckets[0].Key.Should().Be(DayKey(midday.AddDays(-11)));
@@ -172,7 +172,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
-            "/truemains/Veteran-EUW1/activity");
+            "/truemains/Veteran-EUW1/activity", ApiJson.Options);
 
         activity!.Month.Buckets.Should().HaveCount(30);
         activity.Month.Buckets[0].Key.Should().Be(DayKey(midday.AddDays(-29)));
@@ -199,7 +199,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
-            "/truemains/ThreeWays-EUW1/activity");
+            "/truemains/ThreeWays-EUW1/activity", ApiJson.Options);
 
         // The month window carries the same games over a wider span.
         activity!.Month.Games.Should().Be(3);
@@ -242,7 +242,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
-            "/truemains/Resting-EUW1/activity");
+            "/truemains/Resting-EUW1/activity", ApiJson.Options);
 
         // No games today: nothing to draw, and a null rate rather than 0%. There is
         // no such thing as an "idle game", so the window is genuinely empty.
@@ -280,7 +280,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
-            "/truemains/Absent-EUW1/activity");
+            "/truemains/Absent-EUW1/activity", ApiJson.Options);
 
         // Four real days, every one of them idle. An empty series would be a
         // different claim ("there is no patch to show"); a grid of idle days is the
@@ -316,7 +316,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
-            "/truemains/TwoPatch-EUW1/activity");
+            "/truemains/TwoPatch-EUW1/activity", ApiJson.Options);
 
         activity!.Patch.Patch.Should().Be(CurrentPatch);
         activity.Patch.Buckets.Should().HaveCount(3);
@@ -348,7 +348,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
-            "/truemains/FlexPlayer-EUW1/activity");
+            "/truemains/FlexPlayer-EUW1/activity", ApiJson.Options);
 
         activity!.Day.Games.Should().Be(1);
         activity.Day.Buckets.Should().ContainSingle()
@@ -372,7 +372,7 @@ public sealed class TruemainActivityApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
 
         var activity = await client.GetFromJsonAsync<TruemainActivityReadModel>(
-            "/truemains/Fresh-EUW1/activity");
+            "/truemains/Fresh-EUW1/activity", ApiJson.Options);
 
         activity!.Patch.Patch.Should().BeNull();
         activity.Patch.Buckets.Should().BeEmpty();

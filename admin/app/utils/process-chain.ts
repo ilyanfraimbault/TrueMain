@@ -1,9 +1,8 @@
 // Presentation helpers shared by the Processes page's chain, iteration and run
 // components (split out of `pages/processes.vue`, #1436). One copy so the lane
 // tree, the iteration list and the slide-overs cannot drift apart again.
-import type { ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
+import type { PipelineCatalogReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 import type { ChainLink, ChainOutcome } from '~~/shared/utils/pipeline-lanes'
-import { PROCESS_META } from '~~/shared/types/pipeline-chain'
 import { processStatusIcon } from '~~/shared/utils/pipeline-health'
 
 // A chain outcome is a run status plus one case the run table has no word for. `notRun`
@@ -76,15 +75,24 @@ export function laneRailClass(outcome: ChainOutcome): string {
   }
 }
 
-// Names and explanations both come from the shared PROCESS_META, next to the
-// chain order it describes. A process with no entry still renders — under its raw
-// class name, with no tooltip — rather than blanking the chip.
-export function chainLabel(processName: string): string {
-  return PROCESS_META[processName]?.label ?? processName
+// Names and explanations both come from the API's pipeline catalog (`usePipelineCatalog`).
+// A process it does not list, or any process before it has loaded, still renders — under
+// its raw class name, with no tooltip — rather than blanking the chip.
+export function chainLabel(catalog: PipelineCatalogReadModel | null, processName: string): string {
+  return stepOf(catalog, processName)?.label ?? processName
+}
+
+/** What a step does, in the catalog's words, or undefined when the catalog does not list it. */
+export function chainDescription(catalog: PipelineCatalogReadModel | null, processName: string): string | undefined {
+  return stepOf(catalog, processName)?.description
+}
+
+function stepOf(catalog: PipelineCatalogReadModel | null, processName: string) {
+  return catalog?.steps.find(step => step.name === processName)
 }
 
 // Shared by every process chip's UTooltip so the usages cannot drift apart from
-// each other (they did, silently, for #1314's PIPELINE_CHAIN/PROCESS_META split —
+// each other (they did, silently, for #1314's split of the step order from the step labels —
 // a literal repeated three times is the same risk).
 export const PROCESS_TOOLTIP_UI = { content: 'h-auto max-w-64 items-start px-2.5 py-2' } as const
 
@@ -111,7 +119,7 @@ export function statusBadgeUi(s: ProcessRunStatus): { leadingIcon: string } | un
 // arrays of per-platform rows). `ProcessSummaryView` renders any of those shapes
 // as readable fields/tables; the raw JSON stays available as a collapsible
 // fallback, which is what this produces.
-export function summaryJson(summary: ProcessRun['summary']): string | null {
+export function summaryJson(summary: ProcessRunReadModel['summary']): string | null {
   if (summary === null || summary === undefined) {
     return null
   }
@@ -123,7 +131,7 @@ export function summaryJson(summary: ProcessRun['summary']): string | null {
  * it now, so a Running run settles in place on the next refresh; the click's
  * snapshot only when the run has left every feed (paged out of a short history).
  */
-export function liveRun(selected: ProcessRun | null, feeds: readonly (readonly ProcessRun[])[]): ProcessRun | null {
+export function liveRun(selected: ProcessRunReadModel | null, feeds: readonly (readonly ProcessRunReadModel[])[]): ProcessRunReadModel | null {
   if (!selected) {
     return null
   }

@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Core.Lol.Lane;
 using TrueMain.Configuration;
 
 namespace TrueMain.Options;
@@ -41,22 +40,6 @@ public sealed class CompositionSearchOptions : IApiOptions, IValidatableObject
     /// <see cref="CandidatePoolCap"/>.
     /// </summary>
     public int TopK { get; set; } = 100;
-
-    /// <summary>
-    /// Gold gap at 15 minutes past which a sampled lane counts as decided (#1117).
-    /// Shares its default with the ingestor's
-    /// <c>LaneOutcomeAggregation:GoldLeadThreshold</c> through
-    /// <see cref="LaneOutcomeRules.DefaultGoldLeadThreshold"/>, because "the lane was
-    /// won" has to mean the same thing on this page as on the champion page.
-    ///
-    /// <para>
-    /// A separate option rather than the ingestor's own: this one recomputes per
-    /// request and can be changed freely, while changing the ingestor's re-defines
-    /// every stored counter and cannot be applied retroactively (#919). A deployment
-    /// that overrides one should override both, or the two figures part company.
-    /// </para>
-    /// </summary>
-    public int LaneGoldLeadThreshold { get; set; } = LaneOutcomeRules.DefaultGoldLeadThreshold;
 
     /// <summary>
     /// Upper bound on the candidate games scanned per request, most recent first. Bounds
@@ -148,9 +131,5 @@ public sealed class CompositionSearchOptions : IApiOptions, IValidatableObject
         }
 
         // A negative threshold would make every lane "won" and its mirror "lost" at once.
-        if (LaneGoldLeadThreshold < 0)
-        {
-            yield return new ValidationResult("CompositionSearch:LaneGoldLeadThreshold must be >= 0.");
-        }
     }
 }

@@ -16,7 +16,7 @@ use crate::objectives::Objectives;
 use crate::pace::Pace;
 
 /// What the frontend holds about the running game.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GameState {
     /// Counts the changes the frontend has been sent, so it can tell a missed
@@ -54,7 +54,7 @@ pub const GOLD_STEP: i64 = 50;
 /// each last hit — the win probability weighs it per ten anyway.
 pub const CS_STEP: i64 = 10;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Team {
     /// Blue side.
@@ -80,7 +80,7 @@ impl Team {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GamePlayer {
     /// `Name#TAG`; a bot's display name.
@@ -109,7 +109,7 @@ pub struct GamePlayer {
     pub respawn_at: Option<f64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GameItem {
     pub item_id: i64,
@@ -117,7 +117,7 @@ pub struct GameItem {
     pub count: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GameSpell {
     /// Data Dragon's id (`SummonerFlash`); empty when the game named it in a
@@ -129,7 +129,7 @@ pub struct GameSpell {
 
 /// One thing that moved for one player. Values are absolute — the new item
 /// list, the new level — so applying a change twice is harmless.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",

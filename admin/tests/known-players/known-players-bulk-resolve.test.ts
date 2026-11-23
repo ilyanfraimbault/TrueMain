@@ -1,4 +1,4 @@
-import type { PersonaConflictBulkCandidate, PersonaConflictBulkPreview } from '~~/shared/types/ops'
+import type { PersonaConflictBulkCandidateReadModel, PersonaConflictBulkPreviewReadModel } from '#site-shared/contract/api'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
@@ -23,11 +23,11 @@ const ui = {
 
 const evidence = { score: 20, sharedSocial: ['twitch', 'x'], sharedReferences: 0, differingSocial: [] }
 
-function candidate(over: Partial<PersonaConflictBulkCandidate> = {}): PersonaConflictBulkCandidate {
+function candidate(over: Partial<PersonaConflictBulkCandidateReadModel> = {}): PersonaConflictBulkCandidateReadModel {
   return { conflict: conflict({ evidence }), keep: 'owner', keptSlug: 'peng', mergedSlug: 'peng-dpm', ...over }
 }
 
-function preview(conflicts: PersonaConflictBulkCandidate[], eligible = conflicts.length): PersonaConflictBulkPreview {
+function preview(conflicts: PersonaConflictBulkCandidateReadModel[], eligible = conflicts.length): PersonaConflictBulkPreviewReadModel {
   return { minScore: 20, limit: 100, eligible, conflicts }
 }
 
@@ -59,7 +59,7 @@ describe('persona-conflict-bulk', () => {
 })
 
 describe('KnownPlayersBulkResolve', () => {
-  function setup(previewAnswer: Promise<PersonaConflictBulkPreview>, bulk = vi.fn()) {
+  function setup(previewAnswer: Promise<PersonaConflictBulkPreviewReadModel>, bulk = vi.fn()) {
     const toast = { success: vi.fn(), warning: vi.fn(), failure: vi.fn() }
     const previewBulkResolve = vi.fn().mockReturnValue(previewAnswer)
     vi.stubGlobal('previewBulkResolve', previewBulkResolve)

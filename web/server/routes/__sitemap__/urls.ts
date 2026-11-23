@@ -1,10 +1,8 @@
 import type { SitemapUrl } from '#sitemap/types'
-import type { ChampionSummaryResponse } from '~~/shared/types/champions'
+import type { ChampionSummaryReadModel, LeaderboardResponse, PersonaDirectoryResponse } from '#shared/contract/api'
 import type { ChampionSlugMap } from '~~/shared/types/static-data'
 import { defineEventHandler, setResponseHeader } from 'h3'
-import type { PersonaDirectoryResponse } from '~~/shared/types/players'
 import { playerPath } from '~~/shared/utils/player-path'
-import type { LeaderboardResponse } from '~~/shared/types/leaderboard'
 import { truemainNameTag, truemainProfilePath } from '~~/shared/utils/truemain-path'
 import { championLastmodById } from '~~/shared/utils/sitemap-lastmod'
 
@@ -46,7 +44,7 @@ async function championUrls(): Promise<SitemapUrl[]> {
   // still reaches the caller's catch, which is what drops the family.
   const [slugs, summaries] = await Promise.all([
     $fetch<ChampionSlugMap>('/api/static/champion-slugs'),
-    $fetch<ChampionSummaryResponse[]>('/api/champions').catch(() => null),
+    $fetch<ChampionSummaryReadModel[]>('/api/champions').catch(() => null),
   ])
   const lastmodById = championLastmodById(summaries)
 

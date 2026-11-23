@@ -89,6 +89,8 @@ public sealed class WorkerStartupClaimReleaseTests
         var services = new ServiceCollection();
         services.AddKeyedSingleton<IIngestorProcess>(mode, process);
         services.AddSingleton(claimService);
+        services.AddLogging();
+        services.AddScoped<IStepBootRecovery, MatchClaimBootRecovery>();
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
         var jobOptions = Microsoft.Extensions.Options.Options.Create(new JobOptions
@@ -102,7 +104,7 @@ public sealed class WorkerStartupClaimReleaseTests
             scopeFactory,
             jobOptions,
             new IterationContext(),
-            new CallerContext(),
+            new ProcessRunner(scopeFactory, new CallerContext(), TestIngestorMetrics.Create(), NullLogger<ProcessRunner>.Instance),
             Substitute.For<IHostApplicationLifetime>(),
             TestIngestorMetrics.Create(),
             TimeProvider.System,
@@ -121,7 +123,7 @@ public sealed class WorkerStartupClaimReleaseTests
 
         public string Name => "Recording";
 
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             Ran = true;
             ReleasedBeforeItRan = releaseHappened();

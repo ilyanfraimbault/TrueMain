@@ -48,7 +48,7 @@ public sealed class NavSummaryApiIntegrationTests : IAsyncLifetime
 
         cold.OpenConflicts.Should().Be(1);
         cold.HomonymGroups.Should().Be(1);
-        cold.HealthStatus.Should().Be("unknown");
+        cold.HealthStatus.Should().Be(DetectorStatus.Unknown);
         cold.HealthEvaluatedAtUtc.Should().BeNull();
 
         var health = await GetAsync<PipelineHealthReadModel>(client, "/ops/pipeline-health");
@@ -125,7 +125,7 @@ public sealed class NavSummaryApiIntegrationTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    private static async Task<T> GetAsync<T>(HttpClient client, string url) => (await client.GetFromJsonAsync<T>(url))!;
+    private static async Task<T> GetAsync<T>(HttpClient client, string url) => (await client.GetFromJsonAsync<T>(url, ApiJson.Options))!;
 
     private ApiWebApplicationFactory CreateFactory() => new(_fixture, _mongo);
 

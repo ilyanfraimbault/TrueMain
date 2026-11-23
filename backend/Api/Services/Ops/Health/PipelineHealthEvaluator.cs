@@ -2,8 +2,8 @@ using System.Globalization;
 using Data.Entities;
 using TrueMain.Options;
 using TrueMain.ReadModels.Ops;
-using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
+using TrueMain.Services.Ops.Database;
 
 namespace TrueMain.Services.Ops.Health;
 
@@ -55,9 +55,9 @@ internal static class PipelineHealthEvaluator
         }
 
         var broken = processes
-            .Where(process => Enum.TryParse<ProcessRunStatus>(process.Status, out var status) && status.CountsAsFailure())
+            .Where(process => process.Status?.CountsAsFailure() == true)
             .ToList();
-        var missing = processes.Where(process => process.Status == MissingStatus).ToList();
+        var missing = processes.Where(process => process.Status is null).ToList();
 
         if (broken.Count > 0)
         {
@@ -65,7 +65,7 @@ internal static class PipelineHealthEvaluator
             {
                 Key = "processes",
                 Title = "Processes",
-                Status = DetectorStatus.Red.ToWireName(),
+                Status = DetectorStatus.Red,
                 Headline = string.Create(
                     CultureInfo.InvariantCulture,
                     $"{Plural(broken.Count, "process", "processes")} of {processes.Count} last ended badly: {NameList(broken)}."),
@@ -88,7 +88,7 @@ internal static class PipelineHealthEvaluator
         {
             Key = "processes",
             Title = "Processes",
-            Status = DetectorStatus.Green.ToWireName(),
+            Status = DetectorStatus.Green,
             Headline = string.Create(
                 CultureInfo.InvariantCulture,
                 $"All {processes.Count} processes last ran without failing."),
@@ -115,14 +115,14 @@ internal static class PipelineHealthEvaluator
                 "The detectors returned nothing, so no verdict could be formed.");
         }
 
-        var statuses = detectors.Detectors.Select(detector => FromWireName(detector.Status)).ToList();
+        var statuses = detectors.Detectors.Select(detector => detector.Status).ToList();
         var worst = DataQualityDetectorEvaluator.Worst(statuses);
         var failing = statuses.Count(status => status is DetectorStatus.Amber or DetectorStatus.Red);
 
         if (worst == DetectorStatus.Unknown)
         {
             var unmeasured = detectors.Detectors
-                .Where(detector => FromWireName(detector.Status) == DetectorStatus.Unknown)
+                .Where(detector => detector.Status == DetectorStatus.Unknown)
                 .ToList();
 
             return Unknown(
@@ -138,7 +138,7 @@ internal static class PipelineHealthEvaluator
         {
             Key = "dataQuality",
             Title = "Data quality",
-            Status = worst.ToWireName(),
+            Status = worst,
             Headline = failing == 0
                 ? string.Create(CultureInfo.InvariantCulture, $"All {detectors.Detectors.Count} checks pass.")
                 : string.Create(CultureInfo.InvariantCulture, $"{Plural(failing, "check", "checks")} are failing."),
@@ -169,13 +169,13 @@ internal static class PipelineHealthEvaluator
                 string.Create(CultureInfo.InvariantCulture, $"The '{detectorKey}' detector did not report."));
         }
 
-        var status = FromWireName(detector.Status);
+        var status = detector.Status;
 
         return new PipelineHealthSignalReadModel
         {
             Key = signalKey,
             Title = title,
-            Status = status.ToWireName(),
+            Status = status,
             Headline = detector.Headline,
             UnknownReason = status == DetectorStatus.Unknown
                 ? detector.UnknownReason ?? "The detector could not measure this."
@@ -248,7 +248,7 @@ internal static class PipelineHealthEvaluator
             {
                 Key = "diskForecast",
                 Title = "Disk forecast",
-                Status = DetectorStatus.Green.ToWireName(),
+                Status = DetectorStatus.Green,
                 Headline = "Growing, with no configured fill level projected within a century.",
                 DetailPath = DatabasePath
             };
@@ -276,7 +276,7 @@ internal static class PipelineHealthEvaluator
         {
             Key = "diskForecast",
             Title = "Disk forecast",
-            Status = status.ToWireName(),
+            Status = status,
             Headline = headline,
             DetailPath = DatabasePath
         };
@@ -287,16 +287,16 @@ internal static class PipelineHealthEvaluator
     /// &gt; green</c> precedence the detectors use, plus the sentence that goes above the
     /// tiles.
     /// </summary>
-    public static (string Status, string Headline) Rollup(IReadOnlyList<PipelineHealthSignalReadModel> signals)
+    public static (DetectorStatus Status, string Headline) Rollup(IReadOnlyList<PipelineHealthSignalReadModel> signals)
     {
         ArgumentNullException.ThrowIfNull(signals);
 
         if (signals.Count == 0)
         {
-            return (DetectorStatus.Unknown.ToWireName(), "No signal could be measured.");
+            return (DetectorStatus.Unknown, "No signal could be measured.");
         }
 
-        var statuses = signals.Select(signal => FromWireName(signal.Status)).ToList();
+        var statuses = signals.Select(signal => signal.Status).ToList();
         var worst = DataQualityDetectorEvaluator.Worst(statuses);
         var failing = statuses.Count(status => status is DetectorStatus.Amber or DetectorStatus.Red);
         var unmeasured = statuses.Count(status => status == DetectorStatus.Unknown);
@@ -314,7 +314,7 @@ internal static class PipelineHealthEvaluator
                 $"{Plural(failing, "signal", "signals")} of {signals.Count} {(failing == 1 ? "is" : "are")} failing."),
         };
 
-        return (worst.ToWireName(), headline);
+        return (worst, headline);
     }
 
     /// <summary>
@@ -327,7 +327,7 @@ internal static class PipelineHealthEvaluator
         ArgumentNullException.ThrowIfNull(signals);
 
         return signals
-            .OrderByDescending(signal => FromWireName(signal.Status) switch
+            .OrderByDescending(signal => signal.Status switch
             {
                 DetectorStatus.Red => 3,
                 DetectorStatus.Amber => 2,
@@ -337,7 +337,7 @@ internal static class PipelineHealthEvaluator
             .ToList();
     }
 
-    /// <summary>The synthetic status for a process with no recorded run.</summary>
+    /// <summary>What alerts call a process with no recorded run.</summary>
     public const string MissingStatus = "Missing";
 
     private static PipelineHealthSignalReadModel Unknown(string key, string title, string detailPath, string reason)
@@ -345,25 +345,12 @@ internal static class PipelineHealthEvaluator
         {
             Key = key,
             Title = title,
-            Status = DetectorStatus.Unknown.ToWireName(),
+            Status = DetectorStatus.Unknown,
             // The tile shows the reason in place of a number. A zero here would read as a
             // pass, which is the failure mode #1031 exists to prevent.
             Headline = reason,
             UnknownReason = reason,
             DetailPath = detailPath
-        };
-
-    /// <summary>
-    /// Reads a signal's wire status back into <see cref="DetectorStatus"/>, the one place a status
-    /// string becomes the enum again; anything unrecognised reads as Unknown, never a pass.
-    /// </summary>
-    internal static DetectorStatus FromWireName(string status)
-        => status switch
-        {
-            "green" => DetectorStatus.Green,
-            "amber" => DetectorStatus.Amber,
-            "red" => DetectorStatus.Red,
-            _ => DetectorStatus.Unknown
         };
 
     private static string Plural(int count, string singular, string plural)

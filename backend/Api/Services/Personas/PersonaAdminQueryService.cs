@@ -63,7 +63,7 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db, PersonaChanne
                 Id = p.Id,
                 Slug = p.Slug,
                 DisplayName = p.DisplayName,
-                Source = p.Source.ToString(),
+                Source = p.Source,
                 DisplayNameLocked = p.DisplayNameLocked,
                 CreatedAtUtc = p.CreatedAtUtc,
                 UpdatedAtUtc = p.UpdatedAtUtc,
@@ -133,7 +133,7 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db, PersonaChanne
             Id = persona.Id,
             Slug = persona.Slug,
             DisplayName = persona.DisplayName,
-            Source = persona.Source.ToString(),
+            Source = persona.Source,
             DisplayNameLocked = persona.DisplayNameLocked,
             CreatedAtUtc = persona.CreatedAtUtc,
             UpdatedAtUtc = persona.UpdatedAtUtc,
@@ -146,7 +146,7 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db, PersonaChanne
                     Id = l.Id,
                     Kind = l.Kind.ToString().ToLowerInvariant(),
                     Url = l.Url,
-                    Source = l.Source.ToString(),
+                    Source = l.Source,
                     CreatedAtUtc = l.CreatedAtUtc,
                 })
                 .ToList(),
@@ -170,7 +170,7 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db, PersonaChanne
                 GameName = a.GameName,
                 TagLine = a.TagLine,
                 PlatformId = a.PlatformId,
-                Source = a.Source.ToString(),
+                Source = a.Source,
                 RiotAccountId = a.RiotAccountId,
                 CurrentGameName = a.RiotAccount == null ? null : a.RiotAccount.GameName,
                 CurrentTagLine = a.RiotAccount == null ? null : a.RiotAccount.TagLine,
@@ -188,7 +188,7 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db, PersonaChanne
                 GameName = e.GameName,
                 TagLine = e.TagLine,
                 PlatformId = e.PlatformId,
-                Reason = e.IsTakedown ? "takedown" : e.ConflictId != null ? "conflict" : "unlinked",
+                Reason = e.IsTakedown ? PersonaExclusionReason.Takedown : e.ConflictId != null ? PersonaExclusionReason.Conflict : PersonaExclusionReason.Unlinked,
                 CreatedAtUtc = e.CreatedAtUtc,
             })
             .ToListAsync(ct);
@@ -201,13 +201,13 @@ public sealed class PersonaAdminQueryService(TrueMainDbContext db, PersonaChanne
             .Select(c => new PersonaAdminConflictReadModel
             {
                 Id = c.Id,
-                Role = c.ClaimantPersonaId == id ? "claimant" : "owner",
+                Role = c.ClaimantPersonaId == id ? PersonaConflictSide.Claimant : PersonaConflictSide.Owner,
                 GameName = c.GameName,
                 TagLine = c.TagLine,
                 PlatformId = c.PlatformId,
                 OtherSlug = c.ClaimantPersonaId == id ? c.Owner!.Slug : c.Claimant!.Slug,
                 OtherDisplayName = c.ClaimantPersonaId == id ? c.Owner!.DisplayName : c.Claimant!.DisplayName,
-                Source = c.Source.ToString(),
+                Source = c.Source,
                 LastSeenAtUtc = c.LastSeenAtUtc,
             })
             .ToListAsync(ct);

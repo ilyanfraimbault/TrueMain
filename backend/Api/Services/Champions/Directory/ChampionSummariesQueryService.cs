@@ -39,8 +39,9 @@ public interface IChampionSummariesQueryService
     ///
     /// <para>
     /// One <c>SUM</c> pushed to SQL rather than a directory per patch: the number is a
-    /// scalar, and the patches behind it only ever grow. Cached for half an hour so the
-    /// most-hit page on the site does not scan the record per request. Read from the
+    /// scalar, and the patches behind it only ever grow. Cached until the aggregation
+    /// version moves, so the most-hit page on the site does not scan the record per
+    /// request. Read from the
     /// light per-patch record (#1957), which keeps every patch the full aggregates drop.
     /// </para>
     /// </summary>

@@ -143,11 +143,11 @@ public class DraftTeamFitTests
         // Three scored reasons, then the facts that are not score terms: the lane phase,
         // and the composition axis that moves the pick most.
         Assert.Equal(
-            [DraftReasonKinds.LaneMatchup, DraftReasonKinds.Synergy, DraftReasonKinds.Synergy, DraftReasonKinds.LanePhase, DraftReasonKinds.TeamFit],
+            [DraftReasonKind.LaneMatchup, DraftReasonKind.Synergy, DraftReasonKind.Synergy, DraftReasonKind.LanePhase, DraftReasonKind.TeamFit],
             stated.Reasons.Select(reason => reason.Kind));
         var reason = stated.Reasons[^1];
-        Assert.Equal("AllyMagicDamage", reason.Axis);
-        Assert.Equal("Low", reason.Bucket);
+        Assert.Equal(ItemContextAxis.AllyMagicDamage, reason.Axis);
+        Assert.Equal(ItemContextBucket.Low, reason.Bucket);
         Assert.Equal(-0.03, reason.Delta!.Value, 9);
         Assert.Equal(1_500, reason.Games);
     }
@@ -178,7 +178,7 @@ public class DraftTeamFitTests
 
         Assert.True(candidate.Score > 0d);
         var reason = Assert.Single(candidate.Reasons);
-        Assert.Equal(DraftReasonKinds.TeamFit, reason.Kind);
+        Assert.Equal(DraftReasonKind.TeamFit, reason.Kind);
         Assert.True(reason.Tentative);
     }
 

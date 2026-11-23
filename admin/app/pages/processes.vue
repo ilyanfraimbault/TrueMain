@@ -1,22 +1,21 @@
 <script setup lang="ts">
-// Processes panel — background-job run health from `GET /api/ops/process-runs`.
-// A per-process rollup (last status / last run / last success / recent failures)
-// plus a filterable, server-paginated runs table. The endpoint paginates, so we
-// only ever hold one page in memory and drive UPagination off the response's
-// `total`/`page`/`pageSize` (the rollup covers the full filtered set, not the
-// page). Failed runs are visually distinct (error tint) and each run's
+// Processes panel — background-job run health: a per-process rollup (last status /
+// last run / last success / recent failures, `GET /api/ops/process-runs/rollup`) plus a
+// filterable, server-paginated runs table (`GET /api/ops/process-runs`), driven off the
+// response's `total`/`page`/`pageSize`. Failed runs are visually distinct (error tint) and each run's
 // `summary` JSON + error is inspectable in a slide-over.
 //
 // Two tabs since #1410, deep-linkable via `?view=runs|riot-api`: the Riot API
 // usage panel moved here from a page of its own, because how the pipeline spends
 // its call budget is a signal about these same runs, not a separate destination.
-import type { ProcessIteration, ProcessRun, ProcessRunStatus } from '~~/shared/types/ops'
-import type { PipelineLaneId } from '~~/shared/types/pipeline-chain'
+import type { ProcessIterationReadModel, ProcessRunReadModel, ProcessRunStatus } from '#site-shared/contract/api'
 // The chain is grouped by lane, not flat: since #1362 an iteration belongs to one
 // lane, and drawing the canonical 20 steps every time painted the other lane's
 // dozen as phantom "Not run" chips. `pickCurrentLanes` owns that grouping; the
 // cards themselves live in `components/processes/` (#1436).
 import { pickCurrentLanes } from '~~/shared/utils/pipeline-lanes'
+import { processRunStatusValues } from '#site-shared/contract/api'
+import { usePipelineCatalog } from '~/composables/usePipelineCatalog'
 
 // --- Tabs (#1410) ------------------------------------------------------------
 // `runs` is the default and stays out of the URL; `/riot-api` redirects here with
@@ -63,12 +62,7 @@ const sinceWindow = ref<SinceWindow>(ALL)
 
 const statusItems = [
   { label: 'All statuses', value: ALL },
-  { label: 'Running', value: 'Running' },
-  { label: 'Success', value: 'Success' },
-  { label: 'Failed', value: 'Failed' },
-  { label: 'Abandoned', value: 'Abandoned' },
-  { label: 'Cancelled', value: 'Cancelled' },
-  { label: 'Skipped', value: 'Skipped' },
+  ...processRunStatusValues.map(status => ({ label: status, value: status })),
 ]
 
 // Default view = the most recent runs regardless of recency: send NO `since`
@@ -105,27 +99,20 @@ function resetFilters() {
 
 const { data, pending, error, refresh } = useProcessRuns(filters)
 
-// The rollup gets its OWN request (#1411) even though the paged response above
-// already carries one. The rollup is live-refreshed and the runs table is not —
-// re-ordering a page under a reader's cursor is worse than showing it a page that
-// is thirty seconds old — and one fetch cannot be half-live. `pageSize: 1` keeps
-// the row payload to the minimum the endpoint will return; only `rollup` is read
-// from it. `status` is left out on purpose: the backend computes the rollup from
-// the process name and the window only, so sending it would refetch on a filter
-// that cannot change the answer.
+// The rollup is live-refreshed and the runs table is not (#1411): re-ordering a page
+// under a reader's cursor is worse than showing it a page that is thirty seconds old.
+// `status` is not a rollup filter: the rollup covers the process and the window only.
 const rollupFilters = computed(() => ({
   processName: processName.value.trim() || undefined,
   since: sinceWindow.value === ALL ? undefined : sinceToIso(sinceWindow.value),
-  page: 1,
-  pageSize: 1,
 }))
 const {
   data: rollupData,
   pending: rollupPending,
   refresh: refreshRollup,
-} = useProcessRuns(rollupFilters)
+} = useProcessRollup(rollupFilters)
 
-const rollup = computed(() => rollupData.value?.rollup ?? [])
+const rollup = computed(() => rollupData.value ?? [])
 const runs = computed(() => data.value?.runs ?? [])
 const total = computed(() => data.value?.total ?? 0)
 // The page the server actually served (its clamp wins over our optimistic ref).
@@ -144,7 +131,7 @@ watch([processName, status, sinceWindow], () => {
 const iterationsPage = ref(1)
 const iterationsPageSize = 8
 // Filtered server-side so the pagination counts the lane's passes only.
-const iterationsLane = ref<'all' | PipelineLaneId>('all')
+const iterationsLane = ref<string>('all')
 watch(iterationsLane, () => {
   iterationsPage.value = 1
 })
@@ -164,40 +151,26 @@ const {
   error: iterationsError,
 } = useProcessIterations(iterationsFilters)
 
-const finishedIterations = computed<ProcessIteration[]>(() => iterationsData.value?.iterations ?? [])
+const finishedIterations = computed<ProcessIterationReadModel[]>(() => iterationsData.value?.iterations ?? [])
 const iterationsTotal = computed(() => iterationsData.value?.total ?? 0)
 const iterationsServerPage = computed(() => iterationsData.value?.page ?? iterationsPage.value)
 
-// The top "current" block must always reflect the most-recent iteration OF EACH
-// LANE, independent of which page of the iterations LIST the operator is viewing.
-// A dedicated page-1 fetch keeps it both correct AND live — paginating the list
-// below never moves it.
-//
-// It asks for several iterations rather than one because the lanes run at their
-// own cadences: on preprod the fetch lane completes roughly three passes per
-// aggregate pass, so the aggregate lane's newest iteration sits a few positions
-// down a newest-first list. Six covers that ratio with margin and is still one
-// small request; a lane that has not run within the window simply shows as
-// not-yet-run rather than being invented.
-const LATEST_ITERATION_PROBE = 6
+// The top "current" block shows the newest pass OF EACH LANE, whichever page of the
+// iterations list is open below: its own read, so paginating never moves it.
 const {
   data: latestIterationData,
   error: latestIterationError,
   refresh: refreshLatestIterations,
-} = useProcessIterations({
-  page: 1,
-  pageSize: LATEST_ITERATION_PROBE,
-})
-const latestIterations = computed<ProcessIteration[]>(
-  () => latestIterationData.value?.iterations ?? [],
-)
+} = useLatestProcessIterations()
+const latestIterations = computed<ProcessIterationReadModel[]>(() => latestIterationData.value ?? [])
 
 // The live tree at the top: each lane shown at its own newest iteration. On a
 // two-lane deployment those are two different passes running concurrently; on a
 // `Full` one, a single iteration supplies both branches. Driven by the dedicated
-// latest-iterations fetch so list pagination never changes it. The assembly lives
-// in the shared util, with the lanes themselves, so it is pinned by tests.
-const currentLanes = computed(() => pickCurrentLanes(latestIterations.value))
+// latest-iterations fetch so list pagination never changes it. The lanes come from
+// the API's pipeline catalog; the assembly lives in the shared util, pinned by tests.
+const catalog = usePipelineCatalog()
+const currentLanes = computed(() => pickCurrentLanes(catalog.value, latestIterations.value))
 const currentIterationRunning = computed(() => currentLanes.value.some(lane => lane.isRunning))
 
 // --- Live refresh (#1411) ----------------------------------------------------
@@ -223,21 +196,21 @@ async function refreshRuns() {
 // A run (from the chain or the table) and a finished iteration each open their
 // own formatted breakdown rather than the raw JSON. The run is read back from the
 // live feeds (#2471), so a Running one settles in place when the chain refreshes.
-const selected = ref<ProcessRun | null>(null)
+const selected = ref<ProcessRunReadModel | null>(null)
 const detailOpen = ref(false)
 const selectedRun = computed(() => liveRun(selected.value, [
   ...latestIterations.value.map(iteration => iteration.runs),
   runs.value,
   ...finishedIterations.value.map(iteration => iteration.runs),
 ]))
-function openDetail(run: ProcessRun) {
+function openDetail(run: ProcessRunReadModel) {
   selected.value = run
   detailOpen.value = true
 }
 
 const iterationDetailOpen = ref(false)
-const selectedIteration = ref<ProcessIteration | null>(null)
-function openIterationDetail(iteration: ProcessIteration) {
+const selectedIteration = ref<ProcessIterationReadModel | null>(null)
+function openIterationDetail(iteration: ProcessIterationReadModel) {
   selectedIteration.value = iteration
   iterationDetailOpen.value = true
 }

@@ -3,10 +3,10 @@
 // itself, severity-ordered, one line each. Thresholds, source notes and healthy
 // rows sit behind a per-detector expand (`DataQualityDetectorItem`), and the
 // passing checks are collapsed by default.
-import type { DataQualityDetector, DetectorStatus } from '~~/shared/types/ops'
+import type { DataQualityDetectorReadModel, DetectorStatus } from '#site-shared/contract/api'
 
 const props = defineProps<{
-  detectors: DataQualityDetector[]
+  detectors: DataQualityDetectorReadModel[]
   pending: boolean
   error: unknown
 }>()

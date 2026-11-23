@@ -1,4 +1,4 @@
-import type { ChampionMatchups } from '~~/shared/types/champions'
+import type { ChampionMatchupsResponse } from '#shared/contract/api'
 import type { PositionFilter } from '#shared/utils/positions'
 import { fetchErrorStatus } from '#common/utils/errors'
 
@@ -59,7 +59,7 @@ export function useChampionMatchups(
 
   const apiFetch = useApiFetch()
 
-  return useLazyAsyncData<ChampionMatchups | null>(
+  return useLazyAsyncData<ChampionMatchupsResponse | null>(
     () => [
       'champion-matchups',
       nameTagRef.value ?? 'global',
@@ -89,7 +89,7 @@ export function useChampionMatchups(
         : `/champions/${championIdRef.value}/matchups`
 
       try {
-        return await apiFetch<ChampionMatchups>(path, { query, signal })
+        return await apiFetch<ChampionMatchupsResponse>(path, { query, signal })
       }
       catch (error: unknown) {
         // Unknown player (player-scoped route) → empty state, not an error.

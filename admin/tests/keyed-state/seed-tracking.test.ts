@@ -1,4 +1,4 @@
-import type { SeedRequestReadModel } from '~~/shared/types/ops'
+import type { SeedRequestReadModel } from '#site-shared/contract/api'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'

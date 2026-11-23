@@ -1,4 +1,4 @@
-import type { MatchSummariesResponse, MatchSummaryResponse } from '#shared/types/matches'
+import type { MatchSummariesResponse, MatchSummaryReadModel } from '#shared/contract/api'
 
 interface UseTruemainMatchesOptions {
   /** Page size to request per fetch. Defaults to the backend default (20). */
@@ -43,7 +43,7 @@ export function useTruemainMatches(
     return typeof value === 'number' && value > 0 ? value : null
   })
 
-  const matches = ref<MatchSummaryResponse[]>([])
+  const matches = ref<MatchSummaryReadModel[]>([])
   const total = ref(0)
   const pageSize = ref(options.pageSize ?? 20)
   const apiFetch = useApiFetch()

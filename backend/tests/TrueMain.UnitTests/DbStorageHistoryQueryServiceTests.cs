@@ -2,12 +2,13 @@ using AwesomeAssertions;
 using Data.Metrics.Mongo;
 using NSubstitute;
 using TrueMain.Options;
+using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.Accounts;
 using TrueMain.Services.Ops.Candidates;
 using TrueMain.Services.Ops.Configuration;
 using TrueMain.Services.Ops.Coverage;
-using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.DataQuality;
+using TrueMain.Services.Ops.Database;
 using TrueMain.Services.Ops.Diagnostics;
 using TrueMain.Services.Ops.Health;
 using TrueMain.Services.Ops.Processes;
@@ -77,6 +78,7 @@ public sealed class DbStorageHistoryQueryServiceTests
         result.Daily.Should().BeEmpty();
         result.Tables.Should().BeEmpty();
         result.Forecast.Should().BeNull();
+        result.ForecastAbsence.Should().Be(DbStorageForecastAbsence.NoSnapshots);
     }
 
     [Fact]
@@ -99,6 +101,7 @@ public sealed class DbStorageHistoryQueryServiceTests
 
         result.Daily.Should().HaveCount(5);
         result.Forecast.Should().BeNull("a forecast against a guessed capacity is worse than none");
+        result.ForecastAbsence.Should().Be(DbStorageForecastAbsence.NoCapacityConfigured);
     }
 
     [Fact]
@@ -191,6 +194,8 @@ public sealed class DbStorageHistoryQueryServiceTests
         // so it has to say "1 of the 5 charted days is comparable", not just "no
         // forecast".
         result.ComparableDays.Should().Be(1);
+        result.ForecastAbsence.Should().Be(DbStorageForecastAbsence.EnginesChanged);
+        result.ForecastMinimumDays.Should().Be(3);
     }
 
     private static DbStorageHistoryQueryService CreateService(

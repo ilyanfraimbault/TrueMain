@@ -15,7 +15,7 @@ use serde::Serialize;
 use super::{Activity, Availability};
 use crate::overlay::ChordView;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingStatusView {
     pub availability: Availability,
@@ -24,7 +24,7 @@ pub struct RecordingStatusView {
     pub activity: Activity,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Estimate {
     resolution: Resolution,
@@ -32,7 +32,7 @@ pub struct Estimate {
     bytes_per_hour: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsView {
     settings: RecordingSettings,
@@ -75,7 +75,7 @@ impl SettingsView {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GameView {
     id: String,
@@ -137,7 +137,7 @@ impl GameView {
 /// reduced timeline, read for the player's side, and the anchor's segments
 /// that place its game time on the video the way the moments are placed
 /// (`Anchor::video_ms`, clamped to the video's length).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WinProbabilityView {
     team_id: i64,
@@ -172,7 +172,7 @@ impl WinProbabilityView {
 /// clip with neither — its file deleted by hand, never published — is
 /// `Missing`, never a YouTube player with no video. Mirrored as `ClipVideo`
 /// in `desktop/app/app/types/recordings.ts`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ClipVideo {
     Local,
@@ -192,7 +192,7 @@ impl ClipVideo {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ClipView {
     id: String,
@@ -257,7 +257,7 @@ impl ClipView {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryView {
     games: Vec<GameView>,

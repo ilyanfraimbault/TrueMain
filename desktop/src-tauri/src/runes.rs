@@ -7,17 +7,22 @@
 
 use lcu::runes::OWNED_PAGE_PREFIX;
 use lcu::{Error, RunePageDraft};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
+use crate::contract::Refused;
 use crate::record::SharedClient;
 
-/// What the command answers when every page is the player's own. Matched by
-/// the frontend, which tells the player to free one.
-const NO_SLOT: &str = "no-slot";
+/// Why the import wrote nothing, told to the player by the frontend.
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum RuneImportRefusal {
+    /// Every page is the player's own: they have to free one.
+    NoSlot,
+}
 
 /// A build's rune page as the API serves it (`BuildRunePage`): every perk by
 /// id, in the order the client expects them.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BuildRunePage {
     primary_style_id: i64,
@@ -64,26 +69,27 @@ impl BuildRunePage {
 /// Push `page` into the client as the TrueMain page and select it. Only ever
 /// called from the button.
 #[tauri::command]
+#[specta::specta]
 pub async fn import_runes(
     client: tauri::State<'_, SharedClient>,
     champion: String,
     page: BuildRunePage,
-) -> Result<(), String> {
+) -> Result<(), Refused<RuneImportRefusal>> {
     let draft = page
         .draft(&champion)
-        .ok_or_else(|| "this rune page is incomplete".to_string())?;
+        .ok_or(Refused::from("this rune page is incomplete"))?;
     let client = client
         .read()
         .expect("client lock poisoned")
         .clone()
-        .ok_or_else(|| "the League client is not running".to_string())?;
+        .ok_or(Refused::from("the League client is not running"))?;
 
     match client.import_rune_page(&draft).await {
         Ok(_) => Ok(()),
-        Err(Error::NoRunePageSlot) => Err(NO_SLOT.to_string()),
+        Err(Error::NoRunePageSlot) => Err(Refused::Known(RuneImportRefusal::NoSlot)),
         Err(error) => {
             tracing::warn!(%error, "rune import failed");
-            Err(error.to_string())
+            Err(error.to_string().into())
         }
     }
 }

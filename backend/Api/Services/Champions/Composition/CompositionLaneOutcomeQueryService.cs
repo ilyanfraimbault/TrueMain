@@ -1,8 +1,6 @@
 using Core.Lol.Lane;
 using Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using TrueMain.Options;
 using TrueMain.ReadModels.Champions;
 
 namespace TrueMain.Services.Champions.Composition;
@@ -53,9 +51,7 @@ public interface ICompositionLaneOutcomeQueryService
 /// over tens of rows.
 /// </para>
 /// </summary>
-public sealed class CompositionLaneOutcomeQueryService(
-    TrueMainDbContext db,
-    IOptions<CompositionSearchOptions> options)
+public sealed class CompositionLaneOutcomeQueryService(TrueMainDbContext db)
     : ICompositionLaneOutcomeQueryService
 {
     /// <summary>The mark both sides are compared at, matching the ingestor's fold.</summary>
@@ -130,7 +126,7 @@ public sealed class CompositionLaneOutcomeQueryService(
             xpSum += selfReading.Xp - opponentReading.Xp;
 
             switch (LaneOutcomeRules.Judge(
-                selfReading.TotalGold - opponentReading.TotalGold, options.Value.LaneGoldLeadThreshold))
+                selfReading.TotalGold - opponentReading.TotalGold, LaneOutcomeRules.GoldLeadThreshold))
             {
                 case LaneStanding.Won:
                     wins++;

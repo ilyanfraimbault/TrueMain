@@ -201,6 +201,42 @@ export function errorStatus(error: unknown): number {
   return typeof status === 'number' ? status : 500
 }
 
+// Deep enough for a handler's error wrapping a fetch error wrapping a socket error;
+// the bound keeps a pathological chain from filling the exception on its own.
+const MAX_CAUSE_DEPTH = 5
+
+function describeCause(cause: unknown): string {
+  if (cause instanceof Error) return cause.stack ?? String(cause)
+  if (typeof cause === 'object' && cause !== null) {
+    try {
+      return JSON.stringify(cause)
+    }
+    catch {
+      return Object.prototype.toString.call(cause)
+    }
+  }
+  return String(cause)
+}
+
+/**
+ * The exception text of an error: its stack, then each `cause` (#2622). An error
+ * raised with `createError({ cause })` — an upstream `$fetch` that failed — would
+ * otherwise reach the ops logs saying that it failed, never why.
+ */
+export function errorReport(error: unknown): string | null {
+  const stack = (error as { stack?: unknown } | null)?.stack
+  if (typeof stack !== 'string') return null
+  const parts = [stack]
+  const seen = new Set<unknown>([error])
+  let cause = (error as { cause?: unknown }).cause
+  while (cause !== undefined && cause !== null && !seen.has(cause) && parts.length <= MAX_CAUSE_DEPTH) {
+    seen.add(cause)
+    parts.push(`Caused by: ${describeCause(cause)}`)
+    cause = cause instanceof Error ? cause.cause : undefined
+  }
+  return parts.join('\n')
+}
+
 let activeForwarder: LogForwarder | null = null
 
 /** Installed by the `log-forwarding` plugin; null while ingestion is off. */

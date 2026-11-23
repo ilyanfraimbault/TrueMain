@@ -28,9 +28,9 @@ useHead({
     <div class="relative isolate grid items-center gap-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-14">
       <div class="flex flex-col justify-center">
         <div class="flex items-center gap-2">
-          <p class="eyebrow">
+          <h2 class="text-2xl font-semibold tracking-tight text-highlighted sm:text-3xl">
             Desktop app
-          </p>
+          </h2>
           <UBadge
             color="primary"
             variant="subtle"
@@ -38,9 +38,6 @@ useHead({
             label="Beta"
           />
         </div>
-        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-balance text-highlighted sm:text-3xl">
-          TrueMain, on your desktop.
-        </h2>
         <p class="mt-3 max-w-md text-sm leading-relaxed text-muted sm:text-base">
           Your games and your rank, read from your client. In champion select: picks from your own pool, the enemy lanes worked out, and the build against the draft.
         </p>
@@ -67,10 +64,6 @@ useHead({
 
       <!-- The app's dashboard, whole, at the app's own window proportions. -->
       <div class="relative">
-        <div
-          aria-hidden="true"
-          class="pointer-events-none absolute inset-x-[10%] top-[15%] -z-10 h-3/4 rounded-full bg-primary/12 blur-3xl"
-        />
         <SkeletonPicture
           src="/desktop/dashboard.webp"
           :srcset="DASHBOARD_SRCSET"
@@ -79,7 +72,7 @@ useHead({
           :height="760"
           alt="The TrueMain app's dashboard: rank, recent form, match history and champions."
           priority
-          class="rounded-xl shadow-[0_30px_80px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/15"
+          class="rounded-xl ring-1 ring-white/15"
         />
       </div>
     </div>

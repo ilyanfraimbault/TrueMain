@@ -1,19 +1,7 @@
 import type { MaybeRefOrGetter } from 'vue'
-import type {
-  AccountExplorer,
-  CandidateDetail,
-  CandidateFunnel,
-  CandidateQueueLatency,
-  CandidatesFilters,
-  CandidatesResponse,
-  CandidateStock,
-  IngestionTimeGranularity,
-  SeedAccountBody,
-  SeedAccountResponse,
-  SeedRequestReadModel,
-  SeedRequestsFilters,
-  SeedRequestsResponse,
-} from '~~/shared/types/ops'
+import type { IngestionTimeGranularity } from '~~/shared/types/ops/stats'
+import type { SeedAccountRequest } from '#site-shared/contract/api'
+import type { OpsQueryOf } from './useOps'
 
 // Account, seed and main-candidate reads (and the one seed write) of the ops API,
 // built on `useOps` (`useOps.ts`).
@@ -28,13 +16,8 @@ import type {
  * thousands of requests at once, so a capped list showed a sliver of the queue and
  * no total (#1166).
  */
-export function useSeedRequests(
-  filters?: MaybeRefOrGetter<SeedRequestsFilters>,
-) {
-  return useOps<SeedRequestsResponse>(
-    '/accounts/seed',
-    filters ? () => ({ ...toValue(filters) }) : undefined,
-  )
+export function useSeedRequests(filters?: MaybeRefOrGetter<OpsQueryOf<'/accounts/seed'>>) {
+  return useOps('/accounts/seed', filters)
 }
 
 /**
@@ -42,13 +25,8 @@ export function useSeedRequests(
  * pipeline list, most-relevant first. Pass a reactive getter so the table
  * re-fetches when a filter (status/region/search) or the page changes.
  */
-export function useCandidates(
-  filters?: MaybeRefOrGetter<CandidatesFilters>,
-) {
-  return useOps<CandidatesResponse>(
-    '/candidates',
-    filters ? () => ({ ...toValue(filters) }) : undefined,
-  )
+export function useCandidates(filters?: MaybeRefOrGetter<OpsQueryOf<'/candidates'>>) {
+  return useOps('/candidates', filters)
 }
 
 /**
@@ -60,7 +38,7 @@ export function useCandidateFunnel(
   granularity: MaybeRefOrGetter<IngestionTimeGranularity>,
   windowDays: MaybeRefOrGetter<number>,
 ) {
-  return useOps<CandidateFunnel>(
+  return useOps(
     '/candidates/funnel',
     () => ({ granularity: toValue(granularity), windowDays: toValue(windowDays) }),
   )
@@ -76,7 +54,7 @@ export function useCandidateStock(
   granularity: MaybeRefOrGetter<IngestionTimeGranularity>,
   windowDays: MaybeRefOrGetter<number>,
 ) {
-  return useOps<CandidateStock>(
+  return useOps(
     '/candidates/stock',
     () => ({ granularity: toValue(granularity), windowDays: toValue(windowDays) }),
   )
@@ -88,25 +66,23 @@ export function useCandidateStock(
  * select and it must never be presented as a historical average.
  */
 export function useCandidateQueueLatency() {
-  return useOps<CandidateQueueLatency>('/candidates/queue-latency')
+  return useOps('/candidates/queue-latency')
 }
 
 /**
  * `GET /api/ops/candidates/{id}` — one candidate's detail (pipeline fields,
- * ingested match count, linked seed request). A one-shot `$fetch` because the
+ * ingested match count, linked seed request). A one-shot `opsCall` because the
  * slide-over loads it imperatively on row click / deep-link rather than watching
  * a key. Throws a `FetchError` on any non-2xx (including 404 for an unknown id);
  * callers must catch and inspect `statusCode === 404`.
  */
 export function getCandidateDetail(id: string) {
-  return $fetch<CandidateDetail>(
-    `/api/ops/candidates/${encodeURIComponent(id)}`,
-  )
+  return opsCall('get', '/candidates/{id}', { path: { id } })
 }
 
 /**
  * `GET /api/ops/accounts/{nameTag}` — everything the pipeline knows about one
- * Riot ID (#1032). A one-shot `$fetch` because the explorer submits a search
+ * Riot ID (#1032). A one-shot `opsCall` because the explorer submits a search
  * imperatively rather than watching a reactive key.
  *
  * Unlike the other detail reads this one **never 404s**: an unknown Riot ID comes
@@ -114,30 +90,24 @@ export function getCandidateDetail(id: string) {
  * It still throws a `FetchError` on 400 (malformed Riot ID, unknown region).
  */
 export function getAccountExplorer(riotId: string, region?: string) {
-  return $fetch<AccountExplorer>(
-    `/api/ops/accounts/${encodeURIComponent(riotId)}`,
-    { query: region ? { region } : undefined },
-  )
+  return opsCall('get', '/accounts/{nameTag}', { path: { nameTag: riotId }, query: region ? { region } : undefined })
 }
 
 /**
  * `GET /api/ops/accounts/seed/{id}` — a single seed request's current state.
- * A one-shot `$fetch` (not `useFetch`) because callers poll it imperatively on
+ * A one-shot `opsCall` (not `useOps`) because callers poll it imperatively on
  * a timer until the status is terminal, rather than reactively watching a key.
  */
 export function getSeedRequest(id: string) {
-  return $fetch<SeedRequestReadModel>(`/api/ops/accounts/seed/${encodeURIComponent(id)}`)
+  return opsCall('get', '/accounts/seed/{id}', { path: { id } })
 }
 
 /**
  * `POST /api/ops/accounts/seed` — queue a Riot ID for ingestion. A mutation, so
- * it uses `$fetch` rather than `useFetch`. Idempotent on the backend: re-posting
+ * it uses `opsCall` rather than `useOps`. Idempotent on the backend: re-posting
  * the same (gameName, tagLine, platformId) returns the existing pending request.
  * Throws an `FetchError` (e.g. 400 on bad input) the caller is expected to catch.
  */
-export function seedAccount(body: SeedAccountBody) {
-  return $fetch<SeedAccountResponse>('/api/ops/accounts/seed', {
-    method: 'POST',
-    body,
-  })
+export function seedAccount(body: SeedAccountRequest) {
+  return opsCall('post', '/accounts/seed', { body })
 }

@@ -17,7 +17,7 @@ const TEAMFIGHT_GAP_MS: i64 = 15_000;
 /// Fewer champions dying than this is a skirmish, not a teamfight.
 const TEAMFIGHT_MIN_DEATHS: u8 = 4;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Teamfight {
     /// Game time of its first kill.

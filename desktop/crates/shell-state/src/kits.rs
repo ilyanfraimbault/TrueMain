@@ -39,7 +39,7 @@ const MAX_BOOTS: usize = 4;
 const MAX_POSITIONS: usize = 5;
 
 /// A kit's rune page: every perk by id, as the build's page names them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct KitRunes {
     pub primary_style_id: i64,
@@ -78,7 +78,7 @@ impl KitRunes {
 
 /// One step of the item tree: an item and what can follow it, the first child
 /// the default.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct KitNode {
     pub item_id: i64,
@@ -86,7 +86,7 @@ pub struct KitNode {
     pub children: Vec<KitNode>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Kit {
     pub id: String,
@@ -98,6 +98,7 @@ pub struct Kit {
     /// The one position a file written before a kit could serve several holds;
     /// read into `positions`, never written back.
     #[serde(default, skip_serializing)]
+    #[specta(skip)]
     position: Option<String>,
     pub runes: KitRunes,
     pub spells: [i64; 2],
@@ -106,6 +107,7 @@ pub struct Kit {
     /// The boots to pick between, the first the default. A file written before
     /// several were allowed holds one id or `null`; both still read.
     #[serde(default, deserialize_with = "boots_list")]
+    #[specta(type = Vec<i64>)]
     pub boots: Vec<i64>,
     #[serde(default)]
     pub tree: Vec<KitNode>,
@@ -185,7 +187,7 @@ fn prune(nodes: Vec<KitNode>, depth: usize, above: &mut Vec<i64>) -> Vec<KitNode
 }
 
 /// Every kit, and the one used on each champion and position.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct KitStore {
     pub kits: Vec<Kit>,
