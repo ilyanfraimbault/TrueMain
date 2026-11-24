@@ -83,7 +83,7 @@ public sealed class MainAnalysisProcess(
 
         foreach (var batch in accounts.Chunk(processingBatchSize))
         {
-            var batchResult = await AnalyzeBatchAsync(batch, options, coverage, nowUtc, ct);
+            var batchResult = await AnalyzeBatchReplayingDeadlockAsync(batch, options, coverage, nowUtc, ct);
             summary.Merge(batchResult);
 
             logger.LogDebug(
@@ -96,6 +96,30 @@ public sealed class MainAnalysisProcess(
         }
 
         return summary;
+    }
+
+    // Postgres rolls a deadlock victim's whole transaction back (#2669), so nothing of the batch
+    // was written and replaying it in a fresh session is safe. Once only: a second deadlock, or
+    // any other failure, still fails the run.
+    private async Task<AnalysisSummary> AnalyzeBatchReplayingDeadlockAsync(
+        IReadOnlyList<AccountKey> batch,
+        MainAnalysisOptions options,
+        ChampionCoverageSnapshot coverage,
+        DateTime nowUtc,
+        CancellationToken ct)
+    {
+        try
+        {
+            return await AnalyzeBatchAsync(batch, options, coverage, nowUtc, ct);
+        }
+        catch (Exception ex) when (PostgresDeadlock.IsVictim(ex))
+        {
+            logger.LogWarning(
+                ex,
+                "Main analysis batch of {Count} accounts was a deadlock victim; replaying it once.",
+                batch.Count);
+            return await AnalyzeBatchAsync(batch, options, coverage, nowUtc, ct);
+        }
     }
 
     private async Task<AnalysisSummary> AnalyzeBatchAsync(
