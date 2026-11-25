@@ -1,5 +1,6 @@
 import { ICON_FETCH_SIZE } from '#common/utils/icon-fetch'
 import { championSplashUrlFromIcon } from '~~/shared/utils/ddragon'
+import { IPX_SHAPES } from '~~/shared/utils/ipx'
 
 /**
  * Builds the canonical `/_ipx/…` URL for an icon: fixed {@link ICON_FETCH_SIZE}
@@ -26,9 +27,6 @@ export function useCanonicalIcon() {
       : undefined
 }
 
-/** The width a banner's splash art is fetched at: the hero is at most ~1280 px wide. */
-export const SPLASH_FETCH_WIDTH = 1280
-
 /**
  * The canonical `/_ipx/…` URL for a banner's splash art (`PageHero`): the
  * champion page's and the profile's, built here beside the icon shape so the
@@ -38,7 +36,7 @@ export function useCanonicalSplash() {
   const ipx = useImage()
 
   return (src: string | null | undefined): string | null =>
-    src ? ipx(src, { width: SPLASH_FETCH_WIDTH, format: 'webp' }) : null
+    src ? ipx(src, { ...IPX_SHAPES.splash }) : null
 }
 
 /**
@@ -50,13 +48,10 @@ export function useChampionSplash(iconUrl: MaybeRefOrGetter<string | null | unde
   return computed(() => splashOf(championSplashUrlFromIcon(toValue(iconUrl))))
 }
 
-/** The width a champion's loading-screen art is fetched at: Data Dragon's own (308 × 560), never enlarged. */
-export const LOADING_ART_FETCH_WIDTH = 308
-
 /** The canonical `/_ipx/…` URL for a champion's loading-screen art (`/download`'s drawn pick cards, #2072; the matchup board's, #2241). */
 export function useCanonicalLoadingArt() {
   const ipx = useImage()
 
   return (src: string | null | undefined): string | null =>
-    src ? ipx(src, { width: LOADING_ART_FETCH_WIDTH, format: 'webp' }) : null
+    src ? ipx(src, { ...IPX_SHAPES.loadingArt }) : null
 }

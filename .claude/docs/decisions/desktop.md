@@ -55,6 +55,14 @@ shown as a reason; it never enters the score or breaks ties — no composite pla
 — #1906. The reason is a line on the card's hover counted from the last 20 non-remake games of the client's history
 ("Your Ahri: 12 of your last 20 games, 7 wins", `utils/draft-comfort.ts`, 2026-10-21).
 
+**With no lane from the client, the draft ranks for the lane left free, or the one the player picks.** Blind pick
+and custom games assign the player no lane (the bots of a custom lobby keep the one the lobby gave them), and the
+draft used to fall back to the build view with nothing ranked. When the four allies hold four different lanes, the
+fifth is ours; otherwise the "Your pick" header offers the five lanes (`RolePicker`), preset to that free lane when
+there is one, and nothing is ranked until one is chosen — two open lanes are never guessed between. The chosen lane
+then stands in for an assigned one everywhere (candidates, bans, build), through `useDraftLane`. A five-cell side
+only: Arena has no lanes to offer (2026-11-08) — #2461.
+
 **The draft asks for the player's tier and above (2026-10-21).** Both draft requests carry `eloBracket` =
 `<TIER>_PLUS` from the player's Solo/Duo standing as this machine last saw it (the rank history the overlay's pace
 panel reads), bare `CHALLENGER` at the top, and nothing — every bracket — when no tier is known. Not the tier alone:
@@ -143,7 +151,7 @@ restricts the sampled games to that player's, every other rule unchanged — the
 hard filter. A main who never faced the lane opponent (or never played the champion on the lane) answers
 `matchupFound: false` or no game, and the view falls back to their usual build, saying "no game against this draft";
 a found one says "against this draft" with its game count, however small. The app asks it through the shell's shared
-POST rather than `composition_build`, whose single in-flight slot would cancel the draft's own build. Outside a draft
+POST without the draft's `replaces` key, which would cancel the draft's own build. Outside a draft
 (a champion's page) nothing changes (2026-10-08) — #1987.
 
 **Icons are bundled at build time, routes live in the hash, and images are drawn without a `load` gate.** The
@@ -964,6 +972,14 @@ the click still opens the build). It is still the player's click and a hover is 
 a ban, which is not, keeps a bar under the card that arms ("Confirm") and writes on a second click, the confirmation
 popover gone; an ally's pick intent arms the card the same way. The cards no longer grow on hover — #2381.
 
+**The pick is locked from the hovered champion's card, and a hover is silent (2026-11-08).** The product owner wanted
+the lock where the choice is made: a click on a card selects (hovers) the champion, and that card — ringed — carries
+a small "Lock in" bar under it; the strip's "Lock in <Champion>" button is gone. A hover the podium does not show is
+listed beside it with the same control, so a pick can always be locked. It is still its own button, never the card's
+click, so #1909's "a misclick on a card can never lock" holds, and an ally's pick intent still asks first. A hover
+raises no toast, success or refusal: it is a selection the card already shows, made and remade; a refused lock or
+ban still says why — #2465.
+
 **A player keeps their own builds as kits: an item tree, a rune page and two spells per champion and position, used
 in champion select and the overlay (2026-10-21).** Benchmarked on a competitor's "My builds" (a flat item route per
 role); ours is a loadout — the item path *and* the rune page *and* the spells — and the path is a tree like our
@@ -1008,3 +1024,29 @@ guard is the host list in `channels.rs` — `https` on the default port, no cred
 three platforms the page shows. The other link kinds the intake stores stay out: those URLs come from public sources
 through the API, and nothing else may reach the system opener from a page's anchor. Not a general "open a URL"
 command: a new external link in a shared page needs its host listed there, or it does nothing in the app — #2441.
+
+**The TypeScript side of the shell's contract is generated from Rust, never written by hand.** Every type the
+webview read had been re-declared in `app/types/*.ts`, the commands and events re-typed as strings and the refusal
+codes matched as strings, linked only by "Mirrors" comments, so a field added in Rust took up to three edits and a
+renamed command failed at runtime. `specta` + `tauri-specta` now emit the commands, events, payload types,
+refusal codes and the shell's defaults into one checked-in file, guarded by a Rust test that fails when it is
+stale. Options considered: `ts-rs` (types only, the command and event names would stay hand-kept). A float is
+typed `number` (the shell never sends NaN), a TrueMain API body `unknown` (its shape is the API's contract)
+(2026-11-09) — #2494.
+
+**The shell's TrueMain reads are one route table, not code.** The allow-list was code mirroring the API's routes and
+the shared pages' reads, linked by nothing: 13 of `lib.rs`'s commits only edited it, a shared page could break the app
+with no desktop file touched — the dashboard's apex cutoffs were refused this way, silently — and four bespoke
+commands made a second door with its own deadlines. `src-tauri/api-routes.json` now lists each route (method, path as
+the OpenAPI document names it, deadline); the shell serves exactly those through `api_get`/`api_post`, a test checks
+each route against the OpenAPI document and another every read the app and `web/layers/common` make against the
+table. Superseding is the caller's (`replaces`), not the route's: two features post to the same route (2026-11-10) —
+#2551.
+
+**`npm run dev` runs the app against a fake shell, not against per-feature fallbacks.** Every composable had carried
+a second, browser path behind `insideTauri()` (~48 branches): `$fetch` through the dev proxy, fixtures, `localStorage`,
+dev-only toasts — each feature written twice, the stand-ins drifting from the shell. `app/app/dev-shell/` now
+implements the generated commands once, typed by them, and `utils/shell.ts` installs it on the dev server only; the
+composables keep the shell's path. `insideTauri()` remains for the platform APIs the shell does not wrap (window,
+app version, updater) (2026-11-10) — #2553.
+

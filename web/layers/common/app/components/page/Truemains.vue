@@ -3,7 +3,7 @@
 // (#1732): each app's route file wraps this with its own head tags and nothing
 // else.
 import type { LeaderboardSort, RegionSlug } from '#shared/types/leaderboard'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 import { REGION_SLUGS } from '#shared/types/leaderboard'
 import { parseLeaderboardSort } from '#shared/utils/leaderboard-sort'
 

@@ -117,7 +117,7 @@ public sealed class SeedRequestQueryService(ISeedRequestStore store) : ISeedRequ
             GameName = request.GameName,
             TagLine = request.TagLine,
             PlatformId = request.PlatformId,
-            Status = request.Status.ToString(),
+            Status = request.Status,
             Error = request.Error,
             RequestedAtUtc = request.RequestedAtUtc,
             ProcessedAtUtc = request.ProcessedAtUtc,

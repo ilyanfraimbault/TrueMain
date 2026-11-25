@@ -66,14 +66,14 @@ public sealed class OpsPersonasController(
         [FromQuery] int? pageSize,
         CancellationToken ct = default)
     {
-        if (!TryParseOptional<PersonaConflictStatus>(status, out var statusFilter))
+        if (!this.TryParseOptionalEnum<PersonaConflictStatus>(status, nameof(status), out var statusFilter, out var statusProblem))
         {
-            return ValidationProblem($"status '{status}' is not one of {string.Join(", ", Enum.GetNames<PersonaConflictStatus>())}.");
+            return statusProblem;
         }
 
-        if (!TryParseOptional<PersonaSource>(source, out var sourceFilter))
+        if (!this.TryParseOptionalEnum<PersonaSource>(source, nameof(source), out var sourceFilter, out var sourceProblem))
         {
-            return ValidationProblem($"source '{source}' is not one of {string.Join(", ", Enum.GetNames<PersonaSource>())}.");
+            return sourceProblem;
         }
 
         if (!this.TryNormalizeOptionalPlatform(region, nameof(region), out var platformId, out var regionProblem))
@@ -121,23 +121,5 @@ public sealed class OpsPersonasController(
             PersonaConflictResolveResult.NotOpen => Problem(outcome.Error, statusCode: StatusCodes.Status409Conflict),
             _ => NotFound(),
         };
-    }
-
-    internal static bool TryParseOptional<TEnum>(string? raw, out TEnum? value)
-        where TEnum : struct, Enum
-    {
-        value = null;
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return true;
-        }
-
-        if (Enum.TryParse<TEnum>(raw.Trim(), ignoreCase: true, out var parsed) && Enum.IsDefined(parsed))
-        {
-            value = parsed;
-            return true;
-        }
-
-        return false;
     }
 }

@@ -1,7 +1,11 @@
+using System.Reflection;
+using Data.Pipeline;
 using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
 using Ingestor.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Data.Ops.Mongo;
+using NSubstitute;
 
 namespace TrueMain.UnitTests.Fixtures;
 
@@ -17,6 +21,12 @@ internal static class IngestorProcessTestExtensions
         IProcessRunRecorder recorder,
         CancellationToken ct = default)
         where T : IIngestorProcess
-        => new RecordedProcess<T>(process, recorder, TimeProvider.System, NullLogger<RecordedProcess<T>>.Instance)
-            .RunCoreAsync(ct);
+        => new RecordedProcess<T>(
+                process,
+                PipelineCatalog.Get(typeof(T).GetCustomAttribute<PipelineStepAttribute>()!.Mode),
+                recorder,
+                Substitute.For<IProcessRunStore>(),
+                TimeProvider.System,
+                NullLogger<RecordedProcess<T>>.Instance)
+            .RunCoreAsync(RunInput.Whole, ct);
 }

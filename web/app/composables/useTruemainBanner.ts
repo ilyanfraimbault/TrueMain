@@ -1,16 +1,15 @@
-import type { ProfileResponse } from '~~/shared/types/profile'
+import type { ProfileReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
 
 /**
  * Who a truemain's banner (`PagePlayerProfile`) draws: the player — their
  * identity, or before the profile lands the slug's Riot ID (`fallbackName`)
  * without a picture — and the champion they truemain, the dedication's
- * champion, else their first main. Shared by the profile and the player-scoped
- * champion page, so the two banners can never name a different truemain for
- * one account.
+ * champion, else their first main, whose splash the profile's banner sits on.
+ * Shared by the profile and the player-scoped champion page.
  */
 export function useTruemainBanner(
-  profile: MaybeRefOrGetter<ProfileResponse | null | undefined>,
+  profile: MaybeRefOrGetter<ProfileReadModel | null | undefined>,
   champions: MaybeRefOrGetter<ChampionStaticListItem[] | null | undefined>,
   fallbackName: MaybeRefOrGetter<string>,
 ) {

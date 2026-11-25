@@ -12,12 +12,7 @@
 // number and call for opposite reactions, so the verdict — not the count — is
 // what the reader sees first, and a fold that predates the patch prints its
 // "not measured before" sentence instead of a zero.
-import type {
-  DetectorStatus,
-  PatchCoverageRow,
-  PatchFoldCoverage,
-  PatchVerdict,
-} from '~~/shared/types/ops'
+import type { DetectorStatus, PatchCoverageRowReadModel, PatchFoldCoverageReadModel, PatchVerdict } from '#site-shared/contract/api'
 // The green/amber/red/unknown dressing is `detector-status.ts`'s, extracted in #1031 —
 // including the literal neutral for `unknown`, whose reason is documented there. Only
 // the words differ on this page, so only the words are local.
@@ -26,8 +21,8 @@ import { formatDateTime, formatNumber, formatPercent, formatTimeAgo } from '~~/s
 
 const { data, pending, refreshing, error, refresh } = usePatchCoverage()
 
-const patches = computed<PatchCoverageRow[]>(() => data.value?.patches ?? [])
-const current = computed<PatchCoverageRow | null>(
+const patches = computed<PatchCoverageRowReadModel[]>(() => data.value?.patches ?? [])
+const current = computed<PatchCoverageRowReadModel | null>(
   () => patches.value.find(patch => patch.isCurrent) ?? null,
 )
 
@@ -59,7 +54,7 @@ const VERDICT_LABEL: Record<PatchVerdict, string> = {
 // Coverage as a share of the lines that exist at all. Empty rather than "0%" when
 // there are no lines: "0% of nothing" reads as a measured failure, and there was
 // nothing to measure.
-function coverageShare(patch: PatchCoverageRow): string {
+function coverageShare(patch: PatchCoverageRowReadModel): string {
   return patch.lines > 0 ? `(${formatPercent(patch.linesPastFloor / patch.lines, 0)})` : ''
 }
 
@@ -68,7 +63,7 @@ function coverageShare(patch: PatchCoverageRow): string {
  * Never "0 rows" for a fold that predates the patch — that is the one reading
  * that would send an operator hunting a bug that does not exist.
  */
-function foldValue(fold: PatchFoldCoverage): string {
+function foldValue(fold: PatchFoldCoverageReadModel): string {
   if (!fold.measured) {
     return 'not measured'
   }
@@ -81,7 +76,7 @@ function foldValue(fold: PatchFoldCoverage): string {
 // The daily bars are drawn by hand rather than with a chart component: the
 // series is a handful of days per patch, and a full chart would carry axes and a
 // legend for what is really a shape — "did this patch fill steadily or stop".
-function dayScale(patch: PatchCoverageRow): number {
+function dayScale(patch: PatchCoverageRowReadModel): number {
   return Math.max(1, ...patch.daily.map(day => day.matches))
 }
 </script>

@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Data.Entities;
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Services;
 using MongoDB.Driver;
@@ -32,7 +33,7 @@ public sealed class ProcessIterationHeadersIntegrationTests : IAsyncLifetime
     {
         var iterationContext = new IterationContext();
         using var context = BuildContext();
-        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), iterationContext);
+        var recorder = new ProcessRunRecorder(new ProcessRunStore(context), iterationContext, TimeProvider.System);
         var start = DateTime.UtcNow.AddMinutes(-10);
 
         Guid iterationId;
@@ -63,7 +64,7 @@ public sealed class ProcessIterationHeadersIntegrationTests : IAsyncLifetime
         await Runs().InsertManyAsync(
         [
             BuildRun(old, "MainAnalysis", now.AddDays(-30).AddMinutes(5), "AggregateLane"),
-            BuildRun(old, "MatchTeamPositionCorrection", now.AddDays(-30), "AggregateLane")
+            BuildRun(old, "MatchParticipantEloBracketEnrichment", now.AddDays(-30), "AggregateLane")
         ]);
 
         using var context = BuildContext();

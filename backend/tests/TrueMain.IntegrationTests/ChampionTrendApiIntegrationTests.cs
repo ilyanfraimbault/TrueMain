@@ -65,7 +65,7 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/champions/{ChampionId}/trend");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>();
+        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>(ApiJson.Options);
         trend.Should().NotBeNull();
         trend!.ChampionId.Should().Be(ChampionId);
         trend.Position.Should().Be("MIDDLE", "the dominant MIDDLE lane on the latest patch is the default");
@@ -98,7 +98,7 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/champions/{ChampionId}/trend?position=bottom");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>();
+        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>(ApiJson.Options);
         trend.Should().NotBeNull();
         trend!.Position.Should().Be("BOTTOM", "the canonicalised ?position filter is honoured");
         trend.Points.Should().ContainSingle().Which.Patch.Should().Be("16.5");
@@ -118,7 +118,7 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/champions/{ChampionId}/trend?position=middle");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>();
+        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>(ApiJson.Options);
         trend.Should().NotBeNull();
 
         // Seven patches seeded (16.1 … 16.7); the window keeps the five newest
@@ -144,7 +144,7 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync("/champions/99999/trend");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>();
+        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>(ApiJson.Options);
         trend.Should().NotBeNull();
         trend!.Points.Should().BeEmpty();
     }
@@ -164,7 +164,7 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
         var response = await client.GetAsync($"/champions/{ChampionId}/trend");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>();
+        var trend = await response.Content.ReadFromJsonAsync<ChampionTrendReadModel>(ApiJson.Options);
         trend.Should().NotBeNull();
         trend!.Position.Should().Be("MIDDLE", "the corrupt row does not disturb the dominant-lane pick");
 
@@ -196,9 +196,9 @@ public sealed class ChampionTrendApiIntegrationTests : IAsyncLifetime
             BaseAddress = new Uri("https://localhost")
         });
 
-        var mains = await client.GetFromJsonAsync<ChampionTrendReadModel>($"/champions/{ChampionId}/trend?position=middle");
+        var mains = await client.GetFromJsonAsync<ChampionTrendReadModel>($"/champions/{ChampionId}/trend?position=middle", ApiJson.Options);
         var everyone = await client.GetFromJsonAsync<ChampionTrendReadModel>(
-            $"/champions/{ChampionId}/trend?position=middle&truemainsOnly=false");
+            $"/champions/{ChampionId}/trend?position=middle&truemainsOnly=false", ApiJson.Options);
 
         // Mains only by default: the non-main games never reach the series (#2353).
         mains!.Points.Single(point => point.Patch == "16.5").Games.Should().Be(60);

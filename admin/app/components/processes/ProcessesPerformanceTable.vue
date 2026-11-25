@@ -2,12 +2,12 @@
 // The routes of the Performance tab (#2307), slowest p95 first as the API orders them. A
 // route above the slow threshold is tinted and badged so the epic's (#2300) offenders stand
 // out at the top until they are fixed.
-import type { RequestLatency } from '~~/shared/types/ops'
+import type { RequestLatencyReadModel } from '#site-shared/contract/api'
 import { computed } from 'vue'
 import { formatNumber } from '~~/shared/utils/format'
 import { formatLatency, isSlowRoute } from '~~/shared/utils/request-latency'
 
-const props = defineProps<{ latency: RequestLatency }>()
+const props = defineProps<{ latency: RequestLatencyReadModel }>()
 
 const rows = computed(() => props.latency.routes.map(route => ({
   ...route,

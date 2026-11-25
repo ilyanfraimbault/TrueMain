@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { GameState } from '~/types/game'
 import type { PaceComparison, PaceReference, PaceStanding } from '~/utils/pace-benchmark'
-import { formatTierName } from '#common/utils/tiers'
+import { formatTierName } from '#shared/utils/ranks'
 
 /**
  * Our pace: CS per minute, with its curve so a glance says whether it is

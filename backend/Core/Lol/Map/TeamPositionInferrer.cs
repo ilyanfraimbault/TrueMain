@@ -5,8 +5,8 @@ namespace Core.Lol.Map;
 /// exactly one of the five canonical <see cref="LanePositions.All"/>
 /// is absent from the team and exactly one member's <c>TeamPosition</c> is blank or
 /// unrecognised, the pairing is unambiguous — that member must be the missing lane.
-/// Used both to self-heal newly-ingested matches (<c>RiotMatchMapper</c>) and to
-/// backfill already-persisted ones (<c>MatchTeamPositionCorrectionProcess</c>).
+/// Applied to every match at ingestion (<c>RiotMatchMapper</c>); the backfill step that
+/// corrected matches stored before it was retired with #2481.
 /// Any other shape (several gaps, a duplicated lane, no gap at all) is left
 /// untouched rather than guessed.
 /// </summary>

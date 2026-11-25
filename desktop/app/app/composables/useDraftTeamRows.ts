@@ -1,16 +1,22 @@
-import type { DraftRecommendation, Lane, TeamRow } from '~/types/draft'
+import type { Lane, TeamRow } from '~/types/draft'
+import type { DraftRecommendationResponse } from '#shared/contract/api'
 import type { DraftState } from '~/types/lcu'
 import type { LaneSlot } from '~/composables/useLaneAssignment'
-import { POSITIONS } from '#common/utils/positions'
+import { POSITIONS } from '#shared/utils/positions'
+import { holdsEveryLane } from '~/utils/draft-lane'
 
 /** The two teams of the draft board, one row per card. */
 export function useDraftTeamRows(
   draft: Ref<DraftState>,
-  recommendation: Ref<DraftRecommendation | null>,
+  recommendation: Ref<DraftRecommendationResponse | null>,
   slots: Ref<LaneSlot[]>,
 ) {
-  /** Rows follow the lanes when the queue assigns them, so row n is a matchup. */
-  const byLane = computed(() => draft.value.myPosition !== '')
+  /**
+   * Rows follow the lanes when our side holds each lane once, so row n is a
+   * matchup. A lane only we were given (blind pick, #2461) keeps the cells in
+   * the client's order: laying out by lane would drop every ally without one.
+   */
+  const byLane = computed(() => holdsEveryLane(draft.value.myTeam))
 
   const allyRows = computed<TeamRow[]>(() => {
     const team = draft.value.myTeam

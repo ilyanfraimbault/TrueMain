@@ -26,7 +26,7 @@ const SHIFT_MS: i64 = 1_000;
 const SHIFT_CONFIRMATION: usize = 2;
 
 /// One reading of the game clock, bracketed by the video clock.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockSample {
     /// Milliseconds of video recorded when the request went out.
@@ -37,7 +37,7 @@ pub struct ClockSample {
     pub game_time_s: f64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Segment {
     /// The game time this segment starts at.
@@ -46,7 +46,7 @@ pub struct Segment {
     pub offset_ms: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Anchor {
     /// Never empty; ordered by `from_game_ms`.

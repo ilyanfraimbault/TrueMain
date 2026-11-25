@@ -40,7 +40,7 @@ public sealed class AuditEventsApiIntegrationTests : IAsyncLifetime
         using var client = CreateClient(factory);
         var created = await client.PostAsJsonAsync("/ops/personas", new { slug = "caps", displayName = "Caps" });
         created.StatusCode.Should().Be(HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
-        var id = (await created.Content.ReadFromJsonAsync<PersonaEditedResponse>())!.Id;
+        var id = (await created.Content.ReadFromJsonAsync<PersonaEditedResponse>(ApiJson.Options))!.Id;
         (await client.PatchAsJsonAsync($"/ops/personas/{id}", new { displayName = "Caps (G2)" }))
             .StatusCode.Should().Be(HttpStatusCode.OK);
         await InsertAsync(AuditActions.SeedAccount, AuditActors.Operator, AuditTargets.SeedRequest, Guid.NewGuid().ToString(), 5,
@@ -128,7 +128,7 @@ public sealed class AuditEventsApiIntegrationTests : IAsyncLifetime
     {
         var response = await client.GetAsync(url);
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-        return (await response.Content.ReadFromJsonAsync<AuditEventsReadModel>())!;
+        return (await response.Content.ReadFromJsonAsync<AuditEventsReadModel>(ApiJson.Options))!;
     }
 
     private ApiWebApplicationFactory CreateFactory() => new(_postgres, _mongo);

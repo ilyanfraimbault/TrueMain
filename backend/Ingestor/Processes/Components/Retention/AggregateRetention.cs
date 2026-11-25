@@ -1,5 +1,6 @@
 using Core.Lol.Patches;
 using Data;
+using Data.Aggregation;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ingestor.Processes.Components.Retention;
@@ -7,8 +8,8 @@ namespace Ingestor.Processes.Components.Retention;
 /// <summary>
 /// The aggregate half of <c>MatchDataRetentionProcess</c>: dropping the champion
 /// aggregates of patches that have fallen out of the retained window. Extracted from the
-/// process (#1450) because the situational-context tables made it the sixth family it has
-/// to know about, and the process file was already carrying five unrelated retention jobs.
+/// process (#1450). Which tables a patch's aggregates are is not known here but in
+/// <see cref="PatchPanelTables"/>.
 /// </summary>
 public static class AggregateRetention
 {
@@ -41,30 +42,10 @@ public static class AggregateRetention
         var observedPatches = new HashSet<string>(StringComparer.Ordinal);
         observedPatches.UnionWith(await db.ChampionAggregateScopes
             .AsNoTracking().Select(scope => scope.GameVersion).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionMatchupStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionSynergyStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionSynergyBaselineStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionOpponentStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionOpponentBaselineStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionScalingStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionProfileStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionDamageProfileStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionItemContextStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.ChampionItemComponentOrders
-            .AsNoTracking().Select(order => order.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.PaceBenchmarkStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
-        observedPatches.UnionWith(await db.FormBenchmarkStats
-            .AsNoTracking().Select(stat => stat.Patch).Distinct().ToListAsync(ct));
+        foreach (var table in PatchPanelTables.All.Where(table => table.DatesAPatch))
+        {
+            observedPatches.UnionWith(await table.PatchesIn(db).ToListAsync(ct));
+        }
 
         // Rank the observed patch strings by parsed version and keep the N most
         // recent. Unparseable strings are never deleted — better to leave an odd
@@ -123,8 +104,8 @@ public static class AggregateRetention
                 "Aggregate retention removed {DeletedScopes} scopes, {DeletedMatchups} matchup "
                 + "and {DeletedSynergies} synergy rows for stale patches {StalePatches} (keeping {RetainedPatches}).",
                 result.DeletedScopes,
-                result.DeletedMatchupStats,
-                result.DeletedSynergyStats,
+                result.Deleted(PatchPanelFamily.Matchups),
+                result.Deleted(PatchPanelFamily.Synergies),
                 string.Join("|", stalePatches),
                 string.Join("|", retainedVersions.OrderDescending().Select(version => version.ToString())));
         }
@@ -133,93 +114,39 @@ public static class AggregateRetention
     }
 
     /// <summary>
-    /// Every per-patch champion-page table of one patch except the scopes and their
-    /// patterns: matchups, synergy and opposing pairs with their baselines, scaling, the
-    /// situational-context family and the desktop benchmarks. Shared by the full purge
-    /// (which also drops the scopes) and the build purge (#1958, which keeps them), so
-    /// the two can never disagree on what "a patch's panels" are. Runs inside the
-    /// caller's transaction.
+    /// Every <see cref="PatchPanelTables"/> table of one patch: everything per-patch except the
+    /// scopes and their patterns. Shared by the full purge (which also drops the scopes) and the
+    /// build purge (#1958, which keeps them), so the two can never disagree on what "a patch's
+    /// panels" are. Runs inside the caller's transaction, so a family's tables — pairs and the
+    /// baselines they are divided by, counters and the verdicts derived from them — go together.
     /// </summary>
     internal static async Task<AggregateDeletionResult> DeletePanelStatsAsync(
         TrueMainDbContext db,
         string patch,
         CancellationToken ct)
-        => new(
-            DeletedScopes: 0,
-            DeletedMatchupStats: await db.ChampionMatchupStats
-                .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct),
-            // The synergy pair rows and the baselines they are divided by go in
-            // the same transaction as each other: a patch left with baselines but
-            // no pairs (or the reverse) would still be read, and would answer with
-            // an expected win rate computed against a cohort that no longer exists.
-            DeletedSynergyStats: await db.ChampionSynergyStats
-                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
-                + await db.ChampionSynergyBaselineStats
-                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
-                // The opposing pairs (#1713) and their baselines, by the same rule,
-                // counted with the synergy rows they mirror.
-                + await db.ChampionOpponentStats
-                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
-                + await db.ChampionOpponentBaselineStats
-                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct),
-            // The game-length buckets of the scaling chart (#1368): one table, no
-            // denominator kept apart from it.
-            DeletedScalingStats: await db.ChampionScalingStats
-                .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct),
-            // The measured profiles (#1449) and the item context they qualify (#1450).
-            // Same rule as the pairs above and one more reason for it here: a
-            // verdict left without the counters it was derived from could never be
-            // recomputed, and the counters without their totals are not rates.
-            DeletedContextStats: await db.ChampionProfileStats
-                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
-                + await db.ChampionDamageProfileStats
-                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
-                + await db.ChampionItemContextStats
-                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
-                + await db.ChampionItemContextTotals
-                    .Where(total => total.Patch == patch).ExecuteDeleteAsync(ct)
-                + await db.ChampionItemContextVerdicts
-                    .Where(verdict => verdict.Patch == patch).ExecuteDeleteAsync(ct)
-                + await db.ChampionNextItemTerms
-                    .Where(term => term.Patch == patch).ExecuteDeleteAsync(ct)
-                + await db.ChampionItemComponentOrders
-                    .Where(order => order.Patch == patch).ExecuteDeleteAsync(ct),
-            // The desktop app's benchmarks: the overlay's pace (#1912) and the dashboard's
-            // form (#2076). Their reads already pool only the most recent patches, so an
-            // aged-out patch is dead weight either way.
-            DeletedBenchmarkStats: await db.PaceBenchmarkStats
-                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct)
-                + await db.FormBenchmarkStats
-                    .Where(stat => stat.Patch == patch).ExecuteDeleteAsync(ct));
-
-    public sealed record AggregateDeletionResult(
-        int DeletedScopes,
-        int DeletedMatchupStats,
-        int DeletedSynergyStats,
-        int DeletedScalingStats,
-        // The situational-context family (#1449, #1450): champion profiles, the item
-        // context counters and the verdicts derived from them, summed — they are deleted
-        // together in one transaction, so one counter describes all four tables.
-        int DeletedContextStats,
-        int DeletedBenchmarkStats)
     {
-        public static AggregateDeletionResult Empty { get; } = new(0, 0, 0, 0, 0, 0);
+        var byFamily = new Dictionary<PatchPanelFamily, int>();
+        foreach (var table in PatchPanelTables.All)
+        {
+            byFamily[table.Family] = byFamily.GetValueOrDefault(table.Family) + await table.DeletePatchAsync(db, patch, ct);
+        }
+
+        return new AggregateDeletionResult(0, byFamily);
+    }
+
+    /// <summary>Rows deleted: the scopes, then the panel tables per family.</summary>
+    public sealed record AggregateDeletionResult(int DeletedScopes, IReadOnlyDictionary<PatchPanelFamily, int> Panels)
+    {
+        public static AggregateDeletionResult Empty { get; } = new(0, new Dictionary<PatchPanelFamily, int>());
+
+        /// <summary>The rows of one family.</summary>
+        public int Deleted(PatchPanelFamily family) => Panels.GetValueOrDefault(family);
 
         public AggregateDeletionResult Plus(AggregateDeletionResult other)
             => new(
                 DeletedScopes + other.DeletedScopes,
-                DeletedMatchupStats + other.DeletedMatchupStats,
-                DeletedSynergyStats + other.DeletedSynergyStats,
-                DeletedScalingStats + other.DeletedScalingStats,
-                DeletedContextStats + other.DeletedContextStats,
-                DeletedBenchmarkStats + other.DeletedBenchmarkStats);
+                Enum.GetValues<PatchPanelFamily>().ToDictionary(family => family, family => Deleted(family) + other.Deleted(family)));
 
-        public int TotalDeleted
-            => DeletedScopes
-                + DeletedMatchupStats
-                + DeletedSynergyStats
-                + DeletedScalingStats
-                + DeletedContextStats
-                + DeletedBenchmarkStats;
+        public int TotalDeleted => DeletedScopes + Panels.Values.Sum();
     }
 }

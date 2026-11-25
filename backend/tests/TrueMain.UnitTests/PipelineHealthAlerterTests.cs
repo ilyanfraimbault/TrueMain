@@ -38,11 +38,11 @@ public sealed class PipelineHealthAlerterTests
     {
         using var alerter = NewAlerter();
 
-        _source.Next = Health("red");
+        _source.Next = Health(DetectorStatus.Red);
         (await EvaluateAsync(alerter)).Should().BeNull("the first pass after boot only observes");
         var opened = await EvaluateAsync(alerter);
         (await EvaluateAsync(alerter)).Should().BeNull();
-        _source.Next = Health("green");
+        _source.Next = Health(DetectorStatus.Green);
         var recovered = await EvaluateAsync(alerter);
 
         _notifier.Sent.Should().HaveCount(2);
@@ -59,7 +59,7 @@ public sealed class PipelineHealthAlerterTests
     [Fact]
     public async Task ARestartedAlerter_ContinuesTheSavedIncident_WithoutAnnouncingItAgain()
     {
-        _source.Next = Health("red");
+        _source.Next = Health(DetectorStatus.Red);
         using var first = NewAlerter();
         await EvaluateAsync(first);
         await EvaluateAsync(first);
@@ -68,7 +68,7 @@ public sealed class PipelineHealthAlerterTests
         using var restarted = NewAlerter();
         (await EvaluateAsync(restarted)).Should().BeNull();
         (await EvaluateAsync(restarted)).Should().BeNull("the incident was already announced before the restart");
-        _source.Next = Health("green");
+        _source.Next = Health(DetectorStatus.Green);
         (await EvaluateAsync(restarted))!.Kind.Should().Be("recovered", "the restart did not forget the open incident");
 
         _notifier.Sent.Should().HaveCount(2);
@@ -78,7 +78,7 @@ public sealed class PipelineHealthAlerterTests
     public async Task ARefusedAlert_IsRecordedUndelivered_AndRetriedNextPass()
     {
         using var alerter = NewAlerter();
-        _source.Next = Health("red");
+        _source.Next = Health(DetectorStatus.Red);
         await EvaluateAsync(alerter);
         _notifier.FailWith = HttpStatusCode.TooManyRequests;
 
@@ -96,7 +96,7 @@ public sealed class PipelineHealthAlerterTests
     public async Task APassAnotherInstanceSavedFirst_SendsNothing()
     {
         using var alerter = NewAlerter();
-        _source.Next = Health("red");
+        _source.Next = Health(DetectorStatus.Red);
         await EvaluateAsync(alerter);
         _store.LoseNextSave = true;
 
@@ -109,7 +109,7 @@ public sealed class PipelineHealthAlerterTests
     public async Task ATimedOutDelivery_IsRecordedUndelivered_AndRetriedNextPass()
     {
         using var alerter = NewAlerter();
-        _source.Next = Health("red");
+        _source.Next = Health(DetectorStatus.Red);
         await EvaluateAsync(alerter);
         // What HttpClient throws when its own timeout fires: a cancellation nobody asked for.
         _notifier.Throws = new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.");
@@ -163,7 +163,7 @@ public sealed class PipelineHealthAlerterTests
             new("process:MatchIngestion", "MatchIngestion", HealthAlertChangeKind.Failing, "Failed", "3 consecutive failed runs.", null),
             new("dataQuality", "Data quality", HealthAlertChangeKind.Recovered, "green", new string('x', 2_000), null)
         };
-        var message = HealthAlertMessage.Compose(Health("red"), changes, Settings);
+        var message = HealthAlertMessage.Compose(Health(DetectorStatus.Red), changes, Settings);
 
         var json = JsonSerializer.SerializeToElement(DiscordWebhookPayload.From(message));
 
@@ -188,7 +188,7 @@ public sealed class PipelineHealthAlerterTests
         {
             new("dataQuality", "Data quality", HealthAlertChangeKind.Recovered, "green", "ok", null)
         };
-        var message = HealthAlertMessage.Compose(Health("red"), changes, new AlertingOptions());
+        var message = HealthAlertMessage.Compose(Health(DetectorStatus.Red), changes, new AlertingOptions());
 
         var json = JsonSerializer.SerializeToElement(DiscordWebhookPayload.From(message));
         var embed = json.GetProperty("embeds")[0];
@@ -202,8 +202,7 @@ public sealed class PipelineHealthAlerterTests
     [Fact]
     public void TheConfigurationPage_ShowsWhetherAlertingIsOn_NeverTheWebhook()
     {
-        var section = ApiEffectiveConfigurationCatalog.Instance.Sections
-            .Single(descriptor => descriptor.SectionName == AlertingOptions.SectionName);
+        var section = AlertingOptions.ConfigurationPage;
 
         EffectiveConfigurationRedaction.IsSecretName(nameof(AlertingOptions.DiscordWebhookUrl)).Should().BeTrue();
         section.IncludeProperties.Should().Contain(nameof(AlertingOptions.Enabled))
@@ -227,7 +226,7 @@ public sealed class PipelineHealthAlerterTests
 
     private sealed class FakeSource : IPipelineHealthSnapshotSource
     {
-        public PipelineHealthReadModel Next { get; set; } = Health("green");
+        public PipelineHealthReadModel Next { get; set; } = Health(DetectorStatus.Green);
 
         public int Reads { get; private set; }
 

@@ -1,6 +1,6 @@
 using AwesomeAssertions;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Summaries;
@@ -161,7 +161,7 @@ public sealed class AccountRefreshProfileFreshnessTests
             new FixedTimeProvider(NowUtc),
             Microsoft.Extensions.Options.Options.Create(new AccountRefreshOptions()));
 
-        var summary = await process.RunCoreAsync(CancellationToken.None);
+        var summary = await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
         return summary.Should().BeOfType<AccountRefreshSummary>().Subject;
     }
 }

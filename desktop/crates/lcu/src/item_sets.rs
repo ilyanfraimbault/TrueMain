@@ -30,7 +30,7 @@ pub const SUMMONERS_RIFT: i64 = 11;
 /// The build's items as the build view shows them, by item id. Ids already
 /// filtered to the patch's items by the caller; an empty list is a block left
 /// out, never padded.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BuildItems {
     #[serde(default)]
@@ -44,14 +44,14 @@ pub struct BuildItems {
 }
 
 /// One entry of a block. The client knows items by id, as a string.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct ItemSetItem {
     pub id: String,
     pub count: u32,
 }
 
 /// One titled row of the set in the shop.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemSetBlock {
     /// The block's title — the client calls it `type`.
@@ -63,7 +63,7 @@ pub struct ItemSetBlock {
 }
 
 /// The set to write, without the fields the client owns (`uid`, `sortrank`).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemSetDraft {
     pub title: String,
@@ -74,7 +74,7 @@ pub struct ItemSetDraft {
 
 /// One block of a kit's set (#2185), titled by the app: the starter, the
 /// boots, then one per path of the kit's tree.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NamedBlock {
     pub title: String,

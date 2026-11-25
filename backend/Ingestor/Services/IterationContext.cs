@@ -1,4 +1,4 @@
-using Ingestor.Options;
+using Data.Pipeline;
 
 namespace Ingestor.Services;
 

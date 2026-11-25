@@ -3,7 +3,7 @@
 // granularity, from `GET /api/ops/stats/matches-over-time`. The select drives a
 // reactive refetch; the x-axis label format follows the granularity. Not part of
 // the navbar refresh: the series moves on a pipeline cadence measured in hours.
-import type { MatchTimeGranularity } from '~~/shared/types/ops'
+import type { MatchTimeGranularity } from '~~/shared/types/ops/stats'
 import { formatNumber } from '~~/shared/utils/format'
 
 const granularityItems: { label: string, value: MatchTimeGranularity }[] = [

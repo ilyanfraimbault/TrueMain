@@ -2,10 +2,10 @@
 // Riot API tab: the status-code breakdown of the window. Coloured chips rather than
 // a chart: the 200/429/5xx split reads best as a labelled, colour-coded list.
 // Status 0 is a transport fault (no response).
-import type { RiotStatusCount } from '~~/shared/types/ops'
+import type { RiotApiStatusCountReadModel } from '#site-shared/contract/api'
 import { formatNumber, formatPercent, formatPercentOrDash } from '~~/shared/utils/format'
 
-const props = defineProps<{ statusCodes: RiotStatusCount[] }>()
+const props = defineProps<{ statusCodes: RiotApiStatusCountReadModel[] }>()
 
 function statusColor(code: number): 'success' | 'warning' | 'error' | 'neutral' {
   if (code === 0 || code >= 500) {

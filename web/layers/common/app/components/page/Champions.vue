@@ -3,7 +3,7 @@ import { championDisplayName } from '#shared/utils/champion-name'
 // The champion directory, as the site and the desktop app both render it
 // (#1732): each app's route file wraps this with its own head tags and nothing
 // else.
-import { isChampionPosition, type ChampionPosition } from '#common/utils/positions'
+import { isChampionPosition, type ChampionPosition } from '#shared/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { firstParamValue } from '#common/utils/route-params'
 import { directoryOrderToQuery, parseDirectoryOrder, type DirectoryOrder } from '#common/utils/table-sorting'

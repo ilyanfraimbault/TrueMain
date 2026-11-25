@@ -92,11 +92,6 @@ internal static class MatchDataQualityRules
             : null;
 
     // camelCase the enum name to match the API's global JSON policy.
-    public static string ToWireName(DataQualityIssueType issue)
-    {
-        var name = issue.ToString();
-        return char.ToLowerInvariant(name[0]) + name[1..];
-    }
 }
 
 /// <summary>Per-(match, team) shape the rules inspect.</summary>

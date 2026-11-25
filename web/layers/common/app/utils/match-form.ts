@@ -1,10 +1,10 @@
-import type { MatchSummaryResponse } from '#shared/types/matches'
+import type { MatchSummaryReadModel } from '#shared/contract/api'
 import { formatPercentage } from '#shared/utils/ddragon'
 import { formatPointDelta } from '#shared/utils/deltas'
 import { formatKdaRatio, kdaRatio } from '#shared/utils/kda'
 import { formatCount } from '#shared/utils/counts'
-import { positionLabel } from '#common/utils/positions'
-import { formatTierName } from '#common/utils/tiers'
+import { positionLabel } from '#shared/utils/positions'
+import { formatTierName } from '#shared/utils/ranks'
 
 /** How many of the newest games a form tile weighs against the whole sample. */
 export const RECENT_GAMES = 5
@@ -42,7 +42,7 @@ export interface FormReference {
 interface Metric {
   key: FormTile['key']
   label: string
-  read: (match: MatchSummaryResponse) => number
+  read: (match: MatchSummaryReadModel) => number
   format: (value: number) => string
   /** The move's size, unsigned (the arrow gives the direction); `format` unless the unit differs. */
   formatDelta?: (value: number) => string
@@ -91,7 +91,7 @@ const average = (values: number[]) => values.reduce((sum, value) => sum + value,
  * profile and the app's dashboard, so the two pages tell the same story.
  * `matches` is newest first, as every history is served.
  */
-export function formTiles(matches: MatchSummaryResponse[], benchmark: FormReference | null = null): FormTile[] {
+export function formTiles(matches: MatchSummaryReadModel[], benchmark: FormReference | null = null): FormTile[] {
   // A game past match retention kept no CS or kill participation (#2358): read as zeros,
   // it would drag the tiles down.
   const measured = matches.filter(match => !match.isTruncated)

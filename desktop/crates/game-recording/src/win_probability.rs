@@ -24,7 +24,7 @@ use crate::store::RecordingDir;
 pub const WIN_PROBABILITY_FILE: &str = "win-probability.json";
 pub(crate) const WIN_PROBABILITY_TEMPORARY: &str = "win-probability.json.tmp";
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordedWinProbability {
     /// The player's side, 100 or 200: the curve reads for it.
@@ -34,7 +34,7 @@ pub struct RecordedWinProbability {
     pub timeline: WinProbabilityTimeline,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ParticipantChampion {
     pub participant_id: i64,

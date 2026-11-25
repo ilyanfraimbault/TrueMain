@@ -153,7 +153,7 @@ fix is to stop sharing the clock: each worker claims a batch of its own platform
 claims again, while the maintenance pass runs on `Job:IntervalMinutes`.
 
 - **A new composite mode, not a change of `FetchLane`.** `FetchWorkers` owns exactly the fetch lane's steps
-  (`JobModeSequence.For` returns the same list), so boot-time run reconciliation and orphan-claim release are
+  (`PipelineCatalog.StepsOwnedBy` returns the same list), so boot-time run reconciliation and orphan-claim release are
   unchanged; only `SequencedStepsFor` drops `MatchIngestion` from its pass. `FetchLane` keeps its sequential,
   `RunOnce`-restarted behaviour, and `INGESTOR_JOB_MODE=FetchLane` is the rollback. Under `FetchWorkers`,
   `Job:RunOnce` still means one pass of everything the lane owns: one maintenance pass and one batch per worker.
@@ -390,7 +390,7 @@ claimed again through breadth — measured on production, ~14% of the queue and 
 were accounts validated before. Each one cost an unseen player a slot in the scarcest arm of the claim.
 
 **The rule is the ingest history, not a new status.** The breadth class is `LastMatchIngestAtUtc IS NULL` and a
-`Queued` candidate (`Data/Repositories/MatchIngestClaimClasses.cs`, shared by the claim, Scoring's promotion
+`Queued` candidate (`Ingestor/Persistence/MatchIngestClaimClasses.cs`, shared by the claim, Scoring's promotion
 ranking and the settle pass). A settling `MainCandidateStatus` was rejected: `Rejected` was removed for the same reason (#1029)
 and another terminal status would be one more state for the funnel charts to explain. The row stays — #900's
 "deactivate, never delete" — as the record that the pair was seen:

@@ -1,4 +1,3 @@
-import type { WinProbabilityTimeline } from '#shared/types/win-probability'
 import type { RecordingWinProbability } from '~/types/recordings'
 import fixture from '#shared/fixtures/win-probability-timeline.json'
 
@@ -23,7 +22,7 @@ export function devWinProbability(gameId: number, durationMs: number | null): Re
   return {
     teamId,
     champions: ROSTER.map((championId, index) => ({ participantId: index + 1, championId })),
-    timeline: fixture.timeline as WinProbabilityTimeline,
+    timeline: fixture.timeline as RecordingWinProbability['timeline'],
     clock: [{ fromGameMs: 0, offsetMs: 20_000 }],
     durationMs,
   }

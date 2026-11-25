@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { RankHistoryEntry } from '#shared/types/rank-history'
+import type { RankHistoryEntryReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData, StaticSummonerSpellData } from '#shared/types/static-data'
 import type { PlayerGame } from '~/types/record'
 import { counted } from '~/utils/player-form'
@@ -21,7 +21,7 @@ const props = defineProps<{
   games: PlayerGame[]
   /** Every game read so far, all queues — the neighbours an LP gain is measured between. */
   allGames: PlayerGame[]
-  rankHistory: RankHistoryEntry[]
+  rankHistory: RankHistoryEntryReadModel[]
   queue: string
   pending: boolean
   hasOlder: boolean

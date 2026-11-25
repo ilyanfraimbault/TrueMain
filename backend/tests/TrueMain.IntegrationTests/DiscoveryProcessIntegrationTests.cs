@@ -39,7 +39,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -48,7 +47,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                 NewAccountsTarget = 1
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-discovered-1");
@@ -87,7 +86,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -99,13 +97,13 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             }));
 
         // Window 2 over a ladder of 5: 0 -> 2 -> 4 -> wraps to 0.
-        await BuildProcess().RunCoreAsync(CancellationToken.None);
+        await BuildProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
         (await ReadCursorOffsetAsync("KR")).Should().Be(2);
 
-        await BuildProcess().RunCoreAsync(CancellationToken.None);
+        await BuildProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
         (await ReadCursorOffsetAsync("KR")).Should().Be(4);
 
-        await BuildProcess().RunCoreAsync(CancellationToken.None);
+        await BuildProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
         (await ReadCursorOffsetAsync("KR")).Should().Be(0);
     }
 
@@ -120,7 +118,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -131,7 +128,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                 SlidingWindowEnabled = true
             }));
 
-        var act = async () => await process.RunCoreAsync(CancellationToken.None);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
         (await act.Should().ThrowAsync<AggregateException>())
             .Which.Message.Should().Contain("KR");
 
@@ -198,7 +195,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -207,7 +203,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                 NewAccountsTarget = 1
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-no-rank");
@@ -256,7 +252,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -265,7 +260,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                 NewAccountsTarget = 0
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-discovered-1");
@@ -332,7 +327,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -341,7 +335,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                 NewAccountsTarget = 0
             }));
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         foreach (var (puuid, accountId) in accountIds)
@@ -366,7 +360,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -377,7 +370,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
 
         // Issue #443 follow-up: an EUW1 ladder stuck behind a Riot 429 backoff
         // must not abort KR/NA1 discovery.
-        var payload = await process.RunCoreAsync(CancellationToken.None);
+        var payload = await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var account = verifyDb.RiotAccounts.Single(a => a.Puuid == "puuid-discovered-1");
@@ -402,7 +395,6 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
             new AccountUpsertService(),
             new NoOpCandidateUpsertService(),
             new RankSnapshotWriter(),
-            new FakeProcessRunStore(),
             TimeProvider.System,
             Microsoft.Extensions.Options.Options.Create(new DiscoveryOptions
             {
@@ -411,7 +403,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
                 NewAccountsTarget = 1
             }));
 
-        var act = async () => await process.RunCoreAsync(CancellationToken.None);
+        var act = async () => await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // Nothing was discovered anywhere: surface the failure instead of
         // recording an empty success.
@@ -647,7 +639,7 @@ public sealed class DiscoveryProcessIntegrationTests : IAsyncLifetime
     private sealed class NoOpCandidateUpsertService : ICandidateUpsertService
     {
         public Task<CandidateUpsertResult> UpsertAsync(
-            Data.Repositories.IDataSession session,
+            Ingestor.Persistence.IDataSession session,
             string platformId,
             string puuid,
             IReadOnlyCollection<RiotChampionMasteryDto> masteries,

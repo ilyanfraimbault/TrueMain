@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChampionComparisonSide } from '~~/shared/types/champions'
+import type { ChampionComparisonSideReadModel } from '#shared/contract/api'
 import { formatCount } from '~~/shared/utils/counts'
 import { formatPercentage } from '~~/shared/utils/ddragon'
 import { formatPointDelta, formatSigned } from '~~/shared/utils/deltas'
@@ -8,8 +8,8 @@ import { formatKdaRatio, KDA_DIGITS } from '~~/shared/utils/kda'
 // The account-vs-mains comparison's figures: one column per side, the sample
 // behind each in its header, and the account's delta under its value.
 const props = defineProps<{
-  player: ChampionComparisonSide
-  mains: ChampionComparisonSide
+  player: ChampionComparisonSideReadModel
+  mains: ChampionComparisonSideReadModel
   playerLabel: string
   mainsLabel: string
 }>()
@@ -25,14 +25,14 @@ interface MetricRow {
   label: string
   format: (value: number) => string
   formatDelta: (value: number) => string
-  read: (side: ChampionComparisonSide) => number
+  read: (side: ChampionComparisonSideReadModel) => number
 }
 
 const METRICS: MetricRow[] = [
   {
     label: 'Win rate',
     read: side => side.winRate,
-    format: value => formatPercentage(value, 1),
+    format: value => formatPercentage(value),
     formatDelta: value => formatPointDelta(value),
   },
   {

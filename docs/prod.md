@@ -426,10 +426,18 @@ than fitting a line to a guessed capacity.
 `ALERTING_DISCORD_WEBHOOK_URL` turns the pipeline-health alerts on (#2292): the
 Discord webhook the Api posts to when the `/health` verdict turns red or recovers.
 Unset means no alerts, which `/health` and the configuration page both say. It is a
-credential — keep it in the stack `.env`, never in a commit.
+credential — keep it in `PROD_ENV_FILE`, never in a commit.
 
 `PERSONA_PICTURES_YOUTUBE_API_KEY`, `PERSONA_PICTURES_TWITCH_CLIENT_ID` and
 `PERSONA_PICTURES_TWITCH_CLIENT_SECRET` turn known players' pictures on (#2446). All
 three or nothing: unset, players keep the placeholder, and the configuration page says
 so. The YouTube one is a YouTube Data API v3 key, the Twitch pair an application from the
-Twitch developer console. Credentials too — the stack `.env` only.
+Twitch developer console. Credentials too — `PROD_ENV_FILE` only. Give each environment
+its own Google Cloud project for the YouTube key: the 10,000-unit daily quota is per
+project, not per key, so a shared project lets preprod spend prod's quota.
+
+Setting a credential in `PROD_ENV_FILE` (or `PREPROD_ENV_FILE`) takes effect at that
+environment's next deploy, which rewrites the VPS `.env` from it. Editing the VPS `.env`
+alone works until then and is silently lost at that deploy. The secret cannot be read
+back, so update it from the VPS `.env` minus `IMAGE_TAG` and `APP_VERSION`, which the
+deploy appends.

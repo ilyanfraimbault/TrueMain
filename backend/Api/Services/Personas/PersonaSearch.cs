@@ -85,7 +85,7 @@ internal static class PersonaSearch
                 var rank = p.Best is null ? null : ranks.GetValueOrDefault(p.Best.Id);
                 return new SearchPlayerReadModel
                 {
-                    Persona = new PersonaTagReadModel { Slug = p.Slug, DisplayName = p.DisplayName },
+                    Persona = new PersonaTagReadModel { Slug = p.Slug, DisplayName = p.DisplayName, PictureUrl = p.PictureUrl },
                     AccountCount = p.Accounts,
                     PictureUrl = p.PictureUrl,
                     ProfileIconId = p.Best?.ProfileIconId,

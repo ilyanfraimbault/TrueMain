@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.MatchIngestion;
@@ -20,10 +20,8 @@ public sealed class MatchIngestionProcessScopeTests
     public async Task RunCoreAsync_Restricted_ClaimsAndReapsOnlyItsPlatformsWithItsBatchSize()
     {
         var claims = EmptyClaims();
-        var scope = new MatchIngestionScope();
-        scope.Restrict(["euw1", "EUN1"], 9);
-
-        var summary = await BuildProcess(claims, scope).RunCoreAsync(CancellationToken.None);
+        var summary = await BuildProcess(claims)
+            .RunCoreAsync(RunInput.Narrowed(["euw1", "EUN1"], 9), CancellationToken.None);
 
         summary.Should().BeOfType<MatchIngestionSummary>().Which.AccountsProcessed.Should().Be(0);
         await claims.Received(1).ClaimAsync(
@@ -44,7 +42,7 @@ public sealed class MatchIngestionProcessScopeTests
     {
         var claims = EmptyClaims();
 
-        await BuildProcess(claims, new MatchIngestionScope()).RunCoreAsync(CancellationToken.None);
+        await BuildProcess(claims).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await claims.Received(1).ClaimAsync(
             Arg.Is<IReadOnlyCollection<string>>(platforms => platforms.SequenceEqual(new[] { "EUW1", "KR", "NA1" })),
@@ -68,7 +66,7 @@ public sealed class MatchIngestionProcessScopeTests
         return claims;
     }
 
-    private static MatchIngestionProcess BuildProcess(IMatchClaimService claims, MatchIngestionScope scope)
+    private static MatchIngestionProcess BuildProcess(IMatchClaimService claims)
         => new(
             NullLogger<MatchIngestionProcess>.Instance,
             Substitute.For<IDataSessionFactory>(),
@@ -80,6 +78,5 @@ public sealed class MatchIngestionProcessScopeTests
             {
                 Platforms = ["EUW1", "KR", "NA1"],
                 BatchSize = 75
-            }),
-            scope);
+            }));
 }

@@ -2,11 +2,11 @@
 // Riot API tab: the per-endpoint breakdown — calls, successes, errors, latency, the
 // method rate limit Riot last reported, and the last call.
 import type { TableColumn } from '@nuxt/ui'
-import type { RiotEndpointUsage } from '~~/shared/types/ops'
+import type { RiotApiEndpointUsageReadModel } from '#site-shared/contract/api'
 import { formatDateTime, formatElapsed, formatNumber } from '~~/shared/utils/format'
 
 defineProps<{
-  endpoints: RiotEndpointUsage[]
+  endpoints: RiotApiEndpointUsageReadModel[]
   pending: boolean
 }>()
 
@@ -70,7 +70,7 @@ function rateColor(count: number, limit: number): 'primary' | 'warning' | 'error
 }
 // A method-limit header is usually a single pair (e.g. "500:60"); reuse
 // buildRateBuckets and take the first (and typically only) bucket.
-function methodRateBucket(row: RiotEndpointUsage): RateBucket | null {
+function methodRateBucket(row: RiotApiEndpointUsageReadModel): RateBucket | null {
   return buildRateBuckets(row.methodRateLimit, row.methodRateLimitCount)[0] ?? null
 }
 
@@ -79,7 +79,7 @@ function methodRateBucket(row: RiotEndpointUsage): RateBucket | null {
 // sort must survive that.
 const sorting = defineModel<{ id: string, desc: boolean }[]>('sorting', { required: true })
 
-const columns: TableColumn<RiotEndpointUsage>[] = [
+const columns: TableColumn<RiotApiEndpointUsageReadModel>[] = [
   { accessorKey: 'endpoint', header: ({ column }) => sortableHeader(column, 'Endpoint') },
   { accessorKey: 'calls', header: ({ column }) => sortableHeader(column, 'Calls', 'right') },
   { accessorKey: 'successes', header: ({ column }) => sortableHeader(column, 'Success', 'right') },

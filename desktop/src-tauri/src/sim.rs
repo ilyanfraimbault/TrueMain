@@ -24,12 +24,14 @@
 
 use std::time::Duration;
 
-use lcu::{ActionKind, ChampSelectSession, ChampionMastery, LcuEvent, Reading};
+use std::collections::VecDeque;
+
+use lcu::{ActionKind, ChampSelectSession, ChampionMastery, LcuEvent, Reading, SpellSelection};
 use serde::Deserialize;
 use shell_state::AppState;
-use tauri::AppHandle;
 
-use crate::supervisor::{publish, SharedState};
+use crate::champselect::{ChampSelectPort, Reply};
+use crate::supervisor::{Feed, Source};
 
 /// The relay to follow instead of a client.
 pub const SIM_VAR: &str = "TRUEMAIN_LCU_SIM";
@@ -47,54 +49,111 @@ struct Batch {
     readings: Vec<Reading>,
 }
 
-/// Follow the relay until the app exits. The relay down is a client closed:
-/// the app says so, and picks the session back up when it answers again.
-pub async fn run(app: &AppHandle, shared: &SharedState, url: &str) {
-    tracing::info!(%url, "following the draft simulator instead of a client");
-    let http = reqwest::Client::new();
-    let mut state = AppState::default();
-    let mut generation = 0_u64;
-    let mut next = 0_usize;
+/// The relay, as a session's source: it answers the readings the page posted
+/// since the last ask. The relay down is a client closed: the app says so, and
+/// picks the session back up when it answers again.
+pub struct SimSource {
+    http: reqwest::Client,
+    url: String,
+    connected: bool,
+    generation: u64,
+    next: usize,
+    pending: VecDeque<Reading>,
+    /// The page's latest mastery reading, handed out when the state asks.
+    mastery: Option<serde_json::Value>,
+}
 
-    loop {
-        match fetch(&http, url, generation, next).await {
-            Ok(batch) => {
-                let mut changed = !state.connected;
-                if batch.reset || batch.generation != generation {
-                    state = AppState::default();
-                    changed = true;
-                }
-                state.connected = true;
-                generation = batch.generation;
-                next = batch.next;
-                for reading in batch.readings {
-                    if let Reading::Game { data } = &reading {
-                        // The phase this batch moved to reaches the game feed
-                        // first, or a game's opening reading would be dropped
-                        // as read outside a game.
-                        if changed {
-                            publish(app, shared, state.clone());
-                            changed = false;
-                        }
-                        crate::game::ingest(app, data);
+impl SimSource {
+    pub fn new(url: String) -> Self {
+        Self {
+            http: reqwest::Client::new(),
+            url,
+            connected: false,
+            generation: 0,
+            next: 0,
+            pending: VecDeque::new(),
+            mastery: None,
+        }
+    }
+}
+
+impl Source for SimSource {
+    async fn open(&mut self) -> AppState {
+        AppState::default()
+    }
+
+    async fn next(&mut self) -> Option<Feed> {
+        loop {
+            while let Some(reading) = self.pending.pop_front() {
+                let update = |uri: &str, data| {
+                    Feed::Event(LcuEvent {
+                        uri: uri.to_string(),
+                        event_type: "Update".to_string(),
+                        data,
+                    })
+                };
+                return Some(match reading {
+                    Reading::Event {
+                        uri,
+                        event_type,
+                        data,
+                    } => Feed::Event(LcuEvent {
+                        uri,
+                        event_type,
+                        data,
+                    }),
+                    Reading::Phase { data } => update(lcu::uri::GAMEFLOW_PHASE, data),
+                    Reading::Session { data } => update(lcu::uri::CHAMP_SELECT_SESSION, data),
+                    Reading::Summoner { data } => update(lcu::uri::CURRENT_SUMMONER, data),
+                    Reading::Game { data } => Feed::Game(data),
+                    Reading::Mastery { data } => {
+                        self.mastery = Some(data);
                         continue;
                     }
-                    changed |= apply(&mut state, reading);
-                }
-                if changed {
-                    publish(app, shared, state.clone());
-                }
+                });
             }
-            Err(error) => {
-                if state.connected {
-                    tracing::info!(%error, "the draft simulator stopped answering");
-                    state = AppState::default();
-                    generation = 0;
-                    publish(app, shared, state.clone());
+            match fetch(&self.http, &self.url, self.generation, self.next).await {
+                Ok(batch) => {
+                    let restart =
+                        !self.connected || batch.reset || batch.generation != self.generation;
+                    self.connected = true;
+                    self.generation = batch.generation;
+                    self.next = batch.next;
+                    if restart {
+                        self.mastery = None;
+                        self.pending = batch.readings.into();
+                        return Some(Feed::Restart);
+                    }
+                    self.pending.extend(batch.readings);
                 }
+                Err(error) if self.connected => {
+                    tracing::info!(%error, "the draft simulator stopped answering");
+                    self.connected = false;
+                    self.generation = 0;
+                    return Some(Feed::Closed);
+                }
+                Err(_) => {}
+            }
+            if self.pending.is_empty() {
+                tokio::time::sleep(POLL).await;
             }
         }
-        tokio::time::sleep(POLL).await;
+    }
+
+    /// The page posts the player's mastery with the login: the one still to be
+    /// handed out in this batch, else the latest seen.
+    async fn mastery(&mut self) -> Vec<ChampionMastery> {
+        let queued = self
+            .pending
+            .iter()
+            .position(|reading| matches!(reading, Reading::Mastery { .. }))
+            .and_then(|index| self.pending.remove(index));
+        let data = match queued {
+            Some(Reading::Mastery { data }) => Some(data),
+            _ => self.mastery.clone(),
+        };
+        data.and_then(|data| serde_json::from_value(data).ok())
+            .unwrap_or_default()
     }
 }
 
@@ -162,7 +221,7 @@ impl SimClient {
         Ok(answer.body)
     }
 
-    pub async fn champ_select_session(&self) -> lcu::Result<Option<ChampSelectSession>> {
+    async fn champ_select_session(&self) -> lcu::Result<Option<ChampSelectSession>> {
         match self
             .request("GET", lcu::uri::CHAMP_SELECT_SESSION, None)
             .await
@@ -175,7 +234,7 @@ impl SimClient {
         }
     }
 
-    pub async fn allowed(&self, kind: ActionKind) -> lcu::Result<Vec<i64>> {
+    async fn allowed(&self, kind: ActionKind) -> lcu::Result<Vec<i64>> {
         let path = match kind {
             ActionKind::Pick => "/lol-champ-select/v1/pickable-champion-ids",
             ActionKind::Ban => "/lol-champ-select/v1/bannable-champion-ids",
@@ -184,7 +243,7 @@ impl SimClient {
         serde_json::from_value(body).map_err(|error| lcu::Error::Decode(error.to_string()))
     }
 
-    pub async fn hover_champion(&self, action_id: i64, champion_id: i64) -> lcu::Result<()> {
+    async fn hover_champion(&self, action_id: i64, champion_id: i64) -> lcu::Result<()> {
         self.request(
             "PATCH",
             &format!("/lol-champ-select/v1/session/actions/{action_id}"),
@@ -194,7 +253,7 @@ impl SimClient {
         Ok(())
     }
 
-    pub async fn complete_action(&self, action_id: i64) -> lcu::Result<()> {
+    async fn complete_action(&self, action_id: i64) -> lcu::Result<()> {
         self.request(
             "POST",
             &format!("/lol-champ-select/v1/session/actions/{action_id}/complete"),
@@ -203,42 +262,39 @@ impl SimClient {
         .await?;
         Ok(())
     }
+    async fn spells(&self) -> lcu::Result<()> {
+        Err(lcu::Error::Decode(
+            "the draft simulator does not take summoner spells".to_string(),
+        ))
+    }
 }
 
-/// One reading, through the path a live session's events take. Returns whether
-/// the state changed.
-fn apply(state: &mut AppState, reading: Reading) -> bool {
-    let update = |uri: &str, data| LcuEvent {
-        uri: uri.to_string(),
-        event_type: "Update".to_string(),
-        data,
-    };
-    match reading {
-        Reading::Event {
-            uri,
-            event_type,
-            data,
-        } => state.apply(&LcuEvent {
-            uri,
-            event_type,
-            data,
-        }),
-        Reading::Phase { data } => state.apply(&update(lcu::uri::GAMEFLOW_PHASE, data)),
-        Reading::Session { data } => state.apply(&update(lcu::uri::CHAMP_SELECT_SESSION, data)),
-        Reading::Summoner { data } => state.apply(&update(lcu::uri::CURRENT_SUMMONER, data)),
-        Reading::Mastery { data } => {
-            let mastery: Vec<ChampionMastery> = serde_json::from_value(data).unwrap_or_default();
-            state.set_mastery(&mastery);
-            true
-        }
-        // The game feed's, not the app state's: `run` hands it over.
-        Reading::Game { .. } => false,
+impl ChampSelectPort for SimClient {
+    fn session(&self) -> Reply<'_, Option<ChampSelectSession>> {
+        Box::pin(self.champ_select_session())
+    }
+
+    fn allowed(&self, kind: ActionKind) -> Reply<'_, Vec<i64>> {
+        Box::pin(SimClient::allowed(self, kind))
+    }
+
+    fn hover(&self, action_id: i64, champion_id: i64) -> Reply<'_, ()> {
+        Box::pin(self.hover_champion(action_id, champion_id))
+    }
+
+    fn complete(&self, action_id: i64) -> Reply<'_, ()> {
+        Box::pin(self.complete_action(action_id))
+    }
+
+    fn set_spells<'a>(&'a self, _: &'a SpellSelection) -> Reply<'a, ()> {
+        Box::pin(self.spells())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{apply, Batch};
+    use super::{Batch, SimSource};
+    use crate::supervisor::{Feed, Source};
     use lcu::GameflowPhase;
     use shell_state::{AppState, Screen};
 
@@ -268,21 +324,48 @@ mod tests {
         serde_json::json!({ "kind": "event", "uri": uri, "event_type": event_type, "data": data })
     }
 
-    #[test]
-    fn a_simulated_champion_select_reaches_the_draft() {
+    /// A source already connected, holding `readings` as the relay's answer.
+    fn source(readings: Batch) -> SimSource {
+        let mut source = SimSource::new("http://127.0.0.1:9/unused".into());
+        source.connected = true;
+        source.generation = readings.generation;
+        source.pending = readings.readings.into();
+        source
+    }
+
+    /// Every event the source hands out, applied as the driver applies them,
+    /// the pool read when the state asks for it.
+    async fn play(mut source: SimSource) -> AppState {
         let mut state = AppState {
             connected: true,
             ..AppState::default()
         };
+        let mut read_for = None;
+        while !source.pending.is_empty() {
+            match source.next().await {
+                Some(Feed::Event(event)) => {
+                    state.apply(&event);
+                    if state.wants_mastery(read_for.as_deref()) {
+                        read_for.clone_from(&state.riot_id);
+                        state.set_mastery(&source.mastery().await);
+                    }
+                }
+                Some(_) => {}
+                None => break,
+            }
+        }
+        state
+    }
+
+    #[tokio::test]
+    async fn a_simulated_champion_select_reaches_the_draft() {
         let opening = batch(serde_json::json!([
             event("/lol-summoner/v1/current-summoner", serde_json::json!({ "gameName": "Simulated", "tagLine": "DEV", "summonerLevel": 30, "profileIconId": 29 }), "Update"),
             { "kind": "mastery", "data": [{ "championId": 103, "championPoints": 120000 }, { "championId": 238, "championPoints": 112000 }] },
             event("/lol-gameflow/v1/gameflow-phase", serde_json::json!("ChampSelect"), "Update"),
             event("/lol-champ-select/v1/session", session(103), "Update"),
         ]));
-        for reading in opening.readings {
-            apply(&mut state, reading);
-        }
+        let state = play(source(opening)).await;
 
         assert_eq!(state.phase, GameflowPhase::ChampSelect);
         assert_eq!(state.screen(), Screen::Draft);
@@ -297,12 +380,8 @@ mod tests {
         assert_eq!(draft.seconds_left, 26);
     }
 
-    #[test]
-    fn the_game_starting_ends_the_draft() {
-        let mut state = AppState {
-            connected: true,
-            ..AppState::default()
-        };
+    #[tokio::test]
+    async fn the_game_starting_ends_the_draft() {
         let readings = batch(serde_json::json!([
             event(
                 "/lol-gameflow/v1/gameflow-phase",
@@ -321,9 +400,7 @@ mod tests {
                 "Update"
             ),
         ]));
-        for reading in readings.readings {
-            apply(&mut state, reading);
-        }
+        let state = play(source(readings)).await;
         assert!(state.draft.is_none());
         assert_eq!(state.screen(), Screen::InGame);
     }

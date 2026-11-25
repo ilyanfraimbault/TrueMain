@@ -1,3 +1,6 @@
+using Data.Configuration;
+using TrueMain.Configuration;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -10,9 +13,32 @@ namespace TrueMain.Options;
 /// and never shown on the configuration page, whose allow-list reads <see cref="Enabled"/> in their place.
 /// </para>
 /// </summary>
-public sealed class PersonaPictureOptions
+public sealed class PersonaPictureOptions : IApiOptions
 {
     public const string SectionName = "PersonaPictures";
+
+    static string IApiOptions.Section => SectionName;
+
+    /// <summary>
+    /// Its entry on the admin configuration page. Every setting is a credential, so the include-list
+    /// shows only <see cref="Enabled"/>: whether pictures are on, never what with.
+    /// </summary>
+    public static EffectiveConfigurationSectionDescriptor ConfigurationPage { get; } = new()
+    {
+        SectionName = SectionName,
+        OptionsType = typeof(PersonaPictureOptions),
+        Title = "Known players' pictures",
+        Description = "Whether the worker that reads each known player's channel picture is running.",
+        IncludeProperties = [nameof(Enabled)],
+        Notices =
+        [
+            new EffectiveConfigurationNotice(
+                nameof(Enabled),
+                UnsetCondition.ZeroOrNegative,
+                "Known players keep the placeholder: set PERSONA_PICTURES_YOUTUBE_API_KEY, "
+                + "PERSONA_PICTURES_TWITCH_CLIENT_ID and PERSONA_PICTURES_TWITCH_CLIENT_SECRET in the stack environment.")
+        ]
+    };
 
     /// <summary>A YouTube Data API key.</summary>
     public string? YouTubeApiKey { get; set; }

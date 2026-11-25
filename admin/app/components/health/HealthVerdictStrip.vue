@@ -7,12 +7,12 @@
 // It is handed the last good verdict, not the raw fetch (#1427): Nuxt resets `data` on
 // error, and a strip that blanked on every slow evaluation read as "nothing to report". A
 // kept verdict states its age and that the latest refresh failed, so it is never read as live.
-import type { PipelineHealth } from '~~/shared/types/ops'
+import type { PipelineHealthReadModel } from '#site-shared/contract/api'
 import { detectorStatusMeta } from '~~/shared/utils/detector-status'
 import { formatTimeAgo } from '~~/shared/utils/format'
 
 const props = defineProps<{
-  health: PipelineHealth | null
+  health: PipelineHealthReadModel | null
   pending: boolean
   failed: boolean
 }>()

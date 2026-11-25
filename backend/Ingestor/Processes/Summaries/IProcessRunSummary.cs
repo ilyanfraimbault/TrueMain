@@ -1,3 +1,5 @@
+using Data.Entities;
+
 namespace Ingestor.Processes.Summaries;
 
 /// <summary>
@@ -13,4 +15,12 @@ namespace Ingestor.Processes.Summaries;
 /// <c>ProcessRunSummaryRegistrationTests</c>, which fails the build when a new
 /// implementation is added without registering it.
 /// </remarks>
-public interface IProcessRunSummary;
+public interface IProcessRunSummary
+{
+    /// <summary>
+    /// The status a completed run is recorded under. A run that did its work, even with nothing
+    /// to do, is <see cref="ProcessRunStatus.Success"/>; only a summary that declined the work
+    /// (<see cref="SkippedSummary"/>) says otherwise. Not serialized: the status has its own field.
+    /// </summary>
+    ProcessRunStatus Status => ProcessRunStatus.Success;
+}

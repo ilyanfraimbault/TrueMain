@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using Data.Configuration;
+using TrueMain.Configuration;
 
 namespace TrueMain.Options;
 
@@ -13,9 +15,49 @@ namespace TrueMain.Options;
 /// allow-list reads <see cref="Enabled"/> in its place.
 /// </para>
 /// </summary>
-public sealed class AlertingOptions
+public sealed class AlertingOptions : IApiOptions
 {
     public const string SectionName = "Alerting";
+
+    static string IApiOptions.Section => SectionName;
+
+    /// <summary>
+    /// Its entry on the admin configuration page. The include-list leaves the webhook URL out — it
+    /// is the channel's credential — and shows <see cref="Enabled"/> in its place, so the page says
+    /// whether alerting is on without saying where it posts.
+    /// </summary>
+    public static EffectiveConfigurationSectionDescriptor ConfigurationPage { get; } = new()
+    {
+        SectionName = SectionName,
+        OptionsType = typeof(AlertingOptions),
+        Title = "Health alerting",
+        Description =
+            "When the /health verdict is announced on Discord: how often it is evaluated, how "
+            + "many red evaluations make an incident, the per-signal cooldown and the failed-run "
+            + "streak at which a process is announced.",
+        IncludeProperties =
+        [
+            nameof(Enabled),
+            nameof(AdminBaseUrl),
+            nameof(EnvironmentLabel),
+            nameof(EvaluationInterval),
+            nameof(RedConfirmations),
+            nameof(Cooldown),
+            nameof(ProcessFailureThreshold)
+        ],
+        Notices =
+        [
+            new EffectiveConfigurationNotice(
+                nameof(Enabled),
+                UnsetCondition.ZeroOrNegative,
+                "Alerting is off: no Discord webhook is configured. Set Alerting:DiscordWebhookUrl "
+                + "(ALERTING_DISCORD_WEBHOOK_URL in the stack environment) to turn it on."),
+            new EffectiveConfigurationNotice(
+                nameof(AdminBaseUrl),
+                UnsetCondition.EmptyText,
+                "Alerts name the /health path instead of linking to it.")
+        ]
+    };
 
     /// <summary>The Discord webhook alerts are posted to. Empty turns alerting off.</summary>
     public string? DiscordWebhookUrl { get; set; }

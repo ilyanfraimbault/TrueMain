@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import type { ChampionPosition } from '#common/utils/positions'
+import type { ChampionPosition } from '#shared/utils/positions'
 
 defineProps<{
   champions: ChampionStaticListItem[]

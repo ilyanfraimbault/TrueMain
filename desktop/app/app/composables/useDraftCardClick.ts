@@ -32,7 +32,11 @@ export function useDraftCardClick(mode: () => 'pick' | 'ban', preview: (champion
     return mode() === 'pick' && writable.value && kind.value === 'pick' && availability(championId).allowed
   }
 
-  /** What the card says over its art: the client's hover, why it cannot be hovered, or the armed question. */
+  /**
+   * What the card says over its art: why it cannot be hovered, or the armed
+   * question. The client's hover is said by the card itself — ringed, with its
+   * lock button (#2465).
+   */
   function status(championId: number): { text: string, tone: 'primary' | 'warning' | 'muted' } | null {
     if (mode() !== 'pick' || !writable.value) return null
     if (armed.value === championId) {
@@ -40,8 +44,8 @@ export function useDraftCardClick(mode: () => 'pick' | 'ban', preview: (champion
       return { text: ally ? `${allyName(ally)}'s pick — click again` : 'Click again', tone: 'warning' }
     }
     const { allowed, reason } = availability(championId)
-    if (allowed || !reason || reason.startsWith('Not your turn')) return null
-    return { text: reason === 'Hovered in the client' ? 'Hovered' : reason, tone: reason === 'Hovered in the client' ? 'primary' : 'muted' }
+    if (allowed || !reason || reason.startsWith('Not your turn') || reason === 'Hovered in the client') return null
+    return { text: reason, tone: 'muted' }
   }
 
   function click(championId: number) {

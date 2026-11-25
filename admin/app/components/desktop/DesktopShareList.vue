@@ -3,7 +3,7 @@
 // pages, features: a label, its figure and a bar scaled to the list's largest, so
 // the ranking reads at a glance and the exact number is still printed.
 
-import type { DesktopShareRow } from '~~/shared/types/desktop'
+import type { DesktopShareRow } from '~/utils/desktop-usage'
 import { formatNumber } from '~~/shared/utils/format'
 
 const props = defineProps<{

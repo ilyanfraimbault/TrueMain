@@ -41,7 +41,7 @@ public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixtur
 
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
-        var summary = await BuildProcess(store).RunCoreAsync(CancellationToken.None);
+        var summary = await BuildProcess(store).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var statusCount = Enum.GetValues<MainCandidateStatus>().Length;
         summary.Should().BeOfType<CandidateStockSnapshotSummary>()
@@ -76,7 +76,7 @@ public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixtur
 
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
-        await BuildProcess(store).RunCoreAsync(CancellationToken.None);
+        await BuildProcess(store).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         var history = await store.GetHistoryAsync(DateTime.UtcNow.AddDays(-1), CancellationToken.None);
 
@@ -93,7 +93,7 @@ public sealed class CandidateStockSnapshotProcessIntegrationTests(PostgresFixtur
     {
         using var context = BuildContext();
         var store = new CandidateStockSnapshotStore(context);
-        var summary = await BuildProcess(store).RunCoreAsync(CancellationToken.None);
+        var summary = await BuildProcess(store).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<CandidateStockSnapshotSummary>()
             .Which.Series.Should().Be(0, "no platform holds candidates, so none has anything to report");

@@ -283,9 +283,9 @@ const visibleProcesses = computed(() =>
             class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5"
           >
             <UBadge
-              :color="processStatusColor(process.status)"
+              :color="processStatusColor(process.status ?? 'Missing')"
               variant="subtle"
-              :label="process.status"
+              :label="process.status ?? 'Missing'"
               class="shrink-0"
             />
             <span class="text-sm text-highlighted font-medium grow min-w-0 truncate">

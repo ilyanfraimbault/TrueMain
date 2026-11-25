@@ -1,5 +1,6 @@
 using Core.Lol.Ranking;
 using Core.Options;
+using Data.Pipeline;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -57,6 +58,9 @@ public static class OptionsConfigurationExtensions
             .Validate(
                 options => RiotRateLimitOptionsValidation.HasBoundedReservations(options.ReservedShares),
                 "RiotRateLimit:ReservedShares must each be between 0 and 0.5, and sum to at most 0.5.")
+            .Validate(
+                options => RiotRateLimitOptionsValidation.NamesPipelineSteps(options.ReservedShares),
+                "RiotRateLimit:ReservedShares keys must be pipeline process names (Data.Pipeline.PipelineCatalog).")
             .ValidateOnStart();
 
         services.AddOptionsWithValidator<MatchFetchWorkersOptions, MatchFetchWorkersOptionsValidator>(
@@ -191,10 +195,6 @@ public static class OptionsConfigurationExtensions
                 configuration, ScalingAggregationOptions.SectionName)
             .ValidateOnStart();
 
-        services.AddOptionsWithValidator<LaneOutcomeAggregationOptions, LaneOutcomeAggregationOptionsValidator>(
-                configuration, LaneOutcomeAggregationOptions.SectionName)
-            .ValidateOnStart();
-
         services.AddOptionsWithValidator<BanAggregationOptions, BanAggregationOptionsValidator>(
                 configuration, BanAggregationOptions.SectionName)
             .ValidateOnStart();
@@ -211,7 +211,7 @@ public static class OptionsConfigurationExtensions
         services.AddOptions<JobOptions>()
             .Bind(configuration.GetSection(JobOptions.SectionName))
             .Validate(options => JobModeParser.TryParse(options.Mode, out _),
-                $"Job:Mode must be one of: {string.Join(", ", Enum.GetNames<JobMode>())} (or the legacy alias RetentionOnly).")
+                $"Job:Mode must be one of: {string.Join(", ", Enum.GetNames<JobMode>())}.")
             .Validate(options => options.RunOnce || (options.IntervalMinutes.HasValue && options.IntervalMinutes > 0),
                 "Job:IntervalMinutes must be greater than 0 when RunOnce is false.")
             .ValidateOnStart();

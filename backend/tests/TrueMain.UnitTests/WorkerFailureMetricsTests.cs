@@ -1,5 +1,6 @@
 using System.Diagnostics.Metrics;
 using AwesomeAssertions;
+using Data.Pipeline;
 using Ingestor;
 using Ingestor.Options;
 using Ingestor.Processes;
@@ -22,33 +23,7 @@ namespace TrueMain.UnitTests;
 public sealed class WorkerFailureMetricsTests
 {
     private static readonly (string Name, JobMode Mode)[] FullSequence =
-    [
-        ("LadderSync", JobMode.LadderSyncOnly),
-        ("Discovery", JobMode.DiscoveryOnly),
-        ("ManualSeed", JobMode.ManualSeedOnly),
-        ("Harvest", JobMode.HarvestOnly),
-        ("Scoring", JobMode.ScoringOnly),
-        ("MainActivity", JobMode.MainActivityOnly),
-        ("MatchIngestion", JobMode.MatchIngestionOnly),
-        ("MatchTeamPositionCorrection", JobMode.TeamPositionCorrectionOnly),
-        ("MatchRoleBoundItemBackfill", JobMode.RoleBoundItemBackfillOnly),
-        ("MainAnalysis", JobMode.MainAnalysisOnly),
-        ("MatchParticipantEloBracketEnrichment", JobMode.EloBracketEnrichmentOnly),
-        ("ChampionPatternAggregation", JobMode.PatternAggregationOnly),
-        ("ChampionProfileAggregation", JobMode.ChampionProfileAggregationOnly),
-        ("ChampionItemContextAggregation", JobMode.ChampionItemContextAggregationOnly),
-        ("ChampionMatchupLeadAggregation", JobMode.MatchupLeadAggregationOnly),
-        ("ChampionSynergyAggregation", JobMode.SynergyAggregationOnly),
-        ("ChampionOpponentAggregation", JobMode.OpponentAggregationOnly),
-        ("ChampionScalingAggregation", JobMode.ScalingAggregationOnly),
-        ("ChampionBanAggregation", JobMode.BanAggregationOnly),
-        ("AccountRefresh", JobMode.AccountRefreshOnly),
-        ("PaceSampling", JobMode.PaceSamplingOnly),
-        ("MatchDataRetention", JobMode.MatchDataRetentionOnly),
-        ("ChampionGameCountRefresh", JobMode.ChampionGameCountRefreshOnly),
-        ("CandidateStockSnapshot", JobMode.CandidateStockSnapshotOnly),
-        ("StorageSnapshot", JobMode.StorageSnapshotOnly)
-    ];
+        PipelineCatalog.Steps.Select(step => (step.Name, step.Mode)).ToArray();
 
     private static readonly string[] ThrowingProcessNames = ["Discovery", "MatchIngestion"];
 
@@ -195,14 +170,15 @@ public sealed class WorkerFailureMetricsTests
             RunOnce = true
         });
 
+        var workerMetrics = new IngestorMetrics(meterFactory);
         return new Worker(
             NullLogger<Worker>.Instance,
             scopeFactory,
             jobOptions,
             new IterationContext(),
-            new CallerContext(),
+            new ProcessRunner(scopeFactory, new CallerContext(), workerMetrics, NullLogger<ProcessRunner>.Instance),
             lifetime,
-            new IngestorMetrics(meterFactory),
+            workerMetrics,
             TimeProvider.System,
             NoHeartbeatFile.Instance);
     }
@@ -211,14 +187,14 @@ public sealed class WorkerFailureMetricsTests
     {
         public string Name => name;
 
-        public Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct) => Task.FromResult<IProcessRunSummary?>(null);
+        public Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct) => Task.FromResult<IProcessRunSummary?>(null);
     }
 
     private sealed class ThrowingProcess(string name) : IIngestorProcess
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             throw new InvalidOperationException("simulated process failure");
@@ -229,7 +205,7 @@ public sealed class WorkerFailureMetricsTests
     {
         public string Name => name;
 
-        public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+        public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
         {
             await Task.Yield();
             await cts.CancelAsync();

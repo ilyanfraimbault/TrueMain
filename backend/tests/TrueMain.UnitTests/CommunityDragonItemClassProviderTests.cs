@@ -34,7 +34,7 @@ public sealed class CommunityDragonItemClassProviderTests
         using var handler = new FakeHandler();
         var provider = CreateProvider(handler, new FakeTimeProvider());
 
-        var answer = await provider.GetClassesAsync("16.20.1", CancellationToken.None);
+        var answer = (await provider.GetClassesAsync("16.20.1", CancellationToken.None)).Value!;
 
         answer.Patch.Should().Be("16.20");
         answer.Items.Keys.Should().BeEquivalentTo([3031, 3153, 3190, 3026], "an item with no known class bit is left out");
@@ -54,7 +54,7 @@ public sealed class CommunityDragonItemClassProviderTests
         using var handler = new FakeHandler();
         var provider = CreateProvider(handler, new FakeTimeProvider());
 
-        var answer = await provider.GetClassesAsync(null, CancellationToken.None);
+        var answer = (await provider.GetClassesAsync(null, CancellationToken.None)).Value!;
 
         answer.Patch.Should().Be("latest");
         handler.Requested.Should().ContainSingle().Which.Should().Contain("/latest/");
@@ -67,7 +67,7 @@ public sealed class CommunityDragonItemClassProviderTests
         var clock = new FakeTimeProvider();
         var provider = CreateProvider(handler, clock);
 
-        var answer = await provider.GetClassesAsync("16.21.1", CancellationToken.None);
+        var answer = (await provider.GetClassesAsync("16.21.1", CancellationToken.None)).Value!;
         answer.Patch.Should().Be("latest");
         handler.Requested.Should().HaveCount(2);
 
@@ -76,7 +76,7 @@ public sealed class CommunityDragonItemClassProviderTests
 
         handler.Unpublished = null;
         clock.Advance(TimeSpan.FromMinutes(31));
-        var later = await provider.GetClassesAsync("16.21.1", CancellationToken.None);
+        var later = (await provider.GetClassesAsync("16.21.1", CancellationToken.None)).Value!;
         later.Patch.Should().Be("16.21");
     }
 
@@ -88,7 +88,7 @@ public sealed class CommunityDragonItemClassProviderTests
 
         for (var minor = 1; minor <= 20; minor++)
         {
-            var answer = await provider.GetClassesAsync($"30.{minor}.1", CancellationToken.None);
+            var answer = (await provider.GetClassesAsync($"30.{minor}.1", CancellationToken.None)).Value!;
             answer.Patch.Should().Be("latest");
         }
 
@@ -102,10 +102,10 @@ public sealed class CommunityDragonItemClassProviderTests
         using var handler = new FakeHandler { FailOnce = true };
         var provider = CreateProvider(handler, new FakeTimeProvider());
 
-        var failing = () => provider.GetClassesAsync("16.20.1", CancellationToken.None);
-        await failing.Should().ThrowAsync<HttpRequestException>();
+        (await provider.GetClassesAsync("16.20.1", CancellationToken.None)).Status
+            .Should().Be(StaticDataStatus.Unavailable);
 
-        var answer = await provider.GetClassesAsync("16.20.1", CancellationToken.None);
+        var answer = (await provider.GetClassesAsync("16.20.1", CancellationToken.None)).Value!;
         answer.Items.Should().NotBeEmpty();
     }
 

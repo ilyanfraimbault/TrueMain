@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ItemContextCard } from '~~/shared/utils/item-context'
-import type { ChampionBuild } from '~~/shared/types/champions'
+import type { ChampionBuildReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticData,
   RuneTreeResponse,
@@ -9,7 +9,7 @@ import type {
 } from '~~/shared/types/static-data'
 
 defineProps<{
-  build: ChampionBuild
+  build: ChampionBuildReadModel
   championStatic: ChampionStaticData
   itemsMap: Record<number, StaticItemData>
   summonersMap: Record<number, StaticSummonerSpellData>

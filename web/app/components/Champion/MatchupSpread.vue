@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useElementSize, useEventListener } from '@vueuse/core'
 import type { ChampionStaticListItem } from '~~/shared/types/static-data'
-import { ALL_POSITIONS, positionLabel, type PositionFilter } from '#common/utils/positions'
+import { ALL_POSITIONS, positionLabel, type PositionFilter } from '#shared/utils/positions'
 import { isLoadingStatus } from '#common/utils/async-data'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { RESULT_SPREAD_WASH } from '#common/utils/result-tone'

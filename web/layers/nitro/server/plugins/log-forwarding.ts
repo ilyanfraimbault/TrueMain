@@ -26,7 +26,7 @@ export default defineNitroPlugin((nitroApp) => {
       category: 'nitro',
       eventType: 'FrontendServerError',
       message: error.message,
-      exception: error.stack ?? null,
+      exception: errorReport(error),
       requestMethod: event?.method ?? null,
       requestPath: toRouteTemplate(event?.path),
       statusCode,

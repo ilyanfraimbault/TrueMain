@@ -48,7 +48,7 @@ public static class PersonaOpsReads
                 Id = p.Id,
                 Slug = p.Slug,
                 DisplayName = p.DisplayName,
-                Source = p.Source.ToString(),
+                Source = p.Source,
                 CreatedAtUtc = p.CreatedAtUtc,
                 Accounts = accounts[p.Id]
                     .Select(a => new PersonaOpsAccountReadModel
@@ -56,7 +56,7 @@ public static class PersonaOpsReads
                         GameName = a.GameName,
                         TagLine = a.TagLine,
                         PlatformId = a.PlatformId,
-                        Source = a.Source.ToString(),
+                        Source = a.Source,
                         RiotAccountId = a.RiotAccountId,
                     })
                     .ToList(),
@@ -65,7 +65,7 @@ public static class PersonaOpsReads
                     {
                         Kind = l.Kind.ToString().ToLowerInvariant(),
                         Url = l.Url,
-                        Source = l.Source.ToString(),
+                        Source = l.Source,
                     })
                     .ToList(),
             });

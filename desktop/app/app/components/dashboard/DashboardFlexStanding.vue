@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { RankedQueue } from '~/types/record'
 import { formatPercentage } from '#shared/utils/ddragon'
-import { formatLeaguePoints, formatRank, tierColor } from '#common/utils/tiers'
+import { formatLeaguePoints, formatRank } from '#shared/utils/ranks'
+import { tierColor } from '#common/utils/tiers'
 
 // The player's Ranked Flex standing, one line under the ranked card's Solo/Duo
 // block: crest, rank and LP, record. Placements read as such; a player who has

@@ -1,6 +1,6 @@
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import type { ChampionStaticListItem } from '#site-shared/types/static-data'
-import type { PersonaListRow } from '~~/shared/types/ops'
+import type { PersonaListRowReadModel } from '#site-shared/contract/api'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { STATIC_CHAMPIONS_KEY } from '~/composables/useChampionStatic'
 import { buildSearchGroups } from '~/utils/navigation'
@@ -20,7 +20,7 @@ import { entitySearchGroups, isEntityTerm, PERSONA_RESULT_LIMIT } from '~/utils/
 export function usePaletteSearch(debounceMs = 250) {
   const term = ref('')
   const settled = refDebounced(term, debounceMs)
-  const personas = shallowRef<readonly PersonaListRow[]>([])
+  const personas = shallowRef<readonly PersonaListRowReadModel[]>([])
   const personasTerm = ref('')
   const champions = shallowRef<readonly ChampionStaticListItem[]>([])
   const loading = ref(false)

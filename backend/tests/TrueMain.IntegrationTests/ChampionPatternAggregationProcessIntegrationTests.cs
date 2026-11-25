@@ -4,7 +4,8 @@ using Core.Lol.Ranking;
 using Core.Options;
 using Data.BuildFacts;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
+using Data.Statics;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Components.PatternAggregation;
@@ -34,7 +35,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         // Both seeded matches (16.5.2, 16.5.1) normalise to patch "16.5",
@@ -74,8 +75,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
@@ -99,7 +100,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         // source rows entirely, so replace-by-scope prunes its aggregates —
         // the pre-#1346 behaviour, unchanged.
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using (var mutateDb = _fixture.CreateDbContext())
         {
@@ -113,7 +114,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             await SendMainnessFlipBackAsync(mutateDb);
         }
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         (await verifyDb.ChampionAggregateScopes.ToListAsync()).Should().BeEmpty();
@@ -132,7 +133,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         // default) a demoted account produces no rows at all and its scopes are
         // purged — asserted by the test below.
         var process = CreateProcess(aggregateNonMains: true);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using (var mutateDb = _fixture.CreateDbContext())
         {
@@ -147,7 +148,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             await SendMainnessFlipBackAsync(mutateDb);
         }
 
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var scopes = await verifyDb.ChampionAggregateScopes.ToListAsync();
@@ -174,7 +175,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var dimBuilds = await verifyDb.ChampionDimBuilds.AsNoTracking().ToListAsync();
@@ -190,7 +191,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         dimStarters.Should().NotBeEmpty();
 
         // Re-running must NOT add duplicate dim rows (get-or-create idempotency).
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var rerunDb = _fixture.CreateDbContext();
         (await rerunDb.ChampionDimBuilds.CountAsync()).Should().Be(dimBuilds.Count);
@@ -206,7 +207,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // Simulate MatchDataRetention: the 16.5 matches/participants fall out of
         // the retention window and are purged, while a fresh 16.6 patch arrives.
@@ -218,7 +219,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         }
 
         await SeedSecondPatchDataAsync();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
@@ -247,7 +248,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         // production count of two and only two patches in the fixture, both would legitimately
         // still be inside it and there would be nothing frozen to protect.
         var process = CreateProcess(retainedPatchCount: 1);
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using (var mutateDb = _fixture.CreateDbContext())
         {
@@ -257,14 +258,14 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         }
 
         await SeedSecondPatchDataAsync();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         // One old 16.5 game lands long after the patch retired — a harvested account's
         // history, or a backfill. Retention will sweep it on its next pass, but until
         // then the row is there, and it used to be enough to make 16.5 "live" again:
         // the whole frozen patch was deleted and rebuilt over this single straggler.
         await SeedStragglerOnFrozenPatchAsync();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
@@ -287,7 +288,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await SeedChampionPatternDataAsync(includeShortMatch: true);
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var scopes = await verifyDb.ChampionAggregateScopes.ToListAsync();
@@ -304,7 +305,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await SeedChampionPatternDataAsync();
         await StampBracketsAsync(("KR_AGG_1", EloBracket.Silver), ("KR_AGG_2", EloBracket.Master));
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var scopes = await verifyDb.ChampionAggregateScopes.AsNoTracking().ToListAsync();
@@ -332,7 +333,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
 
         // No snapshot yet: the stamp is empty and the slice is folded under UNRANKED.
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using (var firstDb = _fixture.CreateDbContext())
         {
@@ -356,8 +357,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
 
         await new MatchParticipantEloBracketEnrichmentProcess(
             NullLogger<MatchParticipantEloBracketEnrichmentProcess>.Instance,
-            new TestDbContextFactory(_fixture)).RunCoreAsync(CancellationToken.None);
-        await process.RunCoreAsync(CancellationToken.None);
+            new TestDbContextFactory(_fixture)).RunCoreAsync(RunInput.Whole, CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         var scope = await verifyDb.ChampionAggregateScopes.SingleAsync();
@@ -372,7 +373,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await SeedChampionPatternDataAsync();
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
         Guid scopeId;
         await using (var firstDb = _fixture.CreateDbContext())
         {
@@ -380,7 +381,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             (await firstDb.Matches.AllAsync(match => match.PatternAggregated)).Should().BeTrue();
         }
 
-        var summary = await process.RunCoreAsync(CancellationToken.None);
+        var summary = await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<Ingestor.Processes.Summaries.ChampionPatternNoWorkSummary>(
             "every match is aggregated, so the run has nothing to rebuild");
@@ -396,7 +397,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await SeedSecondPatchDataAsync();
 
         var process = CreateProcess();
-        await process.RunCoreAsync(CancellationToken.None);
+        await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
         Guid untouchedScopeId;
         await using (var firstDb = _fixture.CreateDbContext())
         {
@@ -406,7 +407,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         // One more 16.5 game: its slice is rebuilt over all three of its games, the 16.6
         // slice is left as it was.
         await SeedExtraMatchAsync("KR_AGG_EXTRA", "16.5.3", win: true);
-        var summary = await process.RunCoreAsync(CancellationToken.None);
+        var summary = await process.RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<Ingestor.Processes.Summaries.ChampionPatternAggregationSummary>()
             .Which.Slices.Should().Be(1);
@@ -426,7 +427,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
 
         // One match per step: both 16.5 games belong to one slice, which the first step
         // rebuilds over both and the second step must not rebuild again.
-        var summary = await CreateProcess(matchesPerStep: 1).RunCoreAsync(CancellationToken.None);
+        var summary = await CreateProcess(matchesPerStep: 1).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         summary.Should().BeOfType<Ingestor.Processes.Summaries.ChampionPatternAggregationSummary>()
             .Which.Slices.Should().Be(1);
@@ -440,7 +441,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
     public async Task RunAsync_ShouldRebuildEveryLiveSlice_WhenRebuildAllIsOn()
     {
         await SeedChampionPatternDataAsync();
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using (var mutateDb = _fixture.CreateDbContext())
         {
@@ -450,7 +451,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             await mutateDb.SaveChangesAsync();
         }
 
-        await CreateProcess(rebuildAll: true).RunCoreAsync(CancellationToken.None);
+        await CreateProcess(rebuildAll: true).RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var verifyDb = _fixture.CreateDbContext();
         (await verifyDb.ChampionAggregateScopes.SingleAsync()).Games.Should().Be(2);
@@ -473,7 +474,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
                 .SaveAsync(seedDb);
         }
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await PatchStatsShouldMirrorScopesAsync();
         await using var verifyDb = _fixture.CreateDbContext();
@@ -586,7 +587,7 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
         await SeedSecondaryPerkSelectionsAsync("KR_AGG_1", firstPerkId: 8451, secondPerkId: 8444);
         await SeedSecondaryPerkSelectionsAsync("KR_AGG_2", firstPerkId: 8444, secondPerkId: 8451);
 
-        await CreateProcess().RunCoreAsync(CancellationToken.None);
+        await CreateProcess().RunCoreAsync(RunInput.Whole, CancellationToken.None);
 
         await using var db = _fixture.CreateDbContext();
         var pages = await db.ChampionDimRunePages.AsNoTracking().ToListAsync();
@@ -912,8 +913,8 @@ public sealed class ChampionPatternAggregationProcessIntegrationTests : IAsyncLi
             [6672] = new(6672, 3000, true, false, false, false, true, false)
         };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(string gameVersion, CancellationToken ct)
-            => Task.FromResult(Metadata);
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(string gameVersion, CancellationToken ct)
+            => Task.FromResult(StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Metadata));
     }
 
 }

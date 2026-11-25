@@ -154,7 +154,7 @@ public sealed class ChampionPatternAggregateBuilder(
         {
             if (!itemMetadataByPatch.TryGetValue(row.GameVersion, out var itemMetadata))
             {
-                itemMetadata = await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct);
+                itemMetadata = (await itemMetadataProvider.GetItemsAsync(row.GameVersion, ct)).Require("Item metadata");
                 itemMetadataByPatch[row.GameVersion] = itemMetadata;
             }
 

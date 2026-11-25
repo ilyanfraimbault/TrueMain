@@ -25,7 +25,7 @@ pub const BARON_BUFF: f64 = 180.0;
 /// same caveat.
 pub const ELDER_BUFF: f64 = 150.0;
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Objectives {
     /// Blue side's.
@@ -38,7 +38,7 @@ pub struct Objectives {
     pub timers: Option<Box<NeutralTimers>>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamObjectives {
     /// Enemy turrets this team destroyed.

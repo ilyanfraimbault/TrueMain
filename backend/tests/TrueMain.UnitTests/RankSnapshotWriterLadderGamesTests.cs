@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Core.Lol.Ranking;
 using Data.Entities;
-using Data.Repositories;
+using Ingestor.Persistence;
 using Ingestor.Ranking;
 using NSubstitute;
 

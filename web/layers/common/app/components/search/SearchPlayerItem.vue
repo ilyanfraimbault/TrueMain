@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SearchPlayer } from '#shared/types/search'
+import type { SearchPlayerReadModel } from '#shared/contract/api'
 import { getProfileIconUrl } from '#shared/utils/ddragon'
 
 // A known player in the search palette (`AppSearch`, #2018): their picture (#2446)
@@ -8,7 +8,7 @@ import { getProfileIconUrl } from '#shared/utils/ddragon'
 // Drawn here rather than through `Account` for the same reason as
 // `SearchTruemainItem`: the palette re-fills the row DOM on every keystroke.
 const props = defineProps<{
-  player: SearchPlayer
+  player: SearchPlayerReadModel
   /** Data Dragon patch for the icon; null until the version list has loaded. */
   patch: string | null
 }>()

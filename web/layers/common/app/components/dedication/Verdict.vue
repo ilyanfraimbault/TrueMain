@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { TruemainDedication } from '#shared/types/dedication'
+import type { DedicationReadModel } from '#shared/contract/api'
 import { dedicationVerdict } from '#common/utils/dedication'
 
 // The Truemain score's one-word verdict as a pill. OTP wears the exact amber of
 // the leaderboard's OTP badge — both read the same `isOtp` flag, so they must
 // also look like the same thing; "Main" stays neutral.
 const props = defineProps<{
-  dedication: TruemainDedication
+  dedication: DedicationReadModel
 }>()
 
 const verdict = computed(() => dedicationVerdict(props.dedication))

@@ -3,7 +3,7 @@
   over the client's latest games, each role's win rate beside its game count.
 -->
 <script setup lang="ts">
-import type { ProfilePositionStat } from '#shared/types/profile'
+import type { ProfilePositionStatReadModel } from '#shared/contract/api'
 import { formatPercentage } from '#shared/utils/ddragon'
 import type { LaneLine } from '~/utils/player-form'
 import { winRateTone } from '#common/utils/rate-tone'
@@ -12,12 +12,12 @@ const props = defineProps<{ lanes: LaneLine[] }>()
 
 const winsByPosition = computed(() => new Map(props.lanes.map(lane => [lane.position, lane.wins])))
 
-const positions = computed<ProfilePositionStat[]>(() => {
+const positions = computed<ProfilePositionStatReadModel[]>(() => {
   const total = props.lanes.reduce((sum, lane) => sum + lane.games, 0)
   return props.lanes.map(lane => ({ position: lane.position, games: lane.games, rate: total ? lane.games / total : 0 }))
 })
 
-const winRate = (role: ProfilePositionStat) => (winsByPosition.value.get(role.position) ?? 0) / role.games
+const winRate = (role: ProfilePositionStatReadModel) => (winsByPosition.value.get(role.position) ?? 0) / role.games
 </script>
 
 <template>

@@ -44,7 +44,7 @@ public sealed class PersonaAutoMergeService(
         {
             var outcome = await resolution.ResolveAsync(
                 next.Id,
-                new PersonaConflictResolveRequest { Action = "merge", Keep = next.KeepClaimant ? "claimant" : "owner" },
+                new PersonaConflictResolveRequest { Action = PersonaConflictAction.Merge, Keep = next.KeepClaimant ? PersonaConflictSide.Claimant : PersonaConflictSide.Owner },
                 AuditActors.Auto,
                 ct);
             if (outcome.Resolved is { } resolved)

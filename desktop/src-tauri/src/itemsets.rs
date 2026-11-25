@@ -7,31 +7,37 @@
 //! `LcuClient::import_item_set`; this is the command the button calls.
 
 use lcu::{BuildItems, Error, ItemSetDraft, NamedBlock};
+use serde::Serialize;
 
+use crate::contract::Refused;
 use crate::record::SharedClient;
 
-/// What the command answers when the client's list could not be read, so
-/// nothing was written. Matched by the frontend.
-const READ_FAILED: &str = "read-failed";
+/// Why an import did not go as asked, told to the player by the frontend.
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "kebab-case")]
+pub enum ItemSetRefusal {
+    /// The client's list could not be read, so nothing was written.
+    ReadFailed,
+    /// The set was written, but the player's own sets no longer read the same.
+    SetsChanged,
+    /// The build has no item to write.
+    EmptyBuild,
+}
 
-/// What the command answers when the set was written but the player's own
-/// sets no longer read the same. Matched by the frontend.
-const SETS_CHANGED: &str = "sets-changed";
-
-/// What the command answers for a build with no item to write.
-const EMPTY_BUILD: &str = "empty-build";
+type Answer = Result<(), Refused<ItemSetRefusal>>;
 
 /// Write `build` into the client as the TrueMain item set, offered on
 /// `champion_id` on Summoner's Rift. Only ever called from the button.
 #[tauri::command]
+#[specta::specta]
 pub async fn import_item_set(
     client: tauri::State<'_, SharedClient>,
     champion_id: i64,
     champion: String,
     build: BuildItems,
-) -> Result<(), String> {
+) -> Answer {
     let draft = ItemSetDraft::from_build(&champion, champion_id, &build)
-        .ok_or_else(|| EMPTY_BUILD.to_string())?;
+        .ok_or(Refused::Known(ItemSetRefusal::EmptyBuild))?;
     write(&client, &draft).await
 }
 
@@ -39,34 +45,35 @@ pub async fn import_item_set(
 /// block per path after the starter and the boots (#2185). Only ever called
 /// from the button, like `import_item_set`.
 #[tauri::command]
+#[specta::specta]
 pub async fn import_kit_item_set(
     client: tauri::State<'_, SharedClient>,
     champion_id: i64,
     champion: String,
     blocks: Vec<NamedBlock>,
-) -> Result<(), String> {
+) -> Answer {
     let draft = ItemSetDraft::from_blocks(&champion, champion_id, &blocks)
-        .ok_or_else(|| EMPTY_BUILD.to_string())?;
+        .ok_or(Refused::Known(ItemSetRefusal::EmptyBuild))?;
     write(&client, &draft).await
 }
 
-async fn write(client: &SharedClient, draft: &ItemSetDraft) -> Result<(), String> {
+async fn write(client: &SharedClient, draft: &ItemSetDraft) -> Answer {
     let client = client
         .read()
         .expect("client lock poisoned")
         .clone()
-        .ok_or_else(|| "the League client is not running".to_string())?;
+        .ok_or(Refused::from("the League client is not running"))?;
 
     match client.import_item_set(draft).await {
         Ok(()) => Ok(()),
         Err(Error::ItemSetsUnreadable(error)) => {
             tracing::warn!(%error, "item set import aborted: the list could not be read");
-            Err(READ_FAILED.to_string())
+            Err(Refused::Known(ItemSetRefusal::ReadFailed))
         }
-        Err(Error::PlayerItemSetsChanged) => Err(SETS_CHANGED.to_string()),
+        Err(Error::PlayerItemSetsChanged) => Err(Refused::Known(ItemSetRefusal::SetsChanged)),
         Err(error) => {
             tracing::warn!(%error, "item set import failed");
-            Err(error.to_string())
+            Err(error.to_string().into())
         }
     }
 }

@@ -46,8 +46,15 @@ jobs:
             crates:
               - "desktop/crates/**"
               - "desktop/capture/windows/**"
+              - "desktop/fixtures/**"
+              - "desktop/app/app/fixtures/scenarios.json"
             shell:
               - "desktop/src-tauri/**"
+              - "web/shared/contract/openapi.json"
+              - "web/shared/utils/ipx.ts"
+              - "web/layers/common/app/components/players/PlayerLinks.vue"
+              - "desktop/app/nuxt.config.ts"
+              - "desktop/tools/overlay-smoke-windows.ps1"
             macos:
               - "desktop/capture/macos/**"
             overlay:
@@ -56,6 +63,8 @@ jobs:
               - "desktop/fixtures/**"
             app:
               - "desktop/app/**"
+              - "desktop/fixtures/**"
+              - "desktop/src-tauri/api-routes.json"
               - "web/layers/common/**"
               - "web/shared/**"
 
@@ -99,12 +108,12 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
         with:
           workspaces: desktop
-      - run: cargo fmt --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -p truemain-capture -- --check
-      - run: cargo clippy --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -p truemain-capture --all-targets -- -D warnings
-      - run: cargo test --manifest-path desktop/Cargo.toml -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p capture-spike -p truemain-capture
+      - run: cargo fmt --manifest-path desktop/Cargo.toml -p keys -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p truemain-capture -- --check
+      - run: cargo clippy --manifest-path desktop/Cargo.toml -p keys -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p truemain-capture --all-targets -- -D warnings
+      - run: cargo test --manifest-path desktop/Cargo.toml -p keys -p lcu -p live-client -p shell-state -p game-recording -p capture-helper -p truemain-capture
 
   capture-macos:
-    name: macOS capture spike
+    name: macOS capture helper and shell
     needs: changes
     if: needs.changes.outputs.macos == 'true'
     runs-on: macos-15
@@ -114,7 +123,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
         with:
           toolchain: stable
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
         with:
           workspaces: desktop
@@ -123,27 +131,11 @@ jobs:
         run: |
           mkdir -p desktop/app/.output/public
           cargo check --manifest-path desktop/Cargo.toml -p truemain-desktop
-      - run: cargo build --release --manifest-path desktop/Cargo.toml -p capture-spike --target aarch64-apple-darwin
-      - run: cargo build --release --manifest-path desktop/Cargo.toml -p capture-spike --target x86_64-apple-darwin
-      - name: Package
+      - name: Smoke-test the helper
         run: |
           bin="$(swift build -c release --arch arm64 --arch x86_64 --package-path desktop/capture/macos --show-bin-path)"
-          mkdir -p dist/truemain-capture-spike
-          cp "$bin/truemain-capture" dist/truemain-capture-spike/
-          lipo -create -output dist/truemain-capture-spike/truemain-capture-spike \
-            desktop/target/aarch64-apple-darwin/release/truemain-capture-spike \
-            desktop/target/x86_64-apple-darwin/release/truemain-capture-spike
-          codesign --force --sign - dist/truemain-capture-spike/truemain-capture dist/truemain-capture-spike/truemain-capture-spike
-          lipo -archs dist/truemain-capture-spike/truemain-capture
-          lipo -archs dist/truemain-capture-spike/truemain-capture-spike
-          { dist/truemain-capture-spike/truemain-capture || true; } | grep -q "\"kind\":\"usage\""
-          if dist/truemain-capture-spike/truemain-capture-spike --help; then exit 1; fi
-          tar -czf truemain-capture-spike-macos.tar.gz -C dist truemain-capture-spike
-      - uses: actions/upload-artifact@v7
-        with:
-          name: truemain-capture-spike-macos
-          path: truemain-capture-spike-macos.tar.gz
-          retention-days: 30
+          lipo -archs "$bin/truemain-capture"
+          { "$bin/truemain-capture" || true; } | grep -q "\"kind\":\"usage\""
 
   capture-windows:
     name: Windows capture helper and shell

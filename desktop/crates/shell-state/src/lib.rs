@@ -5,7 +5,7 @@
 //! needs a platform webview). Here, the navigation rule is covered by tests
 //! that run anywhere.
 
-pub mod keys;
+pub use keys;
 pub mod kits;
 pub mod overlay;
 pub mod scoreboard;
@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 /// One payload rather than several events: the frontend renders a *state*, and
 /// three separately-arriving events would let it paint a champ select with no
 /// draft in it for a frame.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AppState {
     /// False means no client is running — the normal state, not an error.
@@ -73,7 +73,7 @@ impl AppState {
                 self.phase = phase;
                 // Leaving champ select must clear the draft, or the panel keeps
                 // showing the draft of a game that already started.
-                if phase != GameflowPhase::ChampSelect {
+                if !phase.is_champ_select() {
                     self.draft = None;
                 }
                 changed
@@ -164,17 +164,34 @@ impl AppState {
             return Screen::NoClient;
         }
         match self.phase {
-            GameflowPhase::ChampSelect => Screen::Draft,
-            GameflowPhase::InProgress => Screen::InGame,
+            phase if phase.is_champ_select() => Screen::Draft,
+            phase if phase.is_game_api_up() => Screen::InGame,
             _ => Screen::Dashboard,
         }
+    }
+}
+
+/// The state as the webview receives it: the state and the screen it calls for,
+/// so the navigation rule is applied here only.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AppView {
+    #[serde(flatten)]
+    pub state: AppState,
+    pub screen: Screen,
+}
+
+impl From<AppState> for AppView {
+    fn from(state: AppState) -> Self {
+        let screen = state.screen();
+        Self { state, screen }
     }
 }
 
 /// The screens the shell can show. `InGame` is the game page (`/game`, #1748),
 /// and the only screen during which the running game is read: the shell's game
 /// feed follows this rule rather than a second test of the phase.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum Screen {
     NoClient,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
-import type { LeaderboardRowResponse, LeaderboardSort } from '#shared/types/leaderboard'
+import type { LeaderboardSort } from '#shared/types/leaderboard'
+import type { LeaderboardRowReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem, RuneTreeResponse, StaticItemData } from '#shared/types/static-data'
 import { riotIdLabel, truemainNameTag, truemainProfilePath } from '#shared/utils/truemain-path'
 import { playerPath } from '#shared/utils/player-path'
@@ -8,6 +9,7 @@ import { isOneTrick, leaderboardStatLabels } from '#common/utils/leaderboard-row
 import { winRateTone } from '#common/utils/rate-tone'
 import { leaderboardSortToSorting, sortingToLeaderboardSort, type TableSorting } from '#common/utils/table-sorting'
 import { clickSelectableRow, wantsNewTab } from '#common/utils/table-rows'
+import { regionOf } from '#shared/utils/region'
 
 // The /truemains leaderboard as a `UTable` (#1734). The page already holds one
 // page of rows in the order the API ranked them; the table draws them and
@@ -23,7 +25,7 @@ import { clickSelectableRow, wantsNewTab } from '#common/utils/table-rows'
 // (`@select`, plus Enter/Space through `clickSelectableRow`); the identity, the
 // champion links and the follow star are their own controls inside it.
 const props = defineProps<{
-  rows: LeaderboardRowResponse[]
+  rows: LeaderboardRowReadModel[]
   sort: LeaderboardSort
   /** A refetch is in flight (filter, sort or page change) — the bar under the header. */
   loading: boolean
@@ -35,7 +37,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:sort': [sort: LeaderboardSort] }>()
 
-type Row = LeaderboardRowResponse
+type Row = LeaderboardRowReadModel
 
 // Literal class strings, for Tailwind's scan.
 const FROM_XL = 'hidden @xl:table-cell'
@@ -205,7 +207,7 @@ const viewOf = (row: Row) => views.value.get(row) ?? rowView(row)
       <FavoriteToggle
         :game-name="row.original.identity.gameName"
         :tag-line="row.original.identity.tagLine"
-        :region="row.original.region"
+        :region="regionOf(row.original.region)"
         :profile-icon-id="row.original.identity.profileIconId"
       />
     </template>

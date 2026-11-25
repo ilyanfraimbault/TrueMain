@@ -4,20 +4,20 @@
 // queue is ordered by it, most certain first (#2277) — how often the claim came back.
 // Presentational — the container fetches, pages and opens the detail. The row the
 // keyboard selects (#2293) is marked and kept in view.
-import type { PersonaConflict } from '~~/shared/types/ops'
+import type { PersonaConflictReadModel } from '#site-shared/contract/api'
 import { nextTick, ref, watch } from 'vue'
 import { formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 import { accountCount, renamedTo, resolutionColor, resolutionLabel, riotId } from '~~/shared/utils/persona-conflicts'
 import { evidenceBadges } from '~~/shared/utils/persona-evidence'
 
 const props = defineProps<{
-  conflicts: PersonaConflict[]
+  conflicts: PersonaConflictReadModel[]
   pending: boolean
   emptyText: string
   selectedId?: string | null
 }>()
 
-const emit = defineEmits<{ open: [conflict: PersonaConflict] }>()
+const emit = defineEmits<{ open: [conflict: PersonaConflictReadModel] }>()
 
 const root = ref<HTMLElement | null>(null)
 watch(() => props.selectedId, async (id) => {

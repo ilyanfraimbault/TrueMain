@@ -1,5 +1,9 @@
 # Desktop capture spike (#1745)
 
+> Retired (#2559): the app's recording runner (`desktop/src-tauri/src/recording/runner.rs`)
+> now runs these steps, and the spike's crate and script are gone. This page stays as the
+> record of what the spike measured; its run instructions describe the code as it was.
+
 Game recording (#1744) needs a screen capture and a hardware encoder on macOS
 and Windows. This spike settles whether the chosen stack works on a real game
 before any of it is wired into the app. This page is how to run it, and where

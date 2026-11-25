@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { follow, shell, shellEvents } from '~/utils/shell'
 /**
  * The overlay's confirmation that a press of the mark key was kept (#1767):
  * one line over the game — "Last 1 min saved" — that the shell
@@ -6,35 +7,24 @@
  * sized to the line. Loaded by that window alone, like the panels, never by
  * the app's; click-through and never focused.
  *
- * The text comes with each press (`overlay://confirmation`); a page just
- * built asks for the press that built it (`overlay_confirmation`), emitted
- * before it listened. In a browser-only `npm run dev`, a sample line shows.
+ * The text comes with each press; a page just built asks for the press that
+ * built it, emitted before it listened.
  */
-const SAMPLE = 'Last 30 s saved'
-
 const text = ref<string | null>(null)
 const content = ref<HTMLElement | null>(null)
 
 async function fit() {
   const element = content.value
-  if (!element || !insideTauri()) return
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('overlay_fit', { panel: 'confirmation', width: element.offsetWidth, height: element.offsetHeight })
+  if (!element) return
+  await shell.overlayFit('confirmation', element.offsetWidth, element.offsetHeight)
 }
 
 let stopListening: (() => void) | undefined
 onBeforeUnmount(() => stopListening?.())
 onMounted(async () => {
-  if (!insideTauri()) {
-    text.value = SAMPLE
-    return
-  }
-  const { listen } = await import('@tauri-apps/api/event')
-  stopListening = await listen<string>('overlay://confirmation', (event) => {
-    text.value = event.payload
+  stopListening = await follow(shellEvents.overlayConfirmation, shell.overlayConfirmation, (next) => {
+    if (next !== null) text.value = next
   })
-  const { invoke } = await import('@tauri-apps/api/core')
-  text.value = (await invoke<string | null>('overlay_confirmation')) ?? text.value
 })
 watch(text, () => void nextTick(fit))
 

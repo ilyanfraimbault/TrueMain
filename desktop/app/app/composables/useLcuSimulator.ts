@@ -1,5 +1,5 @@
 import type { Lane } from '~/types/draft'
-import { POSITIONS } from '#common/utils/positions'
+import { POSITIONS } from '#shared/utils/positions'
 
 /**
  * The draft simulator's board — development only (`/dev/draft-sim`). A

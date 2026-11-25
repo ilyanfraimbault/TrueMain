@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Globalization;
+using Core;
+using Core.Lol.Identifiers;
 using Ingestor.Options;
 using Ingestor.Services;
 using Microsoft.Extensions.Options;
@@ -68,11 +70,12 @@ public sealed class RiotRateLimiter : IRiotRateLimiter, IDisposable
     private const string MethodCountHeader = "X-Method-Rate-Limit-Count";
     private const string LimitTypeHeader = "X-Rate-Limit-Type";
 
-    // The regional routing values, as the classifier reports them. The reservations are
-    // scoped to these: they are the routes the permanent workers live on (#1457), and the
-    // platform routes have neither the contention nor a caller that asked for a share.
-    private static readonly FrozenSet<string> RegionalRoutingValues =
-        new[] { "americas", "europe", "asia", "sea" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    // The regional routing values, as Core routes them. The reservations are scoped to these:
+    // they are the routes the permanent workers live on (#1457), and the platform routes have
+    // neither the contention nor a caller that asked for a share.
+    private static readonly FrozenSet<string> RegionalRoutingValues = Enum.GetValues<RegionalRoute>()
+        .Select(route => route.ToRegionalHost())
+        .ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     private static readonly IReadOnlyDictionary<string, double> NoReservations = new Dictionary<string, double>();
 

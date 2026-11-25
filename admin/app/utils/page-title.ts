@@ -1,4 +1,4 @@
-import type { DetectorStatus } from '~~/shared/types/ops'
+import type { DetectorStatus } from '#site-shared/contract/api'
 import { GROUPS, type NavigationGroup } from './navigation'
 
 // Browser-tab titles (#2296), read off the same table as the sidebar and the ⌘K

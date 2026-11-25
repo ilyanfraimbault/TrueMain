@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed } from 'vue'
 import DraftSuggestionCard from '../app/components/draft/DraftSuggestionCard.vue'
-import type { DraftReason } from '~/types/draft'
+import type { DraftReasonReadModel } from '#shared/contract/api'
 import type { PlayerGame } from '~/types/record'
 import { comfortOf, comfortText, COMFORT_GAMES } from '~/utils/draft-comfort'
 import { describeReason } from '~/utils/draft-reasons'
@@ -43,7 +43,7 @@ const global = {
   },
 }
 
-const teamFit: DraftReason = {
+const teamFit: DraftReasonReadModel = {
   kind: 'teamFit',
   championId: null,
   position: null,
@@ -121,7 +121,7 @@ describe('DraftSuggestions', () => {
     const { ref } = await import('vue')
     vi.stubGlobal('ref', ref)
     vi.stubGlobal('useChampionStatics', () => ({ nameOf: (id: number) => (id === 103 ? 'Ahri' : 'Zed'), champions: ref(new Map()) }))
-    vi.stubGlobal('useChampSelectActions', () => ({ writable: ref(true) }))
+    vi.stubGlobal('useChampSelectActions', () => ({ writable: ref(true), kind: ref('pick'), hovered: ref(null) }))
     vi.stubGlobal('useDraftCardClick', () => ({ hovers: () => false, status: () => null, click: () => {} }))
     vi.stubGlobal('useTierList', () => ({ entryOf: () => null, status: ref('ready') }))
     vi.stubGlobal('useDamageProfiles', () => ({ profileOf: () => null }))

@@ -1,5 +1,6 @@
 using Data.Logging.Mongo;
 using Data.Ops.Mongo;
+using Data.Pipeline;
 using Microsoft.Extensions.Options;
 using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.Processes;
@@ -33,7 +34,7 @@ public sealed class MatchesIngestedQueryService(
     TimeProvider timeProvider) : IMatchesIngestedQueryService
 {
     /// <summary>The process whose summaries carry the ingestion counters.</summary>
-    private const string ProcessName = "MatchIngestion";
+    private static readonly string ProcessName = PipelineCatalog.MatchIngestion.Name;
 
     private const int DefaultWindowDays = 30;
 
@@ -136,9 +137,9 @@ public sealed class MatchesIngestedQueryService(
             return false;
         }
 
-        inserted = ProcessRunSummaryParsing.ReadInt64(document.RootElement, "matchesInserted");
-        skipped = ProcessRunSummaryParsing.ReadInt64(document.RootElement, "matchesSkipped");
-        timelines = ProcessRunSummaryParsing.ReadInt64(document.RootElement, "timelinesUpdated");
+        inserted = ProcessRunSummaryParsing.ReadInt64(document.RootElement, RunSummaryFields.MatchIngestion.MatchesInserted);
+        skipped = ProcessRunSummaryParsing.ReadInt64(document.RootElement, RunSummaryFields.MatchIngestion.MatchesSkipped);
+        timelines = ProcessRunSummaryParsing.ReadInt64(document.RootElement, RunSummaryFields.MatchIngestion.TimelinesUpdated);
         return true;
     }
 

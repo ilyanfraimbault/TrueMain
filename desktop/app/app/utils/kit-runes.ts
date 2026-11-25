@@ -1,4 +1,4 @@
-import type { KitRunePage } from '#shared/types/kit'
+import type { KitRunePage } from '~/types/kit'
 import type { RuneTreeResponse, RuneTreeStyle } from '#shared/types/static-data'
 
 /**

@@ -1,9 +1,10 @@
+using System.Text.Json.Serialization;
+
 namespace TrueMain.ReadModels.Ops;
 
 /// <summary>
 /// The data-quality checks the panel can run, each independently listable. The
-/// string name is what crosses the API boundary (serialised camelCase via the
-/// global policy) and what the <c>issue</c> query filter accepts.
+/// camelCase name is what crosses the API boundary and what the <c>issue</c> query filter accepts.
 /// </summary>
 public enum DataQualityIssueType
 {
@@ -12,24 +13,28 @@ public enum DataQualityIssueType
     /// window, i.e. the timeline backfill looks stuck rather than merely
     /// pending. Queue-agnostic.
     /// </summary>
+    [JsonStringEnumMemberName("missingTimeline")]
     MissingTimeline,
 
     /// <summary>
     /// The number of <c>match_participants</c> rows differs from the queue's
     /// expected participant count. Only for queues with a known profile.
     /// </summary>
+    [JsonStringEnumMemberName("wrongParticipantCount")]
     WrongParticipantCount,
 
     /// <summary>
     /// A team is missing one of the five Summoner's Rift lane positions. Only
     /// for lane-based queues (SR 5v5); never fires on ARAM/Arena.
     /// </summary>
+    [JsonStringEnumMemberName("missingTeamPosition")]
     MissingTeamPosition,
 
     /// <summary>
     /// <c>GameDurationSeconds</c> is 0 — a game with no recorded length is
     /// almost always a remake/ingest glitch. Queue-agnostic.
     /// </summary>
+    [JsonStringEnumMemberName("zeroDuration")]
     ZeroDuration,
 
     /// <summary>
@@ -37,6 +42,7 @@ public enum DataQualityIssueType
     /// so it signals a duplicated/garbled participant row. Only for lane-based
     /// queues, where a team is a well-defined 5-champion set.
     /// </summary>
+    [JsonStringEnumMemberName("duplicateChampion")]
     DuplicateChampion
 }
 
@@ -66,11 +72,31 @@ public sealed record IncompleteMatchesReadModel
     public int StaleTimelineThresholdHours { get; init; }
 }
 
+/// <summary>How many matches each check flags, without the rows.</summary>
+public sealed record IncompleteMatchCountsReadModel
+{
+    /// <summary>One entry per check that flags at least one match, in declaration order.</summary>
+    public IReadOnlyList<IncompleteMatchCountReadModel> Counts { get; init; } = [];
+
+    /// <summary>Distinct matches flagged by at least one check in scope.</summary>
+    public long Total { get; init; }
+
+    /// <inheritdoc cref="IncompleteMatchesReadModel.StaleTimelineThresholdHours"/>
+    public int StaleTimelineThresholdHours { get; init; }
+}
+
+public sealed record IncompleteMatchCountReadModel
+{
+    public DataQualityIssueType IssueType { get; init; }
+
+    public int Count { get; init; }
+}
+
 /// <summary>One issue type's flagged matches: a capped sample plus the full count.</summary>
 public sealed record DataQualityIssueGroupReadModel
 {
     /// <summary>The <see cref="DataQualityIssueType"/> name (camelCase on the wire).</summary>
-    public string IssueType { get; init; } = string.Empty;
+    public DataQualityIssueType IssueType { get; init; }
 
     /// <summary>Total matches flagged by this check across the active filters.</summary>
     public long Count { get; init; }
@@ -104,7 +130,7 @@ public sealed record FlaggedMatchReadModel
     /// Every issue this match is flagged by (a match can trip several checks),
     /// as <see cref="DataQualityIssueType"/> names.
     /// </summary>
-    public IReadOnlyList<string> Issues { get; init; } = [];
+    public IReadOnlyList<DataQualityIssueType> Issues { get; init; } = [];
 }
 
 /// <summary>
@@ -140,7 +166,7 @@ public sealed record MatchDataQualityDetailReadModel
     public bool HasLanes { get; init; }
 
     /// <summary>Issue types this match is flagged by, as <see cref="DataQualityIssueType"/> names.</summary>
-    public IReadOnlyList<string> Issues { get; init; } = [];
+    public IReadOnlyList<DataQualityIssueType> Issues { get; init; } = [];
 
     /// <summary>
     /// One entry per team. For lane queues each team is laid out across the five

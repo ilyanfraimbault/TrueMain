@@ -9,7 +9,7 @@ namespace TrueMain.RateLimiting;
 /// <remarks>
 /// Lives in its own type rather than inline in the limiter because the rule it
 /// encodes is a security boundary — see <see cref="Resolve"/> — and an inline
-/// lambda in <c>Program.cs</c> cannot be tested.
+/// lambda cannot be tested.
 /// </remarks>
 public static class ClientAddressResolver
 {

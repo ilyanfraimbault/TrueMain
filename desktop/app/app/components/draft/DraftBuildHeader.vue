@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { getPositionIconUrl } from '#shared/utils/ddragon'
-import { isChampionPosition, positionLabel } from '#common/utils/positions'
+import { isChampionPosition, positionLabel } from '#shared/utils/positions'
 
 /**
  * Whose build the draft's build pane shows: the champion, its lane, and the way back to ours. The player's kits

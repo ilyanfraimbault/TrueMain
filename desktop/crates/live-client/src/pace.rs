@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::model::{self, AllGameData};
 
 /// What the player had at one whole minute of the game.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PaceSample {
     pub minute: u32,
@@ -23,7 +23,7 @@ pub struct PaceSample {
 }
 
 /// The player's samples so far, oldest first; empty when spectating.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Pace {
     pub samples: Vec<PaceSample>,

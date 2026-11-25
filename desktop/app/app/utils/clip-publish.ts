@@ -1,5 +1,5 @@
 import type { Clip } from '~/types/recordings'
-import { getQueueLabel } from '#common/utils/queues'
+import { getQueueLabel } from '#shared/utils/queues'
 
 /**
  * What a clip's publish dialog hands to YouTube's upload form (#1815): the

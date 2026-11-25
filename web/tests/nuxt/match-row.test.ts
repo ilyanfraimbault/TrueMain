@@ -2,7 +2,7 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
 import { defineComponent, h, type Component } from 'vue'
 import { MatchHistoryList, MatchRow, MatchRowTeams, UApp } from '#components'
-import type { MatchSummaryParticipant, MatchSummaryResponse } from '#shared/types/matches'
+import type { MatchSummaryParticipantReadModel, MatchSummaryReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem, RuneTreeResponse } from '#shared/types/static-data'
 
 // The match row on a diet (#2129): its ten composition icons are plain <img>s
@@ -18,7 +18,7 @@ const champions: ChampionStaticListItem[] = [
 ]
 const championById = new Map(champions.map(c => [c.championId, c]))
 
-function participant(championId: number, teamId: number, position: string | null): MatchSummaryParticipant {
+function participant(championId: number, teamId: number, position: string | null): MatchSummaryParticipantReadModel {
   return { championId, teamId, position, gameName: null, tagLine: null }
 }
 
@@ -30,9 +30,10 @@ const participants = [
   participant(9999, 100, 'JUNGLE'),
 ]
 
-function match(matchId: string): MatchSummaryResponse {
+function match(matchId: string): MatchSummaryReadModel {
   return {
     matchId,
+    isTruncated: false,
     queueId: 420,
     gameMode: 'CLASSIC',
     gameStartTimeUtc: '2026-10-18T20:00:00Z',
@@ -59,7 +60,7 @@ function match(matchId: string): MatchSummaryResponse {
       lpDelta: 18,
       performanceScore: 61,
       placement: 2,
-    } as MatchSummaryResponse['self'],
+    } as MatchSummaryReadModel['self'],
     participants,
   }
 }

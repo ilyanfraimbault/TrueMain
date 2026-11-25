@@ -198,6 +198,7 @@ public sealed partial class PersonaUpsertService(
         db.Personas
             .Include(p => p.Links)
             .Include(p => p.Accounts)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(match, ct);
 
     /// <summary>Why an entry cannot be written as a persona at all, or null when it can.</summary>

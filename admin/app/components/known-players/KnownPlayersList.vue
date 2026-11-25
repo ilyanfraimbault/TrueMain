@@ -2,17 +2,17 @@
 // The known-players list's rows (#2019): who, from which source, how many accounts
 // are tracked or not yet, links, open conflicts, last change. Presentational — the
 // container fetches, pages and opens the edit panel.
-import type { PersonaListRow } from '~~/shared/types/ops'
+import type { PersonaListRowReadModel } from '#site-shared/contract/api'
 import { formatNumber, formatTimeAgo } from '~~/shared/utils/format'
 import { accountsSummary } from '~~/shared/utils/known-players'
 
 defineProps<{
-  personas: PersonaListRow[]
+  personas: PersonaListRowReadModel[]
   pending: boolean
   emptyText: string
 }>()
 
-const emit = defineEmits<{ open: [persona: PersonaListRow] }>()
+const emit = defineEmits<{ open: [persona: PersonaListRowReadModel] }>()
 </script>
 
 <template>

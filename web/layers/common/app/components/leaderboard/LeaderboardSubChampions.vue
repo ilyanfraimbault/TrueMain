@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LeaderboardTopChampion } from '#shared/types/leaderboard'
+import type { LeaderboardTopChampionReadModel } from '#shared/contract/api'
 import type { ChampionStaticListItem } from '#shared/types/static-data'
 import { leaderboardChampionIcon, leaderboardChampionName, subChampionSlots } from '#common/utils/leaderboard-row'
 
@@ -8,7 +8,7 @@ import { leaderboardChampionIcon, leaderboardChampionName, subChampionSlots } fr
 // read as an icon that failed to load. Each links to the player's own page on
 // that champion. The host sets the display.
 const props = defineProps<{
-  topChampions: readonly LeaderboardTopChampion[]
+  topChampions: readonly LeaderboardTopChampionReadModel[]
   championsById: Map<number, ChampionStaticListItem>
   /** The player's slug, for the player-scoped champion links. */
   nameTag: string

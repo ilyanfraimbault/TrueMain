@@ -161,13 +161,17 @@ export function cutClip(
     moments: game.moments
       .filter(moment => moment.videoMs >= startMs && moment.videoMs <= endMs)
       .map(moment => ({ ...moment, videoMs: moment.videoMs - startMs, endVideoMs: moment.endVideoMs - startMs })),
-    youtubeUrl: null,
-    videoOnDisk: true,
+    video: { kind: 'local' },
     automatic: [],
   }
 }
 
 /** A clip framing the game's kill run of `size` kills (its biggest when none is that size). */
+/** A clip whose file was deleted by hand and that was never published: nothing left to play. */
+function missingClip(clip: Clip): Clip {
+  return { ...clip, id: `${clip.id}-missing`, video: { kind: 'missing' }, sizeBytes: 0 }
+}
+
 function runClip(game: GameRecording, recordingId: string | null, size: number, title: string, favorite = false): Clip {
   const kills = game.moments.filter(moment => moment.kind === 'kill').sort((a, b) => b.kills - a.kills)
   const moment = kills.find(entry => entry.kills === size) ?? kills[0]!
@@ -202,7 +206,9 @@ export function devLibrary(now = Date.now()) {
     { ...runClip(ahriYesterday, ahriYesterday.id, 3, 'Triple kill on Ahri'), automatic: ['multiKill' as const] },
     runClip(ahriYesterday, ahriYesterday.id, 2, 'Double kill'),
     // Published, then its file deleted: it plays from YouTube.
-    { ...runClip(syndraGone!, null, 5, 'Pentakill on Syndra', true), youtubeUrl: 'https://www.youtube.com/watch?v=jNQXAC9IVRw', videoOnDisk: false, sizeBytes: 64_000 },
+    { ...runClip(syndraGone!, null, 5, 'Pentakill on Syndra', true), video: { kind: 'youtube' as const, url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' }, sizeBytes: 64_000 },
+    // Its file deleted by hand, never published: nothing left to play.
+    missingClip(runClip(syndraGone!, null, 2, 'Double kill on Syndra')),
   ].sort((a, b) => b.gameStartedAtMs - a.gameStartedAtMs || b.startMs - a.startMs)
   return { games, clips }
 }
@@ -258,5 +264,5 @@ export function devStatus(availability: CaptureAvailability): RecordingStatus {
     unsupported: 'Recording is not available on Windows yet.',
     missing: 'The capture helper is missing from this install.',
   }
-  return { availability, message: messages[availability], recordingGameId: null, processingGameId: 7212000021 }
+  return { availability, message: messages[availability], activity: { kind: 'processing', gameId: 7212000021 } }
 }

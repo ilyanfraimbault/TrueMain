@@ -1,4 +1,5 @@
 using System.Globalization;
+using TrueMain.ReadModels.Ops;
 using TrueMain.Services.Ops.Database;
 
 namespace TrueMain.Services.Ops.DataQuality;
@@ -240,16 +241,6 @@ internal static class DataQualityDetectorEvaluator
         return new PatchVolumeReading(median, verdicts, judgedIndices.Count);
     }
 
-    /// <summary>Lower-case wire name for a status, matching the API's camelCase policy.</summary>
-    public static string ToWireName(this DetectorStatus status)
-        => status switch
-        {
-            DetectorStatus.Green => "green",
-            DetectorStatus.Amber => "amber",
-            DetectorStatus.Red => "red",
-            _ => "unknown"
-        };
-
     /// <summary>Formats an age in hours the way every detector row says it.</summary>
     public static string? FormatAge(double? hours)
     {
@@ -280,22 +271,6 @@ internal static class DataQualityDetectorEvaluator
     }
 }
 
-/// <summary>A detector verdict. Ordered by declaration only; precedence lives in
-/// <see cref="DataQualityDetectorEvaluator.Worst"/>.</summary>
-internal enum DetectorStatus
-{
-    /// <summary>The measurement could not be taken. Never a pass.</summary>
-    Unknown,
-
-    /// <summary>Measured and within its configured band.</summary>
-    Green,
-
-    /// <summary>Measured and past its amber level.</summary>
-    Amber,
-
-    /// <summary>Measured and past its red level.</summary>
-    Red
-}
 
 /// <summary>
 /// The orphan-share reading: the current level, the previous window's level, and the

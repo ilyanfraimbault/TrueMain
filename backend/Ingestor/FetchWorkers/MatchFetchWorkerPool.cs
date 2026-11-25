@@ -1,5 +1,6 @@
 using Core;
 using Core.Lol.Identifiers;
+using Data.Pipeline;
 using Ingestor.Options;
 using Ingestor.Processes;
 using Ingestor.Processes.Common;
@@ -20,8 +21,8 @@ namespace Ingestor.FetchWorkers;
 /// fetching spends waiting for the rest of a sequential lane is budget lost for good. Each
 /// worker here claims a batch of its own platforms' accounts, fetches and writes it, and
 /// claims again — the <see cref="MatchIngestionProcess"/> step of the fetch lane, unchanged,
-/// narrowed through <see cref="MatchIngestionScope"/> and run in a loop instead of once a
-/// pass. The rest of the lane runs beside it, on its own cadence, in the worker's
+/// narrowed through its <see cref="RunInput"/> and run by the same <see cref="ProcessRunner"/>
+/// in a loop instead of once a pass. The rest of the lane runs beside it, on its own cadence, in the worker's
 /// maintenance pass.
 /// </para>
 /// <para>
@@ -40,12 +41,11 @@ namespace Ingestor.FetchWorkers;
 public sealed class MatchFetchWorkerPool(
     IServiceScopeFactory scopeFactory,
     IIterationContext iterationContext,
-    ICallerContext callerContext,
+    ProcessRunner runner,
     IRiotRateLimiter rateLimiter,
     IngestionBackpressure backpressure,
     IOptions<MatchIngestionOptions> matchOptions,
     IOptions<MatchFetchWorkersOptions> workerOptions,
-    IngestorMetrics metrics,
     TimeProvider timeProvider,
     ILogger<MatchFetchWorkerPool> logger)
 {
@@ -54,8 +54,6 @@ public sealed class MatchFetchWorkerPool(
     /// container's stop grace period, like the cancellation record of a run.
     /// </summary>
     private static readonly TimeSpan ShutdownReleaseBudget = TimeSpan.FromSeconds(10);
-
-    private const string MatchIngestionCaller = "MatchIngestion";
 
     /// <summary>
     /// The routing values the workers run on, each with the configured platforms it serves,
@@ -105,7 +103,7 @@ public sealed class MatchFetchWorkerPool(
             ?? Math.Max(1, (int)Math.Ceiling(matchOptions.Value.BatchSize / (double)routes.Count));
 
         var target = options.TargetRequestsPerMinute();
-        rateLimiter.SetCallerCeiling(MatchIngestionCaller, target);
+        rateLimiter.SetCallerCeiling(PipelineCatalog.PermanentFetchWorkerStep.Name, target);
         logger.LogInformation(
             "Starting {WorkerCount} match-fetch worker(s) ({Routes}): {BatchSize} accounts per claim, ramp stage {RampStage} of {RampStageCount}, at most {TargetRequestsPerMinute} Riot calls a minute per route.",
             routes.Count,
@@ -121,7 +119,7 @@ public sealed class MatchFetchWorkerPool(
         }
         finally
         {
-            rateLimiter.SetCallerCeiling(MatchIngestionCaller, null);
+            rateLimiter.SetCallerCeiling(PipelineCatalog.PermanentFetchWorkerStep.Name, null);
         }
     }
 
@@ -164,52 +162,40 @@ public sealed class MatchFetchWorkerPool(
 
     private async Task<BatchOutcome> RunBatchAsync(MatchFetchRoute route, int batchSize, CancellationToken ct)
     {
-        // A fresh scope per batch, for the reason the lane opens one per step: its own
-        // DbContext, nothing cached from one batch into the next.
-        await using var scope = scopeFactory.CreateAsyncScope();
-        scope.ServiceProvider.GetRequiredService<MatchIngestionScope>().Restrict(route.Platforms, batchSize);
-        var process = scope.ServiceProvider.GetKeyedService<IIngestorProcess>(JobMode.MatchIngestionOnly)
-            ?? throw new InvalidOperationException(
-                $"No IIngestorProcess is registered for {nameof(JobMode)}.{JobMode.MatchIngestionOnly}, "
-                + $"which the {route.RoutingValue} fetch worker runs.");
-
         // One iteration per batch, stamped with the mode the host runs: the admin reads a
         // batch as the worker half of the lane, beside its maintenance passes.
         using var iteration = iterationContext.BeginIteration(JobMode.FetchWorkers);
-        using var caller = callerContext.BeginCall(process.Name);
 
+        StepRun run;
         try
         {
-            var summary = await process.RunCoreAsync(ct);
-            // A batch whose every account failed backs off like a failed batch: the failures
-            // were reverted to Queued, so claiming again at once would re-fail the same
-            // accounts in a loop for as long as whatever broke them (Riot down, a database
-            // hiccup) lasts.
-            return summary switch
-            {
-                MatchIngestionSummary { AccountsProcessed: 0, Errors: 0 } => BatchOutcome.Empty,
-                MatchIngestionSummary { AccountsProcessed: 0 } => BatchOutcome.Failed,
-                MatchIngestionSummary => BatchOutcome.Worked,
-                _ => BatchOutcome.Empty
-            };
+            run = await runner.RunAsync(
+                PipelineCatalog.PermanentFetchWorkerStep,
+                JobMode.FetchWorkers,
+                RunInput.Narrowed(route.Platforms, batchSize),
+                ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            await ReleaseAbandonedClaimsAsync(route, scope.ServiceProvider);
+            await ReleaseAbandonedClaimsAsync(route);
             throw;
         }
-        catch (Exception ex)
+
+        // A failed batch must not end the worker: the claims it reverted are claimable again,
+        // and the next one starts after a backoff. A batch whose every account failed backs off
+        // the same way — claiming again at once would re-fail the same accounts in a loop for as
+        // long as whatever broke them (Riot down, a database hiccup) lasts.
+        return run switch
         {
-            // A failed batch must not end the worker: the claims it reverted are claimable
-            // again, and the next one starts after a backoff. The run is already recorded as
-            // Failed by the decorator; this counts it, as the lane does for a failed step.
-            logger.LogError(ex, "Match-fetch worker {RoutingValue} batch failed; retrying after a backoff.", route.RoutingValue);
-            metrics.RecordRunFailure(process.Name, JobMode.FetchWorkers);
-            return BatchOutcome.Failed;
-        }
+            { IsFailed: true } => BatchOutcome.Failed,
+            { Summary: MatchIngestionSummary { AccountsProcessed: 0, Errors: 0 } } => BatchOutcome.Empty,
+            { Summary: MatchIngestionSummary { AccountsProcessed: 0 } } => BatchOutcome.Failed,
+            { Summary: MatchIngestionSummary } => BatchOutcome.Worked,
+            _ => BatchOutcome.Empty
+        };
     }
 
-    private async Task ReleaseAbandonedClaimsAsync(MatchFetchRoute route, IServiceProvider services)
+    private async Task ReleaseAbandonedClaimsAsync(MatchFetchRoute route)
     {
         // Detached and time-boxed: the batch's own token is cancelled by now, and a store that
         // does not answer must not hold the shutdown open. If this fails, the next boot's
@@ -217,7 +203,8 @@ public sealed class MatchFetchWorkerPool(
         using var releaseCts = new CancellationTokenSource(ShutdownReleaseBudget, timeProvider);
         try
         {
-            var released = await services.GetRequiredService<IMatchClaimService>()
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var released = await scope.ServiceProvider.GetRequiredService<IMatchClaimService>()
                 .ReleaseOrphanedClaimsAsync(route.Platforms, releaseCts.Token);
             if (!released.IsEmpty)
             {

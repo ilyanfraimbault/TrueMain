@@ -1,9 +1,8 @@
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref, toValue } from 'vue'
-import { PlayersPlayerAccountRow, PlayersPlayerLinks, SearchPlayerItem, UApp } from '#components'
-import type { PersonaAccount } from '~~/shared/types/players'
-import type { SearchPlayer } from '~~/shared/types/search'
+import { PagePlayerProfile, PlayersPlayerAccountRow, PlayersPlayerLinks, SearchPlayerItem, UApp } from '#components'
+import type { PersonaAccountReadModel, SearchPlayerReadModel } from '#shared/contract/api'
 import { useTruemainSearch } from '#common/composables/useTruemainSearch'
 import PlayerPage from '~/pages/players/[slug].vue'
 
@@ -72,7 +71,7 @@ describe('PlayerLinks', () => {
 })
 
 describe('PlayerAccountRow', () => {
-  const account: PersonaAccount = {
+  const account: PersonaAccountReadModel = {
     gameName: 'Aileri',
     tagLine: 'KR1',
     platformId: 'KR',
@@ -106,8 +105,8 @@ describe('PlayerAccountRow', () => {
 })
 
 describe('SearchPlayerItem', () => {
-  const player: SearchPlayer = {
-    persona: { slug: 'irelking', displayName: 'Irelking' },
+  const player: SearchPlayerReadModel = {
+    persona: { slug: 'irelking', displayName: 'Irelking', pictureUrl: null },
     accountCount: 3,
     pictureUrl: null,
     profileIconId: 6,
@@ -143,10 +142,37 @@ describe('SearchPlayerItem', () => {
   })
 })
 
+describe('PlayerProfile', () => {
+  const identity = { gameName: 'IRELKING', tagLine: 'KR1', profileIconId: 6, platformId: 'KR' }
+  const profile = (pictureUrl: string | null) => inApp(PagePlayerProfile, {
+    identity,
+    patch: '14.1.1',
+    matches: [],
+    persona: { slug: 'irelking', displayName: 'Irelking', pictureUrl },
+  })
+
+  it('shows the known player\'s picture beside their name, and nothing else under the Riot ID (#2463)', async () => {
+    const wrapper = await profile('https://yt3.ggpht.com/irelking')
+    const link = wrapper.find('a[href="/players/irelking"]')
+
+    expect(link.text()).toBe('Irelking')
+    expect(link.attributes('aria-label')).toBe('All of Irelking\'s accounts')
+    expect(link.find('img').attributes('src')).toContain('yt3.ggpht.com/irelking')
+  })
+
+  it('keeps the user icon for a known player without a picture', async () => {
+    const wrapper = await profile(null)
+    const link = wrapper.find('a[href="/players/irelking"]')
+
+    expect(link.text()).toContain('Irelking')
+    expect(link.find('img').exists()).toBe(false)
+  })
+})
+
 describe('useTruemainSearch', () => {
   it('exposes the known players the search answered, and clears them below the floor', async () => {
     vi.useFakeTimers()
-    const player: SearchPlayer = { persona: { slug: 'irelking', displayName: 'Irelking' }, accountCount: 1, pictureUrl: null, profileIconId: 6, ranked: null }
+    const player: SearchPlayerReadModel = { persona: { slug: 'irelking', displayName: 'Irelking', pictureUrl: null }, accountCount: 1, pictureUrl: null, profileIconId: 6, ranked: null }
     apiFetch.mockResolvedValue({ results: [], players: [player] })
 
     const term = ref('')
@@ -172,6 +198,15 @@ describe('useTruemainSearch', () => {
 })
 
 describe('known player page', () => {
+  // What ofetch does with a failed response: it throws an error carrying the
+  // status — unless `ignoreResponseError` asks it to resolve the error body.
+  function failingWith(statusCode: number) {
+    return async (_url: string, options?: { ignoreResponseError?: boolean }) => {
+      if (options?.ignoreResponseError) return { statusCode, message: 'Upstream failure' }
+      throw Object.assign(new Error(`HTTP ${statusCode}`), { statusCode })
+    }
+  }
+
   // Unmounted after each test: a page left mounted would follow the next test's route.
   const mounted: Array<{ unmount: () => void }> = []
   afterEach(() => mounted.splice(0).forEach(wrapper => wrapper.unmount()))
@@ -263,11 +298,22 @@ describe('known player page', () => {
   })
 
   it('says a slug nobody answers to is unknown', async () => {
-    apiFetch.mockResolvedValue(null)
+    apiFetch.mockImplementation(failingWith(404))
 
     const wrapper = await mountPage('/players/nobody')
 
     expect(wrapper.text()).toContain('Unknown player')
+  })
+
+  // #2476: an outage used to resolve to an empty body, read as "unknown" — and
+  // answered to a crawler with the 404 that drops the page from the index.
+  it('says an outage is a failure, not an unknown player', async () => {
+    apiFetch.mockImplementation(failingWith(502))
+
+    const wrapper = await mountPage('/players/outage')
+
+    expect(wrapper.text()).toContain('This player could not be loaded')
+    expect(wrapper.text()).not.toContain('Unknown player')
   })
 
   it('follows a merged player to the kept one', async () => {

@@ -2,7 +2,7 @@
 import { formatCount } from '~~/shared/utils/counts'
 import { championDisplayName } from '~~/shared/utils/champion-name'
 import { formatPercentage } from '~~/shared/utils/ddragon'
-import { ALL_POSITIONS, POSITION_BY_VALUE } from '#common/utils/positions'
+import { ALL_POSITIONS, POSITION_BY_VALUE } from '#shared/utils/positions'
 import { getPositionIconUrl } from '#shared/utils/ddragon'
 
 /**

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DraftClip } from '~/composables/useRecapDrafts'
-import type { Clip, Moment } from '~/types/recordings'
+import { type Clip, type Moment, youtubeUrl } from '~/types/recordings'
 import type { RecapTurningPoint } from '~/utils/recording-win-probability'
 import { formatClock } from '~/utils/recording-moments'
 import { clipOrigin } from '~/utils/auto-clips'
@@ -89,7 +89,7 @@ const savingAny = computed(() => props.drafts.some(draft => draft.saving))
             <span class="ml-auto shrink-0 tabular-nums text-dimmed">{{ formatClock(clip.durationMs) }}</span>
           </NuxtLink>
           <UButton
-            v-if="!clip.youtubeUrl"
+            v-if="!youtubeUrl(clip.video)"
             icon="i-lucide-move-horizontal"
             color="neutral"
             variant="ghost"

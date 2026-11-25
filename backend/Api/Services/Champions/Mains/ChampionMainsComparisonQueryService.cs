@@ -32,13 +32,15 @@ public interface IChampionMainsComparisonQueryService
     /// with no columns, and an unresolvable <paramref name="target"/> yields
     /// <see cref="ReadModels.Champions.ChampionComparisonStatus.UnknownTarget"/>
     /// with the player's column still populated.
+    ///
+    /// <paramref name="scope"/> names the champion, and narrows both columns to its lane
+    /// when it has one (every position otherwise) and to its patch (every patch still held
+    /// when null).
     /// </summary>
     Task<ChampionMainsComparisonResponse> GetAsync(
-        int championId,
+        ChampionScope scope,
         string? account,
         string? target,
-        string? position,
-        string? patch,
         CancellationToken ct);
 }
 
@@ -67,27 +69,14 @@ public sealed class ChampionMainsComparisonQueryService(
     : IChampionMainsComparisonQueryService
 {
     public async Task<ChampionMainsComparisonResponse> GetAsync(
-        int championId,
+        ChampionScope scope,
         string? account,
         string? target,
-        string? position,
-        string? patch,
         CancellationToken ct)
     {
-        // Canonicalise to major.minor ("16.4.521.123" → "16.4"); null or
-        // unparseable input means "every patch we still hold".
-        //
-        // The MVC controller already ran ChampionQueryParameterNormalizer over
-        // this, so on that path the second pass is a no-op (both call the same
-        // PatchFilter.Normalize, which is idempotent). It stays
-        // for the same reason TruemainAccountResolver parses defensively: the
-        // interface is reachable without MVC, and a raw GameVersion arriving
-        // here would otherwise be compared against the major.minor LIKE prefix
-        // and silently match nothing. Every sibling champion read
-        // (scaling / matchups / leads /
-        // composition) normalises the same way for the same reason — dropping
-        // it here alone would make this the one service that trusts its caller.
-        var normalizedPatch = PatchFilter.Normalize(patch);
+        var championId = scope.ChampionId;
+        var position = scope.Lane;
+        var normalizedPatch = scope.Patch;
 
         var minGames = Math.Max(0, championsOptions.Value.MinComparisonGames);
 

@@ -1,7 +1,7 @@
-import type { LoadingPlayer } from '~/types/loading'
+import { readValue, type LoadingPlayer } from '~/types/loading'
 import type { LaneEdge, MatchupRecord } from '~/utils/lane-edge'
 import { laneEdge } from '~/utils/lane-edge'
-import { POSITIONS } from '#common/utils/positions'
+import { POSITIONS } from '#shared/utils/positions'
 
 interface MatchupsAnswer {
   matchups: { opponentChampionId: number, games: number, wins: number }[]
@@ -44,6 +44,11 @@ export function useLaneEdges(lines: MaybeRefOrGetter<LoadingPlayer[]>) {
 
   return computed(() => new Map<string, LaneEdge>(
     pairs.value.map(({ position, ally, enemy, key }) =>
-      [position, laneEdge(position, matchups.value[key], ally.laning, enemy.laning)]),
+      [position, laneEdge(position, matchups.value[key], laningOf(ally), laningOf(enemy))]),
   ))
+}
+
+/** A player's laning form once read; null while pending, failed, or for a hidden player. */
+function laningOf(player: LoadingPlayer) {
+  return player.kind === 'known' ? readValue(player.laning) : null
 }

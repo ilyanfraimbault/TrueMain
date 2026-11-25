@@ -293,7 +293,14 @@ cannot look them up and the same word read as a handle could be a stranger's cha
 face. Refreshed every 25 days, under the 30 days the YouTube API policy allows, and the page keeps the link back to the
 channel. The site serves pictures through its own image route, so a visitor's browser never calls the platforms.
 
-**Source.** #2016, #2134, #2253, #2019, #2271, #2273, #2277, #2286, #2295, #2446.
+**The profile banner says who, not how good (2026-11-08, #2463).** Under the Riot ID: the region flag, then the known
+player the account belongs to — their picture (the user glyph without one) and their name, linking to their page. The
+rank, the level and "Truemain {champion}" left that line, and so did the "· all accounts" suffix: the ranked card
+carries the rank, the splash and the Truemain score card the champion, and the line repeated them (the product owner's
+call). The link's accessible label still says it opens all of the person's accounts. Same banner in the desktop app's
+dashboard and profile.
+
+**Source.** #2016, #2134, #2253, #2019, #2271, #2273, #2277, #2286, #2295, #2446, #2463.
 
 **A main champion row reads its lane and play rate only** (2026-10-13). #1498 had put `80 of last 200` under
 each main's name, so the count would name its denominator next to the champion page's per-patch count. On the

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.Extensions.Options;
+using TrueMain.Configuration;
 using TrueMain.Options;
 using TrueMain.Services.Champions.Warmup;
 
@@ -9,16 +10,9 @@ namespace TrueMain.RateLimiting;
 /// <summary>
 /// Registers the public API's throttling.
 /// </summary>
-/// <remarks>
-/// Extracted from <c>Program.cs</c> rather than left inline: the file is over
-/// the size guardrail's limit and may only shrink, and the partition rule is
-/// involved enough to deserve reading on its own.
-/// </remarks>
 public static class RateLimitingServiceCollectionExtensions
 {
-    public static IServiceCollection AddTrueMainRateLimiting(
-        this IServiceCollection services,
-        IConfiguration configuration)
+    public static IServiceCollection AddTrueMainRateLimiting(this IServiceCollection services)
     {
         // Rate limiting: one global per-visitor fixed window shields the public
         // champion endpoints from casual abuse. There is no separate ops policy — the
@@ -29,17 +23,7 @@ public static class RateLimitingServiceCollectionExtensions
         // keying on it would throttle the whole site as if it were a single client.
         // RateLimitOptions carries the reasoning and the reason the header is read
         // back-to-front.
-        services.AddOptions<RateLimitOptions>()
-            .Bind(configuration.GetSection(RateLimitOptions.SectionName))
-            .Validate(options => options.PermitLimit > 0, "RateLimit:PermitLimit must be greater than 0.")
-            .Validate(options => options.WindowSeconds > 0, "RateLimit:WindowSeconds must be greater than 0.")
-            .Validate(options => options.QueueLimit >= 0, "RateLimit:QueueLimit must be >= 0.")
-            .Validate(
-                options => options.TrustedProxies.All(ClientAddressResolver.IsParsableNetwork),
-                "RateLimit:TrustedProxies must be CIDR ranges, e.g. \"172.16.0.0/12\". A typo here would "
-                + "silently stop the limiter from reading the forwarded address and collapse every visitor "
-                + "back onto the proxy's own partition.")
-            .ValidateOnStart();
+        services.AddApiOptions<RateLimitOptions>();
         services.AddSingleton<TrustedProxyNetworks>();
         services.AddSingleton<RateLimitRejectionRecorder>();
         services.AddHostedService<RateLimitRejectionSummaryService>();

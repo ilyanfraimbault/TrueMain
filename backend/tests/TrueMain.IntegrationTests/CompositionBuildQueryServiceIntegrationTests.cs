@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Data.BuildFacts;
+using Data.Statics;
 using Data.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 using TrueMain.Options;
@@ -220,8 +221,7 @@ public sealed class CompositionBuildQueryServiceIntegrationTests : IAsyncLifetim
             _fixture.CreateDbContext(),
             new ParticipantBuildFactsLoader(
                 _fixture.CreateDbContext(),
-                new FakeItemMetadataProvider(),
-                NullLogger<ParticipantBuildFactsLoader>.Instance),
+                new FakeItemMetadataProvider()),
             Microsoft.Extensions.Options.Options.Create(new CompositionSearchOptions()));
 
     private static CompositionMatchRef Ref(string matchId, bool win)
@@ -371,11 +371,10 @@ public sealed class CompositionBuildQueryServiceIntegrationTests : IAsyncLifetim
                 [3026] = new(3026, 3100, true, false, false, false, true, false),
             };
 
-        public Task<IReadOnlyDictionary<int, ItemMetadata>> GetItemsAsync(
+        public Task<StaticData<IReadOnlyDictionary<int, ItemMetadata>>> GetItemsAsync(
             string gameVersion, CancellationToken ct)
-            => gameVersion.StartsWith("16.4", StringComparison.Ordinal)
-                ? Task.FromResult(Items)
-                : Task.FromException<IReadOnlyDictionary<int, ItemMetadata>>(
-                    new HttpRequestException("patch aged out"));
+            => Task.FromResult(gameVersion.StartsWith("16.4", StringComparison.Ordinal)
+                ? StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Available(Items)
+                : StaticData<IReadOnlyDictionary<int, ItemMetadata>>.Unavailable("patch aged out"));
     }
 }

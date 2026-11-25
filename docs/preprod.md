@@ -342,6 +342,11 @@ in `backend/Ingestor/Options/*`:
 | `MainAnalysis__MinMatchesToEvaluate` | 10 | 20 (default) | matches needed before an account is evaluated |
 | web `NITRO_CLUSTER_WORKERS` | 1 | 3 | Node processes serving the public site |
 
+The `MainAnalysis__*` rows sit in their own anchor, `x-main-analysis-environment`, which the API merges as well
+as both ingestor lanes: the ingestors make the main verdicts with these values and the API judges them with the
+same ones (leaderboard floor, account explorer, data-quality detectors). A main-analysis knob goes in that anchor,
+never in `x-ingestor-environment` alone.
+
 Postgres memory settings follow the same logic: they keep **prod's ratio to the
 host's RAM**, not prod's absolute values — see *Postgres server tuning* in
 `docs/prod.md`.

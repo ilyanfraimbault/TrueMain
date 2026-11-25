@@ -1,3 +1,8 @@
+using System.ComponentModel.DataAnnotations;
+using Data.Configuration;
+using TrueMain.Configuration;
+using TrueMain.Services.Truemains.PlayerChampions;
+
 namespace TrueMain.Options;
 
 /// <summary>
@@ -5,9 +10,25 @@ namespace TrueMain.Options;
 /// user wants to tweak without a redeploy, so they bind from
 /// <c>ChampionsList:*</c> in configuration.
 /// </summary>
-public sealed class ChampionsListOptions
+public sealed class ChampionsListOptions : IApiOptions, IValidatableObject
 {
     public const string SectionName = "ChampionsList";
+
+    static string IApiOptions.Section => SectionName;
+
+    /// <summary>Its entry on the admin configuration page.</summary>
+    public static EffectiveConfigurationSectionDescriptor ConfigurationPage { get; } = new()
+    {
+        SectionName = SectionName,
+        OptionsType = typeof(ChampionsListOptions),
+        Title = "Champion thresholds",
+        Description =
+            "Every sample floor the public champion surfaces judge against: the games a "
+            + "(champion, lane) line needs to be listed and ranked, the separate and higher "
+            + "floor a build slice needs before its distribution is called a usable sample, "
+            + "and the matchup/synergy floors. The two games floors are deliberately different "
+            + "numbers, which is most of the reason this section is worth showing."
+    };
 
     /// <summary>
     /// Minimum games a <c>(champion, lane)</c> line needs before it earns a tier
@@ -286,4 +307,76 @@ public sealed class ChampionsListOptions
     /// whose own baseline is below it yields an empty list. Set to 0 to disable.
     /// </summary>
     public int MinSynergyBaselineGames { get; set; } = 50;
+
+    IEnumerable<ValidationResult> IValidatableObject.Validate(ValidationContext validationContext)
+        => ValidateGameFloors().Concat(ValidateShares());
+
+    private IEnumerable<ValidationResult> ValidateGameFloors()
+    {
+        if (MinSampleGames < 0)
+        {
+            yield return new ValidationResult("ChampionsList:MinSampleGames must be >= 0.");
+        }
+
+        if (MinBuildSampleGames < 0)
+        {
+            yield return new ValidationResult("ChampionsList:MinBuildSampleGames must be >= 0.");
+        }
+
+        if (MinServablePatchLines < 0)
+        {
+            yield return new ValidationResult("ChampionsList:MinServablePatchLines must be >= 0.");
+        }
+
+        if (MinDefaultPatchGames < 0)
+        {
+            yield return new ValidationResult("ChampionsList:MinDefaultPatchGames must be >= 0.");
+        }
+
+        if (MinMatchupGames < 0)
+        {
+            yield return new ValidationResult("ChampionsList:MinMatchupGames must be >= 0.");
+        }
+
+        if (MinDecidedLaneGames < 0)
+        {
+            yield return new ValidationResult("ChampionsList:MinDecidedLaneGames must be >= 0.");
+        }
+
+        if (MinPlayerBuildGames is < 1 or > PlayerChampionPerformanceQueryService.Window)
+        {
+            yield return new ValidationResult($"ChampionsList:MinPlayerBuildGames must be in [1, {PlayerChampionPerformanceQueryService.Window}].");
+        }
+
+        if (MaxLanesPerChampion < 0)
+        {
+            yield return new ValidationResult("ChampionsList:MaxLanesPerChampion must be >= 0.");
+        }
+    }
+
+    private IEnumerable<ValidationResult> ValidateShares()
+    {
+        // A share: 1 would demand a single opponent account for every game the champion played.
+        if (MinMatchupPlayRate is < 0d or >= 1d)
+        {
+            yield return new ValidationResult("ChampionsList:MinMatchupPlayRate must be in [0, 1).");
+        }
+
+        // A share: 1 would demand a pairing present in every game the champion played.
+        if (MinSynergyPlayRate is < 0d or >= 1d)
+        {
+            yield return new ValidationResult("ChampionsList:MinSynergyPlayRate must be in [0, 1).");
+        }
+
+        // A share where 1 is meaningful: SynergyBaselineSet.IsRealLane is exactly 1 for a mono-lane champion.
+        if (MinSynergyPartnerLanePlayRate is < 0d or > 1d)
+        {
+            yield return new ValidationResult("ChampionsList:MinSynergyPartnerLanePlayRate must be in [0, 1].");
+        }
+
+        if (MinSecondaryLanePlayRate is < 0 or > 1)
+        {
+            yield return new ValidationResult("ChampionsList:MinSecondaryLanePlayRate must be a share between 0 and 1.");
+        }
+    }
 }

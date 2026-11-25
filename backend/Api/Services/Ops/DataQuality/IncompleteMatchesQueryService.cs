@@ -34,6 +34,16 @@ public interface IIncompleteMatchesQueryService
         int? page,
         int? pageSize,
         CancellationToken ct);
+
+    /// <summary>
+    /// How many matches each check flags under the same filters, without the rows: what the
+    /// panel lists its groups and totals from.
+    /// </summary>
+    Task<IncompleteMatchCountsReadModel> GetCountsAsync(
+        string? issue,
+        int? queueId,
+        int? minAgeHours,
+        CancellationToken ct);
 }
 
 /// <summary>
@@ -68,7 +78,59 @@ public sealed class IncompleteMatchesQueryService(TrueMainDbContext db) : IIncom
         var effectivePage = Math.Clamp(page ?? 1, 1, int.MaxValue / MaxPageSize);
         var effectivePageSize = Math.Clamp(pageSize ?? DefaultPageSize, MinPageSize, MaxPageSize);
         var issueFilter = MatchDataQualityRules.ParseIssue(issue);
+        var flagged = await FlagAsync(issueFilter, queueId, minAgeHours, ct);
 
+        // Distinct flagged-match count (a match tripping several checks counts once).
+        var total = flagged.Count;
+
+        // One group per issue type that's both in scope (matches the filter) and
+        // actually has flagged matches, newest-first, sampled to the page size.
+        var groups = BuildGroups(flagged, issueFilter, effectivePage, effectivePageSize);
+
+        return new IncompleteMatchesReadModel
+        {
+            Groups = groups,
+            Total = total,
+            Page = effectivePage,
+            PageSize = effectivePageSize,
+            StaleTimelineThresholdHours = MatchDataQualityRules.StaleTimelineThresholdHours
+        };
+    }
+
+    public async Task<IncompleteMatchCountsReadModel> GetCountsAsync(
+        string? issue,
+        int? queueId,
+        int? minAgeHours,
+        CancellationToken ct)
+    {
+        var issueFilter = MatchDataQualityRules.ParseIssue(issue);
+        var flagged = await FlagAsync(issueFilter, queueId, minAgeHours, ct);
+        var issueTypes = issueFilter is { } single ? [single] : Enum.GetValues<DataQualityIssueType>();
+
+        return new IncompleteMatchCountsReadModel
+        {
+            Counts =
+            [
+                .. issueTypes
+                    .Select(type => new IncompleteMatchCountReadModel
+                    {
+                        IssueType = type,
+                        Count = flagged.Count(match => match.Issues.Contains(type)),
+                    })
+                    .Where(count => count.Count > 0)
+            ],
+            Total = flagged.Count,
+            StaleTimelineThresholdHours = MatchDataQualityRules.StaleTimelineThresholdHours
+        };
+    }
+
+    /// <summary>The matches the checks in scope flag, each with every check it trips.</summary>
+    private async Task<List<FlaggedMatch>> FlagAsync(
+        DataQualityIssueType? issueFilter,
+        int? queueId,
+        int? minAgeHours,
+        CancellationToken ct)
+    {
         var now = DateTime.UtcNow;
         var staleTimelineCutoff = MatchDataQualityRules.StaleTimelineCutoff(now);
         // Age floor: a match must be at least this old to be considered at all.
@@ -95,21 +157,7 @@ public sealed class IncompleteMatchesQueryService(TrueMainDbContext db) : IIncom
             flagged.Add(new FlaggedMatch(candidate, issues));
         }
 
-        // Distinct flagged-match count (a match tripping several checks counts once).
-        var total = flagged.Count;
-
-        // One group per issue type that's both in scope (matches the filter) and
-        // actually has flagged matches, newest-first, sampled to the page size.
-        var groups = BuildGroups(flagged, issueFilter, effectivePage, effectivePageSize);
-
-        return new IncompleteMatchesReadModel
-        {
-            Groups = groups,
-            Total = total,
-            Page = effectivePage,
-            PageSize = effectivePageSize,
-            StaleTimelineThresholdHours = MatchDataQualityRules.StaleTimelineThresholdHours
-        };
+        return flagged;
     }
 
     // ---- candidate loading ---------------------------------------------------
@@ -270,7 +318,7 @@ public sealed class IncompleteMatchesQueryService(TrueMainDbContext db) : IIncom
 
             groups.Add(new DataQualityIssueGroupReadModel
             {
-                IssueType = MatchDataQualityRules.ToWireName(issueType),
+                IssueType = issueType,
                 Count = matchesForIssue.Count,
                 Matches = sample
             });
@@ -292,7 +340,7 @@ public sealed class IncompleteMatchesQueryService(TrueMainDbContext db) : IIncom
             TimelineIngested = match.TimelineIngested,
             ParticipantCount = match.ParticipantCount,
             ExpectedParticipantCount = match.Profile.IsKnown ? match.Profile.ExpectedParticipants : null,
-            Issues = flagged.Issues.Select(i => MatchDataQualityRules.ToWireName(i)).ToList()
+            Issues = flagged.Issues
         };
     }
 

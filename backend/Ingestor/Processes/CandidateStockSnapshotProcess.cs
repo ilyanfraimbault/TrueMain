@@ -1,6 +1,7 @@
 using Data;
 using Data.Entities;
 using Data.Metrics.Mongo;
+using Data.Pipeline;
 using Ingestor.Processes.Summaries;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,15 +41,14 @@ namespace Ingestor.Processes;
 /// the pipeline does not actually sit at.
 /// </para>
 /// </summary>
+[PipelineStep(JobMode.CandidateStockSnapshotOnly)]
 public sealed class CandidateStockSnapshotProcess(
     ILogger<CandidateStockSnapshotProcess> logger,
     IDbContextFactory<TrueMainDbContext> dbContextFactory,
     ICandidateStockSnapshotStore store,
     TimeProvider timeProvider) : IIngestorProcess
 {
-    public string Name => "CandidateStockSnapshot";
-
-    public async Task<IProcessRunSummary?> RunCoreAsync(CancellationToken ct)
+    public async Task<IProcessRunSummary?> RunCoreAsync(RunInput input, CancellationToken ct)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(ct);
 

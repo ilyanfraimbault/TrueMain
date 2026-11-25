@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import type { ItemContextCard } from '#shared/utils/item-context'
-import type {
-  BuildItemPath,
-  BuildItemSet,
-  BuildRunePage,
-  BuildSkillOrder,
-  BuildSummonerSpells,
-} from '#shared/types/champions'
+import type { BuildItemPathReadModel, BuildItemSetReadModel, BuildRunePageReadModel, BuildSkillOrderReadModel, BuildSummonerSpellsReadModel } from '#shared/contract/api'
 import type {
   ChampionStaticData,
   RuneTreeResponse,
@@ -25,12 +19,12 @@ import type {
  * recommendation carries them flat and has no `core` object to hand over.
  */
 withDefaults(defineProps<{
-  summonerSpells: BuildSummonerSpells | null
-  starterItems: BuildItemSet | null
-  skillOrder: BuildSkillOrder | null
-  boots: BuildItemSet | null
-  itemPath: BuildItemPath | null
-  runePage: BuildRunePage | null
+  summonerSpells: BuildSummonerSpellsReadModel | null
+  starterItems: BuildItemSetReadModel | null
+  skillOrder: BuildSkillOrderReadModel | null
+  boots: BuildItemSetReadModel | null
+  itemPath: BuildItemPathReadModel | null
+  runePage: BuildRunePageReadModel | null
   /**
    * Null while the champion's static data is still in flight — only the skill
    * order needs it, so the rest of the block renders without waiting on it.

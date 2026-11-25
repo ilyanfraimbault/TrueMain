@@ -109,9 +109,9 @@ public class MatchParticipant
     /// <summary>
     /// Riot's <c>roleBoundItem</c>: the slot outside the six inventory slots and the
     /// trinket. A bot laner's boots always live there; the other roles get their quest
-    /// reward. 0 = empty. <c>null</c> = never recorded (ingested before the column):
-    /// <c>MatchRoleBoundItemBackfillProcess</c> infers a bot laner's boots from the item
-    /// timeline, the other roles stay unknown and read as empty.
+    /// reward. 0 = empty. <c>null</c> = never recorded (ingested before the column, #1612);
+    /// such rows read as empty. A backfill step recovered bot laners' boots until every
+    /// retained match carried the column, and was retired with #2481.
     /// </summary>
     public int? RoleBoundItemId { get; set; }
 

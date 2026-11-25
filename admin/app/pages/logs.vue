@@ -5,7 +5,7 @@
 // `total`/`page`/`pageSize`. Each row's full detail + exception stack is
 // inspectable in a slide-over; rows are checkbox-selectable and the selection
 // can be copied as JSON (#722, `LogsTable`).
-import type { LogEntry } from '~~/shared/types/logs'
+import type { LogEntryReadModel } from '#site-shared/contract/api'
 import { formatDateTime } from '~~/shared/utils/format'
 
 // This page hosts two server-paginated lists: the application Logs and the durable
@@ -54,12 +54,12 @@ const {
 
 // --- Detail slide-over -------------------------------------------------------
 const detailOpen = ref(false)
-const selectedEntry = ref<LogEntry | null>(null)
+const selectedEntry = ref<LogEntryReadModel | null>(null)
 // Close any open detail when switching tabs so it doesn't reopen on return.
 watch(view, () => {
   detailOpen.value = false
 })
-function openDetail(entry: LogEntry) {
+function openDetail(entry: LogEntryReadModel) {
   selectedEntry.value = entry
   detailOpen.value = true
 }

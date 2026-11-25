@@ -143,8 +143,8 @@ public sealed record RiotRouteHeadroomReadModel
 {
     public string Route { get; init; } = string.Empty;
 
-    /// <summary><c>regional</c> or <c>platform</c> — two budget families, never added.</summary>
-    public string Kind { get; init; } = string.Empty;
+    /// <summary>The route's budget family: regional and platform budgets are never added.</summary>
+    public RiotRouteKind Kind { get; init; }
 
     public double ObservedCallsPerDay { get; init; }
 

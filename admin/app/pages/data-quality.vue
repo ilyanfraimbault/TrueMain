@@ -22,11 +22,8 @@
 //
 // The page owns every fetch and the filters: the verdict reads both halves, and
 // the navbar button refreshes them together.
-import type {
-  AggregateFreshnessResponse,
-  DataQualityIssueType,
-  MatchDataQualityDetail,
-} from '~~/shared/types/ops'
+import type { AggregateFreshnessReadModel, DataQualityIssueType, MatchDataQualityDetailReadModel } from '#site-shared/contract/api'
+import { useKeyedFetch } from '~/composables/useKeyedFetch'
 
 // --- Filters -----------------------------------------------------------------
 const issue = ref<'all' | DataQualityIssueType>(ALL)
@@ -41,23 +38,20 @@ const baseFilters = computed(() => ({
   minAgeHours: ageWindow.value === ALL ? undefined : Number(ageWindow.value),
 }))
 
-// Overview fetch: discovers which issue groups exist and their full counts under
-// the active filters. The per-group rows it returns are unused — each table
-// re-fetches its own paged slice — so it stays pinned to page 1.
+// Which checks flag matches under the active filters, and how many: each group's table
+// reads its own paged rows.
 const overviewFilters = computed(() => ({
   ...baseFilters.value,
   issue: issue.value === ALL ? undefined : issue.value,
-  page: 1,
-  pageSize,
 }))
 
 const hasActiveFilters = computed(
   () => issue.value !== ALL || queue.value !== ALL || ageWindow.value !== ALL,
 )
 
-const { data, pending, refreshing, error, refresh } = useIncompleteMatches(overviewFilters)
+const { data, pending, refreshing, error, refresh } = useIncompleteMatchCounts(overviewFilters)
 
-const groups = computed(() => data.value?.groups ?? [])
+const groups = computed(() => data.value?.counts ?? [])
 const total = computed(() => data.value?.total ?? 0)
 const staleHours = computed(() => data.value?.staleTimelineThresholdHours ?? 6)
 
@@ -74,40 +68,40 @@ const {
 const detectors = computed(() => detectorsData.value?.detectors ?? [])
 
 // The per-champion freshness breakdown is the one heavy query, so it loads on an
-// explicit click rather than with the panel.
+// explicit click rather than with the panel. Keyed by a measurement number (#2471):
+// a refresh starts a new measurement, and the answer of the one it replaced —
+// still in flight — is dropped instead of landing over it.
 const freshnessOpen = ref(false)
-const freshness = ref<AggregateFreshnessResponse | null>(null)
-const freshnessPending = ref(false)
-const freshnessError = ref<string | null>(null)
+const measurement = ref(0)
+const { state: freshnessState, load: loadFreshness, reset: resetFreshness } = useKeyedFetch<number, AggregateFreshnessReadModel>(
+  () => getAggregateFreshness(),
+)
+const freshness = computed(() => freshnessState.value.s === 'ready' ? freshnessState.value.value : null)
+const freshnessPending = computed(() => freshnessState.value.s === 'loading')
+const freshnessError = computed(() => freshnessState.value.s === 'error'
+  ? 'Failed to load the per-champion freshness breakdown.'
+  : null)
 
-async function openFreshness() {
+function openFreshness() {
   freshnessOpen.value = true
-  if (freshness.value || freshnessPending.value) {
+  const state = freshnessState.value
+  // Measured already, or measuring: the open shows that one.
+  if ((state.s === 'ready' || state.s === 'loading') && state.id === measurement.value) {
     return
   }
-  freshnessPending.value = true
-  freshnessError.value = null
-  try {
-    freshness.value = await getAggregateFreshness()
-  }
-  catch {
-    freshnessError.value = 'Failed to load the per-champion freshness breakdown.'
-  }
-  finally {
-    freshnessPending.value = false
-  }
+  void loadFreshness(measurement.value)
 }
 
 function refreshAll() {
   refresh()
   refreshDetectors()
-  // Drop the cached breakdown so a reopen re-measures instead of showing ages
-  // computed against an older evaluation — but if the slide-over is open right
-  // now, re-measure immediately: clearing alone would leave it rendering an
-  // empty panel until the operator closed and reopened it.
-  freshness.value = null
+  // A new measurement: a reopen re-measures instead of showing ages computed
+  // against an older evaluation — and if the slide-over is open right now, it
+  // re-measures immediately rather than rendering an empty panel.
+  measurement.value++
+  resetFreshness()
   if (freshnessOpen.value) {
-    void openFreshness()
+    openFreshness()
   }
 }
 
@@ -123,7 +117,7 @@ const {
   detailErrorTraceId,
   detailId,
   openDetail,
-} = useDeepLinkedDetail<MatchDataQualityDetail>({
+} = useDeepLinkedDetail<MatchDataQualityDetailReadModel>({
   queryKey: 'match',
   fetch: getMatchDataQuality,
   notFoundMessage: id => `No match found with id "${id}".`,

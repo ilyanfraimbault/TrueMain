@@ -1,4 +1,5 @@
 import type { RouteLocationNormalized } from 'vue-router'
+import type { ChampionScope } from '#common/utils/champion-scope'
 
 /**
  * Route guard shared by the two champion pages (#1124): resolve the `slug`
@@ -17,9 +18,9 @@ import type { RouteLocationNormalized } from 'vue-router'
  */
 export function championRouteGuard(
   to: RouteLocationNormalized,
-  basePath: (segment: string) => string,
+  scope: ChampionScope['kind'],
 ) {
-  const { routeAction } = useChampionSlugs()
+  const { routeAction, pathFor, truemainPathFor } = useChampionSlugs()
   const action = routeAction(String(to.params.slug ?? ''))
 
   switch (action.type) {
@@ -44,7 +45,13 @@ export function championRouteGuard(
     // a shared champion link worth sharing.
     case 'redirect':
       return navigateTo(
-        { path: basePath(action.segment), query: to.query, hash: to.hash },
+        {
+          path: scope === 'player'
+            ? truemainPathFor(String(to.params.nameTag), action.championId)
+            : pathFor(action.championId),
+          query: to.query,
+          hash: to.hash,
+        },
         { redirectCode: 301, replace: true },
       )
   }
