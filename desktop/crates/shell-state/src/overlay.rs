@@ -337,6 +337,9 @@ pub struct OverlayInputs {
     pub in_game: bool,
     /// The player's champion is dead.
     pub dead: bool,
+    /// The game has neutral objectives' timers: Summoner's Rift's standard
+    /// rules. Off them the objectives' panel has nothing to say and stays off.
+    pub objective_timers: bool,
     /// The player hid the overlay with the shortcut during this game.
     pub hidden_by_player: bool,
     /// The panels whose chord is held (`PanelKeys`).
@@ -393,6 +396,7 @@ impl OverlaySettings {
                 OverlayShow::Always => true,
                 OverlayShow::WhileDead => inputs.dead,
             },
+            OverlayPanel::Objectives => inputs.objective_timers,
             _ => true,
         };
         let triggered = match self.panel(panel).trigger {
@@ -854,6 +858,23 @@ mod tests {
             ..in_game()
         };
         assert!(!settings.shows(NextItem, &loading));
+    }
+
+    #[test]
+    fn the_objectives_show_only_where_the_game_has_their_timers() {
+        let settings = OverlaySettings::default();
+        assert!(!settings.shows(Objectives, &in_game()));
+        let rift = OverlayInputs {
+            objective_timers: true,
+            ..in_game()
+        };
+        assert!(settings.shows(Objectives, &rift));
+        // The preview places it all the same.
+        let preview = OverlayInputs {
+            preview: true,
+            ..OverlayInputs::default()
+        };
+        assert!(settings.shows(Objectives, &preview));
     }
 
     fn holding(settings: &OverlaySettings, keys: &KeysDown) -> OverlayInputs {
@@ -1368,7 +1389,11 @@ mod tests {
             .map(|panel| OverlaySettings::default().panel(panel).anchor)
             .collect();
         assert!(!taken.contains(&settings.objectives.anchor));
-        assert!(settings.shows(Objectives, &in_game()));
+        let rift = OverlayInputs {
+            objective_timers: true,
+            ..in_game()
+        };
+        assert!(settings.shows(Objectives, &rift));
     }
 
     #[test]

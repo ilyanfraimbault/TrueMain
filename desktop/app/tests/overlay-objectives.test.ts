@@ -109,10 +109,10 @@ describe('OverlayObjectives', () => {
     expect(pill(wrapper, 'baron').get('[data-icon]').classes().some(name => name.startsWith('drop-shadow'))).toBe(true)
   })
 
-  it('says so off the Rift, where the shell has no timers', () => {
+  it('draws nothing off the Rift, where the shell has no timers', () => {
     const wrapper = mount(OverlayObjectives, { props: { game: game(null, 300), syncedAt: NOW }, global })
     expect(wrapper.find('[data-objective]').exists()).toBe(false)
     expect(wrapper.find('[data-soul-race]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('standard rules')
+    expect(wrapper.text()).toBe('')
   })
 })

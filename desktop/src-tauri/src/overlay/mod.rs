@@ -261,7 +261,7 @@ impl Overlay {
 
     /// Everything the visibility rule reads, measured now.
     pub fn inputs(&self, app: &AppHandle) -> OverlayInputs {
-        let (in_game, dead) = {
+        let (in_game, dead, objective_timers) = {
             let game = app.state::<SharedGame>();
             let feed = game.lock().expect("game mutex poisoned");
             match feed.current() {
@@ -271,8 +271,9 @@ impl Overlay {
                         .players
                         .iter()
                         .any(|player| player.is_me && player.dead),
+                    state.objectives.timers.is_some(),
                 ),
-                None => (false, false),
+                None => (false, false, false),
             }
         };
         let settings = self.settings();
@@ -288,6 +289,7 @@ impl Overlay {
             game_frontmost: self.game_frontmost.load(Ordering::SeqCst),
             in_game,
             dead,
+            objective_timers,
             hidden_by_player: self.hidden_by_player.load(Ordering::SeqCst),
             held: keys.held(),
             toggled: keys.toggled(&settings),
