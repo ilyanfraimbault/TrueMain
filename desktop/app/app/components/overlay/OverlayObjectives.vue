@@ -22,7 +22,8 @@ import { SOON_SECONDS, dragonLabel, drakeIcon, formatCountdown, objectiveIcon, p
  *
  * Only what the game shows every player: the shell derives the times from
  * the season's spawn rules and the kills the event feed announces
- * (`crates/live-client/src/timers.rs`).
+ * (`crates/live-client/src/timers.rs`). Off Summoner's Rift's standard rules
+ * (ARAM, Swiftplay…) there are none, and the shell keeps the panel off.
  */
 const props = defineProps<{ game: GameState, syncedAt: number }>()
 
@@ -113,8 +114,4 @@ const soon = (status: PillStatus) => status.kind === 'countdown' && status.secon
       </span>
     </div>
   </div>
-  <p v-else class="flex items-center gap-1.5 text-[11px] leading-snug text-muted">
-    <AppMark class="size-3 shrink-0" />
-    Timers follow Summoner's Rift's standard rules, not this mode's.
-  </p>
 </template>

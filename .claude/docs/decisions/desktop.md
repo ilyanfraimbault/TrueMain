@@ -664,7 +664,7 @@ opacity for all. Five fixed spots stay each panel's default place, no longer a p
   20:00, grubs and Herald once a game); nothing read from memory or the screen, no jungle camp, no summoner spell, no
   enemy cooldown — nothing about an enemy the player could not see. The shell sends spawn *times*, which move only when
   an objective falls; the panel counts down on its own clock. Swiftplay, ARAM and every other mode get no timers rather
-  than the Rift's wrong ones. Whether the countdowns match the game's own timers to the second (the grubs' and the
+  than the Rift's wrong ones, and no panel either: no line saying why over the game (2026-11-28). Whether the countdowns match the game's own timers to the second (the grubs' and the
   Herald's despawn is ten seconds later in combat; the Elder's 6:00 after the soul) is only proven in a real game.
 - **Your pace**: CS per minute with its curve (from minute 3, so the minion-less start does not read as a climb), and
   gold per minute, from one sample per whole minute the feed keeps (`live_client::pace`) — a change a minute, not one

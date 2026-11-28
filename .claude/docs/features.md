@@ -519,8 +519,8 @@ Reads the local League client (LCU) in Rust; the webview renders the state. Deta
   (`live_client::timers`, inside the objectives change): the season's spawn rules in one table (`RIFT`: drakes 5:00 and
   5:00 after each, the Elder 6:00 after the soul and after each Elder, one camp of three grubs 8:00–14:45, the Herald
   15:00–19:45, Baron 20:00 and 6:00 after each) applied to the `DragonKill`, `HordeKill`, `HeraldKill` and `BaronKill`
-  events; off Summoner's Rift's standard game (`CLASSIC` on map 11) it says it has no timers. Default spot top
-  centre, always shown. **Item value** (300 pt, `OverlayItemValue.vue`, default spot centre right since #2184), only while TAB is held: each
+  events; off Summoner's Rift's standard game (`CLASSIC` on map 11: Swiftplay, ARAM…) there are no timers and the
+  shell keeps the panel off (`OverlayInputs::objective_timers`). Default spot top centre, always shown. **Item value** (300 pt, `OverlayItemValue.vue`, default spot centre right since #2184), only while TAB is held: each
   team's item gold, a chevron toward the side ahead with the gap, then each lane's with both portraits — the lanes only
   while the lane-gold plates are off — item gold being
   the Data Dragon `gold.total` of each held item, consumables and trinkets excluded (#1752's rule). **Lane gold**
